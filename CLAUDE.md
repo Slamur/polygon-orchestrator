@@ -52,11 +52,10 @@ Python-оркестратор, который берёт структуриро�
 │   │                             # использовать как основу для генерации
 │   ├── problem_lib.h
 │   ├── validator.cpp
-│   ├── validator_groups.cpp
 │   ├── checker.cpp
 │   ├── gen_rand.cpp
 │   ├── test_script
-│   ├── test_script_groups
+│   ├── testlib.h
 │   └── tutorials/
 │       ├── polygon.md            # правила по разделам Polygon
 │       ├── requirements.md       # правила по условию/тестам/валидатору/чекеру
