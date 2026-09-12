@@ -1,0 +1,59 @@
+<#assign desc = "Generators"/>
+<#assign rand = "gen_rand"/>
+<#assign desc = "Functions"/>
+<#function div a b>
+    <#return (a / b)?long>
+</#function>
+<#function ceil a b>
+    <#return div(a - 1, b) + 1/>
+</#function>
+<#function min a b>
+    <#return [a, b]?sort?first>
+</#function>
+<#function max a b>
+    <#return [a, b]?sort?last>
+</#function>
+<#function pow base power>
+    <#assign res = 1/>
+    <#list 0..<power as it>
+        <#assign res = res * base/>
+    </#list>
+    <#return res>
+</#function>
+<#function fact n>
+    <#assign res = 1/>
+    <#list 0..<n as it>
+        <#assign res = res * (it + 1)/>
+    </#list>
+    <#return res>
+</#function>
+<#function contains items value>
+    <#list items as item>
+        <#if item == value>
+            <#return true/>
+        </#if>
+    </#list>
+    <#return false/>
+</#function>
+<#assign desc = "Constraints"/>
+<#assign minN = 1/>
+<#assign maxNPow = 9/>
+<#assign maxN = pow(10, maxNPow)/>
+<#assign manualN = 20/>
+<#list minN..manualN as n>
+    ${rand} -minN=${n} -maxN=${n} > $
+</#list>
+<#list [minN, maxN] as leftN>
+    ${rand} -minN=${leftN} -maxN=${maxN} > $
+</#list>
+<#assign testCnt = 2/>
+<#assign minNPow = 1/>
+<#list minNPow..<maxNPow as nPow>
+    <#assign startN = max(manualN + 1, pow(10, nPow))/>
+    <#assign endN = pow(10, nPow + 1)/>
+    <#assign nStep = div(endN - startN, testCnt)/>
+    <#list 0..<testCnt as it>
+        <#assign leftN = startN + it * nStep/>
+        ${rand} -minN=${leftN} -maxN=${leftN + nStep} > $
+    </#list>
+</#list>
