@@ -4,7 +4,8 @@
 Это только структура и заглушка: реальный вызов API (HTTP/SDK, ключи,
 retry) — отдельная будущая задача. Промпты не должны зависеть от того,
 какая именно модель их выполняет — поэтому классы модели здесь условные
-("strong-model" / "fast-model"), а не имена конкретных моделей.
+("strong-model" / "medium-model" / "fast-model"), а не имена конкретных
+моделей.
 """
 
 from __future__ import annotations
@@ -13,14 +14,22 @@ from dataclasses import dataclass, field
 from typing import Any
 
 # Соответствие шага и условного класса модели. Критичные по содержанию шаги
-# (constraints_pick, solutions_draft) — через сильную модель, механический
-# generators_and_script — через быструю. statement_draft пока тоже на
-# сильной модели: выбор между сильной и средней по бюджету ещё не сделан
-# (см. CLAUDE.md), сильная модель — безопасный дефолт до этого решения.
+# (constraints_pick, solutions_draft) — через сильную модель.
+# generators_and_script — через среднюю: реализация уже заданных
+# generator_ideas механическая, но дизайн adversarial-тестов под
+# `solutions.known_wrong_approaches` — самостоятельное рассуждение о том, как
+# сломать конкретный неверный алгоритм, не менее содержательное, чем
+# constraints_pick/solutions_draft (см. CLAUDE.md, "Маршрутизация моделей по
+# критичности шага") — поэтому шаг больше не считается чисто механическим и
+# поднят с быстрой модели до средней; если качество предложенных тестов
+# окажется слабым, следующий шаг эскалации — до сильной модели.
+# statement_draft пока тоже на сильной модели: выбор между сильной и средней
+# по бюджету ещё не сделан (см. CLAUDE.md), сильная модель — безопасный
+# дефолт до этого решения.
 STEP_TO_MODEL: dict[str, str] = {
     "statement_draft": "strong-model",
     "constraints_pick": "strong-model",
-    "generators_and_script": "fast-model",
+    "generators_and_script": "medium-model",
     "solutions_draft": "strong-model",
 }
 

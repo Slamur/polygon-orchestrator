@@ -29,6 +29,27 @@ CONSTRAINTS_ARTIFACT = "constraints.yaml"
 # {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["generator_ideas", "base_template_refs"]
 
+# Optional[list[...]]-поле секции solutions, которое используется этим шагом
+# (не всей секцией solutions_draft, а только это поле — источник adversarial-
+# тестов, см. CLAUDE.md, "Роль каждого генеративного шага", п.3).
+_SOLUTIONS_LIST_FIELDS = ["known_wrong_approaches"]
+
+
+def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
+    """`solutions.known_wrong_approaches` — источник adversarial-тестов для
+    user.md.j2 (см. CLAUDE.md, "Роль каждого генеративного шага", п.3). В
+    отличие от `solutions_draft`, секция `solutions` здесь может отсутствовать
+    целиком (она опциональна по SPEC_FORMAT.md) — в этом случае считаем
+    `known_wrong_approaches` пустым списком, а не падаем и не пропускаем шаг:
+    механические генераторы по `generator_ideas`/ограничениям всё равно
+    должны быть выданы.
+    """
+    if spec.solutions is None:
+        return {"known_wrong_approaches": []}
+    return with_default_lists(
+        spec.solutions.model_dump(mode="json"), _SOLUTIONS_LIST_FIELDS
+    )
+
 
 def _require_constraints_yaml(
     step_name: str, problem_id: str, upstream_artifacts: Optional[dict[str, Any]]
@@ -56,12 +77,19 @@ def compute_input_hash(
     """Хеш входа шага без вызова модели, см. `statement_draft.compute_input_hash`
     и CLAUDE.md, "Кэширование по хешу спека". В отличие от шагов 1-2, здесь
     `upstream_artifacts["constraints.yaml"]` обязателен и входит в хеш —
-    без него та же `ValueError`, что и в `run_step`.
+    без него та же `ValueError`, что и в `run_step`. Помимо секции
+    `generation`, в хеш также входит `solutions.known_wrong_approaches` (если
+    секция `solutions` задана) — правка списка неверных подходов должна
+    инвалидировать кэш этого шага, даже если секция `generation` не менялась
+    (CLAUDE.md, "Кэширование по хешу спека").
     """
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
-    section_data = with_default_lists(
-        spec.generation.model_dump(mode="json"), _LIST_FIELDS
-    )
+    section_data = {
+        "generation": with_default_lists(
+            spec.generation.model_dump(mode="json"), _LIST_FIELDS
+        ),
+        "known_wrong_approaches": _solutions_section_data(spec)["known_wrong_approaches"],
+    }
     return _cache_compute_input_hash(
         STEP_NAME, section_data, upstream_artifacts={CONSTRAINTS_ARTIFACT: constraints_yaml}
     )
@@ -95,7 +123,16 @@ def run_step(
     зафиксированные ограничения из шага `constraints_pick` — они передаются
     через `upstream_artifacts["constraints.yaml"]` (содержимое файла,
     записанного шагом 2) и подставляются в промпт как единственный источник
-    диапазонов N/TL/ML и тестовых групп.
+    диапазонов N/TL/ML и тестовых групп. Плюс, отдельно от `generation`,
+    `solutions.known_wrong_approaches` (если секция `solutions` в спеке
+    задана) — источник для adversarial-тестов под конкретные неверные
+    решения (CLAUDE.md, "Роль каждого генеративного шага", п.3): этот шаг
+    делает не только механическую реализацию уже заданных
+    `generation.generator_ideas`, но и содержательный дизайн стресс-тестов,
+    ловящих перечисленные неверные подходы, — с пометкой `status: proposed`
+    и обоснованием в `notes`. Если секция `solutions` отсутствует или
+    `known_wrong_approaches` пуст — это не блокирует шаг, промпт инструктирует
+    модель явно отметить в `notes`, что adversarial-случаи не проектировались.
 
     Шагу запрещено придумывать собственные диапазоны переменных или тестовые
     группы — они уже зафиксированы шагом `constraints_pick`, этот шаг обязан
@@ -124,6 +161,7 @@ def run_step(
     context = {
         "problem_id": problem_id,
         "generation": section_data,
+        "solutions": _solutions_section_data(spec),
         "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
