@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from orchestrator.cache import compute_input_hash
+from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
     OUTPUTS_DIR,
@@ -23,6 +23,33 @@ STEP_NAME = "statement_draft"
 # Единственное Optional[list[...]]-поле секции, по которому user.md.j2
 # делает {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["known_ambiguities"]
+
+
+def compute_input_hash(
+    problem_id: str,
+    spec: ProblemSpec,
+    upstream_artifacts: Optional[dict[str, Any]] = None,
+) -> str:
+    """Хеш входа шага без вызова модели — использует `pipeline.py`, чтобы
+    решить, валиден ли кэш, до того как решать, вызывать ли `run_step`
+    (CLAUDE.md, "Кэширование по хешу спека"). `problem_id`/`upstream_artifacts`
+    здесь не используются (шаг от них не зависит) — присутствуют только ради
+    единой сигнатуры `compute_input_hash(problem_id, spec, upstream_artifacts)`
+    у всех четырёх шагов.
+    """
+    section_data = with_default_lists(
+        spec.statement_draft.model_dump(mode="json"), _LIST_FIELDS
+    )
+    return _cache_compute_input_hash(STEP_NAME, section_data)
+
+
+def primary_artifact_path(
+    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+) -> Path:
+    """Путь к основному артефакту шага — по нему `pipeline.py` проверяет,
+    что кэш ещё указывает на реально существующий файл, а не на удалённый.
+    """
+    return Path(outputs_dir) / problem_id / "statement.tex"
 
 
 def run_step(
@@ -61,7 +88,7 @@ def run_step(
         spec.statement_draft.model_dump(mode="json"), _LIST_FIELDS
     )
     context = {"problem_id": problem_id, "statement_draft": section_data}
-    input_hash = compute_input_hash(STEP_NAME, section_data)
+    input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
 
     def resolve_artifact_path(filename: str) -> Path:
         return Path(outputs_dir) / problem_id / filename

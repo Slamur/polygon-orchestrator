@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from orchestrator.cache import compute_input_hash
+from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
     OUTPUTS_DIR,
@@ -23,6 +23,29 @@ STEP_NAME = "constraints_pick"
 # Optional[list[...]]-поля секции constraints, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["special_guarantees", "test_groups_hint", "uncertain_points"]
+
+
+def compute_input_hash(
+    problem_id: str,
+    spec: ProblemSpec,
+    upstream_artifacts: Optional[dict[str, Any]] = None,
+) -> str:
+    """Хеш входа шага без вызова модели — см. `statement_draft.compute_input_hash`
+    и CLAUDE.md, "Кэширование по хешу спека". `problem_id`/`upstream_artifacts`
+    не используются (шаг зависит только от секции `constraints`), присутствуют
+    ради единой сигнатуры у всех четырёх шагов.
+    """
+    section_data = with_default_lists(
+        spec.constraints.model_dump(mode="json"), _LIST_FIELDS
+    )
+    return _cache_compute_input_hash(STEP_NAME, section_data)
+
+
+def primary_artifact_path(
+    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+) -> Path:
+    """Путь к основному артефакту шага, см. `statement_draft.primary_artifact_path`."""
+    return Path(outputs_dir) / problem_id / "constraints.yaml"
 
 
 def run_step(
@@ -63,7 +86,7 @@ def run_step(
         spec.constraints.model_dump(mode="json"), _LIST_FIELDS
     )
     context = {"problem_id": problem_id, "constraints": section_data}
-    input_hash = compute_input_hash(STEP_NAME, section_data)
+    input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
 
     def resolve_artifact_path(filename: str) -> Path:
         return Path(outputs_dir) / problem_id / filename
