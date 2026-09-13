@@ -1,0 +1,26 @@
+Спек задачи (problem_id: {{ problem_id }}):
+
+## Форма входных данных
+{{ generation.input_shape }}
+
+## Идеи по генераторам от автора
+{% for g in generation.generator_ideas %}
+- name={{ g.name }}, params={{ g.params }}, purpose="{{ g.purpose }}"
+{% endfor %}
+
+## Переиспользование существующих шаблонов
+reuse_existing_generators: {{ generation.reuse_existing_generators }}
+base_template_refs:
+{% for r in generation.base_template_refs %}
+- {{ r }}
+{% endfor %}
+
+## Стиль скрипта
+script_style: {{ generation.script_style }}
+
+## Зафиксированные ограничения и тестовые группы (результат шага constraints_pick)
+{{ constraints_pick_result.artifacts["constraints.yaml"] }}
+
+Задача: напиши генератор(ы) и FreeMarker test-script по правилам из
+системного сообщения, используя зафиксированные ограничения выше как
+единственный источник диапазонов и групп.
