@@ -1,0 +1,18 @@
+[project]
+name = "polygon-orchestrator"
+version = "0.1.0"
+description = "Оркестратор генеративных шагов подготовки задачи для Polygon"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=2,<3",
+    "PyYAML>=6,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

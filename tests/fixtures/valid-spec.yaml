@@ -1,0 +1,81 @@
+problem_id: valid-spec
+title:
+  ru: "Кратчайшие пути"
+  en: "Shortest paths"
+
+statement_draft:
+  legend_sketch: |
+    Есть граф городов и дорог, нужно найти кратчайший путь между двумя
+    заданными городами.
+  formal_input_sketch: |
+    Дан неориентированный взвешенный граф: N вершин, K рёбер, для каждого
+    ребра — пара вершин и вес. Затем пара вершин S и T.
+  formal_output_sketch: |
+    Одно число — длина кратчайшего пути от S до T. Гарантируется, что путь
+    существует.
+  indexing: "1-indexed"
+  sample_examples:
+    - input: |
+        3 2
+        1 2 5
+        2 3 3
+        1 3
+      output: |
+        8
+      note_hint: "показать, что путь идёт через промежуточную вершину"
+  known_ambiguities:
+    - "не решено, как обрабатывать кратные рёбра между одной парой вершин"
+
+constraints:
+  intended_complexity: "O((N + K) log N)"
+  complexity_reasoning: |
+    Алгоритм Дейкстры с бинарной кучей.
+  variables:
+    - name: "N"
+      min: 1
+      max: 100000
+      description: "количество вершин"
+    - name: "K"
+      min: 0
+      max: "2*N"
+      description: "количество рёбер"
+  special_guarantees:
+    - "граф связный по определению"
+  test_groups_hint:
+    - name: "small"
+      subset_of: null
+      max_n: 10
+  time_limit_seconds: 2.0
+  memory_limit_mb: 256
+  uncertain_points:
+    - "не уверен, что 10^5 рёбер достаточно для группы на TL без быстрого ввода"
+
+generation:
+  input_shape: |
+    Первая строка: N K. Далее K строк с рёбрами. Последняя строка: S T.
+  generator_ideas:
+    - name: "gen_rand"
+      params: ["n", "k"]
+      purpose: "случайный связный граф"
+  reuse_existing_generators: true
+  base_template_refs:
+    - "templates/gen_rand.cpp"
+  script_style: "groups"
+
+solutions:
+  wanted_verdicts: ["ok", "wa", "tl"]
+  languages: ["cpp"]
+  algorithm_hint: |
+    Дейкстра с приоритетной очередью, O((N+K) log N).
+  known_wrong_approaches:
+    - "O(N^2) без кучи — TLE на больших N"
+
+checker:
+  standard: "ncmp"
+  custom_needed: false
+  custom_comparison_notes: null
+
+meta:
+  requirements_docs:
+    - "templates/tutorials/requirements.md"
+  status: "draft"
