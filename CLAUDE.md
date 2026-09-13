@@ -81,7 +81,11 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── constraints_pick.py
 │   │   ├── generators_and_script.py
 │   │   └── solutions_draft.py
-│   ├── model_router.py            # выбор модели по критичности шага (см. ниже)
+│   ├── model_router.py            # выбор класса модели/effort по шагу (см. ниже) — вендоронезависимый
+│   ├── llm_client.py              # интерфейс LLMClient — точка подмены вендора
+│   ├── model_contracts.py         # ModelResponse — контракт status/artifacts/notes
+│   ├── llm_clients/
+│   │   └── anthropic_client.py    # реализация LLMClient поверх Anthropic API
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
@@ -268,9 +272,17 @@ Python-оркестратор, который берёт структуриро�
 `requirements.md`/`polygon.md`, а не про самостоятельное рассуждение —
 вопрос бюджета по этому шагу решён, Opus-уровень ему не нужен.
 
-Конкретные имена моделей и параметры (effort, max_tokens) — в
-`orchestrator/model_router.py`, не в промптах; промпты не должны зависеть от
-того, какая именно модель их выполняет.
+Конкретные имена моделей и параметры (effort, max_tokens) — не в промптах и
+не в `orchestrator/model_router.py`, а в реализации конкретного вендора
+(`orchestrator/llm_clients/anthropic_client.py`): `model_router.py` знает
+только условные классы моделей и уровни `effort` на шаг, а резолвит их в
+настоящий вызов API текущий `LLMClient` (`orchestrator/llm_client.py`).
+Это сделано намеренно: `orchestrator/model_router.py` — общего назначения и
+не должен зависеть от того, что сегодня за ним стоит Anthropic API —
+`model_router.set_client(...)` позволяет подменить его на другого вендора
+(например, локальную модель) без изменений в самом модуле, промптах или
+шагах. Промпты не должны зависеть от того, какая именно модель/вендор их
+выполняет.
 
 ## Как использовать приложенные материалы
 
