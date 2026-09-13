@@ -1,0 +1,32 @@
+problem_id: missing-statement-fields
+title:
+  ru: "Кратчайшие пути"
+
+statement_draft:
+  legend_sketch: |
+    Есть граф городов и дорог, нужно найти кратчайший путь между двумя
+    заданными городами.
+  indexing: "1-indexed"
+
+constraints:
+  intended_complexity: "O((N + K) log N)"
+  complexity_reasoning: |
+    Алгоритм Дейкстры с бинарной кучей.
+  variables:
+    - name: "N"
+      min: 1
+      max: 100000
+      description: "количество вершин"
+
+generation:
+  input_shape: |
+    Первая строка: N K. Далее K строк с рёбрами.
+  reuse_existing_generators: true
+  script_style: "flat"
+
+checker:
+  standard: "ncmp"
+  custom_needed: false
+
+meta:
+  status: "draft"
