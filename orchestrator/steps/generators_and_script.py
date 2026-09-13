@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
-from orchestrator.cache import compute_input_hash
+from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
     OUTPUTS_DIR,
@@ -28,6 +28,55 @@ CONSTRAINTS_ARTIFACT = "constraints.yaml"
 # Optional[list[...]]-поля секции generation, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["generator_ideas", "base_template_refs"]
+
+
+def _require_constraints_yaml(
+    step_name: str, problem_id: str, upstream_artifacts: Optional[dict[str, Any]]
+) -> str:
+    """Общая проверка для `generators_and_script` и `solutions_draft` — оба
+    зависят от `constraints.yaml`. `step_name` передаётся явно (а не берётся
+    из модульной константы), чтобы сообщение об ошибке называло реальный шаг,
+    вызвавший проверку, а не всегда `generators_and_script`.
+    """
+    if not upstream_artifacts or CONSTRAINTS_ARTIFACT not in upstream_artifacts:
+        raise ValueError(
+            f"Шаг '{step_name}' для '{problem_id}': в upstream_artifacts нет "
+            f"'{CONSTRAINTS_ARTIFACT}' — сначала должен успешно отработать "
+            "шаг 'constraints_pick' (CLAUDE.md, 'Роль каждого генеративного "
+            "шага', п.3)"
+        )
+    return upstream_artifacts[CONSTRAINTS_ARTIFACT]
+
+
+def compute_input_hash(
+    problem_id: str,
+    spec: ProblemSpec,
+    upstream_artifacts: Optional[dict[str, Any]] = None,
+) -> str:
+    """Хеш входа шага без вызова модели, см. `statement_draft.compute_input_hash`
+    и CLAUDE.md, "Кэширование по хешу спека". В отличие от шагов 1-2, здесь
+    `upstream_artifacts["constraints.yaml"]` обязателен и входит в хеш —
+    без него та же `ValueError`, что и в `run_step`.
+    """
+    constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
+    section_data = with_default_lists(
+        spec.generation.model_dump(mode="json"), _LIST_FIELDS
+    )
+    return _cache_compute_input_hash(
+        STEP_NAME, section_data, upstream_artifacts={CONSTRAINTS_ARTIFACT: constraints_yaml}
+    )
+
+
+def primary_artifact_path(
+    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+) -> Path:
+    """Путь к test-script'у — единственному детерминированному по имени
+    артефакту шага (генераторы `.cpp` модель называет сама, а имя скрипта
+    жёстко зависит от `generation.script_style`, см. CLAUDE.md, "Структура
+    каталогов": `test_script` для `flat`, `test_script_groups` для `groups`).
+    """
+    script_name = "test_script" if spec.generation.script_style == "flat" else "test_script_groups"
+    return Path(outputs_dir) / problem_id / script_name
 
 
 def run_step(
@@ -67,14 +116,7 @@ def run_step(
     отсутствие ключа — ошибка вызывающего кода (обычно пайплайна,
     запустившего шаги не по порядку), а не `StepUncertainError`.
     """
-    if not upstream_artifacts or CONSTRAINTS_ARTIFACT not in upstream_artifacts:
-        raise ValueError(
-            f"Шаг '{STEP_NAME}' для '{problem_id}': в upstream_artifacts нет "
-            f"'{CONSTRAINTS_ARTIFACT}' — сначала должен успешно отработать "
-            "шаг 'constraints_pick' (CLAUDE.md, 'Роль каждого генеративного "
-            "шага', п.3)"
-        )
-    constraints_yaml = upstream_artifacts[CONSTRAINTS_ARTIFACT]
+    constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
 
     section_data = with_default_lists(
         spec.generation.model_dump(mode="json"), _LIST_FIELDS
@@ -84,9 +126,7 @@ def run_step(
         "generation": section_data,
         "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }
-    input_hash = compute_input_hash(
-        STEP_NAME, section_data, upstream_artifacts={CONSTRAINTS_ARTIFACT: constraints_yaml}
-    )
+    input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
 
     def resolve_artifact_path(filename: str) -> Path:
         base = Path(outputs_dir) / problem_id
