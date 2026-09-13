@@ -8,6 +8,17 @@
 - name={{ g.name }}, params={{ g.params }}, purpose="{{ g.purpose }}"
 {% endfor %}
 
+## Известные неверные подходы (из секции solutions, если она задана) —
+## источник для adversarial-тестов, см. пункт B системного сообщения
+{% for w in solutions.known_wrong_approaches %}
+- {{ w }}
+{% endfor %}
+{% if not solutions or not solutions.known_wrong_approaches %}
+(секция solutions отсутствует или known_wrong_approaches пуст — adversarial-
+тесты не заказаны явно, действуй по правилу для этого случая из системного
+сообщения)
+{% endif %}
+
 ## Переиспользование существующих шаблонов
 reuse_existing_generators: {{ generation.reuse_existing_generators }}
 base_template_refs:
