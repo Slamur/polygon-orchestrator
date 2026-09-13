@@ -1,0 +1,19 @@
+Спек задачи (problem_id: {{ problem_id }}):
+
+## Идея алгоритма (от автора)
+{{ solutions.algorithm_hint }}
+
+## Заявленная и зафиксированная асимптотика (из constraints_pick)
+{{ constraints.intended_complexity }}
+
+## Нужные вердикты и языки
+wanted_verdicts: {{ solutions.wanted_verdicts }}
+languages: {{ solutions.languages }}
+
+## Известные неверные подходы (если есть)
+{% for w in solutions.known_wrong_approaches %}
+- {{ w }}
+{% endfor %}
+
+Задача: напиши черновики решений по правилам из системного сообщения. Это
+черновики для ручной проверки автором, не финальный код.

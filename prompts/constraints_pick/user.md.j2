@@ -1,0 +1,34 @@
+Спек задачи (problem_id: {{ problem_id }}):
+
+## Заявленная автором асимптотика
+intended_complexity: {{ constraints.intended_complexity }}
+complexity_reasoning:
+{{ constraints.complexity_reasoning }}
+
+## Переменные
+{% for v in constraints.variables %}
+- {{ v.name }}: min={{ v.min }}, max={{ v.max }}, description="{{ v.description }}"
+{% endfor %}
+
+## Дополнительные гарантии
+{% for g in constraints.special_guarantees %}
+- {{ g }}
+{% endfor %}
+
+## Идеи по тестовым группам от автора (если есть)
+{% for g in constraints.test_groups_hint %}
+- name={{ g.name }}, subset_of={{ g.subset_of }}, max_n={{ g.max_n }}, special_property={{ g.special_property }}
+{% endfor %}
+
+## Лимиты, заданные автором явно (могут быть null)
+time_limit_seconds: {{ constraints.time_limit_seconds }}
+memory_limit_mb: {{ constraints.memory_limit_mb }}
+
+## Что автор сам считает неопределённым
+{% for u in constraints.uncertain_points %}
+- {{ u }}
+{% endfor %}
+
+Задача: зафиксируй итоговые ограничения и тестовые группы по правилам из
+системного сообщения. Если intended_complexity пуст или явно не описан —
+остановись с status: uncertain, не оценивай сложность самостоятельно.

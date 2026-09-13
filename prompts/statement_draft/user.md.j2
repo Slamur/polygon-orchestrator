@@ -1,0 +1,32 @@
+Спек задачи (problem_id: {{ problem_id }}):
+
+## Легенда (черновик автора)
+{{ statement_draft.legend_sketch }}
+
+## Формальное описание ввода (черновик автора)
+{{ statement_draft.formal_input_sketch }}
+
+## Формальное описание вывода (черновик автора)
+{{ statement_draft.formal_output_sketch }}
+
+## Индексация
+{{ statement_draft.indexing }}
+
+## Тестовые примеры
+{% for ex in statement_draft.sample_examples %}
+### Пример {{ loop.index }}
+Input:
+{{ ex.input }}
+Output:
+{{ ex.output }}
+Что важно объяснить в пояснении: {{ ex.note_hint }}
+{% endfor %}
+
+## Известные неоднозначности (если есть)
+{% for a in statement_draft.known_ambiguities %}
+- {{ a }}
+{% endfor %}
+
+Задача: подготовь черновик условия в LaTeX по правилам из системного
+сообщения. Не решай задачу и не выводи асимптотику — только оформление
+условия из данных выше черновиков.
