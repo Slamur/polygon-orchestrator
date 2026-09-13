@@ -17,8 +17,8 @@ def test_critical_steps_use_strong_model():
     assert STEP_TO_MODEL["solutions_draft"] == "strong-model"
 
 
-def test_mechanical_step_uses_fast_model():
-    assert STEP_TO_MODEL["generators_and_script"] == "fast-model"
+def test_generators_and_script_uses_medium_model():
+    assert STEP_TO_MODEL["generators_and_script"] == "medium-model"
 
 
 def test_model_response_defaults():
