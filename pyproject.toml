@@ -7,6 +7,8 @@ dependencies = [
     "pydantic>=2,<3",
     "PyYAML>=6,<7",
     "Jinja2>=3,<4",
+    "anthropic>=1,<2",
+    "python-dotenv>=1,<2",
 ]
 
 [project.optional-dependencies]
@@ -17,3 +19,7 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = [
+    "integration: бьёт в реальный Anthropic API (нужен ANTHROPIC_API_KEY), не запускается по умолчанию",
+]
+addopts = "-m 'not integration'"
