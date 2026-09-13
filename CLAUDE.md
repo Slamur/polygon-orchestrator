@@ -52,10 +52,11 @@ Python-оркестратор, который берёт структуриро�
 │   │                             # использовать как основу для генерации
 │   ├── problem_lib.h
 │   ├── validator.cpp
+│   ├── validator_groups.cpp
 │   ├── checker.cpp
 │   ├── gen_rand.cpp
 │   ├── test_script
-│   ├── testlib.h
+│   ├── test_script_groups
 │   └── tutorials/
 │       ├── polygon.md            # правила по разделам Polygon
 │       ├── requirements.md       # правила по условию/тестам/валидатору/чекеру
@@ -115,10 +116,23 @@ Python-оркестратор, который берёт структуриро�
    `intended_complexity` пуст, шаг обязан завершиться ошибкой
    "недостаточно данных", а не угадывать.
 3. **`generators_and_script`** — вход: секция `generation` спека +
-   зафиксированные ограничения из шага 2. Выход: C++/testlib-генераторы (на
-   основе `templates/gen_rand.cpp` и т.п., см. `base_template_refs`) и
-   FreeMarker test-script (`flat` или `groups`-стиль — см.
-   `templates/test_script` vs `templates/test_script_groups`).
+   зафиксированные ограничения из шага 2 + (если секция `solutions` в
+   спеке задана) `solutions.known_wrong_approaches`. Выход: C++/testlib-
+   генераторы (на основе `templates/gen_rand.cpp` и т.п., см.
+   `base_template_refs`) и FreeMarker test-script (`flat` или
+   `groups`-стиль — см. `templates/test_script` vs
+   `templates/test_script_groups`). Внутри шаг делает две разные по
+   характеру вещи, и это важно не смешивать: если `generation.generator_ideas`
+   уже описывает нужный генератор — это механическая реализация; для каждого
+   пункта `known_wrong_approaches`, под который в спеке ещё нет готового
+   генератора, шаг обязан сам придумать тест/генератор, целенаправленно
+   проверяющий именно этот сценарий, и вернуть его с `status: proposed` +
+   обоснованием в `notes` (почему этот тест ловит именно такую ошибку) —
+   как и с любым другим предположением модели, это не самостоятельное
+   решение, а предложение для проверки автором. Если ни `generator_ideas`,
+   ни `known_wrong_approaches` не дают зацепок для стресс-тестов — шаг не
+   должен молчать об этом: явно указать в `notes`, что adversarial-случаи
+   не придуманы и нужна ручная проверка.
 4. **`solutions_draft`** — вход: секция `solutions` спека + зафиксированные
    ограничения. Выход: черновики решений с заявленными вердиктами
    (ok/wa/tl), которые автор обязательно перепроверяет и вероятно
@@ -172,8 +186,11 @@ Python-оркестратор, который берёт структуриро�
 - каноническое JSON-представление той секции спека, от которой зависит шаг
   (`statement_draft` → секция `statement_draft`; `constraints_pick` →
   секция `constraints`; `generators_and_script` → секция `generation` +
-  содержимое `outputs/<id>/constraints.yaml`, полученное на шаге 2;
-  `solutions_draft` → секция `solutions` + `constraints.yaml`);
+  содержимое `outputs/<id>/constraints.yaml`, полученное на шаге 2, +
+  `solutions.known_wrong_approaches` (если секция `solutions` задана —
+  правка `known_wrong_approaches` тоже должна инвалидировать кэш этого
+  шага, не только правка `generation`); `solutions_draft` → секция
+  `solutions` + `constraints.yaml`);
 - хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +
   `user.md.j2`) — если промпт поправили, кэш должен инвалидироваться, даже
   если спек не менялся;
@@ -232,7 +249,20 @@ Python-оркестратор, который берёт структуриро�
 | `constraints_pick`          | высокая     | сильная модель             |
 | `solutions_draft`           | высокая     | сильная модель             |
 | `statement_draft` (LaTeX)   | средняя     | сильная или средняя — решить по бюджету |
-| `generators_and_script`     | низкая/механическая | быстрая модель      |
+| `generators_and_script`     | средняя     | средняя модель             |
+
+`generators_and_script` изначально был помечен как чисто механический —
+это оказалось неточно. Реализация генератора по уже готовой идее (из
+`generation.generator_ideas`) действительно механическая, но
+**придумывание** хитрых/adversarial тестов — самостоятельное рассуждение
+о том, как сломать конкретный неверный алгоритм, — не менее содержательная
+задача, чем `constraints_pick`. Явный источник для такого рассуждения —
+`solutions.known_wrong_approaches` (см. "Роль каждого генеративного шага",
+п.3, обновлено). Поэтому шаг поднят до "средняя модель": реализация
+шаблонного генератора не требует Opus-уровня, но для содержательного
+дизайна стресс-тестов быстрой модели может не хватать — если на практике
+качество предложенных тестов будет слабым, следующий шаг эскалации — до
+сильной модели, как у `constraints_pick`/`solutions_draft`.
 
 Конкретные имена моделей и параметры (temperature, max_tokens) — в
 `orchestrator/model_router.py`, не в промптах; промпты не должны зависеть от
