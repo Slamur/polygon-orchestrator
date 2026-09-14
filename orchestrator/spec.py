@@ -126,6 +126,7 @@ class Constraints(BaseModel):
     variables: list[Variable] = Field(min_length=1)
     special_guarantees: Optional[list[str]] = None
     test_groups_hint: Optional[list[TestGroupHint]] = None
+    test_groups_needed: bool = False
     time_limit_seconds: Optional[float] = None
     memory_limit_mb: Optional[int] = None
     uncertain_points: Optional[list[str]] = None

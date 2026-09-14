@@ -89,6 +89,115 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
     assert not (tmp_path / "valid-spec" / "validator.cpp").exists()
 
 
+def test_user_prompt_includes_test_groups_needed_false_by_default(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "test_groups_needed: False" in user_prompt
+
+
+def test_test_groups_needed_false_no_hint_yields_no_test_groups_in_artifact(spec, tmp_path):
+    spec_no_groups = spec.model_copy(
+        update={
+            "constraints": spec.constraints.model_copy(
+                update={"test_groups_hint": None, "test_groups_needed": False}
+            )
+        }
+    )
+    response = ModelResponse(status="confirmed", artifacts={"constraints.yaml": "n_max: 100000\n"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        result = run_step(
+            "valid-spec",
+            spec_no_groups,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert result.status == "confirmed"
+    user_prompt = mock_call.call_args.args[2]
+    assert "test_groups_needed: False" in user_prompt
+    written = (tmp_path / "valid-spec" / "constraints.yaml").read_text(encoding="utf-8")
+    assert "test_groups" not in written
+
+
+def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
+    spec_needed = spec.model_copy(
+        update={
+            "constraints": spec.constraints.model_copy(
+                update={"test_groups_hint": None, "test_groups_needed": True}
+            )
+        }
+    )
+    response = ModelResponse(
+        status="proposed",
+        artifacts={
+            "constraints.yaml": (
+                "test_groups:  # PROPOSED, REVIEW ME\n"
+                "  - name: small\n"
+            )
+        },
+        notes=[
+            {
+                "field": "constraints.test_groups",
+                "kind": "proposed",
+                "explanation": "hint не задан, предложен разумный набор small/edge/max",
+            }
+        ],
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        result = run_step(
+            "valid-spec",
+            spec_needed,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert result.status == "proposed"
+    user_prompt = mock_call.call_args.args[2]
+    assert "test_groups_needed: True" in user_prompt
+    written = (tmp_path / "valid-spec" / "constraints.yaml").read_text(encoding="utf-8")
+    assert "test_groups" in written
+
+
+def test_test_groups_hint_wins_over_needed_false(spec, tmp_path):
+    # `spec` fixture уже задаёт test_groups_hint; test_groups_needed по умолчанию False —
+    # hint должен формировать группы независимо от флага.
+    assert spec.constraints.test_groups_needed is False
+    assert spec.constraints.test_groups_hint
+
+    response = ModelResponse(
+        status="confirmed",
+        artifacts={"constraints.yaml": "test_groups:\n  - name: small\n"},
+        notes=[],
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "test_groups_needed: False" in user_prompt
+    assert "name=small" in user_prompt
+
+
 def test_renders_without_crashing_when_optional_lists_are_null(spec, tmp_path):
     spec_bare = spec.model_copy(
         update={
