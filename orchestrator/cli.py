@@ -127,6 +127,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
             specs_dir=args.specs_dir,
             prompts_dir=args.prompts_dir,
             outputs_dir=args.outputs_dir,
+            templates_dir=args.templates_dir,
         )
         if spec_error is not None:
             print(spec_error)

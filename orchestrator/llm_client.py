@@ -37,6 +37,7 @@ class LLMClient(Protocol):
         effort: str,
         system_prompt: str,
         user_prompt: str,
+        context_documents: dict[str, str] | None = None,
     ) -> ModelResponse:
         """Вызывает модель `model_class` с заданным `effort` на паре промптов.
 
@@ -45,5 +46,10 @@ class LLMClient(Protocol):
         конкретную модель вендора — решает сама реализация.
         `effort` — один из `STEP_TO_EFFORT` в `model_router.py`; вендоры без
         понятия effort вольны его игнорировать.
+        `context_documents` — карта "путь документа" -> "содержимое"
+        (`templates/tutorials/*.md`, `problem_lib.h`, `gen_rand.cpp` и т.п.,
+        см. `orchestrator/steps/base.py:STEP_CONTEXT_DOCUMENTS`), которые шаг
+        обязан приложить как обязательные правила/примеры — не пересказ по
+        памяти. `None`/пустая карта — вести себя как раньше (без документов).
         """
         ...

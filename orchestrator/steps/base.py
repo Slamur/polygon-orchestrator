@@ -38,6 +38,34 @@ PROMPTS_DIR = Path("prompts")
 OUTPUTS_DIR = Path("outputs")
 TEMPLATES_DIR = Path("templates")
 
+# Обязательные документы контекста на шаг (пути относительно templates_dir),
+# см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
+# это правила, а не справочный материал, а problem_lib.h/gen_rand.cpp/
+# test_script — основа, которую нужно расширять. Промпты (prompts/<step>/
+# system.md) сейчас лишь ссылаются на эти файлы по имени — здесь их
+# содержимое реально прикладывается к вызову модели (см. `call_model`
+# в `model_router.py` и `LLMClient.generate`), а не пересказывается.
+STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
+    "statement_draft": [
+        "tutorials/requirements.md",
+        "tutorials/polygon.md",
+    ],
+    "constraints_pick": [
+        "tutorials/requirements.md",
+    ],
+    "generators_and_script": [
+        "tutorials/requirements.md",
+        "tutorials/freemarker.md",
+        "problem_lib.h",
+        "gen_rand.cpp",
+        "test_script",
+    ],
+    "solutions_draft": [
+        "tutorials/requirements.md",
+        "tutorials/polygon.md",
+    ],
+}
+
 # Статусы ответа модели по контракту из docs/PROMPTS.md.
 STATUS_CONFIRMED = "confirmed"
 STATUS_PROPOSED = "proposed"
@@ -126,6 +154,47 @@ def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> st
     return (Path(prompts_dir) / step_name / "system.md").read_text(encoding="utf-8")
 
 
+def load_context_documents(
+    step_name: str,
+    *,
+    templates_dir: Path = TEMPLATES_DIR,
+    extra_paths: list[str] | None = None,
+) -> dict[str, str]:
+    """Читает документы контекста для шага `step_name`.
+
+    Порядок: сначала фиксированный список `STEP_CONTEXT_DOCUMENTS[step_name]`
+    (пути относительно `templates_dir`), затем `extra_paths` — пути
+    относительно корня репозитория, специфичные для конкретного вызова шага
+    (например, `generation.base_template_refs`, см. CLAUDE.md,
+    "base_template_refs"), а не для всех вызовов шага вообще.
+
+    Отсутствующий файл — понятная ошибка ДО вызова модели, с указанием пути
+    и того, откуда он взят (фиксированный список или `extra_paths`) — не
+    падаем молча и не пропускаем документ.
+    """
+    documents: dict[str, str] = {}
+
+    for rel_path in STEP_CONTEXT_DOCUMENTS.get(step_name, []):
+        path = Path(templates_dir) / rel_path
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Шаг '{step_name}': документ контекста '{rel_path}' из "
+                f"STEP_CONTEXT_DOCUMENTS не найден по пути {path}"
+            )
+        documents[rel_path] = path.read_text(encoding="utf-8")
+
+    for rel_path in extra_paths or []:
+        path = Path(rel_path)
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Шаг '{step_name}': дополнительный документ контекста "
+                f"'{rel_path}' (extra_context_documents) не найден по пути {path}"
+            )
+        documents[rel_path] = path.read_text(encoding="utf-8")
+
+    return documents
+
+
 def _write_artifacts(
     artifacts: dict[str, str],
     resolve_path: Callable[[str], Path],
@@ -149,6 +218,7 @@ def run_generative_step(
     prompts_dir: Path = PROMPTS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
+    extra_context_documents: list[str] | None = None,
 ) -> StepResult:
     """Общий цикл шага: рендер промптов, вызов модели, запись результата.
 
@@ -167,6 +237,15 @@ def run_generative_step(
     модели по каталогам `outputs/<problem_id>/...` (у каждого шага своя
     раскладка, см. CLAUDE.md, "Структура каталогов").
 
+    `extra_context_documents` — дополнительные пути (относительно корня
+    репозитория), специфичные для конкретного вызова этого шага, а не для
+    всех его вызовов вообще (сейчас единственный пример —
+    `generators_and_script` с `generation.base_template_refs`, см.
+    `load_context_documents`). Вместе с фиксированным списком
+    `STEP_CONTEXT_DOCUMENTS[step_name]` они читаются и передаются модели как
+    `context_documents`, а также входят в `compute_prompt_hash` — правка
+    любого из этих документов должна инвалидировать кэш шага.
+
     При `status: uncertain` бросает `StepUncertainError` и не пишет ничего в
     `outputs/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
     записанные `.cpp`-файлы через `compile_check` (без запуска — см.
@@ -176,8 +255,13 @@ def run_generative_step(
     """
     system_prompt = read_system_prompt(step_name, prompts_dir=prompts_dir)
     user_prompt = render_user_prompt(step_name, context, prompts_dir=prompts_dir)
+    context_documents = load_context_documents(
+        step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
+    )
 
-    response = model_router.call_model(step_name, system_prompt, user_prompt)
+    response = model_router.call_model(
+        step_name, system_prompt, user_prompt, context_documents=context_documents
+    )
 
     if response.status not in _VALID_STATUSES:
         raise ValueError(
@@ -196,7 +280,12 @@ def run_generative_step(
         if path.suffix == ".cpp"
     }
 
-    prompt_hash = compute_prompt_hash(step_name, prompts_dir=prompts_dir)
+    prompt_hash = compute_prompt_hash(
+        step_name,
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents,
+    )
     save_cache_entry(
         problem_id,
         step_name,

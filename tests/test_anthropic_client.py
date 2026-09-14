@@ -100,6 +100,44 @@ def test_generate_uses_model_and_effort_for_class(monkeypatch):
     assert kwargs["messages"] == [{"role": "user", "content": "user prompt"}]
 
 
+def test_generate_system_is_system_prompt_when_no_context_documents():
+    fake_sdk_client = MagicMock()
+    fake_sdk_client.messages.create.return_value = _fake_tool_use_message(_payload())
+    client = _client_with_fake_sdk(fake_sdk_client)
+
+    client.generate(
+        model_class="medium-model",
+        effort="medium",
+        system_prompt="system prompt",
+        user_prompt="u",
+        context_documents={},
+    )
+
+    kwargs = fake_sdk_client.messages.create.call_args.kwargs
+    assert kwargs["system"] == "system prompt"
+
+
+def test_generate_system_includes_context_documents_in_order():
+    fake_sdk_client = MagicMock()
+    fake_sdk_client.messages.create.return_value = _fake_tool_use_message(_payload())
+    client = _client_with_fake_sdk(fake_sdk_client)
+
+    client.generate(
+        model_class="medium-model",
+        effort="medium",
+        system_prompt="system prompt",
+        user_prompt="u",
+        context_documents={"a.md": "AAA content", "b.cpp": "BBB content"},
+    )
+
+    system = fake_sdk_client.messages.create.call_args.kwargs["system"]
+    assert system.index("system prompt") < system.index("AAA content") < system.index(
+        "BBB content"
+    )
+    assert "a.md" in system
+    assert "b.cpp" in system
+
+
 def test_generate_forces_tool_choice_on_response_tool():
     fake_sdk_client = MagicMock()
     fake_sdk_client.messages.create.return_value = _fake_tool_use_message(_payload())

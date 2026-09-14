@@ -90,12 +90,20 @@ def _get_client() -> LLMClient:
     return _client
 
 
-def call_model(step: str, system_prompt: str, user_prompt: str) -> ModelResponse:
+def call_model(
+    step: str,
+    system_prompt: str,
+    user_prompt: str,
+    context_documents: dict[str, str] | None = None,
+) -> ModelResponse:
     """Вызывает модель, назначенную шагу `step` через `STEP_TO_MODEL`/`STEP_TO_EFFORT`.
 
     `system_prompt` и `user_prompt` — уже отрендеренные тексты промптов
     (`prompts/<step>/system.md` и `prompts/<step>/user.md.j2` после
     подстановки контекста); эта функция их не читает и не рендерит сама.
+    `context_documents` — карта "путь" -> "содержимое" приложенных документов
+    (`orchestrator/steps/base.py:load_context_documents`), передаётся клиенту
+    как есть.
 
     Сама модель вызывается через текущий `LLMClient` (см. `set_client`) —
     как именно он добивается структурированного JSON-ответа по контракту
@@ -108,4 +116,5 @@ def call_model(step: str, system_prompt: str, user_prompt: str) -> ModelResponse
         effort=STEP_TO_EFFORT[step],
         system_prompt=system_prompt,
         user_prompt=user_prompt,
+        context_documents=context_documents,
     )

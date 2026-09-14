@@ -6,7 +6,9 @@ import pytest
 from orchestrator.cache import load_cache_entry
 from orchestrator.model_router import ModelResponse
 from orchestrator.steps.base import (
+    STEP_CONTEXT_DOCUMENTS,
     StepUncertainError,
+    load_context_documents,
     render_user_prompt,
     run_generative_step,
     with_default_lists,
@@ -60,6 +62,60 @@ def test_render_user_prompt_for_loop_needs_non_null_list(tmp_path):
     # с нормализацией None -> [] (with_default_lists) рендеринг не падает
     rendered = render_user_prompt("statement_draft", {"items": []}, prompts_dir=tmp_path)
     assert rendered == ""
+
+
+# --- load_context_documents --------------------------------------------------
+
+
+def _write_template_doc(templates_dir: Path, rel_path: str, content: str) -> Path:
+    path = templates_dir / rel_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def test_load_context_documents_reads_fixed_list_for_step(tmp_path):
+    for rel_path in STEP_CONTEXT_DOCUMENTS["statement_draft"]:
+        _write_template_doc(tmp_path, rel_path, f"content of {rel_path}")
+
+    documents = load_context_documents("statement_draft", templates_dir=tmp_path)
+
+    assert list(documents) == STEP_CONTEXT_DOCUMENTS["statement_draft"]
+    for rel_path in STEP_CONTEXT_DOCUMENTS["statement_draft"]:
+        assert documents[rel_path] == f"content of {rel_path}"
+
+
+def test_load_context_documents_unknown_step_has_no_fixed_documents(tmp_path):
+    assert load_context_documents("no-such-step", templates_dir=tmp_path) == {}
+
+
+def test_load_context_documents_missing_fixed_document_raises(tmp_path):
+    with pytest.raises(FileNotFoundError, match="tutorials/requirements.md"):
+        load_context_documents("constraints_pick", templates_dir=tmp_path)
+
+
+def test_load_context_documents_appends_extra_paths_after_fixed_list(tmp_path):
+    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
+        _write_template_doc(tmp_path, rel_path, "fixed content")
+    extra_file = tmp_path / "extra.cpp"
+    extra_file.write_text("extra content", encoding="utf-8")
+
+    documents = load_context_documents(
+        "constraints_pick", templates_dir=tmp_path, extra_paths=[str(extra_file)]
+    )
+
+    assert list(documents) == [*STEP_CONTEXT_DOCUMENTS["constraints_pick"], str(extra_file)]
+    assert documents[str(extra_file)] == "extra content"
+
+
+def test_load_context_documents_missing_extra_path_raises(tmp_path):
+    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
+        _write_template_doc(tmp_path, rel_path, "fixed content")
+
+    with pytest.raises(FileNotFoundError, match="extra_context_documents"):
+        load_context_documents(
+            "constraints_pick", templates_dir=tmp_path, extra_paths=["no/such/file.cpp"]
+        )
 
 
 # --- run_generative_step -----------------------------------------------------
@@ -200,3 +256,49 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
     assert result.compile_results["gen_bad.cpp"].success is False
     if result.compile_results["gen_ok.cpp"].binary_path:
         result.compile_results["gen_ok.cpp"].binary_path.unlink(missing_ok=True)
+
+
+def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    outputs_dir = tmp_path / "outputs"
+    _write_prompt(prompts_dir, "constraints_pick", "x")
+
+    response = ModelResponse(status="confirmed", artifacts={"constraints.yaml": "n: 1"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_generative_step(
+            step_name="constraints_pick",
+            problem_id="p1",
+            context={},
+            input_hash="h",
+            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            prompts_dir=prompts_dir,
+            outputs_dir=outputs_dir,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    context_documents = mock_call.call_args.kwargs["context_documents"]
+    assert "tutorials/requirements.md" in context_documents
+
+
+def test_run_generative_step_extra_context_documents_none_is_backward_compatible(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    outputs_dir = tmp_path / "outputs"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+
+    response = ModelResponse(status="confirmed", artifacts={"out.txt": "hello"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        result = run_generative_step(
+            step_name="statement_draft",
+            problem_id="p1",
+            context={},
+            input_hash="h",
+            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            prompts_dir=prompts_dir,
+            outputs_dir=outputs_dir,
+            templates_dir=TEMPLATES_DIR,
+            extra_context_documents=None,
+        )
+
+    assert result.status == "confirmed"
+    context_documents = mock_call.call_args.kwargs["context_documents"]
+    assert set(context_documents) == set(STEP_CONTEXT_DOCUMENTS["statement_draft"])

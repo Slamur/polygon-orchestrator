@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from orchestrator.cache import (
     CacheEntry,
     compute_input_hash,
@@ -77,6 +79,79 @@ def test_compute_prompt_hash_changes_when_user_template_changes(tmp_path):
     h2 = compute_prompt_hash("constraints_pick", prompts_dir=tmp_path)
 
     assert h1 != h2
+
+
+def _write_context_doc(templates_dir: Path, rel_path: str, content: str) -> None:
+    path = templates_dir / rel_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def test_compute_prompt_hash_changes_when_context_document_changes(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    templates_dir = tmp_path / "templates"
+    _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
+    _write_context_doc(templates_dir, "tutorials/requirements.md", "req v1")
+
+    h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+
+    _write_context_doc(templates_dir, "tutorials/requirements.md", "req v2")
+    h2 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+
+    assert h1 != h2
+
+
+def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    templates_dir = tmp_path / "templates"
+    _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
+    _write_context_doc(templates_dir, "tutorials/requirements.md", "req v1")
+    _write_context_doc(templates_dir, "tutorials/polygon.md", "polygon v1")
+
+    h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+
+    # constraints_pick не читает polygon.md (это документ statement_draft/
+    # solutions_draft) — его правка не должна инвалидировать кэш constraints_pick.
+    _write_context_doc(templates_dir, "tutorials/polygon.md", "polygon v2")
+    h2 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+
+    assert h1 == h2
+
+
+def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    templates_dir = tmp_path / "templates"
+    _write_prompt(prompts_dir, "generators_and_script", "rule v1", "user v1")
+    for rel_path in ["tutorials/requirements.md", "tutorials/freemarker.md", "problem_lib.h", "gen_rand.cpp", "test_script"]:
+        _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
+    extra_file = tmp_path / "extra_gen.cpp"
+    extra_file.write_text("extra v1", encoding="utf-8")
+
+    h1 = compute_prompt_hash(
+        "generators_and_script",
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=[str(extra_file)],
+    )
+
+    extra_file.write_text("extra v2", encoding="utf-8")
+    h2 = compute_prompt_hash(
+        "generators_and_script",
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=[str(extra_file)],
+    )
+
+    assert h1 != h2
+
+
+def test_compute_prompt_hash_missing_context_document_raises(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    templates_dir = tmp_path / "templates"
+    _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
+
+    with pytest.raises(FileNotFoundError, match="tutorials/requirements.md"):
+        compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
 
 
 # --- load/save CacheEntry -----------------------------------------------------
