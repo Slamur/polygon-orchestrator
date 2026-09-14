@@ -45,7 +45,7 @@ def _fake_tool_use_message(payload: dict) -> MagicMock:
 def _payload(status: str = "confirmed") -> dict:
     return {
         "status": status,
-        "artifacts": {"statement.tex": "content"},
+        "artifacts": [{"filename": "statement.tex", "content": "content"}],
         "notes": [],
     }
 
@@ -114,11 +114,35 @@ def test_generate_forces_tool_choice_on_response_tool():
     assert kwargs["tools"][0]["strict"] is True
 
 
+def _assert_strict_schema_compatible(schema: dict, *, path: str = "$") -> None:
+    """Рекурсивно проверяет ограничения Anthropic strict tool use.
+
+    Реальный API 400-ит на `tools.0.custom`, если у object-схемы
+    `additionalProperties` — не буквально `False` (например, схема для
+    значений, как раньше было у `artifacts`) — с моком это не ловится,
+    только с реальным вызовом (см. `test_generate_hits_real_api`). Эта
+    проверка ловит ту же ошибку в unit-тестах, без похода в сеть.
+    """
+    if schema.get("type") == "object":
+        assert schema.get("additionalProperties") is False, (
+            f"{path}: object-схема должна иметь additionalProperties: False "
+            "для strict tool use (Anthropic API отклоняет схему-значение)"
+        )
+        for name, subschema in schema.get("properties", {}).items():
+            _assert_strict_schema_compatible(subschema, path=f"{path}.{name}")
+    elif schema.get("type") == "array":
+        _assert_strict_schema_compatible(schema["items"], path=f"{path}[]")
+
+
+def test_response_tool_schema_is_strict_compatible():
+    _assert_strict_schema_compatible(anthropic_client._RESPONSE_TOOL["input_schema"])
+
+
 def test_generate_parses_response_from_tool_use_input():
     fake_sdk_client = MagicMock()
     payload = {
         "status": "proposed",
-        "artifacts": {"constraints.yaml": "n: 100"},
+        "artifacts": [{"filename": "constraints.yaml", "content": "n: 100"}],
         "notes": [{"field": "n.max", "kind": "proposed", "explanation": "guessed"}],
     }
     fake_sdk_client.messages.create.return_value = _fake_tool_use_message(payload)
