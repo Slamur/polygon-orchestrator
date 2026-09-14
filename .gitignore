@@ -10,3 +10,5 @@ outputs/*
 
 specs/*.yaml
 !specs/.gitkeep
+
+*.egg-info

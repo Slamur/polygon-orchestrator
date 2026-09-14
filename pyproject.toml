@@ -23,3 +23,13 @@ markers = [
     "integration: бьёт в реальный Anthropic API (нужен ANTHROPIC_API_KEY), не запускается по умолчанию",
 ]
 addopts = "-m 'not integration'"
+
+[tool.setuptools.packages.find]
+include = ["orchestrator*"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+orchestrator = "orchestrator.cli:main"
