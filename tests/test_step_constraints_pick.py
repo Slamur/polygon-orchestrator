@@ -43,6 +43,31 @@ def test_confirmed_writes_constraints_yaml(spec, tmp_path):
     assert "O((N + K) log N)" in user_prompt
 
 
+def test_confirmed_writes_validator_cpp_and_compiles(spec, tmp_path):
+    valid_validator = (TEMPLATES_DIR / "validator.cpp").read_text(encoding="utf-8")
+    response = ModelResponse(
+        status="confirmed",
+        artifacts={"constraints.yaml": "n_max: 100000", "validator.cpp": valid_validator},
+        notes=[],
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_step(
+            "valid-spec",
+            spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert result.status == "confirmed"
+    validator_path = tmp_path / "valid-spec" / "validator.cpp"
+    assert validator_path.read_text(encoding="utf-8") == valid_validator
+    assert result.compile_results["validator.cpp"].success is True
+    if result.compile_results["validator.cpp"].binary_path:
+        result.compile_results["validator.cpp"].binary_path.unlink(missing_ok=True)
+
+
 def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
     response = ModelResponse(
         status="uncertain",
@@ -61,6 +86,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
             )
 
     assert not (tmp_path / "valid-spec").exists()
+    assert not (tmp_path / "valid-spec" / "validator.cpp").exists()
 
 
 def test_renders_without_crashing_when_optional_lists_are_null(spec, tmp_path):

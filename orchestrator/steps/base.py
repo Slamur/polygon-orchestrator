@@ -52,6 +52,8 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     ],
     "constraints_pick": [
         "tutorials/requirements.md",
+        "validator.cpp",
+        "problem_lib.h",
     ],
     "generators_and_script": [
         "tutorials/requirements.md",

@@ -1,5 +1,5 @@
-"""Шаг 2 — фиксация ограничений (N/TL/ML, тестовые группы), CLAUDE.md,
-"Роль каждого генеративного шага", пункт 2.
+"""Шаг 2 — фиксация ограничений (N/TL/ML, тестовые группы) + validator.cpp,
+CLAUDE.md, "Роль каждого генеративного шага", пункт 2.
 """
 
 from __future__ import annotations
@@ -84,7 +84,17 @@ def run_step(
     допускается только `status: proposed` с обоснованием в `notes`, никогда
     не `confirmed`.
 
-    При успехе пишет `outputs/<problem_id>/constraints.yaml`.
+    Помимо `constraints.yaml`, этот же вызов модели пишет `validator.cpp` —
+    реализацию секции `validator` (`constants`/`checks`) из `constraints.yaml`
+    1-в-1, по образцу `templates/validator.cpp` (CLAUDE.md, "Роль каждого
+    генеративного шага", п.2). Это не отдельный шаг: `status: uncertain`
+    останавливает оба файла разом, `validator.cpp` не пишется без
+    `constraints.yaml` и наоборот.
+
+    При успехе пишет `outputs/<problem_id>/constraints.yaml` и
+    `outputs/<problem_id>/validator.cpp`; `validator.cpp` дополнительно
+    прогоняется через `compile_check` (как и любой другой `.cpp`-артефакт —
+    см. `run_generative_step`).
 
     `upstream_artifacts` не используется: `constraints_pick` зависит только
     от секции `constraints` спека (CLAUDE.md, "Кэширование по хешу спека").
