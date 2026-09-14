@@ -1,9 +1,9 @@
 """Общий цикл одного генеративного шага.
 
-Каждый из четырёх шагов (`statement_draft`, `constraints_pick`,
-`generators_and_script`, `solutions_draft`, см. CLAUDE.md, "Роль каждого
-генеративного шага") — это одна и та же последовательность действий над
-разными данными:
+Каждый из пяти шагов (`statement_draft`, `constraints_pick`,
+`generators_and_script`, `solutions_draft`, `checker_draft`, см. CLAUDE.md,
+"Роль каждого генеративного шага") — это одна и та же последовательность
+действий над разными данными:
 
 1. отрендерить `prompts/<step>/user.md.j2` (Jinja2) из секции спека
    (+ апстрим-артефактов, если шаг от них зависит);
@@ -15,7 +15,7 @@
    прогнать `compile_check` по всем `.cpp`-артефактам и сохранить
    `CacheEntry` через `cache.py`.
 
-Этот модуль реализует шаги 1-4 один раз (`run_generative_step`); конкретные
+Этот модуль реализует шаги 1-5 один раз (`run_generative_step`); конкретные
 модули в `orchestrator/steps/*.py` только знают, какую секцию спека читать,
 как разложить артефакты по каталогам `outputs/<id>/...` и что входит в
 апстрим-хеш — сами не дублируют этот цикл.
@@ -63,6 +63,11 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "solutions_draft": [
         "tutorials/requirements.md",
         "tutorials/polygon.md",
+    ],
+    "checker_draft": [
+        "tutorials/requirements.md",
+        "checker.cpp",
+        "problem_lib.h",
     ],
 }
 
