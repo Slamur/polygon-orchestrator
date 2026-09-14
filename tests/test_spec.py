@@ -63,6 +63,31 @@ def test_problem_id_mismatch_with_filename_raises(tmp_path):
     assert "не совпадает с именем файла" in str(exc_info.value)
 
 
+def test_specific_test_ideas_loaded():
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+
+    assert spec.generation.specific_test_ideas == [
+        "N = 1 (минимальный случай)",
+        "N = N_max, значения максимальные",
+    ]
+
+
+def test_specific_test_ideas_absent_defaults_to_none(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace(
+        '  specific_test_ideas:\n'
+        '    - "N = 1 (минимальный случай)"\n'
+        '    - "N = N_max, значения максимальные"\n',
+        "",
+    )
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    spec = load_spec(path)
+
+    assert spec.generation.specific_test_ideas is None
+
+
 def test_custom_checker_without_notes_raises(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(

@@ -158,6 +158,7 @@ class Generation(BaseModel):
 
     input_shape: str
     generator_ideas: Optional[list[GeneratorIdea]] = None
+    specific_test_ideas: Optional[list[str]] = None
     reuse_existing_generators: bool
     base_template_refs: Optional[list[str]] = None
     script_style: Literal["flat", "groups"]

@@ -57,6 +57,9 @@ generation:
     - name: "gen_rand"
       params: ["n", "k"]
       purpose: "случайный связный граф"
+  specific_test_ideas:
+    - "N = 1 (минимальный случай)"
+    - "N = N_max, значения максимальные"
   reuse_existing_generators: true
   base_template_refs:
     - "templates/gen_rand.cpp"
