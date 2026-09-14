@@ -35,7 +35,7 @@ def compute_input_hash(
     (CLAUDE.md, "Кэширование по хешу спека"). `problem_id`/`upstream_artifacts`
     здесь не используются (шаг от них не зависит) — присутствуют только ради
     единой сигнатуры `compute_input_hash(problem_id, spec, upstream_artifacts)`
-    у всех четырёх шагов.
+    у всех пяти шагов.
     """
     section_data = with_default_lists(
         spec.statement_draft.model_dump(mode="json"), _LIST_FIELDS
@@ -92,7 +92,7 @@ def run_step(
     результатов других шагов (см. CLAUDE.md, "Кэширование по хешу спека" —
     для этого шага апстрим-артефактов в хеше нет). Параметр присутствует
     только ради общей сигнатуры `run_step(problem_id, spec,
-    upstream_artifacts)` у всех четырёх шагов.
+    upstream_artifacts)` у всех пяти шагов.
     """
     section_data = with_default_lists(
         spec.statement_draft.model_dump(mode="json"), _LIST_FIELDS
