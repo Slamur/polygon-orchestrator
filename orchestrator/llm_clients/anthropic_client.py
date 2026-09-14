@@ -130,9 +130,11 @@ class AnthropicClient:
         effort: str,
         system_prompt: str,
         user_prompt: str,
+        context_documents: dict[str, str] | None = None,
     ) -> ModelResponse:
         model_id = MODEL_CLASS_TO_ID[model_class]
         client = self._get_sdk_client()
+        system = _build_system_prompt(system_prompt, context_documents)
 
         attempt = 0
         while True:
@@ -141,7 +143,7 @@ class AnthropicClient:
                 response = client.messages.create(
                     model=model_id,
                     max_tokens=_MAX_TOKENS,
-                    system=system_prompt,
+                    system=system,
                     messages=[{"role": "user", "content": user_prompt}],
                     output_config={"effort": effort},
                     tools=[_RESPONSE_TOOL],
@@ -196,6 +198,26 @@ class AnthropicClient:
                 )
             self._sdk_client = anthropic.Anthropic(api_key=api_key, max_retries=0)
         return self._sdk_client
+
+
+def _build_system_prompt(
+    system_prompt: str, context_documents: dict[str, str] | None
+) -> str:
+    """Склеивает `system_prompt` с приложенными документами контекста.
+
+    Документы идут после `system_prompt` в порядке `context_documents`
+    (см. `orchestrator/steps/base.py:load_context_documents` — фиксированный
+    список STEP_CONTEXT_DOCUMENTS, затем extra_paths), каждый со своим путём
+    как заголовком, чтобы модель могла на него сослаться. `None`/пустая карта
+    — `system` остаётся просто `system_prompt` (обратная совместимость).
+    """
+    if not context_documents:
+        return system_prompt
+
+    parts = [system_prompt]
+    for path, content in context_documents.items():
+        parts.append(f"--- Приложенный документ: {path} ---\n{content}")
+    return "\n\n".join(parts)
 
 
 def _is_retryable(exc: Exception) -> bool:

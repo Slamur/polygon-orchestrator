@@ -14,13 +14,14 @@ class _FakeLLMClient:
         self.response = response
         self.calls: list[dict] = []
 
-    def generate(self, *, model_class, effort, system_prompt, user_prompt):
+    def generate(self, *, model_class, effort, system_prompt, user_prompt, context_documents=None):
         self.calls.append(
             {
                 "model_class": model_class,
                 "effort": effort,
                 "system_prompt": system_prompt,
                 "user_prompt": user_prompt,
+                "context_documents": context_documents,
             }
         )
         return self.response
@@ -83,6 +84,7 @@ def test_call_model_delegates_to_registered_client_with_step_routing():
             "effort": "high",
             "system_prompt": "system prompt",
             "user_prompt": "user prompt",
+            "context_documents": None,
         }
     ]
 
@@ -109,6 +111,15 @@ def test_set_client_lets_a_different_vendor_replace_the_default(monkeypatch):
 
     assert result.status == "proposed"
     assert len(fake_client.calls) == 1
+
+
+def test_call_model_forwards_context_documents_to_client():
+    fake_client = _FakeLLMClient(ModelResponse(status="confirmed"))
+    model_router.set_client(fake_client)
+
+    call_model("constraints_pick", "sys", "usr", context_documents={"a.md": "content"})
+
+    assert fake_client.calls[-1]["context_documents"] == {"a.md": "content"}
 
 
 def test_call_model_uses_default_client_when_none_registered(monkeypatch):
