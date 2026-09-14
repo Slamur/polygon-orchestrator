@@ -20,6 +20,7 @@ from typing import Any, Optional
 
 PROMPTS_DIR = Path("prompts")
 OUTPUTS_DIR = Path("outputs")
+TEMPLATES_DIR = Path("templates")
 
 # Статус, который никогда не считается валидным кэшем (см. CLAUDE.md,
 # "Кэширование по хешу спека", пункт 3): провал по недостатку данных должен
@@ -55,11 +56,24 @@ def compute_input_hash(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def compute_prompt_hash(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> str:
-    """sha256 от содержимого `prompts/<step_name>/system.md` + `user.md.j2`.
+def compute_prompt_hash(
+    step_name: str,
+    *,
+    prompts_dir: Path = PROMPTS_DIR,
+    templates_dir: Path = TEMPLATES_DIR,
+    extra_context_documents: list[str] | None = None,
+) -> str:
+    """sha256 от `prompts/<step_name>/{system.md,user.md.j2}` + документов контекста.
 
     Читает файлы с диска, так что правка промпта инвалидирует кэш шага, даже
-    если сам спек не менялся.
+    если сам спек не менялся. Помимо самих промптов, в хеш также входит
+    содержимое всех документов контекста этого шага
+    (`orchestrator.steps.base.STEP_CONTEXT_DOCUMENTS[step_name]` +
+    `extra_context_documents`, см. `orchestrator.steps.base.
+    load_context_documents`) — иначе правка requirements.md/problem_lib.h/
+    gen_rand.cpp и т.п. не инвалидирует кэш шагов, которые от них зависят.
+    Это наш собственный результат-кэш (`outputs/<id>/.cache/<step>.json`),
+    не связан с Anthropic prompt caching.
     """
     step_dir = Path(prompts_dir) / step_name
     system_text = (step_dir / "system.md").read_text(encoding="utf-8")
@@ -68,6 +82,18 @@ def compute_prompt_hash(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> s
     digest = hashlib.sha256()
     digest.update(system_text.encode("utf-8"))
     digest.update(user_text.encode("utf-8"))
+
+    # Локальный импорт разрывает цикл base.py (импортирует cache.py) <->
+    # cache.py (импортировал бы base.py на уровне модуля).
+    from orchestrator.steps import base as steps_base
+
+    context_documents = steps_base.load_context_documents(
+        step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
+    )
+    for doc_path, content in context_documents.items():
+        digest.update(doc_path.encode("utf-8"))
+        digest.update(content.encode("utf-8"))
+
     return digest.hexdigest()
 
 
