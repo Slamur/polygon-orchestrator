@@ -66,6 +66,43 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
     assert not (tmp_path / "valid-spec").exists()
 
 
+def test_preserve_legend_verbatim_true_includes_instruction(spec, tmp_path):
+    spec_verbatim = spec.model_copy(
+        update={"statement_draft": spec.statement_draft.model_copy(update={"preserve_legend_verbatim": True})}
+    )
+    response = ModelResponse(status="confirmed", artifacts={"statement.tex": "ok"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec_verbatim,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "preserve_legend_verbatim: true" in user_prompt
+    assert "НЕ действует" in user_prompt
+
+
+def test_preserve_legend_verbatim_false_uses_default_instruction(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts={"statement.tex": "ok"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "preserve_legend_verbatim: false" in user_prompt
+    assert "действует стандартное правило" in user_prompt
+
+
 def test_renders_without_crashing_when_known_ambiguities_is_null(spec, tmp_path):
     spec_no_ambiguities = spec.model_copy(
         update={"statement_draft": spec.statement_draft.model_copy(update={"known_ambiguities": None})}

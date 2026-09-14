@@ -84,6 +84,7 @@ class StatementDraft(BaseModel):
     indexing: Literal["0-indexed", "1-indexed", "не имеет значения"]
     sample_examples: list[SampleExample] = Field(min_length=1)
     known_ambiguities: Optional[list[str]] = None
+    preserve_legend_verbatim: bool = False
 
     @model_validator(mode="after")
     def _check_non_blank(self) -> "StatementDraft":

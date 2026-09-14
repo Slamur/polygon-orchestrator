@@ -88,6 +88,26 @@ def test_specific_test_ideas_absent_defaults_to_none(tmp_path):
     assert spec.generation.specific_test_ideas is None
 
 
+def test_preserve_legend_verbatim_absent_defaults_to_false():
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+
+    assert spec.statement_draft.preserve_legend_verbatim is False
+
+
+def test_preserve_legend_verbatim_true_is_loaded(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace(
+        '  indexing: "1-indexed"\n',
+        '  indexing: "1-indexed"\n  preserve_legend_verbatim: true\n',
+    )
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    spec = load_spec(path)
+
+    assert spec.statement_draft.preserve_legend_verbatim is True
+
+
 def test_custom_checker_without_notes_raises(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(
