@@ -251,13 +251,31 @@ def test_generate_hits_real_api():
     прогоном на задаче, с валидным ANTHROPIC_API_KEY в окружении/.env.
     """
     client = AnthropicClient()
-    result = client.generate(
-        model_class="medium-model",
-        effort="medium",
-        system_prompt=(
-            "Ты тестовый ассистент. Верни status: confirmed, один артефакт "
-            "'ping.txt' с содержимым 'pong', notes: []."
-        ),
-        user_prompt="Подтверди, что вызов API работает.",
-    )
+    try:
+        result = client.generate(
+            model_class="medium-model",
+            effort="medium",
+            system_prompt=(
+                "Ты тестовый ассистент. Верни status: confirmed, один артефакт "
+                "'ping.txt' с содержимым 'pong', notes: []."
+            ),
+            user_prompt="Подтверди, что вызов API работает.",
+        )
+    except anthropic.APIStatusError as exc:
+        # Голый re-raise здесь тонет в трейсбеке retry-цикла SDK
+        # (_base_client.py) и на терминале выглядит "обрезанным" — вместо
+        # этого явно достаём тело ответа API (в нём — конкретная причина
+        # 400, например какое поле схемы не понравилось), без ретрейса SDK.
+        error_body = exc.body if isinstance(exc.body, dict) else {}
+        error_details = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+        pytest.fail(
+            f"Anthropic API вернул {exc.status_code}: "
+            f"type={error_details.get('type')!r} "
+            f"message={error_details.get('message')!r} "
+            f"request_id={exc.request_id!r}",
+            pytrace=False,
+        )
+    except anthropic.APIConnectionError as exc:
+        pytest.fail(f"Anthropic API недоступен: {exc.message}", pytrace=False)
+
     assert result.status in {"confirmed", "proposed", "uncertain"}
