@@ -90,7 +90,13 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── generators_and_script.py
 │   │   ├── solutions_draft.py
 │   │   └── checker_draft.py
-│   ├── model_router.py            # выбор модели по критичности шага (см. ниже)
+│   ├── model_router.py            # маршрутизация по классу модели/effort — вендоронезависимо,
+│   │                               # делегирует в LLMClient (см. ниже)
+│   ├── llm_client.py               # Protocol LLMClient — единственная точка подмены вендора
+│   ├── model_contracts.py          # ModelResponse — вендоронезависимый контракт status/artifacts/notes
+│   ├── llm_clients/
+│   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
+│   │   └── anthropic_client.py     # AnthropicClient(LLMClient) — вся Anthropic-специфика тут
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
@@ -303,9 +309,15 @@ read_and_check) — но ошибка здесь дороже, чем в сре�
 качество предложенных тестов будет слабым, следующий шаг эскалации — до
 сильной модели, как у `constraints_pick`/`solutions_draft`.
 
-Конкретные имена моделей и параметры (temperature, max_tokens) — в
-`orchestrator/model_router.py`, не в промптах; промпты не должны зависеть от
-того, какая именно модель их выполняет.
+Классы моделей ("strong-model"/"medium-model"/"fast-model") и `effort` на
+шаг живут в `orchestrator/model_router.py` — этот модуль вендоронезависим,
+он не знает конкретных имён моделей. Соответствие класса конкретной модели
+вендора (например, `"strong-model" -> "claude-opus-5"`), авторизация, retry
+и формат структурированного вывода — всё это инкапсулировано в реализации
+`LLMClient` (`orchestrator/llm_client.py`), по умолчанию `AnthropicClient`
+(`orchestrator/llm_clients/anthropic_client.py`). Промпты не должны
+зависеть от того, какая именно модель/вендор их выполняет — вся эта
+информация не должна течь в `prompts/`.
 
 ## Как использовать приложенные материалы
 
