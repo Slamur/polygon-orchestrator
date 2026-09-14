@@ -95,6 +95,17 @@ def compute_input_hash(
     )
 
 
+def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
+    """Единственный шаг с документами контекста, специфичными для конкретного
+    вызова (а не для всех вызовов шага вообще) — `generation.base_template_refs`
+    (пути относительно корня репозитория, см. CLAUDE.md, "base_template_refs").
+    Остальные три шага не имеют таких документов и возвращают `None` (см. их
+    одноимённые функции) — единая сигнатура нужна `pipeline.py`, чтобы
+    считать `compute_prompt_hash` одинаково для всех шагов.
+    """
+    return spec.generation.base_template_refs
+
+
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
 ) -> Path:
@@ -181,4 +192,5 @@ def run_step(
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents(spec),
     )

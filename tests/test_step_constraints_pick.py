@@ -6,7 +6,7 @@ import pytest
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
-from orchestrator.steps.constraints_pick import run_step
+from orchestrator.steps.constraints_pick import extra_context_documents, run_step
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -17,6 +17,10 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 @pytest.fixture
 def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
+
+
+def test_extra_context_documents_is_none(spec):
+    assert extra_context_documents(spec) is None
 
 
 def test_confirmed_writes_constraints_yaml(spec, tmp_path):

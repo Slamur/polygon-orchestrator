@@ -182,7 +182,12 @@ def run_pipeline(
             result.stopped_uncertain = True
             return result
 
-        prompt_hash = compute_prompt_hash(step_name, prompts_dir=prompts_dir)
+        prompt_hash = compute_prompt_hash(
+            step_name,
+            prompts_dir=prompts_dir,
+            templates_dir=templates_dir,
+            extra_context_documents=module.extra_context_documents(spec),
+        )
         cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
 
@@ -253,6 +258,7 @@ def compute_step_statuses(
     specs_dir: Path = SPECS_DIR,
     prompts_dir: Path = PROMPTS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
+    templates_dir: Path = TEMPLATES_DIR,
 ) -> tuple[list[StepStatus], Optional[str]]:
     """Статус каждого шага для `problem_id`: cache hit / stale / not run /
     uncertain / blocked / skipped (optional) — без единого вызова модели.
@@ -317,7 +323,12 @@ def compute_step_statuses(
                 )
             )
         else:
-            prompt_hash = compute_prompt_hash(step_name, prompts_dir=prompts_dir)
+            prompt_hash = compute_prompt_hash(
+                step_name,
+                prompts_dir=prompts_dir,
+                templates_dir=templates_dir,
+                extra_context_documents=module.extra_context_documents(spec),
+            )
             if is_cache_valid(cache_entry, input_hash, prompt_hash) and _artifact_present(
                 primary_path
             ):

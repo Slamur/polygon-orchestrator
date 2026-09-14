@@ -25,7 +25,7 @@ _RESPONSES = {
 }
 
 
-def _fake_call_model(step, system_prompt, user_prompt):
+def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
     return _RESPONSES[step]
 
 

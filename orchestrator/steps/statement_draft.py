@@ -52,6 +52,16 @@ def primary_artifact_path(
     return Path(outputs_dir) / problem_id / "statement.tex"
 
 
+def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
+    """`statement_draft` не имеет документов контекста, специфичных для
+    конкретного вызова — только фиксированный `STEP_CONTEXT_DOCUMENTS`
+    (см. `orchestrator.steps.base`). Присутствует ради единой сигнатуры,
+    которую использует `pipeline.py` (см.
+    `generators_and_script.extra_context_documents`).
+    """
+    return None
+
+
 def run_step(
     problem_id: str,
     spec: ProblemSpec,

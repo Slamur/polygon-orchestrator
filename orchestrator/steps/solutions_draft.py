@@ -66,6 +66,13 @@ def primary_artifact_path(
     return Path(outputs_dir) / problem_id / "solutions"
 
 
+def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
+    """См. `statement_draft.extra_context_documents` — у `solutions_draft`
+    тоже нет документов контекста, специфичных для конкретного вызова.
+    """
+    return None
+
+
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
