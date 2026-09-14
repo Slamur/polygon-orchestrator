@@ -112,6 +112,7 @@ Python-оркестратор, который берёт структуриро�
         │   └── checker_draft.json
         ├── statement.tex
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
+        ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
         ├── generators/*.cpp
         ├── test_script(_groups)
         ├── solutions/*.cpp
@@ -127,10 +128,20 @@ Python-оркестратор, который берёт структуриро�
 2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
    очередь `intended_complexity` и `complexity_reasoning`. Выход:
    зафиксированные диапазоны переменных, TL/ML, разбиение на тестовые
-   группы — согласовано с asymптотикой, которую дал автор. Модель **не
-   имеет права** сама придумывать асимптотику по легенде — если
+   группы (в `constraints.yaml`, включая секцию `validator` —
+   `constants`/`checks`, описывающую, что именно должен проверять
+   валидатор) + `validator.cpp` по образцу `templates/validator.cpp`,
+   реализующий 1-в-1 `validator.constants`/`validator.checks`, которые шаг
+   сам же и зафиксировал в `constraints.yaml` — никаких проверок сверх или
+   помимо перечисленных там. Генерация `validator.cpp` — не отдельный шаг,
+   а последний под-шаг того же рассуждения об ограничениях в рамках одного
+   вызова модели: валидатор целиком выводится из решений, которые
+   `constraints_pick` и так принимает, и раздельные шаги/вызовы рисковали бы
+   разойтись между `constraints.yaml` и `validator.cpp`. Модель **не имеет
+   права** сама придумывать асимптотику по легенде — если
    `intended_complexity` пуст, шаг обязан завершиться ошибкой
-   "недостаточно данных", а не угадывать.
+   "недостаточно данных", а не угадывать; в этом случае `validator.cpp`
+   тоже не пишется — весь ответ шага уходит в `uncertain` целиком.
 3. **`generators_and_script`** — вход: секция `generation` спека +
    зафиксированные ограничения из шага 2 + (если секция `solutions` в
    спеке задана) `solutions.known_wrong_approaches`. Выход: C++/testlib-
