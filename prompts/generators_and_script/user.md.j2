@@ -8,6 +8,16 @@
 - name={{ g.name }}, params={{ g.params }}, purpose="{{ g.purpose }}"
 {% endfor %}
 
+## Конкретные тестовые сценарии, заказанные автором (не генераторы, а
+## конкретные тесты — см. пункт C системного сообщения)
+{% for t in generation.specific_test_ideas %}
+- {{ t }}
+{% endfor %}
+{% if not generation.specific_test_ideas %}
+(автор не указал конкретных тестовых сценариев — действуй по правилу для
+этого случая из пункта C системного сообщения)
+{% endif %}
+
 ## Известные неверные подходы (из секции solutions, если она задана) —
 ## источник для adversarial-тестов, см. пункт B системного сообщения
 {% for w in solutions.known_wrong_approaches %}

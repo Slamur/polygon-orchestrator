@@ -27,7 +27,7 @@ CONSTRAINTS_ARTIFACT = "constraints.yaml"
 
 # Optional[list[...]]-поля секции generation, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
-_LIST_FIELDS = ["generator_ideas", "base_template_refs"]
+_LIST_FIELDS = ["generator_ideas", "specific_test_ideas", "base_template_refs"]
 
 # Optional[list[...]]-поле секции solutions, которое используется этим шагом
 # (не всей секцией solutions_draft, а только это поле — источник adversarial-

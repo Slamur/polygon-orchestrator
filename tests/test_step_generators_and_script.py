@@ -111,7 +111,11 @@ def test_renders_without_crashing_when_optional_lists_are_null(spec, tmp_path):
     spec_bare = spec.model_copy(
         update={
             "generation": spec.generation.model_copy(
-                update={"generator_ideas": None, "base_template_refs": None}
+                update={
+                    "generator_ideas": None,
+                    "specific_test_ideas": None,
+                    "base_template_refs": None,
+                }
             )
         }
     )
@@ -166,6 +170,44 @@ def test_known_wrong_approaches_render_into_user_prompt(spec, tmp_path):
     assert "O(N^2) без кучи — TLE на больших N" in user_prompt
 
 
+def test_specific_test_ideas_render_into_user_prompt(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "ok"}, notes=[])
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    for idea in spec.generation.specific_test_ideas:
+        assert idea in user_prompt
+
+
+def test_missing_specific_test_ideas_notes_manual_review_in_prompt(spec, tmp_path):
+    spec_no_ideas = spec.model_copy(
+        update={"generation": spec.generation.model_copy(update={"specific_test_ideas": None})}
+    )
+    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "ok"}, notes=[])
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec_no_ideas,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "автор не указал конкретных тестовых сценариев" in user_prompt
+
+
 # --- compute_input_hash ------------------------------------------------------
 
 
@@ -186,6 +228,27 @@ def test_compute_input_hash_changes_when_known_wrong_approaches_change(spec):
         }
     )
     h2 = compute_input_hash("valid-spec", spec_more_wrong, upstream)
+
+    assert h1 != h2
+
+
+def test_compute_input_hash_changes_when_specific_test_ideas_change(spec):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    spec_more_ideas = spec.model_copy(
+        update={
+            "generation": spec.generation.model_copy(
+                update={
+                    "specific_test_ideas": [
+                        *spec.generation.specific_test_ideas,
+                        "все элементы массива равны",
+                    ]
+                }
+            )
+        }
+    )
+    h2 = compute_input_hash("valid-spec", spec_more_ideas, upstream)
 
     assert h1 != h2
 
