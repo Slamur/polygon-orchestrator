@@ -19,6 +19,7 @@ complexity_reasoning:
 {% for g in constraints.test_groups_hint %}
 - name={{ g.name }}, subset_of={{ g.subset_of }}, max_n={{ g.max_n }}, special_property={{ g.special_property }}
 {% endfor %}
+test_groups_needed: {{ constraints.test_groups_needed }}
 
 ## Лимиты, заданные автором явно (могут быть null)
 time_limit_seconds: {{ constraints.time_limit_seconds }}

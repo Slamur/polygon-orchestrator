@@ -108,6 +108,26 @@ def test_preserve_legend_verbatim_true_is_loaded(tmp_path):
     assert spec.statement_draft.preserve_legend_verbatim is True
 
 
+def test_test_groups_needed_absent_defaults_to_false():
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+
+    assert spec.constraints.test_groups_needed is False
+
+
+def test_test_groups_needed_true_is_loaded(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace(
+        '  intended_complexity: "O((N + K) log N)"\n',
+        '  intended_complexity: "O((N + K) log N)"\n  test_groups_needed: true\n',
+    )
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    spec = load_spec(path)
+
+    assert spec.constraints.test_groups_needed is True
+
+
 def test_custom_checker_without_notes_raises(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(

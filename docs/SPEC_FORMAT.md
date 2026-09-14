@@ -83,6 +83,13 @@ constraints:
     - name: "n is prime"
       subset_of: "full"
       special_property: "prime"
+  test_groups_needed: false          # [optional] bool, default false — явный запрос от автора на
+    # структуру тестовых групп. Если false и test_groups_hint не задан — шаг
+    # constraints_pick не предлагает группы вообще. Если задан
+    # test_groups_hint (непустой) — группы формируются по нему независимо
+    # от значения этого флага (хинт сам по себе уже явный запрос). Если
+    # test_groups_needed: true, а test_groups_hint не задан — шаг предлагает
+    # разумный набор сам, как proposed (текущее поведение).
   time_limit_seconds: null           # [optional] если null — модель предлагает, помечая как black-box предложение
   memory_limit_mb: 256               # [optional], желательно кратно 256 (см. requirements.md)
   uncertain_points:                  # [optional] то, в чём сам автор не уверен — акцент для шага
