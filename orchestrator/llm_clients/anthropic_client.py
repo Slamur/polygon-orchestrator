@@ -65,9 +65,25 @@ _RESPONSE_TOOL: dict[str, Any] = {
                 ),
             },
             "artifacts": {
-                "type": "object",
-                "additionalProperties": {"type": "string"},
-                "description": "Имя файла -> полное содержимое файла.",
+                "type": "array",
+                "description": (
+                    "Список файлов-артефактов. Anthropic strict tool use не "
+                    "поддерживает object-схему с произвольными ключами "
+                    "(additionalProperties должен быть false, а не схемой) — "
+                    "поэтому карта 'имя файла' -> 'содержимое' из "
+                    "docs/PROMPTS.md здесь представлена списком пар; "
+                    "`_parse_model_response` ниже собирает её обратно в dict "
+                    "для вендоронезависимого `ModelResponse.artifacts`."
+                ),
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "filename": {"type": "string"},
+                        "content": {"type": "string"},
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": False,
+                },
             },
             "notes": {
                 "type": "array",
@@ -235,8 +251,11 @@ def _parse_model_response(
         )
 
     payload = tool_use_blocks[0].input
+    artifacts = {
+        entry["filename"]: entry["content"] for entry in payload.get("artifacts") or []
+    }
     return ModelResponse(
         status=payload["status"],
-        artifacts=dict(payload.get("artifacts") or {}),
+        artifacts=artifacts,
         notes=list(payload.get("notes") or []),
     )

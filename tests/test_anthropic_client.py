@@ -45,7 +45,7 @@ def _fake_tool_use_message(payload: dict) -> MagicMock:
 def _payload(status: str = "confirmed") -> dict:
     return {
         "status": status,
-        "artifacts": {"statement.tex": "content"},
+        "artifacts": [{"filename": "statement.tex", "content": "content"}],
         "notes": [],
     }
 
@@ -114,11 +114,35 @@ def test_generate_forces_tool_choice_on_response_tool():
     assert kwargs["tools"][0]["strict"] is True
 
 
+def _assert_strict_schema_compatible(schema: dict, *, path: str = "$") -> None:
+    """Рекурсивно проверяет ограничения Anthropic strict tool use.
+
+    Реальный API 400-ит на `tools.0.custom`, если у object-схемы
+    `additionalProperties` — не буквально `False` (например, схема для
+    значений, как раньше было у `artifacts`) — с моком это не ловится,
+    только с реальным вызовом (см. `test_generate_hits_real_api`). Эта
+    проверка ловит ту же ошибку в unit-тестах, без похода в сеть.
+    """
+    if schema.get("type") == "object":
+        assert schema.get("additionalProperties") is False, (
+            f"{path}: object-схема должна иметь additionalProperties: False "
+            "для strict tool use (Anthropic API отклоняет схему-значение)"
+        )
+        for name, subschema in schema.get("properties", {}).items():
+            _assert_strict_schema_compatible(subschema, path=f"{path}.{name}")
+    elif schema.get("type") == "array":
+        _assert_strict_schema_compatible(schema["items"], path=f"{path}[]")
+
+
+def test_response_tool_schema_is_strict_compatible():
+    _assert_strict_schema_compatible(anthropic_client._RESPONSE_TOOL["input_schema"])
+
+
 def test_generate_parses_response_from_tool_use_input():
     fake_sdk_client = MagicMock()
     payload = {
         "status": "proposed",
-        "artifacts": {"constraints.yaml": "n: 100"},
+        "artifacts": [{"filename": "constraints.yaml", "content": "n: 100"}],
         "notes": [{"field": "n.max", "kind": "proposed", "explanation": "guessed"}],
     }
     fake_sdk_client.messages.create.return_value = _fake_tool_use_message(payload)
@@ -227,13 +251,31 @@ def test_generate_hits_real_api():
     прогоном на задаче, с валидным ANTHROPIC_API_KEY в окружении/.env.
     """
     client = AnthropicClient()
-    result = client.generate(
-        model_class="medium-model",
-        effort="medium",
-        system_prompt=(
-            "Ты тестовый ассистент. Верни status: confirmed, один артефакт "
-            "'ping.txt' с содержимым 'pong', notes: []."
-        ),
-        user_prompt="Подтверди, что вызов API работает.",
-    )
+    try:
+        result = client.generate(
+            model_class="medium-model",
+            effort="medium",
+            system_prompt=(
+                "Ты тестовый ассистент. Верни status: confirmed, один артефакт "
+                "'ping.txt' с содержимым 'pong', notes: []."
+            ),
+            user_prompt="Подтверди, что вызов API работает.",
+        )
+    except anthropic.APIStatusError as exc:
+        # Голый re-raise здесь тонет в трейсбеке retry-цикла SDK
+        # (_base_client.py) и на терминале выглядит "обрезанным" — вместо
+        # этого явно достаём тело ответа API (в нём — конкретная причина
+        # 400, например какое поле схемы не понравилось), без ретрейса SDK.
+        error_body = exc.body if isinstance(exc.body, dict) else {}
+        error_details = error_body.get("error", {}) if isinstance(error_body, dict) else {}
+        pytest.fail(
+            f"Anthropic API вернул {exc.status_code}: "
+            f"type={error_details.get('type')!r} "
+            f"message={error_details.get('message')!r} "
+            f"request_id={exc.request_id!r}",
+            pytrace=False,
+        )
+    except anthropic.APIConnectionError as exc:
+        pytest.fail(f"Anthropic API недоступен: {exc.message}", pytrace=False)
+
     assert result.status in {"confirmed", "proposed", "uncertain"}
