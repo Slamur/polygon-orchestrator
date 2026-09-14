@@ -22,6 +22,9 @@ _RESPONSES = {
     "solutions_draft": ModelResponse(
         status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[]
     ),
+    "checker_draft": ModelResponse(
+        status="confirmed", artifacts={"checker.cpp": "int main(){}"}, notes=[]
+    ),
 }
 
 

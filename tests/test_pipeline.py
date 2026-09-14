@@ -22,6 +22,9 @@ _RESPONSES = {
     "solutions_draft": ModelResponse(
         status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[]
     ),
+    "checker_draft": ModelResponse(
+        status="confirmed", artifacts={"checker.cpp": "int main(){}"}, notes=[]
+    ),
 }
 
 
@@ -51,16 +54,22 @@ def _run(specs_dir, outputs_dir, **kwargs):
 
 
 def test_first_run_calls_model_for_every_step_in_order(specs_dir, tmp_path):
+    # Спек-фикстура заказывает стандартный чекер (checker.custom_needed:
+    # false), поэтому checker_draft пропускается — он не менее часть
+    # STEP_ORDER, но не вызывает модель.
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
         result = _run(specs_dir, outputs_dir)
 
     assert result.ok
     assert [o.step_name for o in result.outcomes] == pipeline.STEP_ORDER
-    assert [o.status for o in result.outcomes] == ["confirmed"] * 4
-    assert mock_call.call_count == 4
-    # порядок вызовов совпадает с STEP_ORDER
-    assert [c.args[0] for c in mock_call.call_args_list] == pipeline.STEP_ORDER
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    called_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    assert {s: statuses[s] for s in called_steps} == {s: "confirmed" for s in called_steps}
+    assert mock_call.call_count == len(called_steps)
+    # порядок вызовов совпадает с STEP_ORDER (за вычетом пропущенного checker_draft)
+    assert [c.args[0] for c in mock_call.call_args_list] == called_steps
 
 
 def test_second_run_is_all_cache_hits_and_does_not_call_model(specs_dir, tmp_path):
@@ -72,7 +81,14 @@ def test_second_run_is_all_cache_hits_and_does_not_call_model(specs_dir, tmp_pat
         result = _run(specs_dir, outputs_dir)
 
     assert result.ok
-    assert [o.status for o in result.outcomes] == [pipeline.OUTCOME_CACHE_HIT] * 4
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    # checker_draft остаётся skipped_optional на каждом прогоне, а не
+    # cache_hit — он вообще не участвует в кэше при custom_needed=false.
+    assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    cached_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    assert {s: statuses[s] for s in cached_steps} == {
+        s: pipeline.OUTCOME_CACHE_HIT for s in cached_steps
+    }
     mock_call.assert_not_called()
 
 
@@ -85,8 +101,13 @@ def test_force_recalls_model_even_when_cached(specs_dir, tmp_path):
         result = _run(specs_dir, outputs_dir, force=True)
 
     assert result.ok
-    assert [o.status for o in result.outcomes] == ["confirmed"] * 4
-    assert mock_call.call_count == 4
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    # --force не отменяет "шаг вообще не применим для этой задачи" —
+    # checker_draft всё равно skipped_optional при custom_needed=false.
+    assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    forced_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    assert {s: statuses[s] for s in forced_steps} == {s: "confirmed" for s in forced_steps}
+    assert mock_call.call_count == len(forced_steps)
 
 
 def test_uncertain_step_stops_pipeline_before_later_steps(specs_dir, tmp_path):
@@ -139,6 +160,38 @@ def test_solutions_draft_skipped_when_spec_has_no_solutions_section(specs_dir, t
     statuses = {o.step_name: o.status for o in result.outcomes}
     assert statuses["solutions_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
     assert not (outputs_dir / "p1" / "solutions").exists()
+
+
+def test_checker_draft_skipped_when_custom_needed_is_false(specs_dir, tmp_path):
+    # Фикстура valid-spec.yaml заказывает стандартный чекер (ncmp) —
+    # checker.custom_needed: false, черновик не заказан.
+    outputs_dir = tmp_path / "outputs"
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        result = _run(specs_dir, outputs_dir)
+
+    assert result.ok
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    assert not (outputs_dir / "p1" / "checker.cpp").exists()
+
+
+def test_checker_draft_runs_when_custom_needed_is_true(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    content = (specs_dir / "p1.yaml").read_text(encoding="utf-8")
+    content = content.replace("custom_needed: false", "custom_needed: true").replace(
+        "custom_comparison_notes: null",
+        'custom_comparison_notes: "Сравнивать числа с точностью 1e-6"',
+    )
+    (specs_dir / "p1.yaml").write_text(content, encoding="utf-8")
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        result = _run(specs_dir, outputs_dir)
+
+    assert result.ok
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    assert statuses["checker_draft"] == "confirmed"
+    assert (outputs_dir / "p1" / "checker.cpp").exists()
 
 
 def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(specs_dir, tmp_path):
@@ -201,7 +254,12 @@ def test_compute_step_statuses_matches_cache_hits_after_full_run(specs_dir, tmp_
         "p1", specs_dir=specs_dir, prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
     )
     assert spec_error is None
-    assert [s.state for s in statuses] == [pipeline.STATUS_CACHE_HIT] * 4
+    by_name = {s.step_name: s.state for s in statuses}
+    assert by_name["checker_draft"] == pipeline.STATUS_SKIPPED_OPTIONAL
+    cached_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    assert {s: by_name[s] for s in cached_steps} == {
+        s: pipeline.STATUS_CACHE_HIT for s in cached_steps
+    }
 
 
 def test_compute_step_statuses_not_run_when_no_cache(specs_dir, tmp_path):

@@ -1,4 +1,4 @@
-"""Прогон 4 шагов для одного `problem_id`, с учётом кэша (CLAUDE.md,
+"""Прогон 5 шагов для одного `problem_id`, с учётом кэша (CLAUDE.md,
 "Пакетный запуск", "Кэширование по хешу спека").
 
 `run_pipeline` не вызывает модель, если это не нужно: перед каждым шагом
@@ -26,6 +26,7 @@ from orchestrator.cache import (
 )
 from orchestrator.spec import SpecValidationError, load_spec
 from orchestrator.steps import (
+    checker_draft,
     constraints_pick,
     generators_and_script,
     solutions_draft,
@@ -41,11 +42,15 @@ from orchestrator.steps.base import (
 SPECS_DIR = Path("specs")
 
 # Порядок шагов фиксирован (CLAUDE.md, "Роль каждого генеративного шага"):
-# каждый следующий шаг может зависеть от артефактов предыдущих.
+# каждый следующий шаг может зависеть от артефактов предыдущих. `checker_draft`
+# ни от чего не зависит (в отличие от соседей по порядку), но держится рядом
+# с `generators_and_script` — логически это тоже часть тестовой инфраструктуры
+# задачи, а не решений (CLAUDE.md, пункт 5).
 STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
     "generators_and_script",
+    "checker_draft",
     "solutions_draft",
 ]
 
@@ -53,11 +58,13 @@ _STEP_MODULES: dict[str, ModuleType] = {
     "statement_draft": statement_draft,
     "constraints_pick": constraints_pick,
     "generators_and_script": generators_and_script,
+    "checker_draft": checker_draft,
     "solutions_draft": solutions_draft,
 }
 
-# Имя артефакта constraints_pick, который шаги 3 и 4 читают с диска как
-# upstream-вход (см. CLAUDE.md, "Кэширование по хешу спека"). Совпадает с
+# Имя артефакта constraints_pick, который generators_and_script и
+# solutions_draft читают с диска как upstream-вход (см. CLAUDE.md,
+# "Кэширование по хешу спека"). Совпадает с
 # generators_and_script.CONSTRAINTS_ARTIFACT — дублируем константу здесь,
 # чтобы pipeline.py не тянул лишнюю зависимость от шага 3 ради одной строки.
 CONSTRAINTS_ARTIFACT = "constraints.yaml"
@@ -156,10 +163,21 @@ def run_pipeline(
             )
             continue
 
-        # Шаги 3 и 4 зависят от constraints.yaml с диска. Если запускаем не с
-        # начала (только --step или пропущенные по кэшу предыдущие шаги),
-        # артефакт нужно подхватить, а не требовать, чтобы это делал шаг 2
-        # в этом же прогоне.
+        if step_name == "checker_draft" and spec.checker.custom_needed is False:
+            result.outcomes.append(
+                StepOutcome(
+                    step_name,
+                    OUTCOME_SKIPPED_OPTIONAL,
+                    "checker.custom_needed=false — используется стандартный чекер, "
+                    "черновик не заказан",
+                )
+            )
+            continue
+
+        # generators_and_script и solutions_draft зависят от constraints.yaml
+        # с диска. Если запускаем не с начала (только --step или пропущенные
+        # по кэшу предыдущие шаги), артефакт нужно подхватить, а не требовать,
+        # чтобы это делал constraints_pick в этом же прогоне.
         if step_name in ("generators_and_script", "solutions_draft") and (
             CONSTRAINTS_ARTIFACT not in upstream_artifacts
         ):
@@ -174,10 +192,11 @@ def run_pipeline(
         try:
             input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
         except ValueError as exc:
-            # Нет constraints.yaml (шаг 2 ещё не запускался успешно) — это
-            # ошибка конфигурации запуска, а не uncertain: пайплайн должен
-            # остановиться так же, как остановился бы run_step с той же
-            # ValueError, но без падения всего процесса run --all.
+            # Нет constraints.yaml (constraints_pick ещё не запускался
+            # успешно) — это ошибка конфигурации запуска, а не uncertain:
+            # пайплайн должен остановиться так же, как остановился бы
+            # run_step с той же ValueError, но без падения всего процесса
+            # run --all.
             result.outcomes.append(StepOutcome(step_name, "error", str(exc)))
             result.stopped_uncertain = True
             return result
@@ -288,6 +307,16 @@ def compute_step_statuses(
                     step_name,
                     STATUS_SKIPPED_OPTIONAL,
                     "в спеке нет секции 'solutions' — черновики решений не заказаны",
+                )
+            )
+            continue
+
+        if step_name == "checker_draft" and spec.checker.custom_needed is False:
+            statuses.append(
+                StepStatus(
+                    step_name,
+                    STATUS_SKIPPED_OPTIONAL,
+                    "checker.custom_needed=false — используется стандартный чекер",
                 )
             )
             continue

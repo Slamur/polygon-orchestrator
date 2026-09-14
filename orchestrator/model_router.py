@@ -39,23 +39,36 @@ __all__ = [
 # statement_draft — средняя модель: задача там в основном про форматирование
 # по явным правилам из requirements.md/polygon.md, а не про рассуждение, так
 # что Opus-уровень для неё не нужен (см. CLAUDE.md).
+# checker_draft — опциональный шаг: формально механический, когда
+# `checker.custom_comparison_notes` полон и однозначен (перевод текстового
+# описания в код по паттерну read_and_check), но ошибка здесь дороже, чем в
+# среднем механическом шаге — неверно реализованное сравнение может молча
+# пропускать неверные решения или браковать верные (см. CLAUDE.md,
+# "Маршрутизация моделей по критичности шага"). Средняя модель — компромисс;
+# если на практике `custom_comparison_notes` часто оказывается недостаточно
+# точным и шаг слишком часто уходит в uncertain, следующий шаг эскалации —
+# до сильной модели, как у constraints_pick/solutions_draft.
 STEP_TO_MODEL: dict[str, str] = {
     "statement_draft": "medium-model",
     "constraints_pick": "strong-model",
     "generators_and_script": "medium-model",
     "solutions_draft": "strong-model",
+    "checker_draft": "medium-model",
 }
 
 # Уровень effort на шаг (общее для вендоров, поддерживающих такую ручку;
 # кто не поддерживает — вправе игнорировать). constraints_pick/
 # solutions_draft — самые рискованные по цене ошибки; generators_and_script —
-# high из-за дизайна adversarial-тестов; statement_draft — medium, это
+# high из-за дизайна adversarial-тестов; checker_draft — high по той же
+# причине, что и класс модели: цена ошибки в сравнении ответов высока даже
+# при формально механической реализации; statement_draft — medium, это
 # оформление, а не рассуждение.
 STEP_TO_EFFORT: dict[str, str] = {
     "statement_draft": "medium",
     "constraints_pick": "high",
     "generators_and_script": "high",
     "solutions_draft": "high",
+    "checker_draft": "high",
 }
 
 _client: LLMClient | None = None

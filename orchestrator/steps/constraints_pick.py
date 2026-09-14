@@ -33,7 +33,7 @@ def compute_input_hash(
     """Хеш входа шага без вызова модели — см. `statement_draft.compute_input_hash`
     и CLAUDE.md, "Кэширование по хешу спека". `problem_id`/`upstream_artifacts`
     не используются (шаг зависит только от секции `constraints`), присутствуют
-    ради единой сигнатуры у всех четырёх шагов.
+    ради единой сигнатуры у всех пяти шагов.
     """
     section_data = with_default_lists(
         spec.constraints.model_dump(mode="json"), _LIST_FIELDS

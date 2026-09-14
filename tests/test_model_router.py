@@ -34,12 +34,13 @@ def _reset_client():
     model_router._client = None
 
 
-def test_step_to_model_covers_all_four_steps():
+def test_step_to_model_covers_all_five_steps():
     assert set(STEP_TO_MODEL) == {
         "statement_draft",
         "constraints_pick",
         "generators_and_script",
         "solutions_draft",
+        "checker_draft",
     }
 
 
@@ -56,12 +57,17 @@ def test_statement_draft_uses_medium_model():
     assert STEP_TO_MODEL["statement_draft"] == "medium-model"
 
 
-def test_step_to_effort_covers_all_four_steps():
+def test_checker_draft_uses_medium_model():
+    assert STEP_TO_MODEL["checker_draft"] == "medium-model"
+
+
+def test_step_to_effort_covers_all_five_steps():
     assert set(STEP_TO_EFFORT) == set(STEP_TO_MODEL)
     assert STEP_TO_EFFORT["constraints_pick"] == "high"
     assert STEP_TO_EFFORT["solutions_draft"] == "high"
     assert STEP_TO_EFFORT["generators_and_script"] == "high"
     assert STEP_TO_EFFORT["statement_draft"] == "medium"
+    assert STEP_TO_EFFORT["checker_draft"] == "high"
 
 
 def test_model_response_defaults():
