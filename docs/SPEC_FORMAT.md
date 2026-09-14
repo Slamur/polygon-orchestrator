@@ -92,8 +92,8 @@ generation:
       purpose: "N — простое число из диапазона"
   reuse_existing_generators: true    # [required] bool — permission use готовые generator.cpp из репозитория как основу
   base_template_refs:                # [optional] пути к существующим файлам-примерам, которые нужно взять за основу
-    - "Polygon/gen_rand.cpp"
-    - "Polygon/test_script"
+    - "templates/gen_rand.cpp"
+    - "templates/test_script"
   script_style: "groups"             # [required] "flat" | "groups" — простой скрипт или по группам тестов (см. test_script vs test_script_groups)
 
 # ---------------------------------------------------------------------------
