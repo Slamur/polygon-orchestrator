@@ -11,8 +11,11 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
+from contextlib import contextmanager
 from pathlib import Path
+from typing import Iterator
 
 from orchestrator.pipeline import (
     OUTCOME_CACHE_HIT,
@@ -38,15 +41,101 @@ _OUTCOME_LABELS = {
     "error": "error",
 }
 
+# Логгер пакета — на него вешается и консольный вывод (см.
+# `_configure_console_logging`), и по-задачный `outputs/<id>/log.txt` (см.
+# `_problem_log_handler`), см. CLAUDE.md, задача "лог выполнения". Дочерние
+# логгеры (например, `orchestrator.llm_clients.anthropic_client`, откуда
+# идёт `_log_usage`) пишут через propagate в этот же логгер — отдельно
+# настраивать их не нужно.
+LOGGER_NAME = "orchestrator"
+
+_console_handler: logging.Handler | None = None
+
+
+def _configure_console_logging() -> logging.Logger:
+    """Настраивает логгер пакета так, чтобы INFO-сообщения были видны в
+    консоли — до этого `logger.info(...)` в `_log_usage` никуда не выводился,
+    потому что для логгера не было ни уровня, ни handler'а.
+
+    Пересоздаёт handler при каждом вызове (а не один раз при импорте модуля):
+    `logging.StreamHandler()` фиксирует `sys.stdout` в момент создания, а
+    `capsys` в тестах подменяет `sys.stdout` на время теста — handler,
+    созданный при импорте, писал бы мимо этой подмены.
+    """
+    global _console_handler
+    logger = logging.getLogger(LOGGER_NAME)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+    if _console_handler is not None:
+        logger.removeHandler(_console_handler)
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger.addHandler(handler)
+    _console_handler = handler
+    return logger
+
+
+@contextmanager
+def _problem_log_handler(
+    logger: logging.Logger, outputs_dir: Path, problem_id: str
+) -> Iterator[logging.Handler]:
+    """Заводит `outputs/<problem_id>/log.txt` на время обработки одного
+    `problem_id` — открывается на перезапись (см. CLAUDE.md, задача "лог
+    выполнения": "при повторном запуске лог должен отражать последний
+    прогон, а не накапливаться"), добавляется к логгеру перед прогоном шагов
+    и снимается сразу после, через try/finally — чтобы в `run --all` лог
+    одной задачи не утёк в файл следующей, и чтобы необработанное исключение
+    всё равно не оставило handler висящим.
+
+    Отдаёт сам handler — вызывающий код использует его напрямую в
+    `_log_traceback_to_file` для необработанных исключений (см. там же,
+    почему это не идёт через обычный `logger.exception`).
+    """
+    problem_dir = Path(outputs_dir) / problem_id
+    problem_dir.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(problem_dir / "log.txt", mode="w", encoding="utf-8")
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    logger.addHandler(handler)
+    try:
+        yield handler
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+
+def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
+    """Пишет текущий traceback (`sys.exc_info()`) в конкретный `handler`,
+    минуя остальные handler'ы логгера — чтобы вывод в консоль при
+    необработанном исключении остался ровно таким же, как раньше (traceback
+    туда и так печатает сам Python при завершении процесса / его печатал
+    старый `except Exception` в `run --all`, без traceback вообще), а
+    `outputs/<id>/log.txt` при этом не терял traceback (CLAUDE.md, задача
+    "лог выполнения", пункт 4).
+    """
+    record = logging.LogRecord(
+        name=LOGGER_NAME,
+        level=logging.ERROR,
+        pathname=__file__,
+        lineno=0,
+        msg=message,
+        args=None,
+        exc_info=sys.exc_info(),
+    )
+    handler.handle(record)
+
 
 def _discover_problem_ids(specs_dir: Path) -> list[str]:
     return sorted(path.stem for path in Path(specs_dir).glob("*.yaml"))
 
 
-def _print_pipeline_result(result) -> None:
-    print(f"=== {result.problem_id} ===")
+def _print_pipeline_result(logger: logging.Logger, result) -> None:
+    logger.info(f"=== {result.problem_id} ===")
     if result.spec_error is not None:
-        print(result.spec_error)
+        logger.info(result.spec_error)
         return
 
     for outcome in result.outcomes:
@@ -54,60 +143,73 @@ def _print_pipeline_result(result) -> None:
         line = f"  {outcome.step_name}: {label}"
         if outcome.detail:
             line += f" — {outcome.detail}"
-        print(line)
+        logger.info(line)
         for note in outcome.notes:
             kind = note.get("kind", "?")
             field_name = note.get("field", "?")
             explanation = note.get("explanation", "")
-            print(f"      [{kind}] {field_name}: {explanation}")
+            logger.info(f"      [{kind}] {field_name}: {explanation}")
 
     if result.stopped_uncertain:
-        print(f"  ! пайплайн остановлен для '{result.problem_id}' — см. шаг выше")
+        logger.info(f"  ! пайплайн остановлен для '{result.problem_id}' — см. шаг выше")
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    logger = _configure_console_logging()
+
     if args.all:
         problem_ids = _discover_problem_ids(args.specs_dir)
         if not problem_ids:
-            print(f"в {args.specs_dir} не найдено ни одного specs/*.yaml")
+            logger.info(f"в {args.specs_dir} не найдено ни одного specs/*.yaml")
             return 0
 
         any_failed = False
         for problem_id in problem_ids:
-            try:
-                result = run_pipeline(
-                    problem_id,
-                    force=args.force,
-                    specs_dir=args.specs_dir,
-                    prompts_dir=args.prompts_dir,
-                    outputs_dir=args.outputs_dir,
-                    templates_dir=args.templates_dir,
-                )
-            except Exception as exc:  # noqa: BLE001 — один problem_id не должен ронять весь --all
-                print(f"=== {problem_id} ===")
-                print(f"  ! неожиданная ошибка: {exc}")
-                any_failed = True
-                continue
+            with _problem_log_handler(logger, args.outputs_dir, problem_id) as file_handler:
+                try:
+                    result = run_pipeline(
+                        problem_id,
+                        force=args.force,
+                        specs_dir=args.specs_dir,
+                        prompts_dir=args.prompts_dir,
+                        outputs_dir=args.outputs_dir,
+                        templates_dir=args.templates_dir,
+                    )
+                except Exception as exc:  # noqa: BLE001 — один problem_id не должен ронять весь --all
+                    logger.info(f"=== {problem_id} ===")
+                    logger.info(f"  ! неожиданная ошибка: {exc}")
+                    _log_traceback_to_file(
+                        file_handler, f"необработанная ошибка при обработке '{problem_id}'"
+                    )
+                    any_failed = True
+                    continue
 
-            _print_pipeline_result(result)
-            if not result.ok:
-                any_failed = True
+                _print_pipeline_result(logger, result)
+                if not result.ok:
+                    any_failed = True
         return 1 if any_failed else 0
 
     if args.step is not None and args.step not in STEP_ORDER:
         print(f"неизвестный шаг '{args.step}', допустимые: {', '.join(STEP_ORDER)}", file=sys.stderr)
         return 2
 
-    result = run_pipeline(
-        args.problem_id,
-        force=args.force,
-        only_step=args.step,
-        specs_dir=args.specs_dir,
-        prompts_dir=args.prompts_dir,
-        outputs_dir=args.outputs_dir,
-        templates_dir=args.templates_dir,
-    )
-    _print_pipeline_result(result)
+    with _problem_log_handler(logger, args.outputs_dir, args.problem_id) as file_handler:
+        try:
+            result = run_pipeline(
+                args.problem_id,
+                force=args.force,
+                only_step=args.step,
+                specs_dir=args.specs_dir,
+                prompts_dir=args.prompts_dir,
+                outputs_dir=args.outputs_dir,
+                templates_dir=args.templates_dir,
+            )
+        except Exception:
+            _log_traceback_to_file(
+                file_handler, f"необработанная ошибка при обработке '{args.problem_id}'"
+            )
+            raise
+        _print_pipeline_result(logger, result)
     return 0 if result.ok else 1
 
 
