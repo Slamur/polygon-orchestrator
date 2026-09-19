@@ -153,6 +153,9 @@ Python-оркестратор, который берёт структуриро�
    "недостаточно данных", а не угадывать; в этом случае `validator.cpp`
    тоже не пишется — весь ответ шага уходит в `uncertain` целиком.
 3. **`generators_and_script`** — вход: секция `generation` спека +
+   `statement_draft.formal_input_sketch` (форма входных данных для
+   генераторов — отдельного поля `generation.input_shape` в спеке нет,
+   чтобы не дублировать описание формата входа) +
    зафиксированные ограничения из шага 2 + (если секция `solutions` в
    спеке задана) `solutions.known_wrong_approaches`. Выход: C++/testlib-
    генераторы (на основе `templates/gen_rand.cpp` и т.п., см.
@@ -241,6 +244,9 @@ Python-оркестратор, который берёт структуриро�
 - каноническое JSON-представление той секции спека, от которой зависит шаг
   (`statement_draft` → секция `statement_draft`; `constraints_pick` →
   секция `constraints`; `generators_and_script` → секция `generation` +
+  `statement_draft.formal_input_sketch` (форма входных данных — правка
+  формата входа в условии должна инвалидировать кэш генераторов, даже если
+  секция `generation` не менялась) +
   содержимое `outputs/<id>/constraints.yaml`, полученное на шаге 2, +
   `solutions.known_wrong_approaches` (если секция `solutions` задана —
   правка `known_wrong_approaches` тоже должна инвалидировать кэш этого
