@@ -167,3 +167,34 @@ def test_spec_without_generation_input_shape_loads():
     spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
     assert not hasattr(spec.generation, "input_shape")
+
+
+def _spec_without_first_sample_output(tmp_path, replacement: str) -> Path:
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    original = "      output: |\n        8\n"
+    assert original in text
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text.replace(original, replacement), encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("replacement", ["", "      output: |\n"], ids=["key-absent", "empty-block"])
+def test_sample_example_output_is_optional(tmp_path, replacement):
+    spec = load_spec(_spec_without_first_sample_output(tmp_path, replacement))
+
+    example = spec.statement_draft.sample_examples[0]
+    assert not example.output
+    assert example.input.strip() == "3 2\n1 2 5\n2 3 3\n1 3".strip()
+
+
+def test_sample_example_input_still_required(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    original = "    - input: |\n        3 2\n        1 2 5\n        2 3 3\n        1 3\n"
+    assert original in text
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text.replace(original, "    - input: \"\"\n"), encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert "sample_examples[].input" in "\n".join(exc_info.value.errors)

@@ -119,3 +119,30 @@ def test_renders_without_crashing_when_known_ambiguities_is_null(spec, tmp_path)
         )
 
     assert result.status == "confirmed"
+
+
+def test_prompt_marks_missing_sample_output_and_keeps_given_one(spec, tmp_path):
+    examples = [
+        spec.statement_draft.sample_examples[0].model_copy(update={"output": "8\n"}),
+        spec.statement_draft.sample_examples[0].model_copy(update={"input": "2 1\n1 2 4\n1 2\n", "output": None}),
+    ]
+    spec_mixed = spec.model_copy(
+        update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
+    )
+    response = ModelResponse(status="confirmed", artifacts={"statement.tex": "ok"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec_mixed,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    first, second = user_prompt.split("### Пример 2")
+    assert "Output (пример от автора, для примечания):\n8\n" in first
+    assert "автор не указал" in second
+    assert "автор не указал" not in first
+    assert "None" not in second.split("## Известные")[0].split("Что важно")[0]

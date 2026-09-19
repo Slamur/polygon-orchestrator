@@ -17,8 +17,13 @@
 ### Пример {{ loop.index }}
 Input:
 {{ ex.input }}
-Output:
+{% if ex.output %}
+Output (пример от автора, для примечания):
 {{ ex.output }}
+{% else %}
+Output: автор не указал — не вычисляй сам, ориентируйся только на
+формат вывода из formal_output_sketch.
+{% endif %}
 Что важно объяснить в пояснении: {{ ex.note_hint }}
 {% endfor %}
 

@@ -65,13 +65,12 @@ class SampleExample(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     input: str
-    output: str
+    output: Optional[str] = None
     note_hint: Optional[str] = None
 
     @model_validator(mode="after")
     def _check_non_blank(self) -> "SampleExample":
         _non_blank(self.input, "sample_examples[].input")
-        _non_blank(self.output, "sample_examples[].output")
         return self
 
 
