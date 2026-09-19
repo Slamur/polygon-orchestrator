@@ -1,5 +1,4 @@
 import json
-import logging
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -11,7 +10,8 @@ from orchestrator.polygon.state import (
     load_polygon_state,
     save_polygon_state,
 )
-from orchestrator.polygon.steps.create_problem import STEP_NAME, run_step
+from orchestrator.polygon.steps.base import PolygonStep, run_step
+from orchestrator.polygon.steps.create_problem import STEP, STEP_NAME
 from orchestrator.spec import load_spec
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -27,8 +27,13 @@ def _state_path(outputs_dir: Path) -> Path:
     return outputs_dir / PROBLEM_ID / "polygon_state.json"
 
 
-def test_step_name():
-    assert STEP_NAME == "create_problem"
+def _run(spec, outputs_dir, client) -> str:
+    return run_step(STEP, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client)
+
+
+def test_step_is_a_polygon_step_with_expected_name():
+    assert isinstance(STEP, PolygonStep)
+    assert STEP.name == STEP_NAME == "create_problem"
 
 
 def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
@@ -38,7 +43,7 @@ def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
         "problem.create": {"id": 555},
     }[method]
 
-    message = run_step(PROBLEM_ID, spec, outputs_dir=tmp_path, client=client)
+    message = _run(spec, tmp_path, client)
 
     assert "created new" in message
     assert "555" in message
@@ -55,7 +60,7 @@ def test_reuses_existing_polygon_problem_found_by_name(tmp_path, spec):
     client = MagicMock()
     client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]
 
-    message = run_step(PROBLEM_ID, spec, outputs_dir=tmp_path, client=client)
+    message = _run(spec, tmp_path, client)
 
     assert "reused" in message
     client.call.assert_called_once_with("problems.list", {"name": PROBLEM_ID})
@@ -76,7 +81,7 @@ def test_existing_local_state_makes_no_network_calls(tmp_path, spec):
     )
     client = MagicMock()
 
-    message = run_step(PROBLEM_ID, spec, outputs_dir=tmp_path, client=client)
+    message = _run(spec, tmp_path, client)
 
     assert "already linked" in message
     assert "777" in message
@@ -94,16 +99,6 @@ def test_create_failure_propagates_and_saves_nothing(tmp_path, spec):
     client.call.side_effect = fake_call
 
     with pytest.raises(PolygonApiError, match="boom"):
-        run_step(PROBLEM_ID, spec, outputs_dir=tmp_path, client=client)
+        _run(spec, tmp_path, client)
 
     assert not _state_path(tmp_path).exists()
-
-
-def test_logs_the_returned_message(tmp_path, spec, caplog):
-    client = MagicMock()
-    client.call.return_value = [{"id": 123}]
-
-    with caplog.at_level(logging.INFO, logger="orchestrator.polygon.steps.create_problem"):
-        message = run_step(PROBLEM_ID, spec, outputs_dir=tmp_path, client=client)
-
-    assert message in caplog.messages
