@@ -141,3 +141,29 @@ def test_custom_checker_without_notes_raises(tmp_path):
         load_spec(path)
 
     assert "custom_comparison_notes" in str(exc_info.value)
+
+
+def test_generation_input_shape_is_forbidden(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace(
+        "generation:\n",
+        "generation:\n  input_shape: |\n    Первая строка: N K.\n",
+    )
+    assert "input_shape" in text
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    joined = "\n".join(exc_info.value.errors)
+    assert "generation.input_shape" in joined
+
+
+def test_spec_without_generation_input_shape_loads():
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    assert "input_shape" not in text
+
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+
+    assert not hasattr(spec.generation, "input_shape")

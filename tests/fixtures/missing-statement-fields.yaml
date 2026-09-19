@@ -19,8 +19,6 @@ constraints:
       description: "количество вершин"
 
 generation:
-  input_shape: |
-    Первая строка: N K. Далее K строк с рёбрами.
   reuse_existing_generators: true
   script_style: "flat"
 

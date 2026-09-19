@@ -51,6 +51,21 @@ def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
     )
 
 
+def _build_generation_section(spec: ProblemSpec) -> dict[str, Any]:
+    """Секция generation для рендера промпта И для входа хеша кэша —
+    единая точка сборки, чтобы обе не могли разойтись (см.
+    _solutions_section_data выше и CLAUDE.md, "Кэширование по хешу
+    спека"). input_shape больше не отдельное поле спека — форма
+    входных данных берётся из statement_draft.formal_input_sketch,
+    чтобы не дублировать её вручную в двух местах спека.
+    """
+    section_data = with_default_lists(
+        spec.generation.model_dump(mode="json"), _LIST_FIELDS
+    )
+    section_data["input_shape"] = spec.statement_draft.formal_input_sketch
+    return section_data
+
+
 def _require_constraints_yaml(
     step_name: str, problem_id: str, upstream_artifacts: Optional[dict[str, Any]]
 ) -> str:
@@ -78,16 +93,20 @@ def compute_input_hash(
     и CLAUDE.md, "Кэширование по хешу спека". В отличие от шагов 1-2, здесь
     `upstream_artifacts["constraints.yaml"]` обязателен и входит в хеш —
     без него та же `ValueError`, что и в `run_step`. Помимо секции
-    `generation`, в хеш также входит `solutions.known_wrong_approaches` (если
-    секция `solutions` задана) — правка списка неверных подходов должна
-    инвалидировать кэш этого шага, даже если секция `generation` не менялась
-    (CLAUDE.md, "Кэширование по хешу спека").
+    `generation`, в хеш также входят:
+    - `statement_draft.formal_input_sketch` (форма входных данных — она
+      попадает в `generation.input_shape` через `_build_generation_section`,
+      см. его докстринг) — правка формата входа в условии должна
+      инвалидировать кэш генераторов, даже если секция `generation` не
+      менялась;
+    - `solutions.known_wrong_approaches` (если секция `solutions` задана) —
+      правка списка неверных подходов должна инвалидировать кэш этого шага,
+      даже если секция `generation` не менялась (CLAUDE.md, "Кэширование по
+      хешу спека").
     """
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     section_data = {
-        "generation": with_default_lists(
-            spec.generation.model_dump(mode="json"), _LIST_FIELDS
-        ),
+        "generation": _build_generation_section(spec),
         "known_wrong_approaches": _solutions_section_data(spec)["known_wrong_approaches"],
     }
     return _cache_compute_input_hash(
@@ -129,8 +148,11 @@ def run_step(
 ) -> StepResult:
     """Прогоняет шаг `generators_and_script` для `problem_id`.
 
-    Вход: секция `generation` спека (форма входных данных, идеи генераторов,
+    Вход: секция `generation` спека (идеи генераторов,
     `reuse_existing_generators`/`base_template_refs`, `script_style`) плюс
+    форма входных данных, которая берётся из
+    `statement_draft.formal_input_sketch` (а не из отдельного поля
+    `generation`, см. `_build_generation_section`), плюс
     зафиксированные ограничения из шага `constraints_pick` — они передаются
     через `upstream_artifacts["constraints.yaml"]` (содержимое файла,
     записанного шагом 2) и подставляются в промпт как единственный источник
@@ -166,12 +188,9 @@ def run_step(
     """
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
 
-    section_data = with_default_lists(
-        spec.generation.model_dump(mode="json"), _LIST_FIELDS
-    )
     context = {
         "problem_id": problem_id,
-        "generation": section_data,
+        "generation": _build_generation_section(spec),
         "solutions": _solutions_section_data(spec),
         "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }

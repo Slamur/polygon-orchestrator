@@ -7,6 +7,7 @@ from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
 from orchestrator.steps.generators_and_script import (
+    _build_generation_section,
     compute_input_hash,
     extra_context_documents,
     run_step,
@@ -90,7 +91,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
     response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "generation.input_shape", "kind": "uncertain", "explanation": "неясна форма"}],
+        notes=[{"field": "statement_draft.formal_input_sketch", "kind": "uncertain", "explanation": "неясна форма"}],
     )
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -208,6 +209,33 @@ def test_missing_specific_test_ideas_notes_manual_review_in_prompt(spec, tmp_pat
     assert "автор не указал конкретных тестовых сценариев" in user_prompt
 
 
+# --- _build_generation_section ----------------------------------------------
+
+
+def test_build_generation_section_input_shape_comes_from_formal_input_sketch(spec):
+    section = _build_generation_section(spec)
+
+    assert section["input_shape"] == spec.statement_draft.formal_input_sketch
+    assert section["script_style"] == spec.generation.script_style
+
+
+def test_run_step_renders_formal_input_sketch_as_input_shape(spec, tmp_path):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    response = ModelResponse(status="confirmed", artifacts={}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    assert spec.statement_draft.formal_input_sketch.strip() in user_prompt
+
+
 # --- compute_input_hash ------------------------------------------------------
 
 
@@ -265,3 +293,21 @@ def test_compute_input_hash_treats_missing_solutions_as_empty_list(spec):
     h_empty = compute_input_hash("valid-spec", spec_empty_wrong, upstream)
 
     assert h_missing == h_empty
+
+
+def test_compute_input_hash_changes_when_only_formal_input_sketch_changes(spec):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    spec_other_sketch = spec.model_copy(
+        update={
+            "statement_draft": spec.statement_draft.model_copy(
+                update={"formal_input_sketch": "Первая строка: N. Вторая строка: N чисел."}
+            )
+        }
+    )
+    # секция generation у обоих спеков идентична — различается только источник input_shape
+    assert spec_other_sketch.generation == spec.generation
+    h2 = compute_input_hash("valid-spec", spec_other_sketch, upstream)
+
+    assert h1 != h2
