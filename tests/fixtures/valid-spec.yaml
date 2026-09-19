@@ -51,8 +51,6 @@ constraints:
     - "не уверен, что 10^5 рёбер достаточно для группы на TL без быстрого ввода"
 
 generation:
-  input_shape: |
-    Первая строка: N K. Далее K строк с рёбрами. Последняя строка: S T.
   generator_ideas:
     - name: "gen_rand"
       params: ["n", "k"]

@@ -158,17 +158,11 @@ class GeneratorIdea(BaseModel):
 class Generation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    input_shape: str
     generator_ideas: Optional[list[GeneratorIdea]] = None
     specific_test_ideas: Optional[list[str]] = None
     reuse_existing_generators: bool
     base_template_refs: Optional[list[str]] = None
     script_style: Literal["flat", "groups"]
-
-    @model_validator(mode="after")
-    def _check_non_blank(self) -> "Generation":
-        _non_blank(self.input_shape, "generation.input_shape")
-        return self
 
 
 _ALLOWED_VERDICTS = {"ok", "wa", "tl", "tle", "ml", "mle", "re"}
