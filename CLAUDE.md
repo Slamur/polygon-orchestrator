@@ -30,12 +30,16 @@ Python-оркестратор, который берёт структуриро�
   read_and_check — см. `templates/checker.cpp`), только если
   `checker.custom_needed: true` в спеке; если используется стандартный
   чекер (`checker.standard`) — этот шаг не запускается, генерировать
-  нечего.
+  нечего;
+- создание задачи на Polygon по `problem_id` из спека через Polygon API
+  (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
+  хранится в `outputs/<problem_id>/polygon_state.json`). Остальные шаги
+  интеграции (ограничения, условие, файлы, commit/packages) — позже, по мере
+  проработки.
 
 Вне скоупа (сознательно, добавим отдельно позже):
 - полноценный судящий контур (различение TLE/MLE/RE, батч-стресс-тестинг,
-  сравнение решений между собой на реальных лимитах);
-- интеграция с Polygon API (загрузка файлов, commit, packages).
+  сравнение решений между собой на реальных лимитах).
 
 Минимальная страховка вместо судящего контура на этом этапе:
 - **compile-check** после каждого сгенерированного C++-файла
@@ -97,6 +101,11 @@ Python-оркестратор, который берёт структуриро�
 │   ├── llm_clients/
 │   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
 │   │   └── anthropic_client.py     # AnthropicClient(LLMClient) — вся Anthropic-специфика тут
+│   ├── polygon/
+│   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
+│   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
+│   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
+│   │   └── state.py                # PolygonState, load/save polygon_state.json
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
@@ -110,6 +119,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── generators_and_script.json
         │   ├── solutions_draft.json
         │   └── checker_draft.json
+        ├── polygon_state.json      # problem_id -> Polygon problemId; не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── statement.tex
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
