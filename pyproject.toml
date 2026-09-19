@@ -9,6 +9,7 @@ dependencies = [
     "Jinja2>=3,<4",
     "anthropic>=1,<2",
     "python-dotenv>=1,<2",
+    "requests>=2,<3",
 ]
 
 [project.optional-dependencies]
@@ -20,7 +21,7 @@ dev = [
 pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
-    "integration: бьёт в реальный Anthropic API (нужен ANTHROPIC_API_KEY), не запускается по умолчанию",
+    "integration: бьёт в реальный внешний API (Anthropic и/или Polygon; нужны ANTHROPIC_API_KEY и/или POLYGON_API_KEY/POLYGON_API_SECRET), не запускается по умолчанию",
 ]
 addopts = "-m 'not integration'"
 
