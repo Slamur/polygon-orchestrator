@@ -10,7 +10,7 @@ from orchestrator.polygon.state import (
 
 def _state() -> PolygonState:
     return PolygonState(
-        problem_id="summer-events-stats",
+        problem_id="example-problem",
         polygon_id=123456,
         created_at="2026-09-19T12:00:00+00:00",
     )
@@ -38,7 +38,7 @@ def test_save_uses_cache_serialization_style(tmp_path: Path):
         {
             "created_at": "2026-09-19T12:00:00+00:00",
             "polygon_id": 123456,
-            "problem_id": "summer-events-stats",
+            "problem_id": "example-problem",
         },
         ensure_ascii=False,
         sort_keys=True,
