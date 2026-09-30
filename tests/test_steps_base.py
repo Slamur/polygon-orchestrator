@@ -227,6 +227,86 @@ def test_run_generative_step_unknown_status_raises_value_error(tmp_path):
     assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
 
 
+def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    outputs_dir = tmp_path / "outputs"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+
+    response = ModelResponse(
+        status="confirmed", artifacts={"a.tex": "a", "sub/b.txt": "b"}, notes=[]
+    )
+    seen: list[dict[str, str]] = []
+
+    def validate(artifacts):
+        seen.append(dict(artifacts))
+        # к моменту валидации на диске ещё ничего нет
+        assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
+        raise ValueError("набор файлов не совпадает")
+
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        with pytest.raises(ValueError, match="набор файлов не совпадает"):
+            run_generative_step(
+                step_name="statement_draft",
+                problem_id="p1",
+                context={},
+                input_hash="h",
+                resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+                prompts_dir=prompts_dir,
+                outputs_dir=outputs_dir,
+                validate_artifacts=validate,
+            )
+
+    assert seen == [{"a.tex": "a", "sub/b.txt": "b"}]
+    assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
+    assert load_cache_entry("p1", "statement_draft", outputs_dir=outputs_dir) is None
+
+
+def test_run_generative_step_validate_artifacts_pass_writes_files(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    outputs_dir = tmp_path / "outputs"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+
+    response = ModelResponse(status="proposed", artifacts={"a.tex": "a"}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_generative_step(
+            step_name="statement_draft",
+            problem_id="p1",
+            context={},
+            input_hash="h",
+            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            prompts_dir=prompts_dir,
+            outputs_dir=outputs_dir,
+            validate_artifacts=lambda artifacts: None,
+        )
+
+    assert result.artifact_paths == {"a.tex": outputs_dir / "p1" / "a.tex"}
+    assert (outputs_dir / "p1" / "a.tex").read_text(encoding="utf-8") == "a"
+
+
+def test_run_generative_step_validate_artifacts_not_called_on_uncertain(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    outputs_dir = tmp_path / "outputs"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+
+    response = ModelResponse(status="uncertain", artifacts={}, notes=[])
+
+    def validate(artifacts):
+        raise AssertionError("validate_artifacts не должен вызываться при uncertain")
+
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        with pytest.raises(StepUncertainError):
+            run_generative_step(
+                step_name="statement_draft",
+                problem_id="p1",
+                context={},
+                input_hash="h",
+                resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+                prompts_dir=prompts_dir,
+                outputs_dir=outputs_dir,
+                validate_artifacts=validate,
+            )
+
+
 def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
     prompts_dir = tmp_path / "prompts"
     outputs_dir = tmp_path / "outputs"
