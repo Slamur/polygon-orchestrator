@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Блокирует push, если имя ветки или сообщения коммитов (относительно
+# origin/main) содержат problem_id любой задачи из specs/*.yaml.
+# См. "Конфиденциальность specs/ и outputs/" в CLAUDE.md.
+#
+# Подключение (один раз после клонирования): git config core.hooksPath githooks
+
+set -u
+# Сравнение problem_id с веткой/сообщениями — без учёта регистра.
+shopt -s nocasematch
+
+repo_root="$(git rev-parse --show-toplevel)" || exit 0
+
+shopt -s nullglob
+spec_files=("$repo_root"/specs/*.yaml)
+shopt -u nullglob
+
+if [ ${#spec_files[@]} -eq 0 ]; then
+    exit 0
+fi
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+
+# Коммиты, которых ещё нет в origin/main; если origin/main недоступен
+# (например, самый первый push) — сравниваем против пустого списка.
+commits=""
+if git rev-parse --verify --quiet origin/main >/dev/null; then
+    commits="$(git rev-list origin/main..HEAD)"
+fi
+
+leaked=0
+for spec in "${spec_files[@]}"; do
+    problem_id="$(basename "$spec" .yaml)"
+    [ -n "$problem_id" ] || continue
+
+    if [[ "$branch" == *"$problem_id"* ]]; then
+        echo "pre-push: problem_id '$problem_id' найден в имени ветки '$branch'" >&2
+        leaked=1
+    fi
+
+    for sha in $commits; do
+        message="$(git log -1 --format=%B "$sha")"
+        if [[ "$message" == *"$problem_id"* ]]; then
+            echo "pre-push: problem_id '$problem_id' найден в сообщении коммита $(git rev-parse --short "$sha")" >&2
+            leaked=1
+        fi
+    done
+done
+
+if [ "$leaked" -ne 0 ]; then
+    echo "pre-push: push заблокирован — переименуйте ветку / перепишите сообщения коммитов." >&2
+    exit 1
+fi
+
+exit 0
