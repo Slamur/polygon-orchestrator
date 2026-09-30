@@ -105,7 +105,9 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
 │   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
 │   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
-│   │   └── state.py                # PolygonState, load/save polygon_state.json
+│   │   ├── state.py                # PolygonState, load/save polygon_state.json
+│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step), сейчас только create_problem
+│   │   └── pipeline.py             # run_polygon_pipeline / compute_polygon_step_statuses — без кэша
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
@@ -221,6 +223,13 @@ Python-оркестратор, который берёт структуриро�
   `problem_id` (или по одному, если указан) печатает таблицу "шаг → cache
   hit / stale / not run", используя те же хеши, что и `run`. Полезно, чтобы
   до реального запуска увидеть, что вообще изменилось после правки спеков.
+- `orchestrator polygon <problem_id> run [--step NAME]` — прогон
+  polygon-шагов по порядку `POLYGON_STEP_ORDER`, без кэша (каждый шаг
+  вызывается всегда, идемпотентность — через `check_done` самого шага),
+  поэтому `--force` там нет. Реально обращается к Polygon API — те же
+  ограничения на запуск без явной команды, что и для `run`.
+- `orchestrator polygon <problem_id> status` — что из polygon-шагов уже
+  сделано, без обращения к сети.
 
 Группировку задач в контесты/раунды с общими дефолтами (TL/ML-конвенции,
 общий стиль тестовых групп на весь раунд) в спек пока сознательно не
