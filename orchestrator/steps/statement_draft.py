@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.spec import ProblemSpec
@@ -23,6 +23,39 @@ STEP_NAME = "statement_draft"
 # Единственное Optional[list[...]]-поле секции, по которому user.md.j2
 # делает {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["known_ambiguities"]
+
+STATEMENT_SUBDIR = "statement"
+_FIXED_STATEMENT_FILES = ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]
+
+
+def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
+    """Ровно тот набор имён файлов, который `prompts/statement_draft/`
+    требует от модели: 4 фиксированных tex-файла + по одному
+    `examples/example_<N>.txt` на каждый `sample_examples[N-1]`.
+    """
+    n = len(spec.statement_draft.sample_examples)
+    return set(_FIXED_STATEMENT_FILES) | {
+        f"examples/example_{i}.txt" for i in range(1, n + 1)
+    }
+
+
+def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str]], None]:
+    def _validate(artifacts: dict[str, str]) -> None:
+        actual = set(artifacts.keys())
+        missing = expected - actual
+        extra = actual - expected
+        if missing or extra:
+            parts = []
+            if missing:
+                parts.append(f"не хватает: {sorted(missing)}")
+            if extra:
+                parts.append(f"лишние: {sorted(extra)}")
+            raise ValueError(
+                f"Шаг '{STEP_NAME}': набор файлов от модели не совпадает "
+                f"с ожидаемым ({'; '.join(parts)})"
+            )
+
+    return _validate
 
 
 def compute_input_hash(
@@ -46,10 +79,12 @@ def compute_input_hash(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
 ) -> Path:
-    """Путь к основному артефакту шага — по нему `pipeline.py` проверяет,
-    что кэш ещё указывает на реально существующий файл, а не на удалённый.
+    """Как у `solutions_draft` — каталог, а не файл: `pipeline.py` считает
+    кэш валидным, если каталог существует и не пуст. Раньше здесь был путь к
+    единственному `statement.tex` — теперь у шага несколько файлов в
+    подпапке `statement/`.
     """
-    return Path(outputs_dir) / problem_id / "statement.tex"
+    return Path(outputs_dir) / problem_id / STATEMENT_SUBDIR
 
 
 def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
@@ -90,7 +125,13 @@ def run_step(
     `StepUncertainError`, не записав ни одного файла (см. "Правило эскалации
     при неуверенности").
 
-    При успехе пишет `outputs/<problem_id>/statement.tex`.
+    При успехе пишет в `outputs/<problem_id>/statement/` 4 фиксированных
+    файла (`legend.tex`, `input_format.tex`, `output_format.tex`,
+    `notes.tex`) и по одному `examples/example_<N>.txt` на каждый элемент
+    `sample_examples` (только input примера). Набор имён файлов из ответа
+    модели проверяется ДО записи на диск (`_validate_statement_artifacts`):
+    при любой недостаче/лишнем файле бросается `ValueError`, и ни один файл
+    не пишется.
 
     `upstream_artifacts` не используется: `statement_draft` не зависит от
     результатов других шагов (см. CLAUDE.md, "Кэширование по хешу спека" —
@@ -105,7 +146,11 @@ def run_step(
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
 
     def resolve_artifact_path(filename: str) -> Path:
-        return Path(outputs_dir) / problem_id / filename
+        # filename приходит как "legend.tex" или "examples/example_1.txt" —
+        # вложенный каталог создаст _write_artifacts (parent.mkdir).
+        return Path(outputs_dir) / problem_id / STATEMENT_SUBDIR / filename
+
+    expected = _expected_artifact_names(spec)
 
     return run_generative_step(
         step_name=STEP_NAME,
@@ -116,4 +161,5 @@ def run_step(
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
+        validate_artifacts=_validate_statement_artifacts(expected),
     )

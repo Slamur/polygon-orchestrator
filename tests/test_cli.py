@@ -12,7 +12,17 @@ TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 _RESPONSES = {
-    "statement_draft": ModelResponse(status="confirmed", artifacts={"statement.tex": "tex"}, notes=[]),
+    "statement_draft": ModelResponse(
+        status="confirmed",
+        artifacts={
+            "legend.tex": "tex",
+            "input_format.tex": "tex",
+            "output_format.tex": "tex",
+            "notes.tex": "tex",
+            "examples/example_1.txt": "1\n",
+        },
+        notes=[],
+    ),
     "constraints_pick": ModelResponse(
         status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[]
     ),
