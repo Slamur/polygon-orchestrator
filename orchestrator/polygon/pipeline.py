@@ -18,6 +18,7 @@ from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.steps import (
     create_problem,
     set_constraints,
+    upload_checker,
     upload_problem_lib,
     upload_validator,
 )
@@ -34,6 +35,7 @@ POLYGON_STEP_ORDER: list[str] = [
     set_constraints.STEP_NAME,
     upload_problem_lib.STEP_NAME,
     upload_validator.STEP_NAME,
+    upload_checker.STEP_NAME,
 ]
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
@@ -41,6 +43,7 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     set_constraints.STEP_NAME: set_constraints.STEP,
     upload_problem_lib.STEP_NAME: upload_problem_lib.STEP,
     upload_validator.STEP_NAME: upload_validator.STEP,
+    upload_checker.STEP_NAME: upload_checker.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:
