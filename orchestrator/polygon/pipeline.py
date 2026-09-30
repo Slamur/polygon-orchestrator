@@ -20,6 +20,7 @@ from orchestrator.polygon.steps import (
     set_constraints,
     upload_checker,
     upload_problem_lib,
+    upload_statement,
     upload_validator,
 )
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
@@ -27,8 +28,8 @@ from orchestrator.spec import SpecValidationError, load_spec
 
 SPECS_DIR = Path("specs")
 
-# Список расширяется по мере добавления шагов (save_statement, ...) — дописывать новые имена в конец и добавлять запись в
-# `_POLYGON_STEPS`; больше ничего менять не нужно, если новый шаг — такой же
+# Список расширяется по мере добавления шагов — дописывать новые имена в конец
+# и добавлять запись в `_POLYGON_STEPS`; больше ничего менять не нужно, если новый шаг — такой же
 # `PolygonStep`, запускаемый через `steps.base.run_step`.
 POLYGON_STEP_ORDER: list[str] = [
     create_problem.STEP_NAME,
@@ -36,6 +37,7 @@ POLYGON_STEP_ORDER: list[str] = [
     upload_problem_lib.STEP_NAME,
     upload_validator.STEP_NAME,
     upload_checker.STEP_NAME,
+    upload_statement.STEP_NAME,
 ]
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
@@ -44,6 +46,7 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_problem_lib.STEP_NAME: upload_problem_lib.STEP,
     upload_validator.STEP_NAME: upload_validator.STEP,
     upload_checker.STEP_NAME: upload_checker.STEP,
+    upload_statement.STEP_NAME: upload_statement.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:
