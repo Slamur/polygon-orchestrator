@@ -226,6 +226,7 @@ def run_generative_step(
     outputs_dir: Path = OUTPUTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
     extra_context_documents: list[str] | None = None,
+    validate_artifacts: Callable[[dict[str, str]], None] | None = None,
 ) -> StepResult:
     """Общий цикл шага: рендер промптов, вызов модели, запись результата.
 
@@ -253,6 +254,14 @@ def run_generative_step(
     `context_documents`, а также входят в `compute_prompt_hash` — правка
     любого из этих документов должна инвалидировать кэш шага.
 
+    `validate_artifacts(artifacts)` — необязательная проверка набора
+    артефактов из ответа модели (например, что имена файлов ровно те, что
+    ожидает шаг). Вызывается только при `confirmed`/`proposed` (при
+    `uncertain` `artifacts` по контракту может быть пустым/частичным) и
+    строго ДО записи на диск: если она бросает `ValueError`, исключение
+    всплывает из этой функции как есть, в `outputs/` не пишется ни один
+    файл и `CacheEntry` не сохраняется.
+
     При `status: uncertain` бросает `StepUncertainError` и не пишет ничего в
     `outputs/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
     записанные `.cpp`-файлы через `compile_check` (без запуска — см.
@@ -278,6 +287,9 @@ def run_generative_step(
 
     if response.status == STATUS_UNCERTAIN:
         raise StepUncertainError(step_name, problem_id, response.notes)
+
+    if validate_artifacts is not None:
+        validate_artifacts(response.artifacts)
 
     artifact_paths = _write_artifacts(response.artifacts, resolve_artifact_path)
 

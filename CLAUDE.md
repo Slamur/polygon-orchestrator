@@ -128,7 +128,8 @@ Python-оркестратор, который берёт структуриро�
         │   ├── solutions_draft.json
         │   └── checker_draft.json
         ├── polygon_state.json      # problem_id -> Polygon problemId + что каждый polygon-шаг последним отправил (steps); не в .cache/ — это факт состояния на Polygon, не кэш шага
-        ├── statement.tex
+        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
+        │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
         ├── generators/*.cpp
@@ -140,7 +141,9 @@ Python-оркестратор, который берёт структуриро�
 ## Роль каждого генеративного шага
 
 1. **`statement_draft`** — вход: секция `statement_draft` спека. Выход:
-   черновик `.tex` условия (легенда/ввод/вывод/примечание к примерам),
+   черновик условия в `outputs/<id>/statement/` — отдельные `.tex` на
+   легенду/ввод/вывод/примечание + input каждого примера в
+   `examples/example_<N>.txt` (набор имён проверяется до записи на диск),
    следующий структуре и стилистическим правилам из
    `templates/tutorials/requirements.md` (раздел "Условие задачи").
 2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
