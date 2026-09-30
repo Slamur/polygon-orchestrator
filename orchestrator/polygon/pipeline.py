@@ -15,7 +15,7 @@ from typing import Optional
 
 from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
-from orchestrator.polygon.steps import create_problem, set_constraints
+from orchestrator.polygon.steps import create_problem, set_constraints, upload_problem_lib
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.spec import SpecValidationError, load_spec
 
@@ -24,11 +24,16 @@ SPECS_DIR = Path("specs")
 # Список расширяется по мере добавления шагов (save_statement, ...) — дописывать новые имена в конец и добавлять запись в
 # `_POLYGON_STEPS`; больше ничего менять не нужно, если новый шаг — такой же
 # `PolygonStep`, запускаемый через `steps.base.run_step`.
-POLYGON_STEP_ORDER: list[str] = [create_problem.STEP_NAME, set_constraints.STEP_NAME]
+POLYGON_STEP_ORDER: list[str] = [
+    create_problem.STEP_NAME,
+    set_constraints.STEP_NAME,
+    upload_problem_lib.STEP_NAME,
+]
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
     create_problem.STEP_NAME: create_problem.STEP,
     set_constraints.STEP_NAME: set_constraints.STEP,
+    upload_problem_lib.STEP_NAME: upload_problem_lib.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:
