@@ -33,9 +33,10 @@ Python-оркестратор, который берёт структуриро�
   нечего;
 - создание задачи на Polygon по `problem_id` из спека через Polygon API
   (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
-  хранится в `outputs/<problem_id>/polygon_state.json`). Остальные шаги
-  интеграции (ограничения, условие, файлы, commit/packages) — позже, по мере
-  проработки.
+  хранится в `outputs/<problem_id>/polygon_state.json`) и перенос TL/ML из
+  `outputs/<problem_id>/constraints.yaml` через `problem.updateInfo`
+  (`set_constraints`). Остальные шаги интеграции (условие, файлы,
+  commit/packages) — позже, по мере проработки.
 
 Вне скоупа (сознательно, добавим отдельно позже):
 - полноценный судящий контур (различение TLE/MLE/RE, батч-стресс-тестинг,
@@ -106,7 +107,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
 │   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
-│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step), сейчас только create_problem
+│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints
 │   │   └── pipeline.py             # run_polygon_pipeline / compute_polygon_step_statuses — без кэша
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
@@ -121,7 +122,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── generators_and_script.json
         │   ├── solutions_draft.json
         │   └── checker_draft.json
-        ├── polygon_state.json      # problem_id -> Polygon problemId; не в .cache/ — это факт состояния на Polygon, не кэш шага
+        ├── polygon_state.json      # problem_id -> Polygon problemId + что каждый polygon-шаг последним отправил (steps); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── statement.tex
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
@@ -229,7 +230,11 @@ Python-оркестратор, который берёт структуриро�
   поэтому `--force` там нет. Реально обращается к Polygon API — те же
   ограничения на запуск без явной команды, что и для `run`.
 - `orchestrator polygon <problem_id> status` — что из polygon-шагов уже
-  сделано, без обращения к сети.
+  сделано, без обращения к сети: `done / stale / not run` по
+  `PolygonStep.compute_status` (сравнение того, что шаг последним отправил в
+  Polygon, с тем, что он отправил бы сейчас из локальных файлов). На `run`
+  это не влияет — ручные правки в UI Polygon локально не видны, поэтому
+  шаги по этой записи не пропускаются.
 
 Группировку задач в контесты/раунды с общими дефолтами (TL/ML-конвенции,
 общий стиль тестовых групп на весь раунд) в спек пока сознательно не

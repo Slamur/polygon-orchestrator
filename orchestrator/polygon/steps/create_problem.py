@@ -7,10 +7,16 @@ CLAUDE.md, "Скоуп (текущий)" (создание задачи на Pol
 from __future__ import annotations
 
 import datetime
+from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, StepContext
+from orchestrator.polygon.steps.base import (
+    STATUS_DONE,
+    STATUS_NOT_RUN,
+    PolygonStep,
+    StepContext,
+)
 
 STEP_NAME = "create_problem"
 
@@ -21,6 +27,14 @@ def _check_done(ctx: StepContext) -> str | None:
     if existing is None:
         return None
     return f"already linked to Polygon id={existing.polygon_id}, skipped"
+
+
+def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+    """Выполнен, если есть привязка к Polygon (`polygon_state.json`)."""
+    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    if state is None:
+        return STATUS_NOT_RUN, ""
+    return STATUS_DONE, f"polygon_id={state.polygon_id}"
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> str:
@@ -65,4 +79,9 @@ def _link(ctx: StepContext, polygon_id: int) -> None:
     )
 
 
-STEP = PolygonStep(name=STEP_NAME, check_done=_check_done, execute=_execute)
+STEP = PolygonStep(
+    name=STEP_NAME,
+    check_done=_check_done,
+    execute=_execute,
+    compute_status=_compute_status,
+)
