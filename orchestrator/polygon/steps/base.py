@@ -20,6 +20,12 @@ from orchestrator.spec import ProblemSpec
 logger = logging.getLogger(__name__)
 
 
+class PolygonStepError(Exception):
+    """Шаг не может быть выполнен из-за отсутствующей зависимости или
+    противоречивых локальных данных. В отличие от `PolygonApiError` — это
+    ошибка ДО обращения к сети."""
+
+
 @dataclass(frozen=True)
 class StepContext:
     """Всё, что нужно шагу помимо клиента Polygon."""
@@ -38,7 +44,8 @@ class PolygonStep:
     выполнен, иначе `None`.
 
     `execute` — реальная работа через Polygon API; возвращает сообщение о
-    том, что было сделано. `PolygonApiError` не перехватывает.
+    том, что было сделано. `PolygonApiError` и `PolygonStepError` не
+    перехватывает.
     """
 
     name: str
@@ -62,8 +69,8 @@ def run_step(
     пишется в лог: лог уходит в `outputs/<id>/log.txt`, а возвращаемое
     значение видит только вывод CLI текущего запуска.
 
-    `PolygonApiError` из `execute` пробрасывается наружу — остановка
-    пайплайна на стороне `orchestrator/polygon/pipeline.py`.
+    `PolygonApiError` и `PolygonStepError` из `execute` пробрасываются
+    наружу — остановка пайплайна на стороне `orchestrator/polygon/pipeline.py`.
     """
     ctx = StepContext(problem_id=problem_id, spec=spec, outputs_dir=Path(outputs_dir))
 
