@@ -46,6 +46,15 @@ Output: автор не указал — не вычисляй сам, орие�
 для решения деталей).
 {% endif %}
 
+Ожидаемые файлы в artifacts:
+- legend.tex
+- input_format.tex
+- output_format.tex
+- notes.tex
+{% for ex in statement_draft.sample_examples %}
+- examples/example_{{ loop.index }}.txt
+{% endfor %}
+
 Задача: подготовь черновик условия в LaTeX по правилам из системного
 сообщения. Не решай задачу и не выводи асимптотику — только оформление
 условия из данных выше черновиков.
