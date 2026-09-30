@@ -163,6 +163,10 @@ def test_step_order_has_set_constraints_after_create_problem():
     assert POLYGON_STEP_ORDER[:2] == ["create_problem", "set_constraints"]
 
 
+def test_step_order_has_upload_problem_lib_after_set_constraints():
+    assert POLYGON_STEP_ORDER[:3] == ["create_problem", "set_constraints", "upload_problem_lib"]
+
+
 def test_polygon_step_error_stops_pipeline_before_network(specs_dir, outputs_dir):
     # задача привязана, но constraints.yaml нет -> PolygonStepError в set_constraints
     _write_spec(specs_dir, PROBLEM_ID)
@@ -216,6 +220,7 @@ def test_status_not_run_without_state(tmp_path):
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "not run"),
         ("set_constraints", "not run"),
+        ("upload_problem_lib", "not run"),
     ]
 
 
@@ -231,6 +236,7 @@ def test_status_done_with_state(tmp_path):
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
         ("set_constraints", "not run"),
+        ("upload_problem_lib", "not run"),
     ]
     assert statuses[0].detail == "polygon_id=777"
 
@@ -239,9 +245,10 @@ def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
     _write_spec(specs_dir, PROBLEM_ID)
     _write_constraints(outputs_dir)
     client = MagicMock()
-    client.call.side_effect = lambda method, params: {
+    client.call.side_effect = lambda method, params, **kwargs: {
         "problems.list": [{"id": 123, "name": PROBLEM_ID}],
         "problem.updateInfo": None,
+        "problem.saveFile": None,
     }[method]
     assert run_polygon_pipeline(
         PROBLEM_ID, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
@@ -251,6 +258,7 @@ def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
         ("set_constraints", "done"),
+        ("upload_problem_lib", "done"),
     ]
 
     (outputs_dir / PROBLEM_ID / "constraints.yaml").write_text(
@@ -278,9 +286,10 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
     _write_spec(specs_dir, PROBLEM_ID)
     _write_constraints(outputs_dir)
     client = MagicMock()
-    client.call.side_effect = lambda method, params: {
+    client.call.side_effect = lambda method, params, **kwargs: {
         "problems.list": [{"id": 123, "name": PROBLEM_ID}],
         "problem.updateInfo": None,
+        "problem.saveFile": None,
     }[method]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
@@ -290,6 +299,7 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
     out = capsys.readouterr().out
     assert "create_problem: ok" in out
     assert "set_constraints: ok" in out
+    assert "upload_problem_lib: ok" in out
 
 
 def test_cli_polygon_run_with_step(specs_dir, outputs_dir, capsys):
