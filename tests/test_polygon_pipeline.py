@@ -18,9 +18,14 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
 
 
-def _write_spec(specs_dir: Path, problem_id: str, *, file_stem: str | None = None) -> None:
+def _write_spec(
+    specs_dir: Path, problem_id: str, *, file_stem: str | None = None, flat_script: bool = False
+) -> None:
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     content = content.replace("problem_id: valid-spec", f"problem_id: {problem_id}")
+    if flat_script:
+        # upload_test_script отклоняет groups — для полного прогона нужен flat
+        content = content.replace('script_style: "groups"', 'script_style: "flat"')
     (specs_dir / f"{file_stem or problem_id}.yaml").write_text(content, encoding="utf-8")
 
 
@@ -197,7 +202,7 @@ def test_step_order_has_upload_statement_after_upload_checker():
     ]
 
 
-def test_step_order_has_upload_generators_after_upload_statement():
+def test_step_order_has_upload_test_script_after_upload_generators():
     assert POLYGON_STEP_ORDER == [
         "create_problem",
         "set_constraints",
@@ -206,6 +211,7 @@ def test_step_order_has_upload_generators_after_upload_statement():
         "upload_checker",
         "upload_statement",
         "upload_generators",
+        "upload_test_script",
     ]
 
 
@@ -267,6 +273,7 @@ def test_status_not_run_without_state(tmp_path):
         ("upload_checker", "not run"),
         ("upload_statement", "not run"),
         ("upload_generators", "not run"),
+        ("upload_test_script", "not run"),
     ]
 
 
@@ -287,12 +294,13 @@ def test_status_done_with_state(tmp_path):
         ("upload_checker", "not run"),
         ("upload_statement", "not run"),
         ("upload_generators", "not run"),
+        ("upload_test_script", "not run"),
     ]
     assert statuses[0].detail == "polygon_id=777"
 
 
 def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
-    _write_spec(specs_dir, PROBLEM_ID)
+    _write_spec(specs_dir, PROBLEM_ID, flat_script=True)
     _write_generated_outputs(outputs_dir)
     client = MagicMock()
     client.call.side_effect = lambda method, params, **kwargs: {
@@ -303,6 +311,7 @@ def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
         "problem.setChecker": None,
         "problem.saveStatement": None,
         "problem.saveTest": None,
+        "problem.saveScript": None,
     }[method]
     assert run_polygon_pipeline(
         PROBLEM_ID, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
@@ -317,6 +326,7 @@ def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
         ("upload_checker", "done"),
         ("upload_statement", "done"),
         ("upload_generators", "done"),
+        ("upload_test_script", "done"),
     ]
 
     (outputs_dir / PROBLEM_ID / "constraints.yaml").write_text(
@@ -347,10 +357,11 @@ def _write_generated_outputs(outputs_dir: Path) -> None:
     generators_dir = path.parent / "generators"
     generators_dir.mkdir(parents=True, exist_ok=True)
     (generators_dir / "gen_random.cpp").write_text("int main() {}\n", encoding="utf-8")
+    (path.parent / "test_script").write_text("gen_random 1 > $\n", encoding="utf-8")
 
 
 def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
-    _write_spec(specs_dir, PROBLEM_ID)
+    _write_spec(specs_dir, PROBLEM_ID, flat_script=True)
     _write_generated_outputs(outputs_dir)
     client = MagicMock()
     client.call.side_effect = lambda method, params, **kwargs: {
@@ -361,6 +372,7 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
         "problem.setChecker": None,
         "problem.saveStatement": None,
         "problem.saveTest": None,
+        "problem.saveScript": None,
     }[method]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
@@ -375,6 +387,7 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
     assert "upload_checker: ok" in out
     assert "upload_statement: ok" in out
     assert "upload_generators: ok" in out
+    assert "upload_test_script: ok" in out
 
 
 def test_cli_polygon_run_with_step(specs_dir, outputs_dir, capsys):
