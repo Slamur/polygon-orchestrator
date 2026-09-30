@@ -187,6 +187,17 @@ def test_step_order_has_upload_checker_after_upload_validator():
 
 
 def test_step_order_has_upload_statement_after_upload_checker():
+    assert POLYGON_STEP_ORDER[:6] == [
+        "create_problem",
+        "set_constraints",
+        "upload_problem_lib",
+        "upload_validator",
+        "upload_checker",
+        "upload_statement",
+    ]
+
+
+def test_step_order_has_upload_generators_after_upload_statement():
     assert POLYGON_STEP_ORDER == [
         "create_problem",
         "set_constraints",
@@ -194,6 +205,7 @@ def test_step_order_has_upload_statement_after_upload_checker():
         "upload_validator",
         "upload_checker",
         "upload_statement",
+        "upload_generators",
     ]
 
 
@@ -254,6 +266,7 @@ def test_status_not_run_without_state(tmp_path):
         ("upload_validator", "not run"),
         ("upload_checker", "not run"),
         ("upload_statement", "not run"),
+        ("upload_generators", "not run"),
     ]
 
 
@@ -273,6 +286,7 @@ def test_status_done_with_state(tmp_path):
         ("upload_validator", "not run"),
         ("upload_checker", "not run"),
         ("upload_statement", "not run"),
+        ("upload_generators", "not run"),
     ]
     assert statuses[0].detail == "polygon_id=777"
 
@@ -302,6 +316,7 @@ def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
         ("upload_validator", "done"),
         ("upload_checker", "done"),
         ("upload_statement", "done"),
+        ("upload_generators", "done"),
     ]
 
     (outputs_dir / PROBLEM_ID / "constraints.yaml").write_text(
@@ -329,6 +344,9 @@ def _write_generated_outputs(outputs_dir: Path) -> None:
     for name in ("legend.tex", "input_format.tex", "output_format.tex", "notes.tex"):
         (statement_dir / name).write_text("text\n", encoding="utf-8")
     (statement_dir / "examples" / "example_1.txt").write_text("1\n", encoding="utf-8")
+    generators_dir = path.parent / "generators"
+    generators_dir.mkdir(parents=True, exist_ok=True)
+    (generators_dir / "gen_random.cpp").write_text("int main() {}\n", encoding="utf-8")
 
 
 def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
@@ -356,6 +374,7 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
     assert "upload_validator: ok" in out
     assert "upload_checker: ok" in out
     assert "upload_statement: ok" in out
+    assert "upload_generators: ok" in out
 
 
 def test_cli_polygon_run_with_step(specs_dir, outputs_dir, capsys):
