@@ -36,7 +36,9 @@ Python-оркестратор, который берёт структуриро�
   хранится в `outputs/<problem_id>/polygon_state.json`) и перенос TL/ML из
   `outputs/<problem_id>/constraints.yaml` через `problem.updateInfo`
   (`set_constraints`), загрузка `templates/problem_lib.h` как
-  resource-файла (`upload_problem_lib`). Остальные шаги интеграции
+  resource-файла (`upload_problem_lib`), загрузка
+  `outputs/<problem_id>/validator.cpp` и назначение его валидатором
+  (`upload_validator`). Остальные шаги интеграции
   (условие, прочие файлы, commit/packages) — позже, по мере проработки.
 
 Вне скоупа (сознательно, добавим отдельно позже):
@@ -108,7 +110,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
 │   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
-│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib
+│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib, upload_validator
 │   │   └── pipeline.py             # run_polygon_pipeline / compute_polygon_step_statuses — без кэша
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
