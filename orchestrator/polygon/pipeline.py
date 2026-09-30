@@ -21,6 +21,7 @@ from orchestrator.polygon.steps import (
     upload_checker,
     upload_generators,
     upload_problem_lib,
+    upload_solutions,
     upload_statement,
     upload_test_script,
     upload_validator,
@@ -42,6 +43,7 @@ POLYGON_STEP_ORDER: list[str] = [
     upload_statement.STEP_NAME,
     upload_generators.STEP_NAME,
     upload_test_script.STEP_NAME,
+    upload_solutions.STEP_NAME,
 ]
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
@@ -53,6 +55,7 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_statement.STEP_NAME: upload_statement.STEP,
     upload_generators.STEP_NAME: upload_generators.STEP,
     upload_test_script.STEP_NAME: upload_test_script.STEP,
+    upload_solutions.STEP_NAME: upload_solutions.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:
