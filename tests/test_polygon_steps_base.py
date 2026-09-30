@@ -28,7 +28,13 @@ def no_default_client(monkeypatch):
 def _step(check_done_result, execute_result="did it") -> tuple[PolygonStep, MagicMock, MagicMock]:
     check_done = MagicMock(return_value=check_done_result)
     execute = MagicMock(return_value=execute_result)
-    return PolygonStep(name="fake", check_done=check_done, execute=execute), check_done, execute
+    step = PolygonStep(
+        name="fake",
+        check_done=check_done,
+        execute=execute,
+        compute_status=MagicMock(return_value=("not run", "")),
+    )
+    return step, check_done, execute
 
 
 def test_already_done_skips_execute_and_never_builds_client(tmp_path, spec, no_default_client):

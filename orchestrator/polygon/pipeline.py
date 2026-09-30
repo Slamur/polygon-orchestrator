@@ -15,7 +15,6 @@ from typing import Optional
 
 from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
-from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps import create_problem, set_constraints
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.spec import SpecValidationError, load_spec
@@ -35,8 +34,6 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
 # Статусы PolygonStepOutcome.status:
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
-STATUS_DONE = "done"
-STATUS_NOT_RUN = "not run"
 
 
 @dataclass
@@ -111,20 +108,14 @@ def run_polygon_pipeline(
 def compute_polygon_step_statuses(
     problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR
 ) -> list[PolygonStepOutcome]:
-    """Состояние polygon-шагов для `orchestrator polygon <id> status`, без сети.
+    """Состояние polygon-шагов для `orchestrator polygon <id> status`, без сети:
+    по `compute_status` каждого шага, в порядке `POLYGON_STEP_ORDER`.
 
-    Пока единственный шаг — `create_problem`, и "done" для него — просто
-    наличие `polygon_state.json`.
+    Состояние — только по локальным данным (`polygon_state.json` и входные
+    файлы шага); ручные правки на стороне Polygon отсюда не видны.
     """
-    # TODO: при добавлении второго polygon-шага (например, save_statement)
-    # эту функцию придётся переосмыслить — нужен персистентный маркер
-    # выполнения на КАЖДЫЙ шаг, а не только факт существования задачи на
-    # Polygon (polygon_state.json).
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    if state is None:
-        return [PolygonStepOutcome(create_problem.STEP_NAME, STATUS_NOT_RUN)]
-    return [
-        PolygonStepOutcome(
-            create_problem.STEP_NAME, STATUS_DONE, f"polygon_id={state.polygon_id}"
-        )
-    ]
+    outcomes = []
+    for step_name in POLYGON_STEP_ORDER:
+        status, detail = _POLYGON_STEPS[step_name].compute_status(problem_id, Path(outputs_dir))
+        outcomes.append(PolygonStepOutcome(step_name, status, detail))
+    return outcomes

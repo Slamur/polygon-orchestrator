@@ -43,7 +43,12 @@ def _fake_step(name: str, calls: list[str], *, error: bool = False) -> PolygonSt
             raise PolygonApiError(f"{name}.method", "boom")
         return f"{name} done"
 
-    return PolygonStep(name=name, check_done=lambda ctx: None, execute=execute)
+    return PolygonStep(
+        name=name,
+        check_done=lambda ctx: None,
+        execute=execute,
+        compute_status=lambda problem_id, outputs_dir: ("not run", ""),
+    )
 
 
 @pytest.fixture
@@ -208,7 +213,10 @@ def test_client_created_once_when_not_passed(specs_dir, outputs_dir, fake_steps)
 def test_status_not_run_without_state(tmp_path):
     statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=tmp_path)
 
-    assert [(s.step_name, s.status) for s in statuses] == [("create_problem", "not run")]
+    assert [(s.step_name, s.status) for s in statuses] == [
+        ("create_problem", "not run"),
+        ("set_constraints", "not run"),
+    ]
 
 
 def test_status_done_with_state(tmp_path):
@@ -220,8 +228,37 @@ def test_status_done_with_state(tmp_path):
 
     statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=tmp_path)
 
-    assert [(s.step_name, s.status) for s in statuses] == [("create_problem", "done")]
+    assert [(s.step_name, s.status) for s in statuses] == [
+        ("create_problem", "done"),
+        ("set_constraints", "not run"),
+    ]
     assert statuses[0].detail == "polygon_id=777"
+
+
+def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
+    _write_spec(specs_dir, PROBLEM_ID)
+    _write_constraints(outputs_dir)
+    client = MagicMock()
+    client.call.side_effect = lambda method, params: {
+        "problems.list": [{"id": 123, "name": PROBLEM_ID}],
+        "problem.updateInfo": None,
+    }[method]
+    assert run_polygon_pipeline(
+        PROBLEM_ID, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
+    ).ok
+
+    statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=outputs_dir)
+    assert [(s.step_name, s.status) for s in statuses] == [
+        ("create_problem", "done"),
+        ("set_constraints", "done"),
+    ]
+
+    (outputs_dir / PROBLEM_ID / "constraints.yaml").write_text(
+        "limits:\n  time_limit_seconds: 3\n  memory_limit_mb: 256\n", encoding="utf-8"
+    )
+    statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=outputs_dir)
+    assert statuses[1].status == "stale"
+    assert "2000" in statuses[1].detail and "3000" in statuses[1].detail
 
 
 # --- CLI ---
