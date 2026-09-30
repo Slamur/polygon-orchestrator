@@ -6,6 +6,8 @@
 # Подключение (один раз после клонирования): git config core.hooksPath githooks
 
 set -u
+# Сравнение problem_id с веткой/сообщениями — без учёта регистра.
+shopt -s nocasematch
 
 repo_root="$(git rev-parse --show-toplevel)" || exit 0
 
