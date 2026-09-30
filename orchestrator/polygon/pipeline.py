@@ -16,20 +16,20 @@ from typing import Optional
 from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import load_polygon_state
-from orchestrator.polygon.steps import create_problem
-from orchestrator.polygon.steps.base import PolygonStep, run_step
+from orchestrator.polygon.steps import create_problem, set_constraints
+from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.spec import SpecValidationError, load_spec
 
 SPECS_DIR = Path("specs")
 
-# Список расширяется по мере добавления шагов (save_statement,
-# set_constraints, ...) — дописывать новые имена в конец и добавлять запись в
+# Список расширяется по мере добавления шагов (save_statement, ...) — дописывать новые имена в конец и добавлять запись в
 # `_POLYGON_STEPS`; больше ничего менять не нужно, если новый шаг — такой же
 # `PolygonStep`, запускаемый через `steps.base.run_step`.
-POLYGON_STEP_ORDER: list[str] = [create_problem.STEP_NAME]
+POLYGON_STEP_ORDER: list[str] = [create_problem.STEP_NAME, set_constraints.STEP_NAME]
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
     create_problem.STEP_NAME: create_problem.STEP,
+    set_constraints.STEP_NAME: set_constraints.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:
@@ -80,7 +80,9 @@ def run_polygon_pipeline(
     `client` создаётся один раз здесь и передаётся во все шаги — чтобы не
     плодить по отдельному `PolygonClient` с ленивым чтением `.env` на шаг.
 
-    Останавливается на первой `PolygonApiError`, не бросая её наружу:
+    Останавливается на первой `PolygonApiError` (ошибка Polygon API) или
+    `PolygonStepError` (не хватает локальных данных/зависимостей шага), не
+    бросая её наружу:
     `result.outcomes` получает запись со статусом "error", последующие шаги
     не запускаются. Ошибка валидации спека — как в `run_pipeline`:
     записывается в `result.spec_error`, клиент при этом не создаётся.
@@ -98,7 +100,7 @@ def run_polygon_pipeline(
         step = _POLYGON_STEPS[step_name]
         try:
             detail = run_step(step, problem_id, spec, outputs_dir=outputs_dir, client=client)
-        except PolygonApiError as exc:
+        except (PolygonApiError, PolygonStepError) as exc:
             result.outcomes.append(PolygonStepOutcome(step_name, OUTCOME_ERROR, str(exc)))
             return result
         result.outcomes.append(PolygonStepOutcome(step_name, OUTCOME_OK, detail))

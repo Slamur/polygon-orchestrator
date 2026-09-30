@@ -154,6 +154,33 @@ def test_real_create_problem_api_error_is_reported_not_raised(specs_dir, outputs
     assert [(o.step_name, o.status) for o in result.outcomes] == [("create_problem", "error")]
 
 
+def test_step_order_has_set_constraints_after_create_problem():
+    assert POLYGON_STEP_ORDER[:2] == ["create_problem", "set_constraints"]
+
+
+def test_polygon_step_error_stops_pipeline_before_network(specs_dir, outputs_dir):
+    # задача привязана, но constraints.yaml нет -> PolygonStepError в set_constraints
+    _write_spec(specs_dir, PROBLEM_ID)
+    save_polygon_state(
+        PROBLEM_ID,
+        PolygonState(problem_id=PROBLEM_ID, polygon_id=777, created_at="2026-09-19T12:00:00+00:00"),
+        outputs_dir=outputs_dir,
+    )
+    client = MagicMock()
+
+    result = run_polygon_pipeline(
+        PROBLEM_ID, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
+    )
+
+    assert result.ok is False
+    assert [(o.step_name, o.status) for o in result.outcomes] == [
+        ("create_problem", "ok"),
+        ("set_constraints", "error"),
+    ]
+    assert "constraints_pick" in result.outcomes[-1].detail
+    client.call.assert_not_called()
+
+
 def test_invalid_spec_sets_spec_error_and_never_creates_client(specs_dir, outputs_dir):
     # problem_id внутри файла не совпадает с именем файла -> SpecValidationError
     _write_spec(specs_dir, "other-problem", file_stem=PROBLEM_ID)
@@ -204,16 +231,28 @@ def _cli_args(specs_dir: Path, outputs_dir: Path) -> list[str]:
     return ["--specs-dir", str(specs_dir), "--outputs-dir", str(outputs_dir)]
 
 
+def _write_constraints(outputs_dir: Path) -> None:
+    path = outputs_dir / PROBLEM_ID / "constraints.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n", encoding="utf-8")
+
+
 def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
     _write_spec(specs_dir, PROBLEM_ID)
+    _write_constraints(outputs_dir)
     client = MagicMock()
-    client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]
+    client.call.side_effect = lambda method, params: {
+        "problems.list": [{"id": 123, "name": PROBLEM_ID}],
+        "problem.updateInfo": None,
+    }[method]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", PROBLEM_ID, "run"])
 
     assert rc == 0
-    assert "create_problem: ok" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "create_problem: ok" in out
+    assert "set_constraints: ok" in out
 
 
 def test_cli_polygon_run_with_step(specs_dir, outputs_dir, capsys):
