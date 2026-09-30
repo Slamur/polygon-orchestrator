@@ -1,4 +1,5 @@
-"""Входная точка оркестратора: `run` и `status` (CLAUDE.md, "Пакетный запуск").
+"""Входная точка оркестратора: `run` и `status` (CLAUDE.md, "Пакетный запуск"),
+плюс `polygon <problem_id> run|status` — загрузка задачи в Polygon.
 
 Сделано на стандартном `argparse`, а не на `click`/`typer`: в `pyproject.toml`
 других CLI-фреймворков нет (только pydantic/PyYAML/Jinja2 — все три нужны
@@ -30,6 +31,11 @@ from orchestrator.pipeline import (
     TEMPLATES_DIR,
     compute_step_statuses,
     run_pipeline,
+)
+from orchestrator.polygon.pipeline import (
+    POLYGON_STEP_ORDER,
+    compute_polygon_step_statuses,
+    run_polygon_pipeline,
 )
 
 _OUTCOME_LABELS = {
@@ -245,6 +251,35 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return 1 if any_error else 0
 
 
+def _print_polygon_outcomes(outcomes) -> None:
+    for outcome in outcomes:
+        line = f"  {outcome.step_name}: {outcome.status}"
+        if outcome.detail:
+            line += f" — {outcome.detail}"
+        print(line)
+
+
+def _cmd_polygon_run(args: argparse.Namespace) -> int:
+    result = run_polygon_pipeline(
+        args.problem_id,
+        only_step=args.step,
+        specs_dir=args.specs_dir,
+        outputs_dir=args.outputs_dir,
+    )
+    if result.spec_error is not None:
+        print(result.spec_error, file=sys.stderr)
+        return 1
+    _print_polygon_outcomes(result.outcomes)
+    return 0 if result.ok else 1
+
+
+def _cmd_polygon_status(args: argparse.Namespace) -> int:
+    _print_polygon_outcomes(
+        compute_polygon_step_statuses(args.problem_id, outputs_dir=args.outputs_dir)
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="orchestrator",
@@ -288,6 +323,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     status_parser.add_argument("--problem", default=None, help="ограничиться одним problem_id")
     status_parser.set_defaults(func=_cmd_status)
+
+    polygon_parser = subparsers.add_parser(
+        "polygon", help="загрузка задачи в Polygon (API polygon.codeforces.com)"
+    )
+    polygon_parser.add_argument("problem_id", help="соответствует specs/<problem_id>.yaml")
+    polygon_subparsers = polygon_parser.add_subparsers(dest="polygon_command", required=True)
+
+    # Без --force: кэша у polygon-шагов нет, обходить нечего.
+    polygon_run_parser = polygon_subparsers.add_parser(
+        "run", help="прогнать polygon-шаги по порядку (без кэша — шаги вызываются каждый раз)"
+    )
+    polygon_run_parser.add_argument(
+        "--step", choices=POLYGON_STEP_ORDER, default=None, help="прогнать только один polygon-шаг"
+    )
+    polygon_run_parser.set_defaults(func=_cmd_polygon_run)
+
+    polygon_status_parser = polygon_subparsers.add_parser(
+        "status", help="что из polygon-шагов уже сделано, без обращения к сети"
+    )
+    polygon_status_parser.set_defaults(func=_cmd_polygon_status)
 
     return parser
 
