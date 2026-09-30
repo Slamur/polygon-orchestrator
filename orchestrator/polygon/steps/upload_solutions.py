@@ -10,9 +10,8 @@
   ответов на тесты, `templates/tutorials/polygon.md`, "Solution files"),
   выбор — по приоритету языков `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по
   алфавиту имён;
-- остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `wa` -> `WA`;
-- всё прочее допустимое (`ml`/`mle`/`re`) -> `RJ` ("При разных неверных
-  вердиктах ставим Incorrect").
+- остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `wa` -> `WA`, `ml`/`mle` -> `ML`;
+- всё прочее допустимое (`re`) -> `RJ` ("Incorrect").
 
 Риск 1: `Solutions.languages` в спеке — `list[str]` без ограничения
 значений, и модель может записать язык в имени файла иначе (`py`, `c++`,
@@ -226,7 +225,9 @@ def _tag_for(parsed: _ParsedSolution, main_name: str) -> str:
         return "TL"  # не TO — см. докстринг модуля
     if parsed.verdict == "wa":
         return "WA"
-    return "RJ"  # ml/mle/re — "Incorrect"
+    if parsed.verdict in ("ml", "mle"):
+        return "ML"
+    return "RJ"  # re — "Incorrect"
 
 
 def _content_hash(solutions: list[tuple[str, bytes]]) -> str:

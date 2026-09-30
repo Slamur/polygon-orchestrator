@@ -194,7 +194,7 @@ def test_unprioritized_language_falls_back_to_alphabetical_with_warning(
     assert "ok_pascal_alt_draft.pas" in warnings[0].getMessage()
 
 
-def test_ml_mle_re_are_tagged_rj(outputs_dir, spec):
+def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(outputs_dir, spec):
     _link(outputs_dir)
     _write_solutions(
         outputs_dir,
@@ -210,8 +210,8 @@ def test_ml_mle_re_are_tagged_rj(outputs_dir, spec):
     _run(spec, outputs_dir, client)
 
     assert _tags(client) == {
-        "ml_cpp_bigarray_draft.cpp": "RJ",
-        "mle_cpp_vectors_draft.cpp": "RJ",
+        "ml_cpp_bigarray_draft.cpp": "ML",
+        "mle_cpp_vectors_draft.cpp": "ML",
         "ok_cpp_main_draft.cpp": "MA",
         "re_cpp_overflow_draft.cpp": "RJ",
     }
