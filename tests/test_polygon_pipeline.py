@@ -167,6 +167,15 @@ def test_step_order_has_upload_problem_lib_after_set_constraints():
     assert POLYGON_STEP_ORDER[:3] == ["create_problem", "set_constraints", "upload_problem_lib"]
 
 
+def test_step_order_has_upload_validator_after_upload_problem_lib():
+    assert POLYGON_STEP_ORDER[:4] == [
+        "create_problem",
+        "set_constraints",
+        "upload_problem_lib",
+        "upload_validator",
+    ]
+
+
 def test_polygon_step_error_stops_pipeline_before_network(specs_dir, outputs_dir):
     # задача привязана, но constraints.yaml нет -> PolygonStepError в set_constraints
     _write_spec(specs_dir, PROBLEM_ID)
@@ -221,6 +230,7 @@ def test_status_not_run_without_state(tmp_path):
         ("create_problem", "not run"),
         ("set_constraints", "not run"),
         ("upload_problem_lib", "not run"),
+        ("upload_validator", "not run"),
     ]
 
 
@@ -237,6 +247,7 @@ def test_status_done_with_state(tmp_path):
         ("create_problem", "done"),
         ("set_constraints", "not run"),
         ("upload_problem_lib", "not run"),
+        ("upload_validator", "not run"),
     ]
     assert statuses[0].detail == "polygon_id=777"
 
@@ -249,6 +260,7 @@ def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
         "problems.list": [{"id": 123, "name": PROBLEM_ID}],
         "problem.updateInfo": None,
         "problem.saveFile": None,
+        "problem.setValidator": None,
     }[method]
     assert run_polygon_pipeline(
         PROBLEM_ID, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
@@ -259,6 +271,7 @@ def test_status_after_full_run_then_constraints_change(specs_dir, outputs_dir):
         ("create_problem", "done"),
         ("set_constraints", "done"),
         ("upload_problem_lib", "done"),
+        ("upload_validator", "done"),
     ]
 
     (outputs_dir / PROBLEM_ID / "constraints.yaml").write_text(
@@ -280,6 +293,7 @@ def _write_constraints(outputs_dir: Path) -> None:
     path = outputs_dir / PROBLEM_ID / "constraints.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n", encoding="utf-8")
+    (path.parent / "validator.cpp").write_text("int main() {}\n", encoding="utf-8")
 
 
 def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
@@ -290,6 +304,7 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
         "problems.list": [{"id": 123, "name": PROBLEM_ID}],
         "problem.updateInfo": None,
         "problem.saveFile": None,
+        "problem.setValidator": None,
     }[method]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
@@ -300,6 +315,7 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
     assert "create_problem: ok" in out
     assert "set_constraints: ok" in out
     assert "upload_problem_lib: ok" in out
+    assert "upload_validator: ok" in out
 
 
 def test_cli_polygon_run_with_step(specs_dir, outputs_dir, capsys):

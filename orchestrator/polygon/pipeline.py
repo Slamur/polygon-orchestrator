@@ -15,7 +15,12 @@ from typing import Optional
 
 from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
-from orchestrator.polygon.steps import create_problem, set_constraints, upload_problem_lib
+from orchestrator.polygon.steps import (
+    create_problem,
+    set_constraints,
+    upload_problem_lib,
+    upload_validator,
+)
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.spec import SpecValidationError, load_spec
 
@@ -28,12 +33,14 @@ POLYGON_STEP_ORDER: list[str] = [
     create_problem.STEP_NAME,
     set_constraints.STEP_NAME,
     upload_problem_lib.STEP_NAME,
+    upload_validator.STEP_NAME,
 ]
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
     create_problem.STEP_NAME: create_problem.STEP,
     set_constraints.STEP_NAME: set_constraints.STEP,
     upload_problem_lib.STEP_NAME: upload_problem_lib.STEP,
+    upload_validator.STEP_NAME: upload_validator.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:
