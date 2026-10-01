@@ -58,8 +58,8 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
                 "problemId": str(polygon_id),
                 "type": "resource",
                 "name": _RESOURCE_FILENAME,
+                "file": content,
             },
-            files={"file": (_RESOURCE_FILENAME, content)},
         )
         record_polygon_step(
             ctx.problem_id,

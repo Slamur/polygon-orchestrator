@@ -64,29 +64,29 @@ class PolygonClient:
             self._base_url = os.environ.get("POLYGON_API_BASE_URL") or _DEFAULT_BASE_URL
         return self._api_key, self._api_secret, self._base_url
 
-    def call(
-        self,
-        method_name: str,
-        params: dict[str, str],
-        files: dict[str, tuple[str, bytes]] | None = None,
-    ) -> Any:
+    def call(self, method_name: str, params: dict[str, str | bytes]) -> Any:
         """Вызывает один метод Polygon API, возвращает `result` или бросает `PolygonApiError`.
 
-        `files` — `{имя поля: (имя файла, содержимое)}`; при их наличии запрос
-        уходит как multipart/form-data, иначе — обычной формой. Содержимое
-        файлов в подпись не входит.
+        Содержимое файлов (`file` в `problem.saveFile`/`problem.saveSolution`)
+        передаётся в `params` наравне с остальными параметрами — как `bytes`
+        или `str` — и входит в подпись (см. `generate_signature`). Запрос
+        уходит как multipart/form-data, где каждый параметр — обычное поле
+        формы без имени файла: так `bytes` передаются без перекодирования.
         """
         api_key, api_secret, base_url = self._ensure_credentials()
 
-        signed_params = {**params, "apiKey": api_key, "time": str(int(time.time()))}
+        signed_params: dict[str, str | bytes] = {
+            **params,
+            "apiKey": api_key,
+            "time": str(int(time.time())),
+        }
         signed_params["apiSig"] = generate_signature(method_name, signed_params, api_secret)
 
         url = f"{base_url.rstrip('/')}/{method_name}"
         logger.info("PolygonClient.call(%s): POST %s", method_name, url)
         response = requests.post(
             url,
-            data=signed_params,
-            files=files,
+            files={name: (None, value) for name, value in signed_params.items()},
             timeout=_REQUEST_TIMEOUT_SECONDS,
         )
 

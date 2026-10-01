@@ -84,9 +84,13 @@ def test_uploads_then_sets_validator(outputs_dir, spec):
     save_call, set_call = client.call.call_args_list
     assert save_call.args == (
         "problem.saveFile",
-        {"problemId": str(POLYGON_ID), "type": "source", "name": "validator.cpp"},
+        {
+            "problemId": str(POLYGON_ID),
+            "type": "source",
+            "name": "validator.cpp",
+            "file": VALIDATOR_CONTENT,
+        },
     )
-    assert save_call.kwargs["files"]["file"] == ("validator.cpp", VALIDATOR_CONTENT)
     assert set_call.args == (
         "problem.setValidator",
         {"problemId": str(POLYGON_ID), "validator": "validator.cpp"},

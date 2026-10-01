@@ -140,12 +140,9 @@ def test_uploads_each_solution_with_its_tag(outputs_dir, spec):
     assert [c.args for c in client.call.call_args_list] == [
         (
             "problem.saveSolution",
-            {"problemId": str(POLYGON_ID), "name": name, "tag": tag},
+            {"problemId": str(POLYGON_ID), "name": name, "tag": tag, "file": SOLUTIONS[name]},
         )
         for name, tag in sorted(expected.items())
-    ]
-    assert [c.kwargs["files"]["file"] for c in client.call.call_args_list] == [
-        (name, SOLUTIONS[name]) for name in sorted(expected)
     ]
     assert "5 solution(s)" in message
     assert "ok_python_main_draft.py=MA" in message

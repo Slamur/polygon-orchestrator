@@ -107,9 +107,13 @@ def test_custom_uploads_then_sets_checker(outputs_dir, custom_spec):
     save_call, set_call = client.call.call_args_list
     assert save_call.args == (
         "problem.saveFile",
-        {"problemId": str(POLYGON_ID), "type": "source", "name": "checker.cpp"},
+        {
+            "problemId": str(POLYGON_ID),
+            "type": "source",
+            "name": "checker.cpp",
+            "file": CHECKER_CONTENT,
+        },
     )
-    assert save_call.kwargs["files"]["file"] == ("checker.cpp", CHECKER_CONTENT)
     assert set_call.args == (
         "problem.setChecker",
         {"problemId": str(POLYGON_ID), "checker": "checker.cpp"},

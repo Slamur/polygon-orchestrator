@@ -57,8 +57,8 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
             "problemId": str(polygon_id),
             "type": "source",
             "name": _VALIDATOR_FILENAME,
+            "file": content,
         },
-        files={"file": (_VALIDATOR_FILENAME, content)},
     )
     client.call(
         "problem.setValidator",

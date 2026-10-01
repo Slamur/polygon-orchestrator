@@ -4,6 +4,7 @@ import pytest
 
 from orchestrator.polygon import client as polygon_client
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
+from orchestrator.polygon.signing import generate_signature
 
 
 @pytest.fixture(autouse=True)
@@ -55,26 +56,50 @@ def test_call_signs_request_and_returns_result(credentials, monkeypatch):
     assert result == {"id": 5}
     args, kwargs = post.call_args
     assert args == ("https://polygon.codeforces.com/api/problem.info",)
-    sent = kwargs["data"]
+    # Все параметры — поля multipart-формы без имени файла.
+    sent = {name: value for name, (filename, value) in kwargs["files"].items()}
+    assert all(filename is None for filename, _ in kwargs["files"].values())
     assert sent["problemId"] == "5"
     assert sent["apiKey"] == "test-key"
     assert sent["time"].isdigit()
     # apiSig = rand (6 символов) + sha512 hex (128 символов)
     assert len(sent["apiSig"]) == 6 + 128
-    assert kwargs["files"] is None
 
 
-def test_call_uses_base_url_from_env_and_passes_files(credentials, monkeypatch):
+def test_call_uses_base_url_from_env(credentials, monkeypatch):
     monkeypatch.setenv("POLYGON_API_BASE_URL", "https://example.test/api/")
     post = MagicMock(return_value=_response({"status": "OK", "result": None}))
     monkeypatch.setattr(polygon_client.requests, "post", post)
 
-    files = {"file": ("gen.cpp", b"int main() {}")}
-    PolygonClient().call("problem.saveFile", {"problemId": "5"}, files=files)
+    PolygonClient().call("problem.info", {"problemId": "5"})
 
-    args, kwargs = post.call_args
-    assert args == ("https://example.test/api/problem.saveFile",)
-    assert kwargs["files"] == files
+    args, _ = post.call_args
+    assert args == ("https://example.test/api/problem.info",)
+
+
+def test_file_content_is_a_signed_param(credentials, monkeypatch):
+    # Polygon подписывает `file` наравне с остальными параметрами: контент
+    # должен уйти полем формы и войти в apiSig, а не отдельной частью вне подписи.
+    post = MagicMock(return_value=_response({"status": "OK", "result": None}))
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+    monkeypatch.setattr(polygon_client.time, "time", lambda: 1700000000)
+    content = b"#include <cstdio>\nint main() { return 0; }\n"
+
+    PolygonClient().call("problem.saveFile", {"problemId": "5", "name": "a.cpp", "file": content})
+
+    sent = {name: value for name, (_, value) in post.call_args.kwargs["files"].items()}
+    assert sent["file"] == content
+    rand = sent["apiSig"][:6]
+    unsigned = {name: value for name, value in sent.items() if name != "apiSig"}
+    assert sent["apiSig"] == generate_signature(
+        "problem.saveFile", unsigned, "test-secret", rand=rand
+    )
+    assert generate_signature(
+        "problem.saveFile",
+        {**unsigned, "file": b"other"},
+        "test-secret",
+        rand=rand,
+    ) != sent["apiSig"]
 
 
 def test_failed_status_raises_polygon_api_error(credentials, monkeypatch):

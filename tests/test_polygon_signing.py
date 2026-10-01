@@ -47,26 +47,33 @@ def test_signature_sorts_names_bytewise_uppercase_before_lowercase():
     assert signature == _expected("000000", "000000/m?Z=2&a=1#s")
 
 
-def test_signature_percent_encodes_non_ascii_values():
+def test_signature_uses_raw_non_ascii_values():
     params = {"time": "1", "name": "Задача A", "apiKey": "k"}
 
     signature = generate_signature("problem.create", params, "s", rand="zzzzzz")
 
-    # "Задача" в UTF-8 -> D0 97 D0 B0 D0 B4 D0 B0 D1 87 D0 B0, пробел -> %20.
+    # Без percent-encoding: значение в UTF-8 как есть, пробел — пробел.
     assert signature == _expected(
         "zzzzzz",
-        "zzzzzz/problem.create?apiKey=k"
-        "&name=%D0%97%D0%B0%D0%B4%D0%B0%D1%87%D0%B0%20A"
-        "&time=1#s",
+        "zzzzzz/problem.create?apiKey=k&name=Задача A&time=1#s",
     )
 
 
-def test_signature_percent_encodes_reserved_characters():
-    # safe="" — кодируются и "/", и "&", и "=" внутри значения; иначе они
-    # разъехались бы со строкой запроса, которая реально уйдёт на сервер.
-    signature = generate_signature("m", {"q": "a&b=c/d"}, "s", rand="000000")
+def test_signature_uses_raw_reserved_characters():
+    # "&", "=", "/", "#" и переводы строк внутри значения подписываются как
+    # есть — так же, как их подписывает сервер Polygon.
+    signature = generate_signature("m", {"q": "a&b=c/d#e\nf"}, "s", rand="000000")
 
-    assert signature == _expected("000000", "000000/m?q=a%26b%3Dc%2Fd#s")
+    assert signature == _expected("000000", "000000/m?q=a&b=c/d#e\nf#s")
+
+
+def test_signature_includes_bytes_values_as_is():
+    content = b"#include <cstdio>\nint main() {}\n"
+
+    signature = generate_signature("m", {"file": content, "name": "a.cpp"}, "s", rand="000000")
+
+    expected_source = b"000000/m?file=" + content + b"&name=a.cpp#s"
+    assert signature == "000000" + hashlib.sha512(expected_source).hexdigest()
 
 
 def test_signature_depends_on_secret():
