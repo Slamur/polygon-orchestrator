@@ -80,7 +80,7 @@ class StatementDraft(BaseModel):
     legend_sketch: str
     formal_input_sketch: str
     formal_output_sketch: str
-    indexing: Literal["0-indexed", "1-indexed", "не имеет значения"]
+    indexing: Literal["0-indexed", "1-indexed", "irrelevant"]
     sample_examples: list[SampleExample] = Field(min_length=1)
     known_ambiguities: Optional[list[str]] = None
     preserve_legend_verbatim: bool = False

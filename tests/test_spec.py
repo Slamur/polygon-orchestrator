@@ -108,6 +108,25 @@ def test_preserve_legend_verbatim_true_is_loaded(tmp_path):
     assert spec.statement_draft.preserve_legend_verbatim is True
 
 
+def _write_with_indexing(tmp_path, value: str) -> Path:
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace('  indexing: "1-indexed"\n', f'  indexing: "{value}"\n')
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_indexing_irrelevant_is_accepted(tmp_path):
+    spec = load_spec(_write_with_indexing(tmp_path, "irrelevant"))
+
+    assert spec.statement_draft.indexing == "irrelevant"
+
+
+def test_indexing_unknown_value_is_rejected(tmp_path):
+    with pytest.raises(SpecValidationError, match="statement_draft.indexing"):
+        load_spec(_write_with_indexing(tmp_path, "не имеет значения"))
+
+
 def test_test_groups_needed_absent_defaults_to_false():
     spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
 

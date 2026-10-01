@@ -33,7 +33,7 @@ statement_draft:
     Аналогично — что и в каком формате нужно вывести. Явно указать,
     гарантируется ли существование/единственность ответа, или нужен
     отдельный вывод "-1"/"NO" и т.п.
-  indexing: "1-indexed"            # [required] "0-indexed" | "1-indexed" | "не имеет значения"
+  indexing: "1-indexed"            # [required] "0-indexed" | "1-indexed" | "irrelevant"
   sample_examples:                 # [required], минимум 1
     - input: |
         ...
