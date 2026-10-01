@@ -189,8 +189,8 @@ def _commit_changes(
     state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
     if state is None:
         raise PolygonStepError(
-            f"'{problem_id}': нечего коммитить после {step_name} — задача не "
-            "привязана к Polygon (polygon_state.json отсутствует или повреждён)"
+            f"'{problem_id}': nothing to commit after {step_name} — the problem is not "
+            "linked to Polygon (polygon_state.json is missing or corrupted)"
         )
     client.call(
         "problem.commitChanges",

@@ -91,10 +91,10 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     try:
         content = _read_validator(problem_id, outputs_dir)
     except PolygonStepError as exc:
-        return STATUS_STALE, f"текущий {_VALIDATOR_FILENAME} не читается: {exc}"
+        return STATUS_STALE, f"current {_VALIDATOR_FILENAME} is unreadable: {exc}"
     current = _sha256(content)
     if current != record["sha256"]:
-        return STATUS_STALE, f"{_VALIDATOR_FILENAME} изменился после последней загрузки"
+        return STATUS_STALE, f"{_VALIDATOR_FILENAME} changed since the last upload"
     return STATUS_DONE, f"{_VALIDATOR_FILENAME} sha256={current[:12]}"
 
 
@@ -102,8 +102,8 @@ def _read_validator(problem_id: str, outputs_dir: Path) -> bytes:
     validator_path = Path(outputs_dir) / problem_id / _VALIDATOR_FILENAME
     if not validator_path.exists():
         raise PolygonStepError(
-            f"'{problem_id}': не найден {validator_path} — сначала выполните "
-            f"генеративный шаг constraints_pick (orchestrator run {problem_id} "
+            f"'{problem_id}': {validator_path} not found — first run "
+            f"the generative step constraints_pick (orchestrator run {problem_id} "
             "--step constraints_pick)"
         )
 

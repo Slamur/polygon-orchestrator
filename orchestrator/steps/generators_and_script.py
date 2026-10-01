@@ -76,10 +76,9 @@ def _require_constraints_yaml(
     """
     if not upstream_artifacts or CONSTRAINTS_ARTIFACT not in upstream_artifacts:
         raise ValueError(
-            f"Шаг '{step_name}' для '{problem_id}': в upstream_artifacts нет "
-            f"'{CONSTRAINTS_ARTIFACT}' — сначала должен успешно отработать "
-            "шаг 'constraints_pick' (CLAUDE.md, 'Роль каждого генеративного "
-            "шага', п.3)"
+            f"Step '{step_name}' for '{problem_id}': upstream_artifacts has no "
+            f"'{CONSTRAINTS_ARTIFACT}' — the 'constraints_pick' step must "
+            "succeed first (CLAUDE.md, generative step roles, item 3)"
         )
     return upstream_artifacts[CONSTRAINTS_ARTIFACT]
 

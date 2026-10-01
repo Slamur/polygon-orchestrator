@@ -23,9 +23,9 @@ STEP_NAME = "checker_draft"
 def _require_custom_checker(problem_id: str, spec: ProblemSpec) -> None:
     if spec.checker.custom_needed is not True:
         raise ValueError(
-            f"Шаг '{STEP_NAME}' для '{problem_id}': в спеке 'checker.custom_needed' "
-            "не True — используется стандартный чекер, черновик не заказан, шаг не "
-            "запускается (см. CLAUDE.md, 'Роль каждого генеративного шага', пункт 5)"
+            f"Step '{STEP_NAME}' for '{problem_id}': 'checker.custom_needed' in the spec "
+            "is not True — a standard checker is used, no draft requested, the step "
+            "is not run (see CLAUDE.md, generative step roles, item 5)"
         )
 
 

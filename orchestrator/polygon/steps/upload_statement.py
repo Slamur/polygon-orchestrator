@@ -142,10 +142,10 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
         tex_params = _read_statement_dir(statement_dir)
         examples = _read_examples(statement_dir)
     except PolygonStepError as exc:
-        return STATUS_STALE, f"текущее условие не читается: {exc}"
+        return STATUS_STALE, f"current statement is unreadable: {exc}"
     current = _content_hash(tex_params, examples)
     if current != record["sha256"]:
-        return STATUS_STALE, "statement/ изменился после последней загрузки"
+        return STATUS_STALE, "statement/ changed since the last upload"
     return STATUS_DONE, f"{len(examples)} sample test(s), sha256={current[:12]}"
 
 
@@ -160,8 +160,8 @@ def _read_statement_dir(statement_dir: Path) -> dict[str, str]:
     missing = [name for name in _TEX_PARAM_NAMES if not (statement_dir / name).exists()]
     if missing:
         raise PolygonStepError(
-            f"в {statement_dir} не хватает файлов: {missing} — сначала "
-            "выполните генеративный шаг statement_draft"
+            f"files missing in {statement_dir}: {missing} — first "
+            "run the generative step statement_draft"
         )
     return {
         param_name: (statement_dir / filename).read_text(encoding="utf-8")
@@ -179,8 +179,8 @@ def _read_examples(statement_dir: Path) -> list[tuple[int, str]]:
     examples_dir = statement_dir / "examples"
     if not examples_dir.is_dir():
         raise PolygonStepError(
-            f"не найден каталог {examples_dir} — сначала выполните "
-            "генеративный шаг statement_draft"
+            f"directory {examples_dir} not found — first run "
+            "the generative step statement_draft"
         )
 
     found: dict[int, str] = {}
@@ -190,12 +190,12 @@ def _read_examples(statement_dir: Path) -> list[tuple[int, str]]:
             found[int(match.group(1))] = path.read_text(encoding="utf-8")
 
     if not found:
-        raise PolygonStepError(f"в {examples_dir} нет файлов example_<N>.txt")
+        raise PolygonStepError(f"no example_<N>.txt files in {examples_dir}")
 
     if set(found) != set(range(1, len(found) + 1)):
         raise PolygonStepError(
-            f"нумерация example_<N>.txt в {examples_dir} не непрерывна "
-            f"1..{len(found)}: найдены индексы {sorted(found)}"
+            f"example_<N>.txt numbering in {examples_dir} is not contiguous "
+            f"1..{len(found)}: found indices {sorted(found)}"
         )
 
     return sorted(found.items())

@@ -62,9 +62,9 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     """
     if ctx.spec.generation.script_style == "groups":
         raise PolygonStepError(
-            f"'{ctx.problem_id}': script_style='groups' не поддерживается этим "
-            "шагом (нужен отдельный problem.enableGroups, не реализован) — "
-            "см. докстринг upload_test_script.py"
+            f"'{ctx.problem_id}': script_style='groups' is not supported by this "
+            "step (requires a separate problem.enableGroups, not implemented) — "
+            "see the upload_test_script.py docstring"
         )
 
     polygon_id = require_polygon_state(ctx).polygon_id
@@ -113,10 +113,10 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     try:
         content = _read_script(problem_id, script_path)
     except PolygonStepError as exc:
-        return STATUS_STALE, f"текущий test-script не читается: {exc}"
+        return STATUS_STALE, f"current test-script is unreadable: {exc}"
     current = _sha256(content)
     if current != record["sha256"]:
-        return STATUS_STALE, f"{record['file']} изменился после последней загрузки"
+        return STATUS_STALE, f"{record['file']} changed since the last upload"
     return STATUS_DONE, f"{record['file']} sha256={current[:12]}"
 
 
@@ -126,8 +126,8 @@ def _read_script(problem_id: str, script_path: Path) -> bytes:
     `_compute_status` спека нет и имя берётся из `polygon_state.json`."""
     if not script_path.exists():
         raise PolygonStepError(
-            f"'{problem_id}': не найден {script_path} — сначала выполните "
-            f"генеративный шаг generators_and_script (orchestrator run "
+            f"'{problem_id}': {script_path} not found — first run "
+            f"the generative step generators_and_script (orchestrator run "
             f"{problem_id} --step generators_and_script)"
         )
     return script_path.read_bytes()

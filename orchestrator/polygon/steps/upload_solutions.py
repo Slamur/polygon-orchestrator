@@ -142,10 +142,10 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     try:
         solutions = _read_solutions(problem_id, outputs_dir)
     except PolygonStepError as exc:
-        return STATUS_STALE, f"текущие решения не читаются: {exc}"
+        return STATUS_STALE, f"current solutions are unreadable: {exc}"
     current = _content_hash(solutions)
     if current != record["sha256"]:
-        return STATUS_STALE, "solutions/ изменился после последней загрузки"
+        return STATUS_STALE, "solutions/ changed since the last upload"
     return STATUS_DONE, f"{len(solutions)} solution(s), sha256={current[:12]}"
 
 
@@ -155,13 +155,13 @@ def _read_solutions(problem_id: str, outputs_dir: Path) -> list[tuple[str, bytes
     solutions_dir = Path(outputs_dir) / problem_id / "solutions"
     if not solutions_dir.is_dir():
         raise PolygonStepError(
-            f"'{problem_id}': не найден каталог {solutions_dir} — сначала "
-            f"выполните генеративный шаг solutions_draft (orchestrator run "
+            f"'{problem_id}': directory {solutions_dir} not found — first "
+            f"run the generative step solutions_draft (orchestrator run "
             f"{problem_id} --step solutions_draft)"
         )
     paths = sorted((p for p in solutions_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     if not paths:
-        raise PolygonStepError(f"'{problem_id}': в {solutions_dir} нет ни одного файла")
+        raise PolygonStepError(f"'{problem_id}': no files in {solutions_dir}")
     return [(path.name, path.read_bytes()) for path in paths]
 
 
@@ -173,15 +173,15 @@ def _parse_solution_filename(path: Path) -> _ParsedSolution:
     parts = path.stem.split("_")
     if len(parts) < 3:
         raise PolygonStepError(
-            f"'{path.name}': имя файла не соответствует схеме "
+            f"'{path.name}': file name does not match the pattern "
             "<verdict>_<language>_<description>_<author>.<ext> "
-            f"(меньше 3 токенов через '_': {parts})"
+            f"(fewer than 3 '_'-separated tokens: {parts})"
         )
     verdict, language = parts[0].lower(), parts[1].lower()
     if verdict not in _VALID_VERDICTS:
         raise PolygonStepError(
-            f"'{path.name}': verdict '{verdict}' не входит в допустимый набор "
-            f"{sorted(_VALID_VERDICTS)} — проверьте имя файла вручную"
+            f"'{path.name}': verdict '{verdict}' is not in the allowed set "
+            f"{sorted(_VALID_VERDICTS)} — check the file name manually"
         )
     return _ParsedSolution(path=path, verdict=verdict, language=language)
 
@@ -194,8 +194,8 @@ def _choose_main(parsed: list[_ParsedSolution]) -> str:
     ok_names = sorted(p.path.name for p in parsed if p.verdict == "ok")
     if not ok_names:
         raise PolygonStepError(
-            "нет ни одного решения с вердиктом 'ok' — нечего выбрать как Main "
-            "correct (ожидается хотя бы один файл ok_*)"
+            "no solution with verdict 'ok' — nothing to pick as Main "
+            "correct (expected at least one ok_* file)"
         )
 
     for lang in _MAIN_LANGUAGE_PRIORITY:
@@ -206,9 +206,9 @@ def _choose_main(parsed: list[_ParsedSolution]) -> str:
             return candidates[0]
 
     logger.warning(
-        "ни один язык из приоритета %s не найден среди ok-решений %s — "
-        "возможно, язык в именах файлов записан иначе, чем ожидается; "
-        "Main correct — первый по алфавиту, проверьте выбор в UI Polygon",
+        "none of the priority languages %s found among ok solutions %s — "
+        "the language in file names may be spelled differently than expected; "
+        "Main correct is the alphabetically first one, check the choice in the Polygon UI",
         _MAIN_LANGUAGE_PRIORITY,
         ok_names,
     )

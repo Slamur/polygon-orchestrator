@@ -145,7 +145,7 @@ def test_standard_missing_is_reported_as_spec_gap(outputs_dir, standard):
     _link(outputs_dir)
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="checker.standard не задан"):
+    with pytest.raises(PolygonStepError, match="checker.standard is not set"):
         _run(_spec(custom_needed=False, standard=standard), outputs_dir, client)
 
     client.call.assert_not_called()

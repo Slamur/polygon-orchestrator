@@ -75,9 +75,9 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     try:
         current = _build_update_params(state.polygon_id, problem_id, outputs_dir)
     except PolygonStepError as exc:
-        return STATUS_STALE, f"текущие лимиты не читаются: {exc}"
+        return STATUS_STALE, f"current limits are unreadable: {exc}"
     if current != sent:
-        return STATUS_STALE, f"отправлено {_describe(sent)}, сейчас {_describe(current)}"
+        return STATUS_STALE, f"sent {_describe(sent)}, now {_describe(current)}"
     return STATUS_DONE, _describe(sent)
 
 
@@ -105,8 +105,8 @@ def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) ->
     constraints_path = Path(outputs_dir) / problem_id / "constraints.yaml"
     if not constraints_path.exists():
         raise PolygonStepError(
-            f"'{problem_id}': не найден {constraints_path} — сначала выполните "
-            f"генеративный шаг constraints_pick (orchestrator run {problem_id} "
+            f"'{problem_id}': {constraints_path} not found — first run "
+            f"the generative step constraints_pick (orchestrator run {problem_id} "
             "--step constraints_pick)"
         )
 
@@ -114,25 +114,25 @@ def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) ->
         constraints_data = yaml.safe_load(constraints_path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
         raise PolygonStepError(
-            f"'{problem_id}': {constraints_path} не является корректным YAML: {exc}"
+            f"'{problem_id}': {constraints_path} is not valid YAML: {exc}"
         ) from exc
     if not isinstance(constraints_data, dict):
         raise PolygonStepError(
-            f"'{problem_id}': {constraints_path} не разобрался в словарь "
-            f"(получено {type(constraints_data).__name__})"
+            f"'{problem_id}': {constraints_path} did not parse into a mapping "
+            f"(got {type(constraints_data).__name__})"
         )
 
     time_limit_seconds, memory_limit_mb = _extract_limits(constraints_data)
     for key, value in ((_TIME_KEY, time_limit_seconds), (_MEMORY_KEY, memory_limit_mb)):
         if value is None:
             raise PolygonStepError(
-                f"'{problem_id}': {key} в {constraints_path} не заполнен (null) — "
-                "constraints_pick должен был остановиться с status: uncertain"
+                f"'{problem_id}': {key} in {constraints_path} is not set (null) — "
+                "constraints_pick should have stopped with status: uncertain"
             )
         if isinstance(value, bool) or not isinstance(value, Real) or value <= 0:
             raise PolygonStepError(
-                f"'{problem_id}': {key} в {constraints_path} должен быть "
-                f"положительным числом, получено {value!r}"
+                f"'{problem_id}': {key} in {constraints_path} must be "
+                f"a positive number, got {value!r}"
             )
 
     return {
@@ -170,15 +170,15 @@ def _extract_limits(constraints_data: dict) -> tuple[object, object]:
     ]
     if not found:
         raise PolygonStepError(
-            f"не найдены {_TIME_KEY}/{_MEMORY_KEY} ни в 'limits', ни в корне "
+            f"{_TIME_KEY}/{_MEMORY_KEY} found neither in 'limits' nor at the root of "
             "constraints.yaml"
         )
 
     first_values = found[0][1]
     if any(values != first_values for _, values in found[1:]):
         raise PolygonStepError(
-            f"{_TIME_KEY}/{_MEMORY_KEY} заданы и в 'limits', и в корне "
-            f"constraints.yaml, но с разными значениями: {dict(found)!r}"
+            f"{_TIME_KEY}/{_MEMORY_KEY} are set both in 'limits' and at the root of "
+            f"constraints.yaml, with different values: {dict(found)!r}"
         )
     return first_values
 

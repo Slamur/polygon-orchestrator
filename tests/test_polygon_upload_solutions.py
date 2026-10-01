@@ -95,7 +95,7 @@ def test_empty_solutions_dir_is_an_error(outputs_dir, spec):
     _solutions_dir(outputs_dir)
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="нет ни одного файла"):
+    with pytest.raises(PolygonStepError, match="no files in"):
         _run(spec, outputs_dir, client)
 
     client.call.assert_not_called()
@@ -117,7 +117,7 @@ def test_unknown_verdict_is_an_error(outputs_dir, spec):
     _write_solutions(outputs_dir, {"ok_cpp_main_draft.cpp": b"", "xx_cpp_foo_bar.cpp": b""})
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match=r"'xx'.*допустимый набор"):
+    with pytest.raises(PolygonStepError, match=r"'xx'.*allowed set"):
         _run(spec, outputs_dir, client)
 
     client.call.assert_not_called()

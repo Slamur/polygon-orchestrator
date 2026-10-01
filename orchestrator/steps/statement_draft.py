@@ -47,12 +47,12 @@ def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str
         if missing or extra:
             parts = []
             if missing:
-                parts.append(f"не хватает: {sorted(missing)}")
+                parts.append(f"missing: {sorted(missing)}")
             if extra:
-                parts.append(f"лишние: {sorted(extra)}")
+                parts.append(f"unexpected: {sorted(extra)}")
             raise ValueError(
-                f"Шаг '{STEP_NAME}': набор файлов от модели не совпадает "
-                f"с ожидаемым ({'; '.join(parts)})"
+                f"Step '{STEP_NAME}': the set of files from the model does not match "
+                f"the expected one ({'; '.join(parts)})"
             )
 
     return _validate

@@ -690,14 +690,14 @@ def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(
 ):
     _write_spec(specs_dir, PROBLEM_ID)
     client = MagicMock()
-    client.call.side_effect = RuntimeError("POLYGON_API_KEY не задан")
+    client.call.side_effect = RuntimeError("POLYGON_API_KEY is not set")
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", PROBLEM_ID, "run"])
 
     assert rc == 1
     captured = capsys.readouterr()
-    assert "create_problem: error — RuntimeError: POLYGON_API_KEY не задан" in captured.out
+    assert "create_problem: error — RuntimeError: POLYGON_API_KEY is not set" in captured.out
     assert "Traceback" not in captured.out + captured.err
     log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
     assert "Traceback" in log

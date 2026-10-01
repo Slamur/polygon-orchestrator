@@ -153,8 +153,8 @@ class AnthropicClient:
             except Exception as exc:
                 if not _is_retryable(exc) or attempt >= _MAX_ATTEMPTS:
                     logger.error(
-                        "AnthropicClient.generate(model_class=%r): попытка %d/%d "
-                        "провалена без retry (%r)",
+                        "AnthropicClient.generate(model_class=%r): attempt %d/%d "
+                        "failed, not retrying (%r)",
                         model_class,
                         attempt,
                         _MAX_ATTEMPTS,
@@ -163,8 +163,8 @@ class AnthropicClient:
                     raise
                 delay = _RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
                 logger.warning(
-                    "AnthropicClient.generate(model_class=%r): попытка %d/%d "
-                    "провалена (%r), retry через %.1fs",
+                    "AnthropicClient.generate(model_class=%r): attempt %d/%d "
+                    "failed (%r), retrying in %.1fs",
                     model_class,
                     attempt,
                     _MAX_ATTEMPTS,
@@ -192,9 +192,9 @@ class AnthropicClient:
             api_key = os.environ.get("ANTHROPIC_API_KEY")
             if not api_key:
                 raise RuntimeError(
-                    "ANTHROPIC_API_KEY не задан. Скопируйте .env.example в "
-                    ".env и впишите туда ключ, либо экспортируйте переменную "
-                    "окружения ANTHROPIC_API_KEY напрямую."
+                    "ANTHROPIC_API_KEY is not set. Copy .env.example to "
+                    ".env and put the key there, or export the environment "
+                    "variable ANTHROPIC_API_KEY directly."
                 )
             self._sdk_client = anthropic.Anthropic(api_key=api_key, max_retries=0)
         return self._sdk_client
@@ -267,8 +267,8 @@ def _parse_model_response(
     ]
     if not tool_use_blocks:
         raise RuntimeError(
-            f"AnthropicClient.generate(model_class={model_class!r}): в ответе "
-            f"модели нет tool_use-блока '{_RESPONSE_TOOL_NAME}' "
+            f"AnthropicClient.generate(model_class={model_class!r}): the model "
+            f"response has no tool_use block '{_RESPONSE_TOOL_NAME}' "
             f"(stop_reason={response.stop_reason!r})"
         )
 

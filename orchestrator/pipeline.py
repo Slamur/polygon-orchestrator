@@ -162,7 +162,7 @@ def run_pipeline(
                 StepOutcome(
                     step_name,
                     OUTCOME_SKIPPED_OPTIONAL,
-                    "в спеке нет секции 'solutions' — черновики решений не заказаны автором",
+                    "spec has no 'solutions' section — solution drafts were not requested by the author",
                 )
             )
             continue
@@ -172,8 +172,8 @@ def run_pipeline(
                 StepOutcome(
                     step_name,
                     OUTCOME_SKIPPED_OPTIONAL,
-                    "checker.custom_needed=false — используется стандартный чекер, "
-                    "черновик не заказан",
+                    "checker.custom_needed=false — a standard checker is used, "
+                    "no draft requested",
                 )
             )
             continue
@@ -225,7 +225,7 @@ def run_pipeline(
                 StepOutcome(
                     step_name,
                     OUTCOME_CACHE_HIT,
-                    f"вход не изменился (input_hash={input_hash[:12]}…) — модель не вызывалась",
+                    f"input unchanged (input_hash={input_hash[:12]}…) — model not called",
                 )
             )
         else:
@@ -310,7 +310,7 @@ def compute_step_statuses(
                 StepStatus(
                     step_name,
                     STATUS_SKIPPED_OPTIONAL,
-                    "в спеке нет секции 'solutions' — черновики решений не заказаны",
+                    "spec has no 'solutions' section — solution drafts not requested",
                 )
             )
             continue
@@ -320,7 +320,7 @@ def compute_step_statuses(
                 StepStatus(
                     step_name,
                     STATUS_SKIPPED_OPTIONAL,
-                    "checker.custom_needed=false — используется стандартный чекер",
+                    "checker.custom_needed=false — a standard checker is used",
                 )
             )
             continue
@@ -352,7 +352,7 @@ def compute_step_statuses(
                 StepStatus(
                     step_name,
                     STATUS_UNCERTAIN,
-                    "прошлый запуск закончился status: uncertain — поправьте спек и запустите заново",
+                    "last run ended with status: uncertain — fix the spec and run again",
                 )
             )
         else:
@@ -368,14 +368,14 @@ def compute_step_statuses(
                 statuses.append(StepStatus(step_name, STATUS_CACHE_HIT))
             elif not _artifact_present(primary_path):
                 statuses.append(
-                    StepStatus(step_name, STATUS_STALE, "артефакт отсутствует на диске")
+                    StepStatus(step_name, STATUS_STALE, "artifact is missing on disk")
                 )
             elif cache_entry.input_hash != input_hash:
                 statuses.append(
-                    StepStatus(step_name, STATUS_STALE, "спек (или апстрим-артефакт) изменился")
+                    StepStatus(step_name, STATUS_STALE, "spec (or upstream artifact) changed")
                 )
             else:
-                statuses.append(StepStatus(step_name, STATUS_STALE, "промпт-шаблон изменился"))
+                statuses.append(StepStatus(step_name, STATUS_STALE, "prompt template changed"))
 
         if step_name == "constraints_pick" and primary_path.exists():
             upstream_artifacts[CONSTRAINTS_ARTIFACT] = primary_path.read_text(encoding="utf-8")

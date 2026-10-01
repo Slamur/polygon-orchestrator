@@ -110,7 +110,7 @@ def test_gap_in_example_numbering(outputs_dir, spec):
     _write_examples(outputs_dir, {1: "1\n", 3: "3\n"})
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match=r"не непрерывна.*\[1, 3\]"):
+    with pytest.raises(PolygonStepError, match=r"not contiguous.*\[1, 3\]"):
         _run(spec, outputs_dir, client)
 
     client.call.assert_not_called()

@@ -96,10 +96,10 @@ class StepUncertainError(Exception):
         self.notes = notes
         details = "; ".join(
             f"{note.get('field', '?')}: {note.get('explanation', '')}" for note in notes
-        ) or "модель не указала notes с недостающими полями"
+        ) or "the model did not provide notes with the missing fields"
         super().__init__(
-            f"Шаг '{step_name}' для '{problem_id}' остановлен (status: uncertain): "
-            f"{details}. Поправьте specs/{problem_id}.yaml и запустите шаг заново."
+            f"Step '{step_name}' for '{problem_id}' stopped (status: uncertain): "
+            f"{details}. Fix specs/{problem_id}.yaml and run the step again."
         )
 
 
@@ -185,8 +185,8 @@ def load_context_documents(
         path = Path(templates_dir) / rel_path
         if not path.exists():
             raise FileNotFoundError(
-                f"Шаг '{step_name}': документ контекста '{rel_path}' из "
-                f"STEP_CONTEXT_DOCUMENTS не найден по пути {path}"
+                f"Step '{step_name}': context document '{rel_path}' from "
+                f"STEP_CONTEXT_DOCUMENTS not found at {path}"
             )
         documents[rel_path] = path.read_text(encoding="utf-8")
 
@@ -194,8 +194,8 @@ def load_context_documents(
         path = Path(rel_path)
         if not path.exists():
             raise FileNotFoundError(
-                f"Шаг '{step_name}': дополнительный документ контекста "
-                f"'{rel_path}' (extra_context_documents) не найден по пути {path}"
+                f"Step '{step_name}': extra context document "
+                f"'{rel_path}' (extra_context_documents) not found at {path}"
             )
         documents[rel_path] = path.read_text(encoding="utf-8")
 
@@ -281,8 +281,8 @@ def run_generative_step(
 
     if response.status not in _VALID_STATUSES:
         raise ValueError(
-            f"Шаг '{step_name}': модель вернула неизвестный status "
-            f"'{response.status}' (ожидается один из {sorted(_VALID_STATUSES)})"
+            f"Step '{step_name}': the model returned an unknown status "
+            f"'{response.status}' (expected one of {sorted(_VALID_STATUSES)})"
         )
 
     if response.status == STATUS_UNCERTAIN:

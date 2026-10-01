@@ -142,7 +142,7 @@ def test_run_all_continues_past_invalid_spec_and_reports_exit_code(specs_dir, tm
     assert rc == 1  # хотя бы одна задача провалилась
     out = capsys.readouterr().out
     assert "=== bad ===" in out
-    assert "не прошёл валидацию" in out
+    assert "failed validation" in out
     assert "=== good ===" in out
     assert "statement_draft: confirmed" in out
 
@@ -151,7 +151,7 @@ def test_run_all_with_no_specs_reports_and_exits_zero(specs_dir, tmp_path, capsy
     outputs_dir = tmp_path / "outputs"
     rc = cli.main(_base_args(specs_dir, outputs_dir) + ["run", "--all"])
     assert rc == 0
-    assert "не найдено" in capsys.readouterr().out
+    assert "no specs/*.yaml found" in capsys.readouterr().out
 
 
 def test_status_reports_not_run_before_any_run(specs_dir, tmp_path, capsys):

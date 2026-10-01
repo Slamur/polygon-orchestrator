@@ -201,7 +201,7 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
             logger.info(f"      [{kind}] {field_name}: {explanation}")
 
     if result.stopped_uncertain:
-        logger.info(f"  ! пайплайн остановлен для '{result.problem_id}' — см. шаг выше")
+        logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
@@ -210,7 +210,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     if args.all:
         problem_ids = _discover_problem_ids(args.specs_dir)
         if not problem_ids:
-            logger.info(f"в {args.specs_dir} не найдено ни одного specs/*.yaml")
+            logger.info(f"no specs/*.yaml found in {args.specs_dir}")
             return 0
 
         any_failed = False
@@ -229,9 +229,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
                     )
                 except Exception as exc:  # noqa: BLE001 — один problem_id не должен ронять весь --all
                     logger.info(f"=== {problem_id} ===")
-                    logger.info(f"  ! неожиданная ошибка: {exc}")
+                    logger.info(f"  ! unexpected error: {exc}")
                     _log_traceback_to_file(
-                        file_handler, f"необработанная ошибка при обработке '{problem_id}'"
+                        file_handler, f"unhandled error while processing '{problem_id}'"
                     )
                     any_failed = True
                     continue
@@ -242,7 +242,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 1 if any_failed else 0
 
     if args.step is not None and args.step not in STEP_ORDER:
-        print(f"неизвестный шаг '{args.step}', допустимые: {', '.join(STEP_ORDER)}", file=sys.stderr)
+        print(f"unknown step '{args.step}', allowed: {', '.join(STEP_ORDER)}", file=sys.stderr)
         return 2
 
     with _problem_log_handler(
@@ -260,7 +260,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
             )
         except Exception:
             _log_traceback_to_file(
-                file_handler, f"необработанная ошибка при обработке '{args.problem_id}'"
+                file_handler, f"unhandled error while processing '{args.problem_id}'"
             )
             raise
         _print_pipeline_result(logger, result)
@@ -272,7 +272,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
         [args.problem] if args.problem is not None else _discover_problem_ids(args.specs_dir)
     )
     if not problem_ids:
-        print(f"в {args.specs_dir} не найдено ни одного specs/*.yaml")
+        print(f"no specs/*.yaml found in {args.specs_dir}")
         return 0
 
     any_error = False
@@ -357,64 +357,64 @@ def _cmd_polygon_status(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="orchestrator",
-        description="Прогон генеративных шагов подготовки задачи для Polygon (см. CLAUDE.md)",
+        description="Run generative problem-preparation steps for Polygon (see CLAUDE.md)",
     )
     parser.add_argument(
-        "--specs-dir", type=Path, default=SPECS_DIR, help="каталог specs/*.yaml (по умолчанию specs/)"
+        "--specs-dir", type=Path, default=SPECS_DIR, help="specs/*.yaml directory (default: specs/)"
     )
     parser.add_argument(
-        "--prompts-dir", type=Path, default=PROMPTS_DIR, help="каталог prompts/ (по умолчанию prompts/)"
+        "--prompts-dir", type=Path, default=PROMPTS_DIR, help="prompts/ directory (default: prompts/)"
     )
     parser.add_argument(
-        "--outputs-dir", type=Path, default=OUTPUTS_DIR, help="каталог outputs/ (по умолчанию outputs/)"
+        "--outputs-dir", type=Path, default=OUTPUTS_DIR, help="outputs/ directory (default: outputs/)"
     )
     parser.add_argument(
         "--templates-dir",
         type=Path,
         default=TEMPLATES_DIR,
-        help="каталог templates/ (по умолчанию templates/)",
+        help="templates/ directory (default: templates/)",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    run_parser = subparsers.add_parser("run", help="прогнать шаги для одной задачи или для всех specs/*.yaml")
+    run_parser = subparsers.add_parser("run", help="run steps for one problem or for all specs/*.yaml")
     run_group = run_parser.add_mutually_exclusive_group(required=True)
-    run_group.add_argument("problem_id", nargs="?", help="problem_id (соответствует specs/<problem_id>.yaml)")
-    run_group.add_argument("--all", action="store_true", help="прогнать все specs/*.yaml")
+    run_group.add_argument("problem_id", nargs="?", help="problem_id (matches specs/<problem_id>.yaml)")
+    run_group.add_argument("--all", action="store_true", help="run all specs/*.yaml")
     run_parser.add_argument(
         "--step",
         choices=STEP_ORDER,
         default=None,
-        help="прогнать только один шаг (несовместимо с --all)",
+        help="run only one step (incompatible with --all)",
     )
     run_parser.add_argument(
-        "--force", action="store_true", help="игнорировать кэш и вызвать модель заново"
+        "--force", action="store_true", help="ignore the cache and call the model again"
     )
     run_parser.set_defaults(func=_cmd_run)
 
     status_parser = subparsers.add_parser(
-        "status", help="таблица шаг -> cache hit / stale / not run / uncertain, без вызова модели"
+        "status", help="table step -> cache hit / stale / not run / uncertain, without calling the model"
     )
-    status_parser.add_argument("--problem", default=None, help="ограничиться одним problem_id")
+    status_parser.add_argument("--problem", default=None, help="limit to one problem_id")
     status_parser.set_defaults(func=_cmd_status)
 
     polygon_parser = subparsers.add_parser(
-        "polygon", help="загрузка задачи в Polygon (API polygon.codeforces.com)"
+        "polygon", help="upload the problem to Polygon (API polygon.codeforces.com)"
     )
-    polygon_parser.add_argument("problem_id", help="соответствует specs/<problem_id>.yaml")
+    polygon_parser.add_argument("problem_id", help="matches specs/<problem_id>.yaml")
     polygon_subparsers = polygon_parser.add_subparsers(dest="polygon_command", required=True)
 
     # Без --force: кэша у polygon-шагов нет, обходить нечего.
     polygon_run_parser = polygon_subparsers.add_parser(
-        "run", help="прогнать polygon-шаги по порядку (без кэша — шаги вызываются каждый раз)"
+        "run", help="run polygon steps in order (no cache — steps are invoked every time)"
     )
     polygon_run_parser.add_argument(
-        "--step", choices=POLYGON_STEP_ORDER, default=None, help="прогнать только один polygon-шаг"
+        "--step", choices=POLYGON_STEP_ORDER, default=None, help="run only one polygon step"
     )
     polygon_run_parser.set_defaults(func=_cmd_polygon_run)
 
     polygon_status_parser = polygon_subparsers.add_parser(
-        "status", help="что из polygon-шагов уже сделано, без обращения к сети"
+        "status", help="which polygon steps are already done, without network access"
     )
     polygon_status_parser.set_defaults(func=_cmd_polygon_status)
 
@@ -429,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
     args.command_line = " ".join(argv)
 
     if args.command == "run" and args.all and args.step is not None:
-        parser.error("--step несовместим с --all")
+        parser.error("--step is incompatible with --all")
 
     return args.func(args)
 
