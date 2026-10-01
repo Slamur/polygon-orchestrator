@@ -14,9 +14,10 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
@@ -34,6 +35,8 @@ from orchestrator.polygon.steps import (
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.spec import SpecValidationError, load_spec
+
+logger = logging.getLogger(__name__)
 
 SPECS_DIR = Path("specs")
 
@@ -102,6 +105,7 @@ def run_polygon_pipeline(
     specs_dir: Path = SPECS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
     client: PolygonClient | None = None,
+    on_outcome: Callable[[PolygonStepOutcome], None] | None = None,
 ) -> PolygonPipelineResult:
     """Прогоняет polygon-шаги для `problem_id` по порядку `POLYGON_STEP_ORDER`
     (или только один, если задан `only_step`).
@@ -117,11 +121,18 @@ def run_polygon_pipeline(
     `client` создаётся один раз здесь и передаётся во все шаги — чтобы не
     плодить по отдельному `PolygonClient` с ленивым чтением `.env` на шаг.
 
-    Останавливается на первой `PolygonApiError` (ошибка Polygon API) или
-    `PolygonStepError` (не хватает локальных данных/зависимостей шага), не
-    бросая её наружу:
+    Останавливается на первой ошибке шага, не бросая её наружу:
     `result.outcomes` получает запись со статусом "error", последующие шаги
-    не запускаются. Ошибка валидации спека — как в `run_pipeline`:
+    не запускаются. Помимо ожидаемых `PolygonApiError` (ошибка Polygon API)
+    и `PolygonStepError` (не хватает локальных данных/зависимостей шага)
+    так же обрабатывается любое другое исключение (сеть, отсутствие ключей,
+    баг в шаге) — с traceback в лог, `detail` при этом — тип и текст
+    исключения. Полный текст ошибки всегда пишется в лог (ERROR), т.к.
+    вызывающий код может показывать `detail` сокращённо.
+
+    `on_outcome` вызывается сразу после каждого шага (и успешного, и
+    упавшего) — чтобы CLI показывал прогресс по мере выполнения, а не
+    одним куском в конце. Ошибка валидации спека — как в `run_pipeline`:
     записывается в `result.spec_error`, клиент при этом не создаётся.
     """
     try:
@@ -133,8 +144,14 @@ def run_polygon_pipeline(
     result = PolygonPipelineResult(problem_id=problem_id)
     steps_to_run = POLYGON_STEP_ORDER if only_step is None else [only_step]
 
+    def record(outcome: PolygonStepOutcome) -> None:
+        result.outcomes.append(outcome)
+        if on_outcome is not None:
+            on_outcome(outcome)
+
     for step_name in steps_to_run:
         step = _POLYGON_STEPS[step_name]
+        logger.info("[%s] step started", step_name)
         try:
             detail = run_step(step, problem_id, spec, outputs_dir=outputs_dir, client=client)
             if step.commits_changes:
@@ -142,9 +159,16 @@ def run_polygon_pipeline(
                     problem_id, step_name, outputs_dir=outputs_dir, client=client
                 )
         except (PolygonApiError, PolygonStepError) as exc:
-            result.outcomes.append(PolygonStepOutcome(step_name, OUTCOME_ERROR, str(exc)))
+            logger.error("[%s] %s", step_name, exc)
+            record(PolygonStepOutcome(step_name, OUTCOME_ERROR, str(exc)))
             return result
-        result.outcomes.append(PolygonStepOutcome(step_name, OUTCOME_OK, detail))
+        except Exception as exc:  # noqa: BLE001 — traceback в лог, а не в консоль
+            logger.exception("[%s] unexpected error", step_name)
+            record(
+                PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}")
+            )
+            return result
+        record(PolygonStepOutcome(step_name, OUTCOME_OK, detail))
 
     return result
 

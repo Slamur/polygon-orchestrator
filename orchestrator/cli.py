@@ -32,6 +32,7 @@ from orchestrator.pipeline import (
     compute_step_statuses,
     run_pipeline,
 )
+from orchestrator.polygon.pipeline import OUTCOME_ERROR as POLYGON_OUTCOME_ERROR
 from orchestrator.polygon.pipeline import (
     POLYGON_STEP_ORDER,
     compute_polygon_step_statuses,
@@ -48,17 +49,32 @@ _OUTCOME_LABELS = {
 }
 
 # Логгер пакета — на него вешается и консольный вывод (см.
-# `_configure_console_logging`), и по-задачный `outputs/<id>/log.txt` (см.
+# `_configure_console_logging`), и по-задачные лог-файлы
+# `outputs/<id>/llm_generation.log` / `outputs/<id>/polygon.log` (см.
 # `_problem_log_handler`), см. CLAUDE.md, задача "лог выполнения". Дочерние
 # логгеры (например, `orchestrator.llm_clients.anthropic_client`, откуда
 # идёт `_log_usage`) пишут через propagate в этот же логгер — отдельно
 # настраивать их не нужно.
 LOGGER_NAME = "orchestrator"
 
+# Отдельные файлы на генерацию и на Polygon: `polygon run` и `run` запускаются
+# независимо, и общий файл, перезаписываемый каждым прогоном, терял бы лог
+# одного при запуске другого.
+LLM_GENERATION_LOG = "llm_generation.log"
+POLYGON_LOG = "polygon.log"
+
+# Заголовок прогона в лог-файле задачи; `%s` — команда целиком.
+_RUN_HEADER = "===== run started: orchestrator %s ====="
+
+# Сколько символов текста ошибки polygon-шага печатать в консоль: `comment`
+# от Polygon бывает многострочным (например, лог компиляции валидатора) —
+# целиком он пишется в `polygon.log`.
+_CONSOLE_ERROR_MAX_LEN = 200
+
 _console_handler: logging.Handler | None = None
 
 
-def _configure_console_logging() -> logging.Logger:
+def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger:
     """Настраивает логгер пакета так, чтобы INFO-сообщения были видны в
     консоли — до этого `logger.info(...)` в `_log_usage` никуда не выводился,
     потому что для логгера не было ни уровня, ни handler'а.
@@ -67,6 +83,11 @@ def _configure_console_logging() -> logging.Logger:
     `logging.StreamHandler()` фиксирует `sys.stdout` в момент создания, а
     `capsys` в тестах подменяет `sys.stdout` на время теста — handler,
     созданный при импорте, писал бы мимо этой подмены.
+
+    `warnings_only` — для `polygon run`: в консоль идут только WARNING, а
+    INFO (каждый HTTP-запрос, сообщения шагов) и ERROR (полный текст
+    ошибки шага с traceback) — только в `polygon.log`; итог по каждому шагу
+    печатает сам CLI, коротко (см. `_print_polygon_outcome`).
     """
     global _console_handler
     logger = logging.getLogger(LOGGER_NAME)
@@ -78,6 +99,8 @@ def _configure_console_logging() -> logging.Logger:
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("%(message)s"))
+    if warnings_only:
+        handler.addFilter(lambda record: record.levelno == logging.WARNING)
     logger.addHandler(handler)
     _console_handler = handler
     return logger
@@ -85,15 +108,20 @@ def _configure_console_logging() -> logging.Logger:
 
 @contextmanager
 def _problem_log_handler(
-    logger: logging.Logger, outputs_dir: Path, problem_id: str
+    logger: logging.Logger,
+    outputs_dir: Path,
+    problem_id: str,
+    log_name: str,
+    command_line: str,
 ) -> Iterator[logging.Handler]:
-    """Заводит `outputs/<problem_id>/log.txt` на время обработки одного
-    `problem_id` — открывается на перезапись (см. CLAUDE.md, задача "лог
-    выполнения": "при повторном запуске лог должен отражать последний
-    прогон, а не накапливаться"), добавляется к логгеру перед прогоном шагов
-    и снимается сразу после, через try/finally — чтобы в `run --all` лог
-    одной задачи не утёк в файл следующей, и чтобы необработанное исключение
-    всё равно не оставило handler висящим.
+    """Заводит `outputs/<problem_id>/<log_name>` на время обработки одного
+    `problem_id` — открывается на дозапись: лог накапливает историю
+    прогонов, каждый прогон начинается с заголовка с командой (см.
+    `_RUN_HEADER`) — по нему удобно искать нужный запуск, а время в каждой
+    строке показывает длительность шагов. Handler добавляется к логгеру
+    перед прогоном шагов и снимается сразу после, через try/finally — чтобы
+    в `run --all` лог одной задачи не утёк в файл следующей, и чтобы
+    необработанное исключение всё равно не оставило handler висящим.
 
     Отдаёт сам handler — вызывающий код использует его напрямую в
     `_log_traceback_to_file` для необработанных исключений (см. там же,
@@ -101,9 +129,25 @@ def _problem_log_handler(
     """
     problem_dir = Path(outputs_dir) / problem_id
     problem_dir.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(problem_dir / "log.txt", mode="w", encoding="utf-8")
+    log_path = problem_dir / log_name
+    needs_separator = log_path.exists() and log_path.stat().st_size > 0
+    handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    if needs_separator:
+        handler.stream.write("\n")
+    # Только в файл, мимо консольного handler'а — в консоли команда и так видна.
+    handler.handle(
+        logging.LogRecord(
+            name=LOGGER_NAME,
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=0,
+            msg=_RUN_HEADER,
+            args=(command_line,),
+            exc_info=None,
+        )
     )
     logger.addHandler(handler)
     try:
@@ -119,7 +163,7 @@ def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
     необработанном исключении остался ровно таким же, как раньше (traceback
     туда и так печатает сам Python при завершении процесса / его печатал
     старый `except Exception` в `run --all`, без traceback вообще), а
-    `outputs/<id>/log.txt` при этом не терял traceback (CLAUDE.md, задача
+    `outputs/<id>/llm_generation.log` при этом не терял traceback (CLAUDE.md, задача
     "лог выполнения", пункт 4).
     """
     record = logging.LogRecord(
@@ -171,7 +215,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
         any_failed = False
         for problem_id in problem_ids:
-            with _problem_log_handler(logger, args.outputs_dir, problem_id) as file_handler:
+            with _problem_log_handler(
+                logger, args.outputs_dir, problem_id, LLM_GENERATION_LOG, args.command_line
+            ) as file_handler:
                 try:
                     result = run_pipeline(
                         problem_id,
@@ -199,7 +245,9 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print(f"неизвестный шаг '{args.step}', допустимые: {', '.join(STEP_ORDER)}", file=sys.stderr)
         return 2
 
-    with _problem_log_handler(logger, args.outputs_dir, args.problem_id) as file_handler:
+    with _problem_log_handler(
+        logger, args.outputs_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
+    ) as file_handler:
         try:
             result = run_pipeline(
                 args.problem_id,
@@ -259,17 +307,43 @@ def _print_polygon_outcomes(outcomes) -> None:
         print(line)
 
 
+def _shorten_error(detail: str) -> str:
+    """Первая строка текста ошибки, не длиннее `_CONSOLE_ERROR_MAX_LEN`."""
+    first_line = detail.strip().splitlines()[0] if detail.strip() else ""
+    if len(first_line) > _CONSOLE_ERROR_MAX_LEN:
+        return first_line[: _CONSOLE_ERROR_MAX_LEN - 1] + "…"
+    return first_line
+
+
+def _print_polygon_outcome(outcome, log_path: Path) -> None:
+    """Печатает итог одного polygon-шага сразу по его завершении (`flush` —
+    чтобы прогресс был виден и при выводе в pipe/файл). Ошибка — коротко,
+    со ссылкой на `polygon.log`, где лежит полный текст."""
+    line = f"  {outcome.step_name}: {outcome.status}"
+    if outcome.status == POLYGON_OUTCOME_ERROR:
+        line += f" — {_shorten_error(outcome.detail)} (details: {log_path})"
+    elif outcome.detail:
+        line += f" — {outcome.detail}"
+    print(line, flush=True)
+
+
 def _cmd_polygon_run(args: argparse.Namespace) -> int:
-    result = run_polygon_pipeline(
-        args.problem_id,
-        only_step=args.step,
-        specs_dir=args.specs_dir,
-        outputs_dir=args.outputs_dir,
-    )
+    logger = _configure_console_logging(warnings_only=True)
+    log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
+
+    with _problem_log_handler(
+        logger, args.outputs_dir, args.problem_id, POLYGON_LOG, args.command_line
+    ):
+        result = run_polygon_pipeline(
+            args.problem_id,
+            only_step=args.step,
+            specs_dir=args.specs_dir,
+            outputs_dir=args.outputs_dir,
+            on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
+        )
     if result.spec_error is not None:
         print(result.spec_error, file=sys.stderr)
         return 1
-    _print_polygon_outcomes(result.outcomes)
     return 0 if result.ok else 1
 
 
@@ -349,7 +423,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
+    if argv is None:
+        argv = sys.argv[1:]
     args = parser.parse_args(argv)
+    args.command_line = " ".join(argv)
 
     if args.command == "run" and args.all and args.step is not None:
         parser.error("--step несовместим с --all")

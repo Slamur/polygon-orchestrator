@@ -131,6 +131,8 @@ Python-оркестратор, который берёт структуриро�
         │   ├── generators_and_script.json
         │   ├── solutions_draft.json
         │   └── checker_draft.json
+        ├── llm_generation.log      # лог `orchestrator run` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
+        ├── polygon.log             # лог `orchestrator polygon <id> run` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + что каждый polygon-шаг последним отправил (steps); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
