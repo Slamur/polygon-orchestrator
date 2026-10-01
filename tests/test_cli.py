@@ -94,6 +94,22 @@ def test_run_writes_llm_generation_log(specs_dir, tmp_path, capsys):
     assert not (outputs_dir / "p1" / "log.txt").exists()
 
 
+def test_run_log_accumulates_runs_with_header_and_step_starts(specs_dir, tmp_path, capsys):
+    _write_spec(specs_dir, "p1")
+    outputs_dir = tmp_path / "outputs"
+    argv = _base_args(specs_dir, outputs_dir) + ["run", "p1", "--step", "statement_draft"]
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        cli.main(argv)
+        cli.main(argv + ["--force"])
+
+    log = (outputs_dir / "p1" / cli.LLM_GENERATION_LOG).read_text(encoding="utf-8")
+    first = log.index(f"===== старт прогона: orchestrator {' '.join(argv)} =====")
+    second = log.index(f"===== старт прогона: orchestrator {' '.join(argv + ['--force'])} =====")
+    assert first < second
+    assert log.count("[statement_draft] старт шага") == 2
+
+
 def test_run_uncertain_exits_nonzero_and_prints_notes(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"

@@ -63,6 +63,9 @@ LOGGER_NAME = "orchestrator"
 LLM_GENERATION_LOG = "llm_generation.log"
 POLYGON_LOG = "polygon.log"
 
+# Заголовок прогона в лог-файле задачи; `%s` — команда целиком.
+_RUN_HEADER = "===== старт прогона: orchestrator %s ====="
+
 # Сколько символов текста ошибки polygon-шага печатать в консоль: `comment`
 # от Polygon бывает многострочным (например, лог компиляции валидатора) —
 # целиком он пишется в `polygon.log`.
@@ -105,15 +108,20 @@ def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger
 
 @contextmanager
 def _problem_log_handler(
-    logger: logging.Logger, outputs_dir: Path, problem_id: str, log_name: str
+    logger: logging.Logger,
+    outputs_dir: Path,
+    problem_id: str,
+    log_name: str,
+    command_line: str,
 ) -> Iterator[logging.Handler]:
     """Заводит `outputs/<problem_id>/<log_name>` на время обработки одного
-    `problem_id` — открывается на перезапись (см. CLAUDE.md, задача "лог
-    выполнения": "при повторном запуске лог должен отражать последний
-    прогон, а не накапливаться"), добавляется к логгеру перед прогоном шагов
-    и снимается сразу после, через try/finally — чтобы в `run --all` лог
-    одной задачи не утёк в файл следующей, и чтобы необработанное исключение
-    всё равно не оставило handler висящим.
+    `problem_id` — открывается на дозапись: лог накапливает историю
+    прогонов, каждый прогон начинается с заголовка с командой (см.
+    `_RUN_HEADER`) — по нему удобно искать нужный запуск, а время в каждой
+    строке показывает длительность шагов. Handler добавляется к логгеру
+    перед прогоном шагов и снимается сразу после, через try/finally — чтобы
+    в `run --all` лог одной задачи не утёк в файл следующей, и чтобы
+    необработанное исключение всё равно не оставило handler висящим.
 
     Отдаёт сам handler — вызывающий код использует его напрямую в
     `_log_traceback_to_file` для необработанных исключений (см. там же,
@@ -121,9 +129,25 @@ def _problem_log_handler(
     """
     problem_dir = Path(outputs_dir) / problem_id
     problem_dir.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(problem_dir / log_name, mode="w", encoding="utf-8")
+    log_path = problem_dir / log_name
+    needs_separator = log_path.exists() and log_path.stat().st_size > 0
+    handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
+    if needs_separator:
+        handler.stream.write("\n")
+    # Только в файл, мимо консольного handler'а — в консоли команда и так видна.
+    handler.handle(
+        logging.LogRecord(
+            name=LOGGER_NAME,
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=0,
+            msg=_RUN_HEADER,
+            args=(command_line,),
+            exc_info=None,
+        )
     )
     logger.addHandler(handler)
     try:
@@ -192,7 +216,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         any_failed = False
         for problem_id in problem_ids:
             with _problem_log_handler(
-                logger, args.outputs_dir, problem_id, LLM_GENERATION_LOG
+                logger, args.outputs_dir, problem_id, LLM_GENERATION_LOG, args.command_line
             ) as file_handler:
                 try:
                     result = run_pipeline(
@@ -222,7 +246,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 2
 
     with _problem_log_handler(
-        logger, args.outputs_dir, args.problem_id, LLM_GENERATION_LOG
+        logger, args.outputs_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
     ) as file_handler:
         try:
             result = run_pipeline(
@@ -307,7 +331,9 @@ def _cmd_polygon_run(args: argparse.Namespace) -> int:
     logger = _configure_console_logging(warnings_only=True)
     log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
 
-    with _problem_log_handler(logger, args.outputs_dir, args.problem_id, POLYGON_LOG):
+    with _problem_log_handler(
+        logger, args.outputs_dir, args.problem_id, POLYGON_LOG, args.command_line
+    ):
         result = run_polygon_pipeline(
             args.problem_id,
             only_step=args.step,
@@ -397,7 +423,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
+    if argv is None:
+        argv = sys.argv[1:]
     args = parser.parse_args(argv)
+    args.command_line = " ".join(argv)
 
     if args.command == "run" and args.all and args.step is not None:
         parser.error("--step несовместим с --all")
