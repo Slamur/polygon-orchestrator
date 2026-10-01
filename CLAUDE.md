@@ -40,8 +40,12 @@ Python-оркестратор, который берёт структуриро�
   `outputs/<problem_id>/validator.cpp` и назначение его валидатором
   (`upload_validator`), назначение чекера (`upload_checker`: для
   `checker.custom_needed: true` — загрузка `outputs/<problem_id>/checker.cpp`,
-  иначе — стандартный чекер из `checker.standard` без загрузки файла). Остальные шаги интеграции
-  (условие, прочие файлы, commit/packages) — позже, по мере проработки.
+  иначе — стандартный чекер из `checker.standard` без загрузки файла).
+  После каждого успешного polygon-шага (кроме `create_problem`) рабочая
+  копия задачи коммитится (`problem.commitChanges`, `minorChanges=true`) —
+  при падении на очередном шаге всё сделанное предыдущими уже в ревизии.
+  Остальные шаги интеграции (прочие файлы, packages) — позже, по мере
+  проработки.
 
 Вне скоупа (сознательно, добавим отдельно позже):
 - полноценный судящий контур (различение TLE/MLE/RE, батч-стресс-тестинг,
@@ -113,7 +117,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
 │   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions
-│   │   └── pipeline.py             # run_polygon_pipeline / compute_polygon_step_statuses — без кэша
+│   │   └── pipeline.py             # run_polygon_pipeline (commitChanges после каждого шага) / compute_polygon_step_statuses — без кэша
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
