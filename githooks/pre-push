@@ -34,21 +34,21 @@ for spec in "${spec_files[@]}"; do
     [ -n "$problem_id" ] || continue
 
     if [[ "$branch" == *"$problem_id"* ]]; then
-        echo "pre-push: problem_id '$problem_id' найден в имени ветки '$branch'" >&2
+        echo "pre-push: problem_id '$problem_id' found in branch name '$branch'" >&2
         leaked=1
     fi
 
     for sha in $commits; do
         message="$(git log -1 --format=%B "$sha")"
         if [[ "$message" == *"$problem_id"* ]]; then
-            echo "pre-push: problem_id '$problem_id' найден в сообщении коммита $(git rev-parse --short "$sha")" >&2
+            echo "pre-push: problem_id '$problem_id' found in commit message $(git rev-parse --short "$sha")" >&2
             leaked=1
         fi
     done
 done
 
 if [ "$leaked" -ne 0 ]; then
-    echo "pre-push: push заблокирован — переименуйте ветку / перепишите сообщения коммитов." >&2
+    echo "pre-push: push blocked — rename the branch / rewrite the commit messages." >&2
     exit 1
 fi
 

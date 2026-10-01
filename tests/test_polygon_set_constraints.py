@@ -107,7 +107,7 @@ def test_conflicting_limits_in_both_places(tmp_path, spec):
     )
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="разными значениями"):
+    with pytest.raises(PolygonStepError, match="different values"):
         _run(spec, tmp_path, client)
 
     client.call.assert_not_called()
@@ -143,7 +143,7 @@ def test_no_limits_anywhere(tmp_path, spec):
     _write_constraints(tmp_path, "groups: []\n")
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="не найдены"):
+    with pytest.raises(PolygonStepError, match="found neither"):
         _run(spec, tmp_path, client)
 
     client.call.assert_not_called()
@@ -155,7 +155,7 @@ def test_non_positive_or_non_numeric_limit(tmp_path, spec, value):
     _write_constraints(tmp_path, f"time_limit_seconds: {value}\nmemory_limit_mb: 256\n")
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="положительным числом"):
+    with pytest.raises(PolygonStepError, match="positive number"):
         _run(spec, tmp_path, client)
 
     client.call.assert_not_called()
@@ -177,7 +177,7 @@ def test_non_mapping_yaml(tmp_path, spec):
     _write_constraints(tmp_path, "- just\n- a list\n")
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="словарь"):
+    with pytest.raises(PolygonStepError, match="mapping"):
         _run(spec, tmp_path, client)
 
     client.call.assert_not_called()

@@ -119,13 +119,13 @@ def test_validate_reports_missing_file(spec):
     validate = _validate_statement_artifacts(_expected_artifact_names(spec))
     artifacts = _full_artifacts(1)
     del artifacts["notes.tex"]
-    with pytest.raises(ValueError, match="не хватает.*notes.tex"):
+    with pytest.raises(ValueError, match="missing.*notes.tex"):
         validate(artifacts)
 
 
 def test_validate_reports_extra_example(spec):
     validate = _validate_statement_artifacts(_expected_artifact_names(_with_examples(spec, 2)))
-    with pytest.raises(ValueError, match="лишние.*examples/example_3.txt"):
+    with pytest.raises(ValueError, match="unexpected.*examples/example_3.txt"):
         validate(_full_artifacts(3))
 
 

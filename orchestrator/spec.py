@@ -20,20 +20,20 @@ PROBLEM_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 # (см. "Правило эскалации при неуверенности" в CLAUDE.md).
 _FIELD_HINTS: dict[str, str] = {
     "constraints.intended_complexity": (
-        "обязательно для шага constraints_pick — модель не имеет права "
-        "выводить асимптотику сама из легенды, см. CLAUDE.md и SPEC_FORMAT.md"
+        "required for the constraints_pick step — the model must not infer "
+        "the complexity from the legend on its own, see CLAUDE.md and SPEC_FORMAT.md"
     ),
     "constraints.complexity_reasoning": (
-        "обязательно для шага constraints_pick — нужно, чтобы модель "
-        "проверяла N/TL на согласованность с обоснованием автора, а не "
-        "гадала заново, см. CLAUDE.md и SPEC_FORMAT.md"
+        "required for the constraints_pick step — the model checks N/TL "
+        "for consistency with the author's reasoning instead of "
+        "guessing anew, see CLAUDE.md and SPEC_FORMAT.md"
     ),
 }
 
 
 def _non_blank(value: str, field_name: str) -> str:
     if not value.strip():
-        raise ValueError(f"поле '{field_name}' обязательно и не может быть пустым")
+        raise ValueError(f"field '{field_name}' is required and must not be empty")
     return value
 
 
@@ -43,7 +43,7 @@ class SpecValidationError(Exception):
     def __init__(self, path: Path, errors: list[str]):
         self.path = path
         self.errors = errors
-        message = f"Спек {path} не прошёл валидацию:\n" + "\n".join(
+        message = f"Spec {path} failed validation:\n" + "\n".join(
             f"  - {error}" for error in errors
         )
         super().__init__(message)
@@ -181,8 +181,8 @@ class Solutions(BaseModel):
         unknown = sorted(set(self.wanted_verdicts) - _ALLOWED_VERDICTS)
         if unknown:
             raise ValueError(
-                "solutions.wanted_verdicts содержит неизвестные вердикты: "
-                f"{unknown} (допустимые: {sorted(_ALLOWED_VERDICTS)})"
+                "solutions.wanted_verdicts contains unknown verdicts: "
+                f"{unknown} (allowed: {sorted(_ALLOWED_VERDICTS)})"
             )
         return self
 
@@ -200,8 +200,8 @@ class Checker(BaseModel):
             self.custom_comparison_notes and self.custom_comparison_notes.strip()
         ):
             raise ValueError(
-                "checker.custom_comparison_notes обязателен, если "
-                "checker.custom_needed=true, см. SPEC_FORMAT.md"
+                "checker.custom_comparison_notes is required when "
+                "checker.custom_needed=true, see SPEC_FORMAT.md"
             )
         return self
 
@@ -229,8 +229,8 @@ class ProblemSpec(BaseModel):
     def _check_problem_id(self) -> "ProblemSpec":
         if not PROBLEM_ID_PATTERN.match(self.problem_id):
             raise ValueError(
-                f"problem_id '{self.problem_id}' должен быть латиницей "
-                "(буквы/цифры/'-'/'_', начинается с буквы), см. SPEC_FORMAT.md"
+                f"problem_id '{self.problem_id}' must be ASCII "
+                "(letters/digits/'-'/'_', starting with a letter), see SPEC_FORMAT.md"
             )
         return self
 
@@ -257,21 +257,21 @@ def load_spec(path: Path) -> ProblemSpec:
     """
     path = Path(path)
     if not path.exists():
-        raise SpecValidationError(path, [f"файл не найден: {path}"])
+        raise SpecValidationError(path, [f"file not found: {path}"])
 
     try:
         raw_text = path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise SpecValidationError(path, [f"не удалось прочитать файл: {exc}"]) from exc
+        raise SpecValidationError(path, [f"failed to read file: {exc}"]) from exc
 
     try:
         raw = yaml.safe_load(raw_text)
     except yaml.YAMLError as exc:
-        raise SpecValidationError(path, [f"невалидный YAML: {exc}"]) from exc
+        raise SpecValidationError(path, [f"invalid YAML: {exc}"]) from exc
 
     if not isinstance(raw, dict):
         raise SpecValidationError(
-            path, ["корневой элемент спека должен быть YAML-словарём (mapping)"]
+            path, ["spec root must be a YAML mapping"]
         )
 
     try:
@@ -284,8 +284,8 @@ def load_spec(path: Path) -> ProblemSpec:
         raise SpecValidationError(
             path,
             [
-                f"problem_id ('{spec.problem_id}') не совпадает с именем файла "
-                f"('{expected_id}.yaml'), см. SPEC_FORMAT.md"
+                f"problem_id ('{spec.problem_id}') does not match the file name "
+                f"('{expected_id}.yaml'), see SPEC_FORMAT.md"
             ],
         )
 

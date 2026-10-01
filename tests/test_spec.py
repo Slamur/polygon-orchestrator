@@ -47,7 +47,7 @@ def test_missing_file_raises_spec_validation_error(tmp_path):
     with pytest.raises(SpecValidationError) as exc_info:
         load_spec(tmp_path / "does-not-exist.yaml")
 
-    assert "не найден" in str(exc_info.value)
+    assert "not found" in str(exc_info.value)
 
 
 def test_problem_id_mismatch_with_filename_raises(tmp_path):
@@ -60,7 +60,7 @@ def test_problem_id_mismatch_with_filename_raises(tmp_path):
     with pytest.raises(SpecValidationError) as exc_info:
         load_spec(bad_path)
 
-    assert "не совпадает с именем файла" in str(exc_info.value)
+    assert "does not match the file name" in str(exc_info.value)
 
 
 def test_specific_test_ideas_loaded():

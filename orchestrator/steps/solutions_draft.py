@@ -32,9 +32,9 @@ _LIST_FIELDS = ["known_wrong_approaches"]
 def _require_solutions_section(problem_id: str, spec: ProblemSpec) -> None:
     if spec.solutions is None:
         raise ValueError(
-            f"Шаг '{STEP_NAME}' для '{problem_id}': в спеке нет секции "
-            "'solutions' — черновики решений не заказаны, шаг не запускается "
-            "(см. SPEC_FORMAT.md, секция 4 — опциональна)"
+            f"Step '{STEP_NAME}' for '{problem_id}': the spec has no "
+            "'solutions' section — solution drafts not requested, the step is not run "
+            "(see SPEC_FORMAT.md, section 4 — optional)"
         )
 
 

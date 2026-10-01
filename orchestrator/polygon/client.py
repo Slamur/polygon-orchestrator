@@ -55,9 +55,9 @@ class PolygonClient:
             api_secret = os.environ.get("POLYGON_API_SECRET")
             if not api_key or not api_secret:
                 raise RuntimeError(
-                    "POLYGON_API_KEY/POLYGON_API_SECRET не заданы. Скопируйте "
-                    ".env.example в .env и впишите туда ключи, либо "
-                    "экспортируйте переменные окружения напрямую."
+                    "POLYGON_API_KEY/POLYGON_API_SECRET are not set. Copy "
+                    ".env.example to .env and put the keys there, or "
+                    "export the environment variables directly."
                 )
             self._api_key = api_key
             self._api_secret = api_secret
@@ -95,7 +95,7 @@ class PolygonClient:
         except ValueError:
             raise PolygonApiError(
                 method_name,
-                f"ответ не является JSON (HTTP {response.status_code}): "
+                f"response is not JSON (HTTP {response.status_code}): "
                 f"{response.text[:200]!r}",
             ) from None
 

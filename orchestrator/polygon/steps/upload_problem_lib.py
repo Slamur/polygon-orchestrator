@@ -87,10 +87,10 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
         try:
             content = _read_problem_lib(templates_dir)
         except PolygonStepError as exc:
-            return STATUS_STALE, f"текущий {_RESOURCE_FILENAME} не читается: {exc}"
+            return STATUS_STALE, f"current {_RESOURCE_FILENAME} is unreadable: {exc}"
         current = _sha256(content)
         if current != record["sha256"]:
-            return STATUS_STALE, f"{_RESOURCE_FILENAME} изменился после последней загрузки"
+            return STATUS_STALE, f"{_RESOURCE_FILENAME} changed since the last upload"
         return STATUS_DONE, f"{_RESOURCE_FILENAME} sha256={current[:12]}"
 
     return PolygonStep(
@@ -104,7 +104,7 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
 def _read_problem_lib(templates_dir: Path) -> bytes:
     resource_path = templates_dir / _RESOURCE_FILENAME
     if not resource_path.exists():
-        raise PolygonStepError(f"не найден шаблон {resource_path} — проверьте templates_dir")
+        raise PolygonStepError(f"template {resource_path} not found — check templates_dir")
     return resource_path.read_bytes()
 
 

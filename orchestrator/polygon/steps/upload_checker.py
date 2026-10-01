@@ -105,10 +105,10 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
         try:
             content = _read_custom_checker(problem_id, outputs_dir)
         except PolygonStepError as exc:
-            return STATUS_STALE, f"текущий {_CHECKER_FILENAME} не читается: {exc}"
+            return STATUS_STALE, f"current {_CHECKER_FILENAME} is unreadable: {exc}"
         current = _sha256(content)
         if current != record["sha256"]:
-            return STATUS_STALE, f"{_CHECKER_FILENAME} изменился после последней загрузки"
+            return STATUS_STALE, f"{_CHECKER_FILENAME} changed since the last upload"
         return STATUS_DONE, f"custom {_CHECKER_FILENAME} sha256={current[:12]}"
 
     return STATUS_NOT_RUN, ""
@@ -118,8 +118,8 @@ def _read_custom_checker(problem_id: str, outputs_dir: Path) -> bytes:
     checker_path = Path(outputs_dir) / problem_id / _CHECKER_FILENAME
     if not checker_path.exists():
         raise PolygonStepError(
-            f"'{problem_id}': checker.custom_needed=true, но не найден "
-            f"{checker_path} — сначала выполните генеративный шаг checker_draft "
+            f"'{problem_id}': checker.custom_needed=true, but "
+            f"{checker_path} not found — first run the generative step checker_draft "
             f"(orchestrator run {problem_id} --step checker_draft)"
         )
     return checker_path.read_bytes()
@@ -129,11 +129,11 @@ def _require_standard_name(ctx: StepContext) -> str:
     standard = ctx.spec.checker.standard
     if not (standard and standard.strip()):
         raise PolygonStepError(
-            f"'{ctx.problem_id}': checker.custom_needed=false, но "
-            "checker.standard не задан в спеке — нечего передать в "
-            "problem.setChecker (валидация спека этого не ловит, см. "
-            "докстринг upload_checker.py); укажите checker.standard, "
-            "например ncmp"
+            f"'{ctx.problem_id}': checker.custom_needed=false, but "
+            "checker.standard is not set in the spec — nothing to pass to "
+            "problem.setChecker (spec validation does not catch this, see "
+            "the upload_checker.py docstring); set checker.standard, "
+            "e.g. ncmp"
         )
     return _polygon_standard_name(standard.strip())
 

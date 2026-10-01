@@ -94,10 +94,10 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     try:
         generators = _read_generators(problem_id, outputs_dir)
     except PolygonStepError as exc:
-        return STATUS_STALE, f"текущие генераторы не читаются: {exc}"
+        return STATUS_STALE, f"current generators are unreadable: {exc}"
     current = _content_hash(generators)
     if current != record["sha256"]:
-        return STATUS_STALE, "generators/ изменился после последней загрузки"
+        return STATUS_STALE, "generators/ changed since the last upload"
     return STATUS_DONE, f"{len(generators)} generator(s), sha256={current[:12]}"
 
 
@@ -107,14 +107,14 @@ def _read_generators(problem_id: str, outputs_dir: Path) -> list[tuple[str, byte
     generators_dir = Path(outputs_dir) / problem_id / "generators"
     if not generators_dir.is_dir():
         raise PolygonStepError(
-            f"'{problem_id}': не найден каталог {generators_dir} — сначала "
-            f"выполните генеративный шаг generators_and_script (orchestrator "
+            f"'{problem_id}': directory {generators_dir} not found — first "
+            f"run the generative step generators_and_script (orchestrator "
             f"run {problem_id} --step generators_and_script)"
         )
     paths = sorted(generators_dir.glob("*.cpp"), key=lambda p: p.name)
     if not paths:
         raise PolygonStepError(
-            f"'{problem_id}': в {generators_dir} нет ни одного .cpp-файла"
+            f"'{problem_id}': no .cpp files in {generators_dir}"
         )
     return [(path.name, path.read_bytes()) for path in paths]
 

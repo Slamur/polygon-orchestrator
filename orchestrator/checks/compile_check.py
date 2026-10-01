@@ -55,7 +55,7 @@ def compile_check(
         binary_path.unlink(missing_ok=True)
         return CompileResult(
             success=False,
-            stderr=f"компиляция превысила timeout {timeout_seconds}s: {exc}",
+            stderr=f"compilation exceeded timeout {timeout_seconds}s: {exc}",
         )
 
     if result.returncode != 0:

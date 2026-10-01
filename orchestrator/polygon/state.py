@@ -82,6 +82,6 @@ def record_polygon_step(
     """
     state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
     if state is None:
-        raise ValueError(f"'{problem_id}': polygon_state.json отсутствует или повреждён")
+        raise ValueError(f"'{problem_id}': polygon_state.json is missing or corrupted")
     state.steps[step_name] = record
     save_polygon_state(problem_id, state, outputs_dir=outputs_dir)
