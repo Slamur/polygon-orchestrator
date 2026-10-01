@@ -84,10 +84,11 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
         if not isinstance(record, dict) or not isinstance(record.get("sha256"), str):
             return STATUS_NOT_RUN, ""
 
-        resource_path = templates_dir / _RESOURCE_FILENAME
-        if not resource_path.exists():
-            return STATUS_STALE, f"не найден шаблон {resource_path}"
-        current = _sha256(resource_path.read_bytes())
+        try:
+            content = _read_problem_lib(templates_dir)
+        except PolygonStepError as exc:
+            return STATUS_STALE, f"текущий {_RESOURCE_FILENAME} не читается: {exc}"
+        current = _sha256(content)
         if current != record["sha256"]:
             return STATUS_STALE, f"{_RESOURCE_FILENAME} изменился после последней загрузки"
         return STATUS_DONE, f"{_RESOURCE_FILENAME} sha256={current[:12]}"

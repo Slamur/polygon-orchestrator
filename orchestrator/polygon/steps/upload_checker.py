@@ -102,10 +102,11 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
         return STATUS_DONE, f"standard {record['checker']}"
 
     if record.get("custom") is True and isinstance(record.get("sha256"), str):
-        checker_path = Path(outputs_dir) / problem_id / _CHECKER_FILENAME
-        if not checker_path.exists():
-            return STATUS_STALE, f"не найден {checker_path}"
-        current = _sha256(checker_path.read_bytes())
+        try:
+            content = _read_custom_checker(problem_id, outputs_dir)
+        except PolygonStepError as exc:
+            return STATUS_STALE, f"текущий {_CHECKER_FILENAME} не читается: {exc}"
+        current = _sha256(content)
         if current != record["sha256"]:
             return STATUS_STALE, f"{_CHECKER_FILENAME} изменился после последней загрузки"
         return STATUS_DONE, f"custom {_CHECKER_FILENAME} sha256={current[:12]}"
