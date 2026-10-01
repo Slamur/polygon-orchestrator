@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import secrets
 import string
-from urllib.parse import quote
 
 _RAND_ALPHABET = string.ascii_lowercase + string.digits
 _RAND_LENGTH = 6
@@ -13,7 +12,7 @@ _RAND_LENGTH = 6
 
 def generate_signature(
     method_name: str,
-    params: dict[str, str],
+    params: dict[str, str | bytes],
     api_secret: str,
     rand: str | None = None,
 ) -> str:
@@ -25,15 +24,21 @@ def generate_signature(
     вынесен ради тестируемости: тест фиксирует `rand` и проверяет
     детерминированный хеш).
 
-    Значения percent-encoded (`quote(..., safe="")`) до сортировки и
-    подписи — подписывается то представление, которое реально уйдёт в
-    запрос, а не сырое. Пары сортируются как `(name, value)`, так что
-    повторяющиеся имена упорядочиваются по значению.
+    Подписываются сырые значения, без percent-encoding — так подпись
+    проверяет сервер Polygon. Содержимое файла (`file` в `problem.saveFile`
+    и т.п.) — обычный параметр и тоже входит в подпись. `str` кодируется в
+    UTF-8, `bytes` берутся как есть, строка для хеширования собирается в
+    байтах. Пары сортируются как `(name, value)`, так что повторяющиеся
+    имена упорядочиваются по значению.
     """
     if rand is None:
         rand = "".join(secrets.choice(_RAND_ALPHABET) for _ in range(_RAND_LENGTH))
 
-    sorted_pairs = sorted((name, quote(value, safe="")) for name, value in params.items())
-    query_string = "&".join(f"{name}={value}" for name, value in sorted_pairs)
-    sig_source = f"{rand}/{method_name}?{query_string}#{api_secret}"
-    return rand + hashlib.sha512(sig_source.encode()).hexdigest()
+    sorted_pairs = sorted((name.encode(), _to_bytes(value)) for name, value in params.items())
+    query_string = b"&".join(name + b"=" + value for name, value in sorted_pairs)
+    sig_source = f"{rand}/{method_name}?".encode() + query_string + f"#{api_secret}".encode()
+    return rand + hashlib.sha512(sig_source).hexdigest()
+
+
+def _to_bytes(value: str | bytes) -> bytes:
+    return value.encode() if isinstance(value, str) else value
