@@ -27,6 +27,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 
 STEP_NAME = "upload_validator"
@@ -50,7 +51,8 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     прошёл, а `setValidator` упал, шаг остаётся "not run"/"stale" и
     повторится целиком при следующем запуске.
     """
-    polygon_id, content = _prepare_upload(ctx.problem_id, ctx.outputs_dir)
+    polygon_id = require_polygon_state(ctx).polygon_id
+    content = _read_validator(ctx.problem_id, ctx.outputs_dir)
     client.call(
         "problem.saveFile",
         {
@@ -86,27 +88,17 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     if not isinstance(record, dict) or not isinstance(record.get("sha256"), str):
         return STATUS_NOT_RUN, ""
 
-    validator_path = Path(outputs_dir) / problem_id / _VALIDATOR_FILENAME
-    if not validator_path.exists():
-        return STATUS_STALE, f"не найден {validator_path}"
-    current = _sha256(validator_path.read_bytes())
+    try:
+        content = _read_validator(problem_id, outputs_dir)
+    except PolygonStepError as exc:
+        return STATUS_STALE, f"текущий {_VALIDATOR_FILENAME} не читается: {exc}"
+    current = _sha256(content)
     if current != record["sha256"]:
         return STATUS_STALE, f"{_VALIDATOR_FILENAME} изменился после последней загрузки"
     return STATUS_DONE, f"{_VALIDATOR_FILENAME} sha256={current[:12]}"
 
 
-def _prepare_upload(problem_id: str, outputs_dir: Path) -> tuple[int, bytes]:
-    """Polygon problemId и содержимое `validator.cpp`. Без сети; обе
-    зависимости (`create_problem`, `constraints_pick`) проверяются здесь —
-    до первого сетевого вызова, иначе `PolygonStepError`."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {problem_id} "
-            "run --step create_problem)"
-        )
-
+def _read_validator(problem_id: str, outputs_dir: Path) -> bytes:
     validator_path = Path(outputs_dir) / problem_id / _VALIDATOR_FILENAME
     if not validator_path.exists():
         raise PolygonStepError(
@@ -115,7 +107,7 @@ def _prepare_upload(problem_id: str, outputs_dir: Path) -> tuple[int, bytes]:
             "--step constraints_pick)"
         )
 
-    return state.polygon_id, validator_path.read_bytes()
+    return validator_path.read_bytes()
 
 
 def _sha256(content: bytes) -> str:

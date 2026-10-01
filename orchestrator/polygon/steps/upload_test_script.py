@@ -35,6 +35,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 from orchestrator.steps.generators_and_script import (
     primary_artifact_path as script_artifact_path,
@@ -66,27 +67,14 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
             "см. докстринг upload_test_script.py"
         )
 
-    state = load_polygon_state(ctx.problem_id, outputs_dir=ctx.outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{ctx.problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {ctx.problem_id} "
-            "run --step create_problem)"
-        )
-
+    polygon_id = require_polygon_state(ctx).polygon_id
     script_path = script_artifact_path(ctx.problem_id, ctx.spec, outputs_dir=ctx.outputs_dir)
-    if not script_path.exists():
-        raise PolygonStepError(
-            f"'{ctx.problem_id}': не найден {script_path} — сначала выполните "
-            f"генеративный шаг generators_and_script (orchestrator run "
-            f"{ctx.problem_id} --step generators_and_script)"
-        )
-    content = script_path.read_bytes()
+    content = _read_script(ctx.problem_id, script_path)
 
     client.call(
         "problem.saveScript",
         {
-            "problemId": str(state.polygon_id),
+            "problemId": str(polygon_id),
             "testset": _TESTSET,
             "source": content.decode("utf-8"),
         },
@@ -102,7 +90,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
         },
         outputs_dir=ctx.outputs_dir,
     )
-    return f"uploaded test script ({script_path.name}) to Polygon id={state.polygon_id}"
+    return f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}"
 
 
 def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
@@ -122,12 +110,27 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
         return STATUS_NOT_RUN, ""
 
     script_path = Path(outputs_dir) / problem_id / record["file"]
-    if not script_path.exists():
-        return STATUS_STALE, f"не найден {script_path}"
-    current = _sha256(script_path.read_bytes())
+    try:
+        content = _read_script(problem_id, script_path)
+    except PolygonStepError as exc:
+        return STATUS_STALE, f"текущий test-script не читается: {exc}"
+    current = _sha256(content)
     if current != record["sha256"]:
         return STATUS_STALE, f"{record['file']} изменился после последней загрузки"
     return STATUS_DONE, f"{record['file']} sha256={current[:12]}"
+
+
+def _read_script(problem_id: str, script_path: Path) -> bytes:
+    """Содержимое test-script. Путь передаётся снаружи: в `_execute` он
+    зависит от `script_style` спека (`primary_artifact_path`), а в
+    `_compute_status` спека нет и имя берётся из `polygon_state.json`."""
+    if not script_path.exists():
+        raise PolygonStepError(
+            f"'{problem_id}': не найден {script_path} — сначала выполните "
+            f"генеративный шаг generators_and_script (orchestrator run "
+            f"{problem_id} --step generators_and_script)"
+        )
+    return script_path.read_bytes()
 
 
 def _sha256(content: bytes) -> str:

@@ -15,6 +15,7 @@ from typing import Callable
 
 from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonClient
+from orchestrator.polygon.state import PolygonState, load_polygon_state
 from orchestrator.spec import ProblemSpec
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,21 @@ class PolygonStep:
     check_done: Callable[[StepContext], str | None]
     execute: Callable[[StepContext, PolygonClient], str]
     compute_status: Callable[[str, Path], tuple[str, str]]
+
+
+def require_polygon_state(ctx: StepContext) -> PolygonState:
+    """Состояние задачи из `polygon_state.json` — для всех шагов после
+    `create_problem` (оттуда берётся `polygon_id`). Без сети; если задача
+    ещё не создана на Polygon — `PolygonStepError` с указанием, какой шаг
+    запустить сначала."""
+    state = load_polygon_state(ctx.problem_id, outputs_dir=ctx.outputs_dir)
+    if state is None:
+        raise PolygonStepError(
+            f"'{ctx.problem_id}': задача ещё не создана на Polygon — сначала "
+            f"выполните шаг create_problem (orchestrator polygon {ctx.problem_id} "
+            "run --step create_problem)"
+        )
+    return state
 
 
 def run_step(

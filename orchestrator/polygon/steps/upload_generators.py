@@ -32,6 +32,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 
 STEP_NAME = "upload_generators"
@@ -54,19 +55,13 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     вызовов: если упал какой-то `saveFile`, шаг остаётся "not run"/"stale"
     и повторится целиком при следующем запуске.
     """
-    state = load_polygon_state(ctx.problem_id, outputs_dir=ctx.outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{ctx.problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {ctx.problem_id} "
-            "run --step create_problem)"
-        )
+    polygon_id = require_polygon_state(ctx).polygon_id
     generators = _read_generators(ctx.problem_id, ctx.outputs_dir)
 
     for name, content in generators:
         client.call(
             "problem.saveFile",
-            {"problemId": str(state.polygon_id), "type": "source", "name": name, "file": content},
+            {"problemId": str(polygon_id), "type": "source", "name": name, "file": content},
         )
 
     record_polygon_step(
@@ -82,7 +77,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     names = ", ".join(name for name, _ in generators)
     return (
         f"uploaded {len(generators)} generator(s) ({names}) to Polygon "
-        f"id={state.polygon_id}"
+        f"id={polygon_id}"
     )
 
 

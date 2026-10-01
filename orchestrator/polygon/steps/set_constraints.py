@@ -22,6 +22,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 
 STEP_NAME = "set_constraints"
@@ -41,7 +42,8 @@ def _check_done(ctx: StepContext) -> str | None:
 def _execute(ctx: StepContext, client: PolygonClient) -> str:
     """Переносит TL/ML в Polygon (`ctx.spec` не используется) и записывает
     отправленные параметры в `polygon_state.json` — для `status`."""
-    params = _build_update_params(ctx.problem_id, ctx.outputs_dir)
+    polygon_id = require_polygon_state(ctx).polygon_id
+    params = _build_update_params(polygon_id, ctx.problem_id, ctx.outputs_dir)
     client.call("problem.updateInfo", params)
     record_polygon_step(
         ctx.problem_id,
@@ -71,7 +73,7 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
 
     sent = record["sent"]
     try:
-        current = _build_update_params(problem_id, outputs_dir)
+        current = _build_update_params(state.polygon_id, problem_id, outputs_dir)
     except PolygonStepError as exc:
         return STATUS_STALE, f"текущие лимиты не читаются: {exc}"
     if current != sent:
@@ -83,11 +85,11 @@ def _describe(params: dict) -> str:
     return f"timeLimit={params.get('timeLimit')}ms memoryLimit={params.get('memoryLimit')}MB"
 
 
-def _build_update_params(problem_id: str, outputs_dir: Path) -> dict[str, str]:
-    """Параметры `problem.updateInfo` из `polygon_state.json` и
-    `constraints.yaml`. Без сети; обе зависимости (`create_problem`,
-    `constraints_pick`) проверяются здесь — иначе `PolygonStepError` с
-    указанием, какой шаг запустить сначала.
+def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) -> dict[str, str]:
+    """Параметры `problem.updateInfo` для `polygon_id` из `constraints.yaml`.
+    Без сети; если `constraints.yaml` нет или он некорректен —
+    `PolygonStepError` (при отсутствии — с указанием, какой шаг запустить
+    сначала).
 
     Жёстко хардкодит interactive=false, inputFile="", outputFile="": в формате
     спека (docs/SPEC_FORMAT.md) нет полей для интерактивных задач и файлового
@@ -100,14 +102,6 @@ def _build_update_params(problem_id: str, outputs_dir: Path) -> dict[str, str]:
     `problem.updateInfo` это прямо не сказано — после первого реального
     вызова стоит сверить с вкладкой General в UI Polygon.
     """
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {problem_id} "
-            "run --step create_problem)"
-        )
-
     constraints_path = Path(outputs_dir) / problem_id / "constraints.yaml"
     if not constraints_path.exists():
         raise PolygonStepError(
@@ -142,7 +136,7 @@ def _build_update_params(problem_id: str, outputs_dir: Path) -> dict[str, str]:
             )
 
     return {
-        "problemId": str(state.polygon_id),
+        "problemId": str(polygon_id),
         "timeLimit": str(round(time_limit_seconds * 1000)),
         "memoryLimit": str(round(memory_limit_mb)),
         "inputFile": "",

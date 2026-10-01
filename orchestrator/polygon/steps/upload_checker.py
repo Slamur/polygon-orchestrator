@@ -35,6 +35,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 
 STEP_NAME = "upload_checker"
@@ -60,7 +61,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     прошёл, а `setChecker` упал, шаг остаётся "not run"/"stale" и
     повторится целиком при следующем запуске.
     """
-    polygon_id = _require_polygon_id(ctx.problem_id, ctx.outputs_dir)
+    polygon_id = require_polygon_state(ctx).polygon_id
 
     if ctx.spec.checker.custom_needed:
         content = _read_custom_checker(ctx.problem_id, ctx.outputs_dir)
@@ -101,28 +102,16 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
         return STATUS_DONE, f"standard {record['checker']}"
 
     if record.get("custom") is True and isinstance(record.get("sha256"), str):
-        checker_path = Path(outputs_dir) / problem_id / _CHECKER_FILENAME
-        if not checker_path.exists():
-            return STATUS_STALE, f"не найден {checker_path}"
-        current = _sha256(checker_path.read_bytes())
+        try:
+            content = _read_custom_checker(problem_id, outputs_dir)
+        except PolygonStepError as exc:
+            return STATUS_STALE, f"текущий {_CHECKER_FILENAME} не читается: {exc}"
+        current = _sha256(content)
         if current != record["sha256"]:
             return STATUS_STALE, f"{_CHECKER_FILENAME} изменился после последней загрузки"
         return STATUS_DONE, f"custom {_CHECKER_FILENAME} sha256={current[:12]}"
 
     return STATUS_NOT_RUN, ""
-
-
-def _require_polygon_id(problem_id: str, outputs_dir: Path) -> int:
-    """Polygon problemId; проверяется первым в обеих ветках — до любой
-    специфичной для custom/standard логики и до сети."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {problem_id} "
-            "run --step create_problem)"
-        )
-    return state.polygon_id
 
 
 def _read_custom_checker(problem_id: str, outputs_dir: Path) -> bytes:
