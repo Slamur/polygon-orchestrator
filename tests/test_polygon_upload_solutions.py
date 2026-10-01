@@ -14,9 +14,9 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
 POLYGON_ID = 4242
 SOLUTIONS = {
-    "ok_python_main_draft.py": b"print(1)\n",
+    "ok_py_main_draft.py": b"print(1)\n",
     "ok_cpp_alt_draft.cpp": b"int main() {}\n",
-    "tl_python_slow_draft.py": b"print(2)\n",
+    "tl_py_slow_draft.py": b"print(2)\n",
     "tl_cpp_bad_draft.cpp": b"int main() { for(;;); }\n",
     "wa_cpp_offbyone_draft.cpp": b"int main() { return 0; }\n",
 }
@@ -132,9 +132,9 @@ def test_uploads_each_solution_with_its_tag(outputs_dir, spec):
 
     expected = {
         "ok_cpp_alt_draft.cpp": "OK",
-        "ok_python_main_draft.py": "MA",
+        "ok_py_main_draft.py": "MA",
         "tl_cpp_bad_draft.cpp": "TL",
-        "tl_python_slow_draft.py": "TL",
+        "tl_py_slow_draft.py": "TL",
         "wa_cpp_offbyone_draft.cpp": "WA",
     }
     assert [c.args for c in client.call.call_args_list] == [
@@ -145,10 +145,10 @@ def test_uploads_each_solution_with_its_tag(outputs_dir, spec):
         for name, tag in sorted(expected.items())
     ]
     assert "5 solution(s)" in message
-    assert "ok_python_main_draft.py=MA" in message
+    assert "ok_py_main_draft.py=MA" in message
 
 
-def test_main_falls_back_to_cpp_without_python_ok(outputs_dir, spec):
+def test_main_falls_back_to_cpp_without_py_ok(outputs_dir, spec):
     _link(outputs_dir)
     _write_solutions(
         outputs_dir, {"ok_java_main_draft.java": b"", "ok_cpp_alt_draft.cpp": b""}
@@ -160,10 +160,21 @@ def test_main_falls_back_to_cpp_without_python_ok(outputs_dir, spec):
     assert _tags(client) == {"ok_cpp_alt_draft.cpp": "MA", "ok_java_main_draft.java": "OK"}
 
 
+@pytest.mark.parametrize("py_name", ["ok_python_main_draft.py", "ok_python3_main_draft.py"])
+def test_python_language_aliases_win_main_over_cpp(outputs_dir, spec, py_name):
+    _link(outputs_dir)
+    _write_solutions(outputs_dir, {py_name: b"", "ok_cpp_alt_draft.cpp": b""})
+    client = MagicMock()
+
+    _run(spec, outputs_dir, client)
+
+    assert _tags(client) == {py_name: "MA", "ok_cpp_alt_draft.cpp": "OK"}
+
+
 def test_no_ok_solution_is_an_error(outputs_dir, spec):
     _link(outputs_dir)
     _write_solutions(
-        outputs_dir, {"wa_cpp_offbyone_draft.cpp": b"", "tl_python_slow_draft.py": b""}
+        outputs_dir, {"wa_cpp_offbyone_draft.cpp": b"", "tl_py_slow_draft.py": b""}
     )
     client = MagicMock()
 
@@ -245,7 +256,7 @@ def test_upload_is_recorded_in_polygon_state(outputs_dir, spec):
 
     record = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).steps[STEP_NAME]
     assert set(record) == {"sha256", "tags", "sent_at"}
-    assert record["tags"]["ok_python_main_draft.py"] == "MA"
+    assert record["tags"]["ok_py_main_draft.py"] == "MA"
 
 
 def test_status_not_run_then_done_then_stale(outputs_dir, spec):

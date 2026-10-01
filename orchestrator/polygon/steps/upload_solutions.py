@@ -14,10 +14,11 @@
 - всё прочее допустимое (`re`) -> `RJ` ("Incorrect").
 
 Риск 1: `Solutions.languages` в спеке — `list[str]` без ограничения
-значений, и модель может записать язык в имени файла иначе (`py`, `c++`,
-`python3`). Тогда приоритет не сработает; шаг не падает, а пишет WARNING и
-берёт Main correct первым по алфавиту `ok`-файлом — автору стоит проверить
-выбор в UI.
+значений, и модель может записать язык в имени файла по-разному (`py`,
+`python`, `python3`, `c++`). Известные варианты приводятся к одному имени
+через `_LANGUAGE_ALIASES`; если язык всё равно не из приоритета, шаг не
+падает, а пишет WARNING и берёт Main correct первым по алфавиту
+`ok`-файлом — автору стоит проверить выбор в UI.
 
 Риск 2: `sourceType` не передаётся — не подтверждено, какое значение
 ожидает Polygon для каждого языка; предполагается, что он определит язык по
@@ -62,8 +63,17 @@ logger = logging.getLogger(__name__)
 
 STEP_NAME = "upload_solutions"
 
-# Приоритет выбора Main correct — именно в этом порядке.
-_MAIN_LANGUAGE_PRIORITY = ["python", "cpp", "java"]
+# Приоритет выбора Main correct — именно в этом порядке. Значения — языки
+# после нормализации через `_LANGUAGE_ALIASES`.
+_MAIN_LANGUAGE_PRIORITY = ["py", "cpp", "java"]
+
+# Варианты написания языка в имени файла -> имя из `_MAIN_LANGUAGE_PRIORITY`.
+_LANGUAGE_ALIASES = {
+    "python": "py",
+    "python3": "py",
+    "py3": "py",
+    "c++": "cpp",
+}
 
 # Совпадает с `orchestrator.spec._ALLOWED_VERDICTS` (допустимые
 # `solutions.wanted_verdicts`).
@@ -177,7 +187,8 @@ def _parse_solution_filename(path: Path) -> _ParsedSolution:
             "<verdict>_<language>_<description>_<author>.<ext> "
             f"(fewer than 3 '_'-separated tokens: {parts})"
         )
-    verdict, language = parts[0].lower(), parts[1].lower()
+    verdict = parts[0].lower()
+    language = _LANGUAGE_ALIASES.get(parts[1].lower(), parts[1].lower())
     if verdict not in _VALID_VERDICTS:
         raise PolygonStepError(
             f"'{path.name}': verdict '{verdict}' is not in the allowed set "
