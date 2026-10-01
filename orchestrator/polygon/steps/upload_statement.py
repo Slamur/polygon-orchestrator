@@ -1,7 +1,7 @@
 """Polygon-шаг 6 — загрузка условия из `outputs/<problem_id>/statement/`
 (результат генеративного шага `statement_draft`): legend/input/output/notes
 через `problem.saveStatement` и тестовые примеры как первые тесты
-(`problem.saveTest`, `testIndex` 1..N, `useInStatements=true`).
+(`problem.saveTest`, `testIndex` 1..N, `testUseInStatements=true`).
 
 В Polygon уходит только input примеров — output из `sample_examples` в этом
 шаге не читается и не используется (docs/SPEC_FORMAT.md: output "никуда
@@ -12,11 +12,10 @@
 `testIndex` примеров всегда 1..N без сдвига: templates/tutorials/requirements.md
 требует, чтобы тестовые примеры были первыми тестами.
 
-Параметры `problem.saveTest` (`testset`, `testIndex`, `testInput`,
-`useInStatements`) подтверждены только косвенно, не текстом документации
-API. Если первый реальный вызов вернёт FAILED с жалобой на параметр — это
-первое, что проверить (возможные варианты: `testUseInStatements`,
-обязательный `testAnswer`).
+Параметры `problem.saveTest` — по docs/POLYGON_API.md. Флаг "использовать
+в условии" называется `testUseInStatements` (`useInStatements` — имя поля в
+возвращаемом объекте Test, не параметра): неизвестный параметр Polygon
+молча игнорирует, и тест загружается без этого флага.
 
 Тестовые группы (`generation.script_style: "groups"`) этим шагом НЕ
 поддерживаются: примеры загружаются без `testGroup`, т.е. в группу Polygon
@@ -103,7 +102,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
                 "testset": _TESTSET,
                 "testIndex": str(test_index),
                 "testInput": content,
-                "useInStatements": "true",
+                "testUseInStatements": "true",
             },
         )
 

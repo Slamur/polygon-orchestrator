@@ -146,7 +146,7 @@ def test_saves_statement_then_examples_in_order(outputs_dir, spec):
                 "testset": "tests",
                 "testIndex": "1",
                 "testInput": "3\n1 2 3\n",
-                "useInStatements": "true",
+                "testUseInStatements": "true",
             },
         ),
         (
@@ -156,7 +156,7 @@ def test_saves_statement_then_examples_in_order(outputs_dir, spec):
                 "testset": "tests",
                 "testIndex": "2",
                 "testInput": "1\n5\n",
-                "useInStatements": "true",
+                "testUseInStatements": "true",
             },
         ),
     ]
