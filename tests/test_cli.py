@@ -104,10 +104,10 @@ def test_run_log_accumulates_runs_with_header_and_step_starts(specs_dir, tmp_pat
         cli.main(argv + ["--force"])
 
     log = (outputs_dir / "p1" / cli.LLM_GENERATION_LOG).read_text(encoding="utf-8")
-    first = log.index(f"===== старт прогона: orchestrator {' '.join(argv)} =====")
-    second = log.index(f"===== старт прогона: orchestrator {' '.join(argv + ['--force'])} =====")
+    first = log.index(f"===== run started: orchestrator {' '.join(argv)} =====")
+    second = log.index(f"===== run started: orchestrator {' '.join(argv + ['--force'])} =====")
     assert first < second
-    assert log.count("[statement_draft] старт шага") == 2
+    assert log.count("[statement_draft] step started") == 2
 
 
 def test_run_uncertain_exits_nonzero_and_prints_notes(specs_dir, tmp_path, capsys):

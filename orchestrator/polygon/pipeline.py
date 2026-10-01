@@ -151,7 +151,7 @@ def run_polygon_pipeline(
 
     for step_name in steps_to_run:
         step = _POLYGON_STEPS[step_name]
-        logger.info("[%s] старт шага", step_name)
+        logger.info("[%s] step started", step_name)
         try:
             detail = run_step(step, problem_id, spec, outputs_dir=outputs_dir, client=client)
             if step.commits_changes:
@@ -163,7 +163,7 @@ def run_polygon_pipeline(
             record(PolygonStepOutcome(step_name, OUTCOME_ERROR, str(exc)))
             return result
         except Exception as exc:  # noqa: BLE001 — traceback в лог, а не в консоль
-            logger.exception("[%s] неожиданная ошибка", step_name)
+            logger.exception("[%s] unexpected error", step_name)
             record(
                 PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}")
             )

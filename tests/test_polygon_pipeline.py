@@ -715,7 +715,7 @@ def test_cli_polygon_run_writes_step_progress_to_log(specs_dir, outputs_dir, cap
         )
 
     log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
-    assert "[create_problem] старт шага" in log
+    assert "[create_problem] step started" in log
     assert not (outputs_dir / PROBLEM_ID / cli.LLM_GENERATION_LOG).exists()
 
 
@@ -730,9 +730,9 @@ def test_cli_polygon_run_appends_to_log_with_run_header(specs_dir, outputs_dir, 
         cli.main(argv)
 
     log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
-    header = f"===== старт прогона: orchestrator {' '.join(argv)} ====="
+    header = f"===== run started: orchestrator {' '.join(argv)} ====="
     assert log.count(header) == 2
-    assert log.count("[create_problem] старт шага") == 2
+    assert log.count("[create_problem] step started") == 2
     assert "\n\n" in log  # пустая строка между прогонами
     # заголовок только в файл, не в консоль
-    assert "старт прогона" not in capsys.readouterr().out
+    assert "run started" not in capsys.readouterr().out

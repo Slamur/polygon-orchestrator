@@ -155,7 +155,7 @@ def run_pipeline(
 
     for step_name in steps_to_run:
         module = _STEP_MODULES[step_name]
-        logger.info("[%s] старт шага", step_name)
+        logger.info("[%s] step started", step_name)
 
         if step_name == "solutions_draft" and spec.solutions is None:
             result.outcomes.append(

@@ -64,7 +64,7 @@ LLM_GENERATION_LOG = "llm_generation.log"
 POLYGON_LOG = "polygon.log"
 
 # Заголовок прогона в лог-файле задачи; `%s` — команда целиком.
-_RUN_HEADER = "===== старт прогона: orchestrator %s ====="
+_RUN_HEADER = "===== run started: orchestrator %s ====="
 
 # Сколько символов текста ошибки polygon-шага печатать в консоль: `comment`
 # от Polygon бывает многострочным (например, лог компиляции валидатора) —
@@ -321,7 +321,7 @@ def _print_polygon_outcome(outcome, log_path: Path) -> None:
     со ссылкой на `polygon.log`, где лежит полный текст."""
     line = f"  {outcome.step_name}: {outcome.status}"
     if outcome.status == POLYGON_OUTCOME_ERROR:
-        line += f" — {_shorten_error(outcome.detail)} (подробности: {log_path})"
+        line += f" — {_shorten_error(outcome.detail)} (details: {log_path})"
     elif outcome.detail:
         line += f" — {outcome.detail}"
     print(line, flush=True)
