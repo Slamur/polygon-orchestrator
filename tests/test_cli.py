@@ -82,6 +82,18 @@ def test_run_single_problem_prints_step_outcomes_and_exits_zero(specs_dir, tmp_p
     assert "solutions_draft: confirmed" in out
 
 
+def test_run_writes_llm_generation_log(specs_dir, tmp_path, capsys):
+    _write_spec(specs_dir, "p1")
+    outputs_dir = tmp_path / "outputs"
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        cli.main(_base_args(specs_dir, outputs_dir) + ["run", "p1"])
+
+    log = (outputs_dir / "p1" / cli.LLM_GENERATION_LOG).read_text(encoding="utf-8")
+    assert "statement_draft" in log
+    assert not (outputs_dir / "p1" / "log.txt").exists()
+
+
 def test_run_uncertain_exits_nonzero_and_prints_notes(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"

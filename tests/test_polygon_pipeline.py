@@ -136,6 +136,63 @@ def test_polygon_api_error_stops_pipeline(specs_dir, outputs_dir, fake_steps):
     assert result.ok is False
 
 
+def test_on_outcome_called_after_each_step_including_failed(specs_dir, outputs_dir, fake_steps):
+    _write_spec(specs_dir, PROBLEM_ID)
+    calls = fake_steps(failing="step_b")
+    seen = []
+
+    def on_outcome(outcome):
+        # к моменту вызова следующий шаг ещё не запускался
+        seen.append((outcome.step_name, outcome.status, list(calls)))
+
+    run_polygon_pipeline(
+        PROBLEM_ID,
+        specs_dir=specs_dir,
+        outputs_dir=outputs_dir,
+        client=MagicMock(),
+        on_outcome=on_outcome,
+    )
+
+    assert seen == [
+        ("step_a", "ok", ["step_a"]),
+        ("step_b", "error", ["step_a", "step_b"]),
+    ]
+
+
+def test_unexpected_exception_is_step_error_with_traceback_in_log(
+    specs_dir, outputs_dir, fake_steps, monkeypatch, caplog
+):
+    _write_spec(specs_dir, PROBLEM_ID)
+    calls = fake_steps()
+
+    def explode(ctx, client):
+        calls.append("step_b")
+        raise ConnectionError("network down")
+
+    steps = dict(polygon_pipeline._POLYGON_STEPS)
+    steps["step_b"] = PolygonStep(
+        name="step_b",
+        check_done=lambda ctx: None,
+        execute=explode,
+        compute_status=lambda problem_id, outputs_dir: ("not run", ""),
+        commits_changes=False,
+    )
+    monkeypatch.setattr(polygon_pipeline, "_POLYGON_STEPS", steps)
+
+    with caplog.at_level("ERROR", logger="orchestrator.polygon.pipeline"):
+        result = run_polygon_pipeline(
+            PROBLEM_ID, specs_dir=specs_dir, outputs_dir=outputs_dir, client=MagicMock()
+        )
+
+    assert calls == ["step_a", "step_b"]
+    assert [(o.step_name, o.status) for o in result.outcomes] == [
+        ("step_a", "ok"),
+        ("step_b", "error"),
+    ]
+    assert result.outcomes[-1].detail == "ConnectionError: network down"
+    assert any(r.exc_info is not None for r in caplog.records)
+
+
 def test_real_create_problem_step_with_mocked_client(specs_dir, outputs_dir):
     _write_spec(specs_dir, PROBLEM_ID)
     client = MagicMock()
@@ -605,3 +662,58 @@ def test_cli_polygon_status_without_network(specs_dir, outputs_dir, capsys):
     assert rc == 0
     assert "create_problem: not run" in capsys.readouterr().out
     client_cls.assert_not_called()
+
+
+def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(
+    specs_dir, outputs_dir, capsys
+):
+    _write_spec(specs_dir, PROBLEM_ID)
+    long_comment = "compilation failed\n" + "\n".join(f"error line {i}" for i in range(50))
+    client = MagicMock()
+    client.call.side_effect = PolygonApiError("problems.list", long_comment)
+
+    with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", PROBLEM_ID, "run"])
+
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "create_problem: error — Polygon API problems.list: compilation failed" in out
+    assert "error line 1" not in out
+    log_path = outputs_dir / PROBLEM_ID / cli.POLYGON_LOG
+    assert str(log_path) in out
+    log = log_path.read_text(encoding="utf-8")
+    assert "error line 49" in log
+
+
+def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(
+    specs_dir, outputs_dir, capsys
+):
+    _write_spec(specs_dir, PROBLEM_ID)
+    client = MagicMock()
+    client.call.side_effect = RuntimeError("POLYGON_API_KEY не задан")
+
+    with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", PROBLEM_ID, "run"])
+
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "create_problem: error — RuntimeError: POLYGON_API_KEY не задан" in captured.out
+    assert "Traceback" not in captured.out + captured.err
+    log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
+    assert "Traceback" in log
+
+
+def test_cli_polygon_run_writes_step_progress_to_log(specs_dir, outputs_dir, capsys):
+    _write_spec(specs_dir, PROBLEM_ID)
+    client = MagicMock()
+    client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]
+
+    with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
+        cli.main(
+            _cli_args(specs_dir, outputs_dir)
+            + ["polygon", PROBLEM_ID, "run", "--step", "create_problem"]
+        )
+
+    log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
+    assert "[create_problem] start" in log
+    assert not (outputs_dir / PROBLEM_ID / cli.LLM_GENERATION_LOG).exists()
