@@ -55,6 +55,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 
 logger = logging.getLogger(__name__)
@@ -93,13 +94,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     выбор Main correct — до первого сетевого вызова. Запись делается только
     после успеха всех вызовов.
     """
-    state = load_polygon_state(ctx.problem_id, outputs_dir=ctx.outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{ctx.problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {ctx.problem_id} "
-            "run --step create_problem)"
-        )
+    polygon_id = require_polygon_state(ctx).polygon_id
     solutions = _read_solutions(ctx.problem_id, ctx.outputs_dir)
 
     parsed = [_parse_solution_filename(Path(name)) for name, _ in solutions]
@@ -110,7 +105,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
         client.call(
             "problem.saveSolution",
             {
-                "problemId": str(state.polygon_id),
+                "problemId": str(polygon_id),
                 "name": name,
                 "tag": tags[name],
                 "file": content,
@@ -129,7 +124,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     )
     uploaded = ", ".join(f"{name}={tag}" for name, tag in tags.items())
     return (
-        f"uploaded {len(solutions)} solution(s) to Polygon id={state.polygon_id}: "
+        f"uploaded {len(solutions)} solution(s) to Polygon id={polygon_id}: "
         f"{uploaded}"
     )
 

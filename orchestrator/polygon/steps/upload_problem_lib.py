@@ -23,6 +23,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 from orchestrator.steps.base import TEMPLATES_DIR
 
@@ -51,7 +52,8 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
         """Загружает `problem_lib.h` как есть (`ctx.spec` не используется) и
         записывает sha256 загруженного содержимого в `polygon_state.json` —
         для `status`."""
-        polygon_id, content = _prepare_upload(ctx.problem_id, ctx.outputs_dir, templates_dir)
+        polygon_id = require_polygon_state(ctx).polygon_id
+        content = _read_problem_lib(templates_dir)
         client.call(
             "problem.saveFile",
             {
@@ -98,22 +100,11 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
     )
 
 
-def _prepare_upload(problem_id: str, outputs_dir: Path, templates_dir: Path) -> tuple[int, bytes]:
-    """Polygon problemId и содержимое `problem_lib.h`. Без сети; зависимости
-    проверяются здесь — иначе `PolygonStepError`."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {problem_id} "
-            "run --step create_problem)"
-        )
-
+def _read_problem_lib(templates_dir: Path) -> bytes:
     resource_path = templates_dir / _RESOURCE_FILENAME
     if not resource_path.exists():
         raise PolygonStepError(f"не найден шаблон {resource_path} — проверьте templates_dir")
-
-    return state.polygon_id, resource_path.read_bytes()
+    return resource_path.read_bytes()
 
 
 def _sha256(content: bytes) -> str:

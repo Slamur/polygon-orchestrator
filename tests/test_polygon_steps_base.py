@@ -6,7 +6,14 @@ import pytest
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.steps import base
-from orchestrator.polygon.steps.base import PolygonStep, StepContext, run_step
+from orchestrator.polygon.state import PolygonState, save_polygon_state
+from orchestrator.polygon.steps.base import (
+    PolygonStep,
+    PolygonStepError,
+    StepContext,
+    require_polygon_state,
+    run_step,
+)
 from orchestrator.spec import load_spec
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -88,3 +95,18 @@ def test_message_is_logged_with_step_name(tmp_path, spec, caplog, check_done_res
         run_step(step, "p1", spec, outputs_dir=tmp_path, client=MagicMock())
 
     assert f"[fake] {expected}" in caplog.messages
+
+
+def test_require_polygon_state_returns_saved_state(tmp_path, spec):
+    saved = PolygonState(problem_id="p1", polygon_id=123, created_at="2026-09-19T12:00:00+00:00")
+    save_polygon_state("p1", saved, outputs_dir=tmp_path)
+    ctx = StepContext(problem_id="p1", spec=spec, outputs_dir=tmp_path)
+
+    assert require_polygon_state(ctx) == saved
+
+
+def test_require_polygon_state_points_to_create_problem(tmp_path, spec):
+    ctx = StepContext(problem_id="p1", spec=spec, outputs_dir=tmp_path)
+
+    with pytest.raises(PolygonStepError, match="create_problem"):
+        require_polygon_state(ctx)

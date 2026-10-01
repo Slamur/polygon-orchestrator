@@ -45,6 +45,7 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    require_polygon_state,
 )
 
 STEP_NAME = "upload_statement"
@@ -80,7 +81,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     вызовов: если упал какой-то `saveTest`, шаг остаётся "not run"/"stale"
     и повторится целиком при следующем запуске.
     """
-    polygon_id = _require_polygon_id(ctx.problem_id, ctx.outputs_dir)
+    polygon_id = require_polygon_state(ctx).polygon_id
     statement_dir = _statement_dir(ctx.problem_id, ctx.outputs_dir)
     tex_params = _read_statement_dir(statement_dir)
     examples = _read_examples(statement_dir)
@@ -146,17 +147,6 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     if current != record["sha256"]:
         return STATUS_STALE, "statement/ изменился после последней загрузки"
     return STATUS_DONE, f"{len(examples)} sample test(s), sha256={current[:12]}"
-
-
-def _require_polygon_id(problem_id: str, outputs_dir: Path) -> int:
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    if state is None:
-        raise PolygonStepError(
-            f"'{problem_id}': задача ещё не создана на Polygon — сначала "
-            f"выполните шаг create_problem (orchestrator polygon {problem_id} "
-            "run --step create_problem)"
-        )
-    return state.polygon_id
 
 
 def _statement_dir(problem_id: str, outputs_dir: Path) -> Path:
