@@ -5,6 +5,11 @@
 `input_hash`/`prompt_hash`/`is_cache_valid`, `run_polygon_pipeline` вызывает
 каждый шаг всегда. Идемпотентность — забота самого шага (`check_done` в
 `PolygonStep`, см. `steps/base.py`), а не пайплайна.
+
+После каждого успешного шага (кроме тех, у кого `commits_changes=False`)
+рабочая копия задачи коммитится на Polygon (`problem.commitChanges`) — чтобы
+при падении на очередном шаге всё сделанное предыдущими уже было в
+ревизии, а не висело незакоммиченным.
 """
 
 from __future__ import annotations
@@ -26,6 +31,7 @@ from orchestrator.polygon.steps import (
     upload_test_script,
     upload_validator,
 )
+from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.spec import SpecValidationError, load_spec
 
@@ -61,6 +67,8 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
 # Статусы PolygonStepOutcome.status:
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
+
+_COMMIT_MESSAGE_PREFIX = "orchestrator: "
 
 
 @dataclass
@@ -101,6 +109,11 @@ def run_polygon_pipeline(
     Кэша нет: каждый шаг вызывается всегда (что он при этом делает, если уже
     выполнялся раньше, решает его собственный `check_done`).
 
+    После каждого успешного шага с `commits_changes=True` — `problem.commitChanges`
+    (см. `_commit_changes`). Ошибка коммита — такая же ошибка шага: шаг
+    получает статус "error", пайплайн останавливается; при повторном запуске
+    шаг выполнится и закоммитится заново.
+
     `client` создаётся один раз здесь и передаётся во все шаги — чтобы не
     плодить по отдельному `PolygonClient` с ленивым чтением `.env` на шаг.
 
@@ -124,12 +137,46 @@ def run_polygon_pipeline(
         step = _POLYGON_STEPS[step_name]
         try:
             detail = run_step(step, problem_id, spec, outputs_dir=outputs_dir, client=client)
+            if step.commits_changes:
+                detail += "; " + _commit_changes(
+                    problem_id, step_name, outputs_dir=outputs_dir, client=client
+                )
         except (PolygonApiError, PolygonStepError) as exc:
             result.outcomes.append(PolygonStepOutcome(step_name, OUTCOME_ERROR, str(exc)))
             return result
         result.outcomes.append(PolygonStepOutcome(step_name, OUTCOME_OK, detail))
 
     return result
+
+
+def _commit_changes(
+    problem_id: str, step_name: str, *, outputs_dir: Path, client: PolygonClient
+) -> str:
+    """Коммитит рабочую копию задачи на Polygon после шага `step_name`.
+
+    `minorChanges=true` — без email-уведомлений: коммит идёт после каждого
+    шага, иначе один прогон рассылал бы письмо на каждый шаг.
+
+    NOTE: поведение `problem.commitChanges` при отсутствии изменений в
+    рабочей копии (например, повторный прогон с теми же файлами) на
+    реальном API ещё не проверено. Если окажется, что это FAILED, —
+    такой ответ нужно здесь распознавать и не считать ошибкой шага.
+    """
+    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    if state is None:
+        raise PolygonStepError(
+            f"'{problem_id}': нечего коммитить после {step_name} — задача не "
+            "привязана к Polygon (polygon_state.json отсутствует или повреждён)"
+        )
+    client.call(
+        "problem.commitChanges",
+        {
+            "problemId": str(state.polygon_id),
+            "minorChanges": "true",
+            "message": _COMMIT_MESSAGE_PREFIX + step_name,
+        },
+    )
+    return f"committed on Polygon id={state.polygon_id}"
 
 
 def compute_polygon_step_statuses(

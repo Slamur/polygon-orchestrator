@@ -58,12 +58,17 @@ class PolygonStep:
     для `status`: пара (одно из `STATUS_*`, пояснение). В отличие от
     `check_done` не требует спека и может сообщить "stale" — шаг выполнялся,
     но локальные входные данные с тех пор изменились.
+
+    `commits_changes` — коммитить ли рабочую копию задачи на Polygon после
+    успешного шага (см. `run_polygon_pipeline`). `False` — для шагов, которые
+    не меняют содержимое задачи (`create_problem`).
     """
 
     name: str
     check_done: Callable[[StepContext], str | None]
     execute: Callable[[StepContext, PolygonClient], str]
     compute_status: Callable[[str, Path], tuple[str, str]]
+    commits_changes: bool = True
 
 
 def require_polygon_state(ctx: StepContext) -> PolygonState:

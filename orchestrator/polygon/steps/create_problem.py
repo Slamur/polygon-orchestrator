@@ -84,4 +84,7 @@ STEP = PolygonStep(
     check_done=_check_done,
     execute=_execute,
     compute_status=_compute_status,
+    # Только создаёт задачу/привязывается к существующей — в рабочей копии
+    # нечего коммитить.
+    commits_changes=False,
 )
