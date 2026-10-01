@@ -66,8 +66,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     for name, content in generators:
         client.call(
             "problem.saveFile",
-            {"problemId": str(state.polygon_id), "type": "source", "name": name},
-            files={"file": (name, content)},
+            {"problemId": str(state.polygon_id), "type": "source", "name": name, "file": content},
         )
 
     record_polygon_step(

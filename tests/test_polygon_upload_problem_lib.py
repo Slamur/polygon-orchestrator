@@ -85,9 +85,12 @@ def test_uploads_problem_lib_as_resource(outputs_dir, templates_dir, spec):
     client.call.assert_called_once()
     method, params = client.call.call_args.args
     assert method == "problem.saveFile"
-    assert params == {"problemId": str(POLYGON_ID), "type": "resource", "name": "problem_lib.h"}
-    files = client.call.call_args.kwargs["files"]
-    assert files["file"] == ("problem_lib.h", LIB_CONTENT)
+    assert params == {
+        "problemId": str(POLYGON_ID),
+        "type": "resource",
+        "name": "problem_lib.h",
+        "file": LIB_CONTENT,
+    }
     assert str(POLYGON_ID) in message
 
 

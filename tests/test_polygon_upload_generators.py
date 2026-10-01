@@ -105,12 +105,14 @@ def test_uploads_each_generator_in_alphabetical_order(outputs_dir, spec):
     assert [c.args for c in client.call.call_args_list] == [
         (
             "problem.saveFile",
-            {"problemId": str(POLYGON_ID), "type": "source", "name": name},
+            {
+                "problemId": str(POLYGON_ID),
+                "type": "source",
+                "name": name,
+                "file": GENERATORS[name],
+            },
         )
         for name in expected_names
-    ]
-    assert [c.kwargs["files"]["file"] for c in client.call.call_args_list] == [
-        (name, GENERATORS[name]) for name in expected_names
     ]
     assert "3 generator(s)" in message
     assert str(POLYGON_ID) in message

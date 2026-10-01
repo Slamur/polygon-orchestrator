@@ -66,8 +66,12 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
         content = _read_custom_checker(ctx.problem_id, ctx.outputs_dir)
         client.call(
             "problem.saveFile",
-            {"problemId": str(polygon_id), "type": "source", "name": _CHECKER_FILENAME},
-            files={"file": (_CHECKER_FILENAME, content)},
+            {
+                "problemId": str(polygon_id),
+                "type": "source",
+                "name": _CHECKER_FILENAME,
+                "file": content,
+            },
         )
         client.call(
             "problem.setChecker",

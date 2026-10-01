@@ -109,8 +109,12 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     for name, content in solutions:
         client.call(
             "problem.saveSolution",
-            {"problemId": str(state.polygon_id), "name": name, "tag": tags[name]},
-            files={"file": (name, content)},
+            {
+                "problemId": str(state.polygon_id),
+                "name": name,
+                "tag": tags[name],
+                "file": content,
+            },
         )
 
     record_polygon_step(
