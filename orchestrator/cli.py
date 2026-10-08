@@ -1,5 +1,6 @@
 """Входная точка оркестратора: `run` и `status` (CLAUDE.md, "Пакетный запуск"),
-плюс `polygon <problem_id> run|status` — загрузка задачи в Polygon.
+плюс `polygon <problem_id> run|status|pull` — загрузка задачи в Polygon и
+выгрузка из него.
 
 Сделано на стандартном `argparse`, а не на `click`/`typer`: в `pyproject.toml`
 других CLI-фреймворков нет (только pydantic/PyYAML/Jinja2 — все три нужны
@@ -38,6 +39,10 @@ from orchestrator.polygon.pipeline import (
     compute_polygon_step_statuses,
     run_polygon_pipeline,
 )
+from orchestrator.polygon.client import PolygonApiError
+from orchestrator.polygon.pull import ITEM_ERROR as PULL_ITEM_ERROR
+from orchestrator.polygon.pull import pull_problem
+from orchestrator.polygon.steps.base import PolygonStepError
 
 _OUTCOME_LABELS = {
     OUTCOME_CACHE_HIT: "cache hit",
@@ -354,6 +359,39 @@ def _cmd_polygon_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_polygon_pull(args: argparse.Namespace) -> int:
+    """Привязка к существующей на Polygon задаче и выгрузка недостающих
+    локально файлов (см. `orchestrator/polygon/pull.py`). Спек не нужен.
+    Лог — в тот же `polygon.log`, что и у `polygon run`."""
+    logger = _configure_console_logging(warnings_only=True)
+    log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
+
+    def print_item(item) -> None:
+        line = f"  {item.name}: {item.status}"
+        if item.status == PULL_ITEM_ERROR:
+            line += f" — {_shorten_error(item.detail)} (details: {log_path})"
+        elif item.detail:
+            line += f" — {item.detail}"
+        print(line, flush=True)
+
+    with _problem_log_handler(
+        logger, args.outputs_dir, args.problem_id, POLYGON_LOG, args.command_line
+    ):
+        try:
+            result = pull_problem(
+                args.problem_id,
+                polygon_id=args.polygon_id,
+                outputs_dir=args.outputs_dir,
+                on_item=print_item,
+            )
+        except (PolygonApiError, PolygonStepError) as exc:
+            logger.error("[pull] %s", exc)
+            print(f"{_shorten_error(str(exc))} (details: {log_path})", file=sys.stderr)
+            return 1
+    print(f"  {result.link_detail}")
+    return 0 if result.ok else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="orchestrator",
@@ -401,7 +439,9 @@ def build_parser() -> argparse.ArgumentParser:
     polygon_parser = subparsers.add_parser(
         "polygon", help="upload the problem to Polygon (API polygon.codeforces.com)"
     )
-    polygon_parser.add_argument("problem_id", help="matches specs/<problem_id>.yaml")
+    polygon_parser.add_argument(
+        "problem_id", help="matches specs/<problem_id>.yaml and outputs/<problem_id>/"
+    )
     polygon_subparsers = polygon_parser.add_subparsers(dest="polygon_command", required=True)
 
     # Без --force: кэша у polygon-шагов нет, обходить нечего.
@@ -417,6 +457,19 @@ def build_parser() -> argparse.ArgumentParser:
         "status", help="which polygon steps are already done, without network access"
     )
     polygon_status_parser.set_defaults(func=_cmd_polygon_status)
+
+    polygon_pull_parser = polygon_subparsers.add_parser(
+        "pull",
+        help="link to an existing Polygon problem and download the parts missing locally "
+        "(existing local files are never overwritten; no spec needed)",
+    )
+    polygon_pull_parser.add_argument(
+        "--polygon-id",
+        type=int,
+        default=None,
+        help="numeric Polygon problem id (default: search Polygon by problem_id as the name)",
+    )
+    polygon_pull_parser.set_defaults(func=_cmd_polygon_pull)
 
     return parser
 
