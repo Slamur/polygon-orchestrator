@@ -73,7 +73,7 @@ def test_run_single_problem_prints_step_outcomes_and_exits_zero(specs_dir, tmp_p
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["run", "p1"])
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -87,7 +87,7 @@ def test_run_writes_llm_generation_log(specs_dir, tmp_path, capsys):
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(specs_dir, outputs_dir) + ["run", "p1"])
+        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
 
     log = (outputs_dir / "p1" / cli.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     assert "statement_draft" in log
@@ -97,7 +97,7 @@ def test_run_writes_llm_generation_log(specs_dir, tmp_path, capsys):
 def test_run_log_accumulates_runs_with_header_and_step_starts(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"
-    argv = _base_args(specs_dir, outputs_dir) + ["run", "p1", "--step", "statement_draft"]
+    argv = _base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1", "--step", "statement_draft"]
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(argv)
@@ -120,7 +120,7 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(specs_dir, tmp_path, capsy
         notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
     )
     with patch("orchestrator.model_router.call_model", return_value=uncertain_response):
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["run", "p1"])
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
 
     assert rc == 1
     out = capsys.readouterr().out
@@ -137,7 +137,7 @@ def test_run_all_continues_past_invalid_spec_and_reports_exit_code(specs_dir, tm
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["run", "--all"])
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all"])
 
     assert rc == 1  # хотя бы одна задача провалилась
     out = capsys.readouterr().out
@@ -149,7 +149,7 @@ def test_run_all_continues_past_invalid_spec_and_reports_exit_code(specs_dir, tm
 
 def test_run_all_with_no_specs_reports_and_exits_zero(specs_dir, tmp_path, capsys):
     outputs_dir = tmp_path / "outputs"
-    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["run", "--all"])
+    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all"])
     assert rc == 0
     assert "no specs/*.yaml found" in capsys.readouterr().out
 
@@ -158,7 +158,7 @@ def test_status_reports_not_run_before_any_run(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"
 
-    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["status"])
+    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "status"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -170,10 +170,10 @@ def test_status_reports_cache_hit_after_run(specs_dir, tmp_path, capsys):
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(specs_dir, outputs_dir) + ["run", "p1"])
+        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
     capsys.readouterr()  # discard run's own output
 
-    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["status", "--problem", "p1"])
+    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "status", "p1"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -183,11 +183,11 @@ def test_status_reports_cache_hit_after_run(specs_dir, tmp_path, capsys):
 def test_run_all_and_step_are_mutually_incompatible(specs_dir, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with pytest.raises(SystemExit) as exc_info:
-        cli.main(_base_args(specs_dir, outputs_dir) + ["run", "--all", "--step", "statement_draft"])
+        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all", "--step", "statement_draft"])
     assert exc_info.value.code == 2
 
 
 def test_run_requires_problem_id_or_all(specs_dir, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with pytest.raises(SystemExit):
-        cli.main(_base_args(specs_dir, outputs_dir) + ["run"])
+        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate"])

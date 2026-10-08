@@ -106,7 +106,7 @@ def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) ->
     if not constraints_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {constraints_path} not found — first run "
-            f"the generative step constraints_pick (orchestrator run {problem_id} "
+            f"the generative step constraints_pick (orchestrator llm generate {problem_id} "
             "--step constraints_pick)"
         )
 

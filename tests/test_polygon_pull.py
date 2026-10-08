@@ -367,8 +367,8 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
             "--outputs-dir",
             str(outputs_dir),
             "polygon",
-            PROBLEM_ID,
             "pull",
+            PROBLEM_ID,
         ]
     )
 
@@ -385,7 +385,7 @@ def test_cli_pull_unresolved_problem_exits_with_error(outputs_dir, polygon, caps
     polygon.problems = []
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
-    exit_code = cli.main(["--outputs-dir", str(outputs_dir), "polygon", PROBLEM_ID, "pull"])
+    exit_code = cli.main(["--outputs-dir", str(outputs_dir), "polygon", "pull", PROBLEM_ID])
 
     assert exit_code == 1
     assert "no Polygon problem named" in capsys.readouterr().err

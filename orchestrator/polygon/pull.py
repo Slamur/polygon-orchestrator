@@ -1,5 +1,5 @@
 """Выгрузка задачи из Polygon в `outputs/<problem_id>/` —
-`orchestrator polygon <problem_id> pull`.
+`orchestrator polygon pull <problem_id>`.
 
 Обратное направление к polygon-шагам (`steps/`): привязывает `problem_id` к
 уже существующей на Polygon задаче (`polygon_state.json`) и скачивает те
@@ -83,7 +83,7 @@ _SCRIPT_FILENAMES = ("test_script", "test_script_groups")
 _STANDARD_CHECKER_PREFIX = "std::"
 
 _CONSTRAINTS_HEADER = (
-    "# Pulled from Polygon (orchestrator polygon ... pull): TL/ML only.\n"
+    "# Pulled from Polygon (orchestrator polygon pull ...): TL/ML only.\n"
     "# This is NOT a constraints_pick result — there are no variable ranges,\n"
     "# test groups or validator section here. Steps that take constraints.yaml\n"
     "# as input (generators_and_script, solutions_draft) will see only this.\n"

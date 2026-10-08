@@ -1,10 +1,11 @@
-"""Входная точка оркестратора: `run` и `status` (CLAUDE.md, "Пакетный запуск"),
-плюс `polygon <problem_id> run|status|pull` — загрузка задачи в Polygon и
-выгрузка из него.
+"""Входная точка оркестратора. Все команды имеют вид
+`orchestrator <pipeline> <command> <problem_id> [аргументы]` (CLAUDE.md,
+"Пакетный запуск"): `llm generate|status` — генеративные шаги,
+`polygon run|status|pull` — загрузка задачи в Polygon и выгрузка из него.
 
 Сделано на стандартном `argparse`, а не на `click`/`typer`: в `pyproject.toml`
 других CLI-фреймворков нет (только pydantic/PyYAML/Jinja2 — все три нужны
-самому оркестратору, а не CLI), а команд у нас всего две с небольшим набором
+самому оркестратору, а не CLI), а команд у нас немного, с небольшим набором
 флагов — `argparse` из стандартной библиотеки закрывает это без новой
 зависимости. Если состав команд вырастет (подкоманды с подкомандами, shell-
 автодополнение и т.п.), это решение стоит пересмотреть в пользу `click`.
@@ -62,7 +63,7 @@ _OUTCOME_LABELS = {
 # настраивать их не нужно.
 LOGGER_NAME = "orchestrator"
 
-# Отдельные файлы на генерацию и на Polygon: `polygon run` и `run` запускаются
+# Отдельные файлы на генерацию и на Polygon: `polygon run` и `llm generate` запускаются
 # независимо, и общий файл, перезаписываемый каждым прогоном, терял бы лог
 # одного при запуске другого.
 LLM_GENERATION_LOG = "llm_generation.log"
@@ -125,7 +126,7 @@ def _problem_log_handler(
     `_RUN_HEADER`) — по нему удобно искать нужный запуск, а время в каждой
     строке показывает длительность шагов. Handler добавляется к логгеру
     перед прогоном шагов и снимается сразу после, через try/finally — чтобы
-    в `run --all` лог одной задачи не утёк в файл следующей, и чтобы
+    в `llm generate --all` лог одной задачи не утёк в файл следующей, и чтобы
     необработанное исключение всё равно не оставило handler висящим.
 
     Отдаёт сам handler — вызывающий код использует его напрямую в
@@ -167,7 +168,7 @@ def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
     минуя остальные handler'ы логгера — чтобы вывод в консоль при
     необработанном исключении остался ровно таким же, как раньше (traceback
     туда и так печатает сам Python при завершении процесса / его печатал
-    старый `except Exception` в `run --all`, без traceback вообще), а
+    старый `except Exception` в `llm generate --all`, без traceback вообще), а
     `outputs/<id>/llm_generation.log` при этом не терял traceback (CLAUDE.md, задача
     "лог выполнения", пункт 4).
     """
@@ -209,7 +210,7 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
         logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")
 
 
-def _cmd_run(args: argparse.Namespace) -> int:
+def _cmd_llm_generate(args: argparse.Namespace) -> int:
     logger = _configure_console_logging()
 
     if args.all:
@@ -272,9 +273,11 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
-def _cmd_status(args: argparse.Namespace) -> int:
+def _cmd_llm_status(args: argparse.Namespace) -> int:
     problem_ids = (
-        [args.problem] if args.problem is not None else _discover_problem_ids(args.specs_dir)
+        [args.problem_id]
+        if args.problem_id is not None
+        else _discover_problem_ids(args.specs_dir)
     )
     if not problem_ids:
         print(f"no specs/*.yaml found in {args.specs_dir}")
@@ -413,56 +416,69 @@ def build_parser() -> argparse.ArgumentParser:
         help="templates/ directory (default: templates/)",
     )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    pipelines = parser.add_subparsers(dest="pipeline", required=True)
 
-    run_parser = subparsers.add_parser("run", help="run steps for one problem or for all specs/*.yaml")
-    run_group = run_parser.add_mutually_exclusive_group(required=True)
-    run_group.add_argument("problem_id", nargs="?", help="problem_id (matches specs/<problem_id>.yaml)")
-    run_group.add_argument("--all", action="store_true", help="run all specs/*.yaml")
-    run_parser.add_argument(
+    llm_parser = pipelines.add_parser("llm", help="generative steps (calls the model via API)")
+    llm_commands = llm_parser.add_subparsers(dest="command", required=True)
+
+    generate_parser = llm_commands.add_parser(
+        "generate", help="run generative steps for one problem or for all specs/*.yaml"
+    )
+    generate_group = generate_parser.add_mutually_exclusive_group(required=True)
+    generate_group.add_argument(
+        "problem_id", nargs="?", help="problem_id (matches specs/<problem_id>.yaml)"
+    )
+    generate_group.add_argument("--all", action="store_true", help="run all specs/*.yaml")
+    generate_parser.add_argument(
         "--step",
         choices=STEP_ORDER,
         default=None,
         help="run only one step (incompatible with --all)",
     )
-    run_parser.add_argument(
+    generate_parser.add_argument(
         "--force", action="store_true", help="ignore the cache and call the model again"
     )
-    run_parser.set_defaults(func=_cmd_run)
+    generate_parser.set_defaults(func=_cmd_llm_generate)
 
-    status_parser = subparsers.add_parser(
+    llm_status_parser = llm_commands.add_parser(
         "status", help="table step -> cache hit / stale / not run / uncertain, without calling the model"
     )
-    status_parser.add_argument("--problem", default=None, help="limit to one problem_id")
-    status_parser.set_defaults(func=_cmd_status)
+    llm_status_parser.add_argument(
+        "problem_id",
+        nargs="?",
+        default=None,
+        help="limit to one problem_id (default: all specs/*.yaml)",
+    )
+    llm_status_parser.set_defaults(func=_cmd_llm_status)
 
-    polygon_parser = subparsers.add_parser(
-        "polygon", help="upload the problem to Polygon (API polygon.codeforces.com)"
+    polygon_parser = pipelines.add_parser(
+        "polygon", help="upload the problem to Polygon / download it (API polygon.codeforces.com)"
     )
-    polygon_parser.add_argument(
-        "problem_id", help="matches specs/<problem_id>.yaml and outputs/<problem_id>/"
-    )
-    polygon_subparsers = polygon_parser.add_subparsers(dest="polygon_command", required=True)
+    polygon_commands = polygon_parser.add_subparsers(dest="command", required=True)
+    problem_id_help = "matches specs/<problem_id>.yaml and outputs/<problem_id>/"
 
     # Без --force: кэша у polygon-шагов нет, обходить нечего.
-    polygon_run_parser = polygon_subparsers.add_parser(
+    polygon_run_parser = polygon_commands.add_parser(
         "run", help="run polygon steps in order (no cache — steps are invoked every time)"
     )
+    polygon_run_parser.add_argument("problem_id", help=problem_id_help)
     polygon_run_parser.add_argument(
         "--step", choices=POLYGON_STEP_ORDER, default=None, help="run only one polygon step"
     )
     polygon_run_parser.set_defaults(func=_cmd_polygon_run)
 
-    polygon_status_parser = polygon_subparsers.add_parser(
+    polygon_status_parser = polygon_commands.add_parser(
         "status", help="which polygon steps are already done, without network access"
     )
+    polygon_status_parser.add_argument("problem_id", help=problem_id_help)
     polygon_status_parser.set_defaults(func=_cmd_polygon_status)
 
-    polygon_pull_parser = polygon_subparsers.add_parser(
+    polygon_pull_parser = polygon_commands.add_parser(
         "pull",
         help="link to an existing Polygon problem and download the parts missing locally "
         "(existing local files are never overwritten; no spec needed)",
     )
+    polygon_pull_parser.add_argument("problem_id", help=problem_id_help)
     polygon_pull_parser.add_argument(
         "--polygon-id",
         type=int,
@@ -481,7 +497,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     args.command_line = " ".join(argv)
 
-    if args.command == "run" and args.all and args.step is not None:
+    if args.func is _cmd_llm_generate and args.all and args.step is not None:
         parser.error("--step is incompatible with --all")
 
     return args.func(args)

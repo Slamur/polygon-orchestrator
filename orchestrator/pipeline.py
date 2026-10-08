@@ -7,7 +7,7 @@
 или `force=True`. Если шаг возвращает `status: uncertain`
 (`StepUncertainError`), пайплайн останавливается для этого `problem_id`
 (последующие шаги не запускаются), но не бросает исключение наружу — это
-нужно, чтобы `run --all` (см. `cli.py`) продолжал прогонять остальные задачи,
+нужно, чтобы `llm generate --all` (см. `cli.py`) продолжал прогонять остальные задачи,
 даже если одна из них упёрлась в нехватку данных в спеке.
 """
 
@@ -141,7 +141,7 @@ def run_pipeline(
     `result.stopped_uncertain=True`, `result.outcomes` содержит всё, что
     успело отработать. Ошибка валидации спека (`SpecValidationError`) тоже не
     прокидывается наружу — записывается в `result.spec_error`, чтобы вызывающий
-    `run --all` мог продолжить с другими `problem_id`.
+    `llm generate --all` мог продолжить с другими `problem_id`.
     """
     try:
         spec = load_spec(Path(specs_dir) / f"{problem_id}.yaml")
@@ -200,7 +200,7 @@ def run_pipeline(
             # успешно) — это ошибка конфигурации запуска, а не uncertain:
             # пайплайн должен остановиться так же, как остановился бы
             # run_step с той же ValueError, но без падения всего процесса
-            # run --all.
+            # llm generate --all.
             result.outcomes.append(StepOutcome(step_name, "error", str(exc)))
             result.stopped_uncertain = True
             return result
@@ -255,7 +255,7 @@ def run_pipeline(
     return result
 
 
-# Состояния StepStatus.state для `orchestrator status` (CLAUDE.md, "Пакетный
+# Состояния StepStatus.state для `orchestrator llm status` (CLAUDE.md, "Пакетный
 # запуск": "печатает таблицу 'шаг -> cache hit / stale / not run'").
 STATUS_CACHE_HIT = "cache hit"
 STATUS_STALE = "stale"
@@ -267,7 +267,7 @@ STATUS_BLOCKED = "blocked"
 
 @dataclass
 class StepStatus:
-    """Состояние одного шага для `orchestrator status` — считается только по
+    """Состояние одного шага для `orchestrator llm status` — считается только по
     `.cache/*.json` и текущим хешам, без вызова модели."""
 
     step_name: str

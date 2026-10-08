@@ -127,7 +127,7 @@ def _read_script(problem_id: str, script_path: Path) -> bytes:
     if not script_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {script_path} not found — first run "
-            f"the generative step generators_and_script (orchestrator run "
+            f"the generative step generators_and_script (orchestrator llm generate "
             f"{problem_id} --step generators_and_script)"
         )
     return script_path.read_bytes()
