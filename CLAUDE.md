@@ -97,7 +97,7 @@ Python-оркестратор, который берёт структуриро�
 │       ├── system.md
 │       └── user.md.j2
 ├── orchestrator/
-│   ├── cli.py                     # входная точка: llm generate|status, polygon run|status|pull (см. "Пакетный запуск")
+│   ├── cli.py                     # входная точка: llm generate|status, polygon push|status|pull (см. "Пакетный запуск")
 │   ├── spec.py                    # парсинг и валидация specs/*.yaml против SPEC_FORMAT.md
 │   ├── steps/
 │   │   ├── statement_draft.py
@@ -134,7 +134,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── solutions_draft.json
         │   └── checker_draft.json
         ├── llm_generation.log      # лог `orchestrator llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
-        ├── polygon.log             # лог `orchestrator polygon run <id>` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
+        ├── polygon.log             # лог `orchestrator polygon push <id>` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + что каждый polygon-шаг последним отправил (steps); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
@@ -240,7 +240,7 @@ Python-оркестратор, который берёт структуриро�
   `problem_id` (или по одному, если указан) печатает таблицу "шаг → cache
   hit / stale / not run", используя те же хеши, что и `llm generate`. Полезно, чтобы
   до реального запуска увидеть, что вообще изменилось после правки спеков.
-- `orchestrator polygon run <problem_id> [--step NAME]` — прогон
+- `orchestrator polygon push <problem_id> [--step NAME]` — прогон
   polygon-шагов по порядку `POLYGON_STEP_ORDER`, без кэша (каждый шаг
   вызывается всегда, идемпотентность — через `check_done` самого шага),
   поэтому `--force` там нет. Реально обращается к Polygon API — те же
@@ -248,7 +248,7 @@ Python-оркестратор, который берёт структуриро�
 - `orchestrator polygon status <problem_id>` — что из polygon-шагов уже
   сделано, без обращения к сети: `done / stale / not run` по
   `PolygonStep.compute_status` (сравнение того, что шаг последним отправил в
-  Polygon, с тем, что он отправил бы сейчас из локальных файлов). На `polygon run`
+  Polygon, с тем, что он отправил бы сейчас из локальных файлов). На `polygon push`
   это не влияет — ручные правки в UI Polygon локально не видны, поэтому
   шаги по этой записи не пропускаются.
 

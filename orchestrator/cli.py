@@ -1,7 +1,7 @@
 """Входная точка оркестратора. Все команды имеют вид
 `orchestrator <pipeline> <command> <problem_id> [аргументы]` (CLAUDE.md,
 "Пакетный запуск"): `llm generate|status` — генеративные шаги,
-`polygon run|status|pull` — загрузка задачи в Polygon и выгрузка из него.
+`polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
 
 Сделано на стандартном `argparse`, а не на `click`/`typer`: в `pyproject.toml`
 других CLI-фреймворков нет (только pydantic/PyYAML/Jinja2 — все три нужны
@@ -63,7 +63,7 @@ _OUTCOME_LABELS = {
 # настраивать их не нужно.
 LOGGER_NAME = "orchestrator"
 
-# Отдельные файлы на генерацию и на Polygon: `polygon run` и `llm generate` запускаются
+# Отдельные файлы на генерацию и на Polygon: `polygon push` и `llm generate` запускаются
 # независимо, и общий файл, перезаписываемый каждым прогоном, терял бы лог
 # одного при запуске другого.
 LLM_GENERATION_LOG = "llm_generation.log"
@@ -90,7 +90,7 @@ def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger
     `capsys` в тестах подменяет `sys.stdout` на время теста — handler,
     созданный при импорте, писал бы мимо этой подмены.
 
-    `warnings_only` — для `polygon run`: в консоль идут только WARNING, а
+    `warnings_only` — для `polygon push`: в консоль идут только WARNING, а
     INFO (каждый HTTP-запрос, сообщения шагов) и ERROR (полный текст
     ошибки шага с traceback) — только в `polygon.log`; итог по каждому шагу
     печатает сам CLI, коротко (см. `_print_polygon_outcome`).
@@ -335,7 +335,7 @@ def _print_polygon_outcome(outcome, log_path: Path) -> None:
     print(line, flush=True)
 
 
-def _cmd_polygon_run(args: argparse.Namespace) -> int:
+def _cmd_polygon_push(args: argparse.Namespace) -> int:
     logger = _configure_console_logging(warnings_only=True)
     log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
 
@@ -365,7 +365,7 @@ def _cmd_polygon_status(args: argparse.Namespace) -> int:
 def _cmd_polygon_pull(args: argparse.Namespace) -> int:
     """Привязка к существующей на Polygon задаче и выгрузка недостающих
     локально файлов (см. `orchestrator/polygon/pull.py`). Спек не нужен.
-    Лог — в тот же `polygon.log`, что и у `polygon run`."""
+    Лог — в тот же `polygon.log`, что и у `polygon push`."""
     logger = _configure_console_logging(warnings_only=True)
     log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
 
@@ -458,14 +458,14 @@ def build_parser() -> argparse.ArgumentParser:
     problem_id_help = "matches specs/<problem_id>.yaml and outputs/<problem_id>/"
 
     # Без --force: кэша у polygon-шагов нет, обходить нечего.
-    polygon_run_parser = polygon_commands.add_parser(
-        "run", help="run polygon steps in order (no cache — steps are invoked every time)"
+    polygon_push_parser = polygon_commands.add_parser(
+        "push", help="upload to Polygon: run polygon steps in order (no cache — steps are invoked every time)"
     )
-    polygon_run_parser.add_argument("problem_id", help=problem_id_help)
-    polygon_run_parser.add_argument(
+    polygon_push_parser.add_argument("problem_id", help=problem_id_help)
+    polygon_push_parser.add_argument(
         "--step", choices=POLYGON_STEP_ORDER, default=None, help="run only one polygon step"
     )
-    polygon_run_parser.set_defaults(func=_cmd_polygon_run)
+    polygon_push_parser.set_defaults(func=_cmd_polygon_push)
 
     polygon_status_parser = polygon_commands.add_parser(
         "status", help="which polygon steps are already done, without network access"

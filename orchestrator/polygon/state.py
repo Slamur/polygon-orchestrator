@@ -23,7 +23,7 @@ class PolygonState:
     created_at: str  # ISO8601 UTC
     # Имя polygon-шага -> что он в последний раз успешно сделал (формат
     # записи — забота самого шага). Нужно для `polygon status`, см.
-    # `PolygonStep.compute_status`; на поведение `run` не влияет.
+    # `PolygonStep.compute_status`; на поведение `polygon push` не влияет.
     steps: dict[str, dict] = field(default_factory=dict)
 
 
