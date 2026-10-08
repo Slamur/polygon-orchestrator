@@ -73,22 +73,7 @@ class PolygonClient:
         уходит как multipart/form-data, где каждый параметр — обычное поле
         формы без имени файла: так `bytes` передаются без перекодирования.
         """
-        api_key, api_secret, base_url = self._ensure_credentials()
-
-        signed_params: dict[str, str | bytes] = {
-            **params,
-            "apiKey": api_key,
-            "time": str(int(time.time())),
-        }
-        signed_params["apiSig"] = generate_signature(method_name, signed_params, api_secret)
-
-        url = f"{base_url.rstrip('/')}/{method_name}"
-        logger.info("PolygonClient.call(%s): POST %s", method_name, url)
-        response = requests.post(
-            url,
-            files={name: (None, value) for name, value in signed_params.items()},
-            timeout=_REQUEST_TIMEOUT_SECONDS,
-        )
+        response = self._post(method_name, params)
 
         try:
             body = response.json()
@@ -102,3 +87,54 @@ class PolygonClient:
         if body.get("status") == "FAILED":
             raise PolygonApiError(method_name, body.get("comment", ""))
         return body.get("result")
+
+    def call_raw(self, method_name: str, params: dict[str, str | bytes]) -> bytes:
+        """Вызывает метод Polygon API, который при успехе отдаёт не JSON, а само
+        содержимое (`problem.viewFile`, `problem.viewSolution`,
+        `problem.script`, `problem.testInput`) — возвращает тело ответа как
+        есть.
+
+        Ошибка у таких методов приходит обычным JSON со `status == "FAILED"`.
+        Она распознаётся по не-200 HTTP-статусу; на случай, если Polygon
+        отдаст FAILED с HTTP 200, — ещё и по `Content-Type: application/json`
+        (по одному телу судить нельзя: скачиваемый файл сам может быть JSON).
+
+        NOTE: на реальном API не проверено, каким HTTP-статусом и
+        Content-Type Polygon сопровождает FAILED у этих методов.
+        """
+        response = self._post(method_name, params)
+
+        content_type = response.headers.get("Content-Type", "")
+        if response.status_code != 200 or "application/json" in content_type:
+            try:
+                body = response.json()
+            except ValueError:
+                body = None
+            if isinstance(body, dict) and body.get("status") == "FAILED":
+                raise PolygonApiError(method_name, body.get("comment", ""))
+            if response.status_code != 200:
+                raise PolygonApiError(
+                    method_name,
+                    f"unexpected response (HTTP {response.status_code}): "
+                    f"{response.text[:200]!r}",
+                )
+        return response.content
+
+    def _post(self, method_name: str, params: dict[str, str | bytes]) -> requests.Response:
+        """Подписывает и отправляет один запрос; разбор ответа — у вызывающего."""
+        api_key, api_secret, base_url = self._ensure_credentials()
+
+        signed_params: dict[str, str | bytes] = {
+            **params,
+            "apiKey": api_key,
+            "time": str(int(time.time())),
+        }
+        signed_params["apiSig"] = generate_signature(method_name, signed_params, api_secret)
+
+        url = f"{base_url.rstrip('/')}/{method_name}"
+        logger.info("PolygonClient.call(%s): POST %s", method_name, url)
+        return requests.post(
+            url,
+            files={name: (None, value) for name, value in signed_params.items()},
+            timeout=_REQUEST_TIMEOUT_SECONDS,
+        )

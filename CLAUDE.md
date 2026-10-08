@@ -117,6 +117,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
 │   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
+│   │   ├── pull.py                 # pull_problem — привязка к существующей задаче и выгрузка недостающих локально файлов (обратное направление к steps/)
 │   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions
 │   │   └── pipeline.py             # run_polygon_pipeline (commitChanges после каждого шага) / compute_polygon_step_statuses — без кэша
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
@@ -250,6 +251,19 @@ Python-оркестратор, который берёт структуриро�
   Polygon, с тем, что он отправил бы сейчас из локальных файлов). На `run`
   это не влияет — ручные правки в UI Polygon локально не видны, поэтому
   шаги по этой записи не пропускаются.
+
+- `orchestrator polygon <problem_id> pull [--polygon-id N]` — обратное
+  направление: привязывает `problem_id` к уже существующей на Polygon
+  задаче (по `polygon_state.json`, иначе поиском неудалённой задачи с
+  именем `problem_id`; `--polygon-id` дополнительно сужает поиск, если задач
+  с таким именем несколько) и скачивает в `outputs/<problem_id>/` те части задачи, которых
+  локально НЕТ: условие и примеры, TL/ML (`constraints.yaml` только с
+  секцией `limits` — это не результат `constraints_pick`), валидатор,
+  нестандартный чекер, генераторы, test-script, решения. Существующие
+  локальные файлы не перезаписываются; каталог задачи создаётся, если его
+  нет; спек не нужен. На Polygon ничего не меняет (только чтение), но в
+  сеть ходит — те же ограничения на запуск без явной команды. Детали — в
+  докстринге `orchestrator/polygon/pull.py`.
 
 Группировку задач в контесты/раунды с общими дефолтами (TL/ML-конвенции,
 общий стиль тестовых групп на весь раунд) в спек пока сознательно не

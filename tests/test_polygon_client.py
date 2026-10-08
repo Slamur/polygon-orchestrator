@@ -122,3 +122,46 @@ def test_non_json_response_raises_polygon_api_error(credentials, monkeypatch):
 
     with pytest.raises(PolygonApiError, match="HTTP 502"):
         PolygonClient().call("problem.info", {})
+
+
+def _raw_response(content: bytes, *, status_code: int = 200, content_type: str = "text/plain", body=None):
+    response = _response(body, status_code=status_code, text=content.decode("utf-8", "replace"))
+    response.content = content
+    response.headers = {"Content-Type": content_type}
+    return response
+
+
+def test_call_raw_returns_body_as_is(credentials, monkeypatch):
+    # Скачиваемый файл сам может быть JSON — тело не разбирается.
+    content = b'{"status": "FAILED"}\r\n'
+    post = MagicMock(return_value=_raw_response(content))
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+
+    result = PolygonClient().call_raw("problem.viewFile", {"problemId": "5", "name": "a.json"})
+
+    assert result == content
+    assert post.call_args.args == ("https://polygon.codeforces.com/api/problem.viewFile",)
+
+
+@pytest.mark.parametrize("status_code", [200, 400])
+def test_call_raw_failed_json_raises_polygon_api_error(credentials, monkeypatch, status_code):
+    body = {"status": "FAILED", "comment": "name: File not found"}
+    post = MagicMock(
+        return_value=_raw_response(
+            b"{}", status_code=status_code, content_type="application/json", body=body
+        )
+    )
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+
+    with pytest.raises(PolygonApiError) as exc_info:
+        PolygonClient().call_raw("problem.viewFile", {"problemId": "5", "name": "x"})
+
+    assert exc_info.value.comment == "name: File not found"
+
+
+def test_call_raw_non_200_without_json_raises_polygon_api_error(credentials, monkeypatch):
+    post = MagicMock(return_value=_raw_response(b"Bad Gateway", status_code=502))
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+
+    with pytest.raises(PolygonApiError, match="HTTP 502"):
+        PolygonClient().call_raw("problem.script", {"problemId": "5", "testset": "tests"})
