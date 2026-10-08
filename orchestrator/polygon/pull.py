@@ -124,7 +124,8 @@ def pull_problem(
     локально части (см. докстринг модуля).
 
     Какая задача на Polygon: уже записанная в `polygon_state.json`; иначе
-    `polygon_id`, если передан; иначе поиск по имени `problem_id`. Если
+    поиск неудалённой задачи с именем `problem_id` (и id `polygon_id`, если
+    он передан — на случай нескольких задач с одним именем). Если
     задачу определить не удалось — `PolygonStepError`, на диск ничего не
     пишется. `PolygonApiError` на этом этапе тоже пробрасывается наружу.
 
@@ -132,16 +133,12 @@ def pull_problem(
     по мере выполнения.
     """
     client = client or PolygonClient()
-    resolved_id, link_detail, warnings = _resolve_and_link(
+    resolved_id, link_detail = _resolve_and_link(
         problem_id, polygon_id, Path(outputs_dir), client
     )
     logger.info("[pull] %s", link_detail)
-    for warning in warnings:
-        logger.warning("[pull] %s", warning)
 
-    result = PullResult(
-        problem_id=problem_id, polygon_id=resolved_id, link_detail=link_detail, warnings=warnings
-    )
+    result = PullResult(problem_id=problem_id, polygon_id=resolved_id, link_detail=link_detail)
     puller = _Puller(
         client=client,
         polygon_id=resolved_id,
@@ -168,9 +165,9 @@ def pull_problem(
 
 def _resolve_and_link(
     problem_id: str, polygon_id: int | None, outputs_dir: Path, client: PolygonClient
-) -> tuple[int, str, list[str]]:
-    """(Polygon problemId, сообщение о привязке, предупреждения). Если
-    привязки ещё не было — создаёт `polygon_state.json`."""
+) -> tuple[int, str]:
+    """(Polygon problemId, сообщение о привязке). Если привязки ещё не было —
+    создаёт `polygon_state.json`."""
     state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
     if state is not None:
         if polygon_id is not None and polygon_id != state.polygon_id:
@@ -179,48 +176,36 @@ def _resolve_and_link(
                 f"(polygon_state.json), but --polygon-id={polygon_id} was given — "
                 "remove polygon_state.json to relink"
             )
-        return state.polygon_id, f"already linked to Polygon id={state.polygon_id}", []
+        return state.polygon_id, f"already linked to Polygon id={state.polygon_id}"
 
-    warnings: list[str] = []
+    # Имя передаётся всегда, числовой id — если задан: `--polygon-id` только
+    # сужает поиск, а не отменяет проверку имени. Фильтр `name` у
+    # `problems.list` может оказаться неточным (не проверено на реальном
+    # API), а удалённые задачи нам не нужны — оставляем только точные
+    # совпадения среди неудалённых.
+    params = {"name": problem_id, "showDeleted": "false"}
     if polygon_id is not None:
-        found = [
-            item
-            for item in client.call("problems.list", {"id": str(polygon_id)}) or []
-            if item.get("id") == polygon_id
-        ]
-        if not found:
-            raise PolygonStepError(
-                f"'{problem_id}': Polygon problem id={polygon_id} not found among the "
-                "problems available to this API key"
-            )
-        polygon_name = found[0].get("name")
-        if polygon_name != problem_id:
-            warnings.append(
-                f"Polygon problem id={polygon_id} is named {polygon_name!r}, not "
-                f"{problem_id!r} — linked anyway, as requested by --polygon-id"
-            )
-        detail = f"linked to Polygon id={polygon_id} (given by --polygon-id)"
-    else:
-        # Фильтр `name` у `problems.list` может оказаться неточным (не
-        # проверено на реальном API) — оставляем только точные совпадения.
-        found = [
-            item
-            for item in client.call("problems.list", {"name": problem_id}) or []
-            if item.get("name") == problem_id and not item.get("deleted")
-        ]
-        if not found:
-            raise PolygonStepError(
-                f"'{problem_id}': no Polygon problem with this name is available to "
-                "this API key — pass the numeric id explicitly: --polygon-id N"
-            )
-        if len(found) > 1:
-            candidates = ", ".join(f"{item['id']} (owner {item.get('owner')})" for item in found)
-            raise PolygonStepError(
-                f"'{problem_id}': several Polygon problems have this name: {candidates} "
-                "— pick one with --polygon-id N"
-            )
-        polygon_id = found[0]["id"]
-        detail = f"found Polygon problem by name (id={polygon_id}), linked"
+        params["id"] = str(polygon_id)
+    searched = f"named {problem_id!r}" + (f" with id={polygon_id}" if polygon_id else "")
+    found = [
+        item
+        for item in client.call("problems.list", params) or []
+        if item.get("name") == problem_id
+        and not item.get("deleted")
+        and polygon_id in (None, item.get("id"))
+    ]
+    if not found:
+        raise PolygonStepError(
+            f"'{problem_id}': no Polygon problem {searched} is available to this API key"
+        )
+    if len(found) > 1:
+        candidates = ", ".join(f"{item['id']} (owner {item.get('owner')})" for item in found)
+        raise PolygonStepError(
+            f"'{problem_id}': several Polygon problems are {searched}: {candidates} "
+            "— pick one with --polygon-id N"
+        )
+    polygon_id = found[0]["id"]
+    detail = f"found Polygon problem {searched} (id={polygon_id}), linked"
 
     save_polygon_state(
         problem_id,
@@ -231,7 +216,7 @@ def _resolve_and_link(
         ),
         outputs_dir=outputs_dir,
     )
-    return polygon_id, detail, warnings
+    return polygon_id, detail
 
 
 @dataclass

@@ -47,9 +47,12 @@ class FakePolygon:
         if method_name in self.failing:
             raise PolygonApiError(method_name, "boom")
         if method_name == "problems.list":
-            if "id" in params:
-                return [p for p in self.problems if str(p["id"]) == params["id"]]
-            return [p for p in self.problems if params["name"] in p["name"]]
+            # Как и реальный фильтр `name` (не проверен) — возможно, неточный.
+            return [
+                p
+                for p in self.problems
+                if params["name"] in p["name"] and params.get("id") in (None, str(p["id"]))
+            ]
         assert params["problemId"] == str(POLYGON_ID)
         return {
             "problem.statements": lambda: self.statements,
@@ -225,7 +228,7 @@ def test_name_search_ignores_inexact_and_deleted_matches(outputs_dir, polygon):
 def test_unknown_name_is_an_error_and_writes_nothing(outputs_dir, polygon):
     polygon.problems = []
 
-    with pytest.raises(PolygonStepError, match="--polygon-id"):
+    with pytest.raises(PolygonStepError, match="no Polygon problem named"):
         pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
 
     assert not (outputs_dir / PROBLEM_ID).exists()
@@ -241,20 +244,49 @@ def test_ambiguous_name_is_an_error(outputs_dir, polygon):
         pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
 
 
-def test_explicit_polygon_id_links_and_warns_on_name_mismatch(outputs_dir, polygon):
-    polygon.problems = [{"id": POLYGON_ID, "name": "another-name"}]
+def test_search_always_sends_name_and_adds_id_only_when_given(outputs_dir, polygon):
+    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    assert polygon.calls[0] == ("problems.list", {"name": PROBLEM_ID, "showDeleted": "false"})
+
+    (outputs_dir / PROBLEM_ID / "polygon_state.json").unlink()
+    polygon.calls.clear()
+    pull_problem(PROBLEM_ID, polygon_id=POLYGON_ID, outputs_dir=outputs_dir, client=polygon)
+    assert polygon.calls[0] == (
+        "problems.list",
+        {"name": PROBLEM_ID, "showDeleted": "false", "id": str(POLYGON_ID)},
+    )
+
+
+def test_explicit_polygon_id_picks_one_of_same_named_problems(outputs_dir, polygon):
+    polygon.problems = [
+        {"id": 1, "name": PROBLEM_ID, "owner": "a"},
+        {"id": POLYGON_ID, "name": PROBLEM_ID, "owner": "b"},
+    ]
 
     result = pull_problem(
         PROBLEM_ID, polygon_id=POLYGON_ID, outputs_dir=outputs_dir, client=polygon
     )
 
+    assert result.polygon_id == POLYGON_ID
     assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).polygon_id == POLYGON_ID
-    assert len(result.warnings) == 1 and "another-name" in result.warnings[0]
 
 
-def test_explicit_polygon_id_not_available_is_an_error(outputs_dir, polygon):
-    with pytest.raises(PolygonStepError, match="id=7 not found"):
-        pull_problem(PROBLEM_ID, polygon_id=7, outputs_dir=outputs_dir, client=polygon)
+@pytest.mark.parametrize(
+    "problems",
+    [
+        [{"id": POLYGON_ID, "name": "another-name"}],
+        [{"id": POLYGON_ID, "name": PROBLEM_ID, "deleted": True}],
+        [{"id": 7, "name": PROBLEM_ID}],
+    ],
+    ids=["name mismatch", "deleted", "other id"],
+)
+def test_explicit_polygon_id_still_requires_name_and_not_deleted(outputs_dir, polygon, problems):
+    polygon.problems = problems
+
+    with pytest.raises(PolygonStepError, match=f"with id={POLYGON_ID}"):
+        pull_problem(PROBLEM_ID, polygon_id=POLYGON_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert not (outputs_dir / PROBLEM_ID).exists()
 
 
 def test_custom_checker_is_downloaded_and_not_treated_as_generator(outputs_dir, polygon):
@@ -343,7 +375,7 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "  validator.cpp: downloaded — Polygon source file val.cpp" in out
-    assert f"found Polygon problem by name (id={POLYGON_ID}), linked" in out
+    assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked" in out
     log = (outputs_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
     assert "run started: orchestrator --specs-dir" in log
     assert "[pull] validator.cpp: downloaded" in log
@@ -356,4 +388,4 @@ def test_cli_pull_unresolved_problem_exits_with_error(outputs_dir, polygon, caps
     exit_code = cli.main(["--outputs-dir", str(outputs_dir), "polygon", PROBLEM_ID, "pull"])
 
     assert exit_code == 1
-    assert "--polygon-id" in capsys.readouterr().err
+    assert "no Polygon problem named" in capsys.readouterr().err
