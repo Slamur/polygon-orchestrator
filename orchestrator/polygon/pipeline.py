@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from orchestrator.cache import OUTPUTS_DIR
+from orchestrator.cache import OUTPUTS_DIR, SPECS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.steps import (
     create_problem,
@@ -35,25 +35,9 @@ from orchestrator.polygon.steps import (
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.spec import SpecValidationError, load_spec
+from orchestrator.step_order import POLYGON_STEP_ORDER
 
 logger = logging.getLogger(__name__)
-
-SPECS_DIR = Path("specs")
-
-# Список расширяется по мере добавления шагов — дописывать новые имена в конец
-# и добавлять запись в `_POLYGON_STEPS`; больше ничего менять не нужно, если новый шаг — такой же
-# `PolygonStep`, запускаемый через `steps.base.run_step`.
-POLYGON_STEP_ORDER: list[str] = [
-    create_problem.STEP_NAME,
-    set_constraints.STEP_NAME,
-    upload_problem_lib.STEP_NAME,
-    upload_validator.STEP_NAME,
-    upload_checker.STEP_NAME,
-    upload_statement.STEP_NAME,
-    upload_generators.STEP_NAME,
-    upload_test_script.STEP_NAME,
-    upload_solutions.STEP_NAME,
-]
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
     create_problem.STEP_NAME: create_problem.STEP,

@@ -20,12 +20,14 @@ from types import ModuleType
 from typing import Any, Optional
 
 from orchestrator.cache import (
+    SPECS_DIR,
     UNCERTAIN_STATUS,
     compute_prompt_hash,
     is_cache_valid,
     load_cache_entry,
 )
 from orchestrator.spec import SpecValidationError, load_spec
+from orchestrator.step_order import STEP_ORDER
 from orchestrator.steps import (
     checker_draft,
     constraints_pick,
@@ -41,21 +43,6 @@ from orchestrator.steps.base import (
 )
 
 logger = logging.getLogger(__name__)
-
-SPECS_DIR = Path("specs")
-
-# Порядок шагов фиксирован (CLAUDE.md, "Роль каждого генеративного шага"):
-# каждый следующий шаг может зависеть от артефактов предыдущих. `checker_draft`
-# ни от чего не зависит (в отличие от соседей по порядку), но держится рядом
-# с `generators_and_script` — логически это тоже часть тестовой инфраструктуры
-# задачи, а не решений (CLAUDE.md, пункт 5).
-STEP_ORDER: list[str] = [
-    "statement_draft",
-    "constraints_pick",
-    "generators_and_script",
-    "checker_draft",
-    "solutions_draft",
-]
 
 _STEP_MODULES: dict[str, ModuleType] = {
     "statement_draft": statement_draft,

@@ -18,6 +18,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+SPECS_DIR = Path("specs")
 PROMPTS_DIR = Path("prompts")
 OUTPUTS_DIR = Path("outputs")
 TEMPLATES_DIR = Path("templates")
