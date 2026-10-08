@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Оркестратор генеративных шагов подготовки задачи для Polygon"
 requires-python = ">=3.10"
 dependencies = [
+    "argcomplete>=3,<4",
     "pydantic>=2,<3",
     "PyYAML>=6,<7",
     "Jinja2>=3,<4",

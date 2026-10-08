@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from orchestrator import cli
+from orchestrator import cli, cli_commands
 from orchestrator.model_router import ModelResponse
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -89,7 +89,7 @@ def test_run_writes_llm_generation_log(specs_dir, tmp_path, capsys):
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
 
-    log = (outputs_dir / "p1" / cli.LLM_GENERATION_LOG).read_text(encoding="utf-8")
+    log = (outputs_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     assert "statement_draft" in log
     assert not (outputs_dir / "p1" / "log.txt").exists()
 
@@ -103,7 +103,7 @@ def test_run_log_accumulates_runs_with_header_and_step_starts(specs_dir, tmp_pat
         cli.main(argv)
         cli.main(argv + ["--force"])
 
-    log = (outputs_dir / "p1" / cli.LLM_GENERATION_LOG).read_text(encoding="utf-8")
+    log = (outputs_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     first = log.index(f"===== run started: orchestrator {' '.join(argv)} =====")
     second = log.index(f"===== run started: orchestrator {' '.join(argv + ['--force'])} =====")
     assert first < second
