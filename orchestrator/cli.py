@@ -3,396 +3,63 @@
 "Пакетный запуск"): `llm generate|status` — генеративные шаги,
 `polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
 
-Сделано на стандартном `argparse`, а не на `click`/`typer`: в `pyproject.toml`
-других CLI-фреймворков нет (только pydantic/PyYAML/Jinja2 — все три нужны
-самому оркестратору, а не CLI), а команд у нас немного, с небольшим набором
-флагов — `argparse` из стандартной библиотеки закрывает это без новой
-зависимости. Если состав команд вырастет (подкоманды с подкомандами, shell-
-автодополнение и т.п.), это решение стоит пересмотреть в пользу `click`.
+Здесь только парсер аргументов и диспетчеризация; сами команды — в
+`cli_commands.py`, и импортируется он лениво, уже после разбора аргументов.
+Причина — Tab-дополнение (`argcomplete`, настройка shell — в `docs/SETUP.md`):
+на каждое нажатие Tab shell запускает этот модуль целиком, чтобы получить
+кандидатов, и импорт пайплайнов (pydantic, requests) делал бы каждое нажатие
+заметно медленным. Поэтому на верхнем уровне этого модуля не должно быть
+импортов тяжелее `cache`/`step_order`.
+
+Сделано на стандартном `argparse`, а не на `click`/`typer`: команд у нас
+немного, с небольшим набором флагов, и `argparse` из стандартной библиотеки
+закрывает это без CLI-фреймворка в зависимостях; автодополнение к нему
+добавляет `argcomplete`, не меняя сам парсер.
 """
 
 from __future__ import annotations
 
 import argparse
-import logging
+import os
 import sys
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
-from orchestrator.pipeline import (
-    OUTCOME_CACHE_HIT,
-    OUTCOME_CONFIRMED,
-    OUTCOME_PROPOSED,
-    OUTCOME_SKIPPED_OPTIONAL,
-    OUTCOME_UNCERTAIN,
-    OUTPUTS_DIR,
-    PROMPTS_DIR,
-    SPECS_DIR,
-    STEP_ORDER,
-    TEMPLATES_DIR,
-    compute_step_statuses,
-    run_pipeline,
-)
-from orchestrator.polygon.pipeline import OUTCOME_ERROR as POLYGON_OUTCOME_ERROR
-from orchestrator.polygon.pipeline import (
-    POLYGON_STEP_ORDER,
-    compute_polygon_step_statuses,
-    run_polygon_pipeline,
-)
-from orchestrator.polygon.client import PolygonApiError
-from orchestrator.polygon.pull import ITEM_ERROR as PULL_ITEM_ERROR
-from orchestrator.polygon.pull import pull_problem
-from orchestrator.polygon.steps.base import PolygonStepError
-
-_OUTCOME_LABELS = {
-    OUTCOME_CACHE_HIT: "cache hit",
-    OUTCOME_CONFIRMED: "confirmed",
-    OUTCOME_PROPOSED: "proposed (PROPOSED, REVIEW ME)",
-    OUTCOME_UNCERTAIN: "uncertain",
-    OUTCOME_SKIPPED_OPTIONAL: "skipped (optional)",
-    "error": "error",
-}
-
-# Логгер пакета — на него вешается и консольный вывод (см.
-# `_configure_console_logging`), и по-задачные лог-файлы
-# `outputs/<id>/llm_generation.log` / `outputs/<id>/polygon.log` (см.
-# `_problem_log_handler`), см. CLAUDE.md, задача "лог выполнения". Дочерние
-# логгеры (например, `orchestrator.llm_clients.anthropic_client`, откуда
-# идёт `_log_usage`) пишут через propagate в этот же логгер — отдельно
-# настраивать их не нужно.
-LOGGER_NAME = "orchestrator"
-
-# Отдельные файлы на генерацию и на Polygon: `polygon push` и `llm generate` запускаются
-# независимо, и общий файл, перезаписываемый каждым прогоном, терял бы лог
-# одного при запуске другого.
-LLM_GENERATION_LOG = "llm_generation.log"
-POLYGON_LOG = "polygon.log"
-
-# Заголовок прогона в лог-файле задачи; `%s` — команда целиком.
-_RUN_HEADER = "===== run started: orchestrator %s ====="
-
-# Сколько символов текста ошибки polygon-шага печатать в консоль: `comment`
-# от Polygon бывает многострочным (например, лог компиляции валидатора) —
-# целиком он пишется в `polygon.log`.
-_CONSOLE_ERROR_MAX_LEN = 200
-
-_console_handler: logging.Handler | None = None
+from orchestrator.cache import OUTPUTS_DIR, PROMPTS_DIR, SPECS_DIR, TEMPLATES_DIR
+from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
 
 
-def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger:
-    """Настраивает логгер пакета так, чтобы INFO-сообщения были видны в
-    консоли — до этого `logger.info(...)` в `_log_usage` никуда не выводился,
-    потому что для логгера не было ни уровня, ни handler'а.
+def _spec_ids(parsed_args: argparse.Namespace) -> set[str]:
+    specs_dir = getattr(parsed_args, "specs_dir", None) or SPECS_DIR
+    return {path.stem for path in Path(specs_dir).glob("*.yaml")}
 
-    Пересоздаёт handler при каждом вызове (а не один раз при импорте модуля):
-    `logging.StreamHandler()` фиксирует `sys.stdout` в момент создания, а
-    `capsys` в тестах подменяет `sys.stdout` на время теста — handler,
-    созданный при импорте, писал бы мимо этой подмены.
 
-    `warnings_only` — для `polygon push`: в консоль идут только WARNING, а
-    INFO (каждый HTTP-запрос, сообщения шагов) и ERROR (полный текст
-    ошибки шага с traceback) — только в `polygon.log`; итог по каждому шагу
-    печатает сам CLI, коротко (см. `_print_polygon_outcome`).
+def _output_ids(parsed_args: argparse.Namespace) -> set[str]:
+    outputs_dir = Path(getattr(parsed_args, "outputs_dir", None) or OUTPUTS_DIR)
+    if not outputs_dir.is_dir():
+        return set()
+    return {
+        path.name
+        for path in outputs_dir.iterdir()
+        if path.is_dir() and not path.name.startswith(".")
+    }
+
+
+def _complete_spec_ids(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
+    """Кандидаты Tab-дополнения `problem_id` для команд, которым нужен спек.
+
+    Список не хранится нигде, а читается из каталога при каждом нажатии Tab —
+    с учётом `--specs-dir`, если он уже набран в командной строке. Фильтрацию
+    по набранному префиксу делает сам `argcomplete`.
     """
-    global _console_handler
-    logger = logging.getLogger(LOGGER_NAME)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-
-    if _console_handler is not None:
-        logger.removeHandler(_console_handler)
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    if warnings_only:
-        handler.addFilter(lambda record: record.levelno == logging.WARNING)
-    logger.addHandler(handler)
-    _console_handler = handler
-    return logger
+    return sorted(_spec_ids(parsed_args))
 
 
-@contextmanager
-def _problem_log_handler(
-    logger: logging.Logger,
-    outputs_dir: Path,
-    problem_id: str,
-    log_name: str,
-    command_line: str,
-) -> Iterator[logging.Handler]:
-    """Заводит `outputs/<problem_id>/<log_name>` на время обработки одного
-    `problem_id` — открывается на дозапись: лог накапливает историю
-    прогонов, каждый прогон начинается с заголовка с командой (см.
-    `_RUN_HEADER`) — по нему удобно искать нужный запуск, а время в каждой
-    строке показывает длительность шагов. Handler добавляется к логгеру
-    перед прогоном шагов и снимается сразу после, через try/finally — чтобы
-    в `llm generate --all` лог одной задачи не утёк в файл следующей, и чтобы
-    необработанное исключение всё равно не оставило handler висящим.
-
-    Отдаёт сам handler — вызывающий код использует его напрямую в
-    `_log_traceback_to_file` для необработанных исключений (см. там же,
-    почему это не идёт через обычный `logger.exception`).
-    """
-    problem_dir = Path(outputs_dir) / problem_id
-    problem_dir.mkdir(parents=True, exist_ok=True)
-    log_path = problem_dir / log_name
-    needs_separator = log_path.exists() and log_path.stat().st_size > 0
-    handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    )
-    if needs_separator:
-        handler.stream.write("\n")
-    # Только в файл, мимо консольного handler'а — в консоли команда и так видна.
-    handler.handle(
-        logging.LogRecord(
-            name=LOGGER_NAME,
-            level=logging.INFO,
-            pathname=__file__,
-            lineno=0,
-            msg=_RUN_HEADER,
-            args=(command_line,),
-            exc_info=None,
-        )
-    )
-    logger.addHandler(handler)
-    try:
-        yield handler
-    finally:
-        logger.removeHandler(handler)
-        handler.close()
-
-
-def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
-    """Пишет текущий traceback (`sys.exc_info()`) в конкретный `handler`,
-    минуя остальные handler'ы логгера — чтобы вывод в консоль при
-    необработанном исключении остался ровно таким же, как раньше (traceback
-    туда и так печатает сам Python при завершении процесса / его печатал
-    старый `except Exception` в `llm generate --all`, без traceback вообще), а
-    `outputs/<id>/llm_generation.log` при этом не терял traceback (CLAUDE.md, задача
-    "лог выполнения", пункт 4).
-    """
-    record = logging.LogRecord(
-        name=LOGGER_NAME,
-        level=logging.ERROR,
-        pathname=__file__,
-        lineno=0,
-        msg=message,
-        args=None,
-        exc_info=sys.exc_info(),
-    )
-    handler.handle(record)
-
-
-def _discover_problem_ids(specs_dir: Path) -> list[str]:
-    return sorted(path.stem for path in Path(specs_dir).glob("*.yaml"))
-
-
-def _print_pipeline_result(logger: logging.Logger, result) -> None:
-    logger.info(f"=== {result.problem_id} ===")
-    if result.spec_error is not None:
-        logger.info(result.spec_error)
-        return
-
-    for outcome in result.outcomes:
-        label = _OUTCOME_LABELS.get(outcome.status, outcome.status)
-        line = f"  {outcome.step_name}: {label}"
-        if outcome.detail:
-            line += f" — {outcome.detail}"
-        logger.info(line)
-        for note in outcome.notes:
-            kind = note.get("kind", "?")
-            field_name = note.get("field", "?")
-            explanation = note.get("explanation", "")
-            logger.info(f"      [{kind}] {field_name}: {explanation}")
-
-    if result.stopped_uncertain:
-        logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")
-
-
-def _cmd_llm_generate(args: argparse.Namespace) -> int:
-    logger = _configure_console_logging()
-
-    if args.all:
-        problem_ids = _discover_problem_ids(args.specs_dir)
-        if not problem_ids:
-            logger.info(f"no specs/*.yaml found in {args.specs_dir}")
-            return 0
-
-        any_failed = False
-        for problem_id in problem_ids:
-            with _problem_log_handler(
-                logger, args.outputs_dir, problem_id, LLM_GENERATION_LOG, args.command_line
-            ) as file_handler:
-                try:
-                    result = run_pipeline(
-                        problem_id,
-                        force=args.force,
-                        specs_dir=args.specs_dir,
-                        prompts_dir=args.prompts_dir,
-                        outputs_dir=args.outputs_dir,
-                        templates_dir=args.templates_dir,
-                    )
-                except Exception as exc:  # noqa: BLE001 — один problem_id не должен ронять весь --all
-                    logger.info(f"=== {problem_id} ===")
-                    logger.info(f"  ! unexpected error: {exc}")
-                    _log_traceback_to_file(
-                        file_handler, f"unhandled error while processing '{problem_id}'"
-                    )
-                    any_failed = True
-                    continue
-
-                _print_pipeline_result(logger, result)
-                if not result.ok:
-                    any_failed = True
-        return 1 if any_failed else 0
-
-    if args.step is not None and args.step not in STEP_ORDER:
-        print(f"unknown step '{args.step}', allowed: {', '.join(STEP_ORDER)}", file=sys.stderr)
-        return 2
-
-    with _problem_log_handler(
-        logger, args.outputs_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
-    ) as file_handler:
-        try:
-            result = run_pipeline(
-                args.problem_id,
-                force=args.force,
-                only_step=args.step,
-                specs_dir=args.specs_dir,
-                prompts_dir=args.prompts_dir,
-                outputs_dir=args.outputs_dir,
-                templates_dir=args.templates_dir,
-            )
-        except Exception:
-            _log_traceback_to_file(
-                file_handler, f"unhandled error while processing '{args.problem_id}'"
-            )
-            raise
-        _print_pipeline_result(logger, result)
-    return 0 if result.ok else 1
-
-
-def _cmd_llm_status(args: argparse.Namespace) -> int:
-    problem_ids = (
-        [args.problem_id]
-        if args.problem_id is not None
-        else _discover_problem_ids(args.specs_dir)
-    )
-    if not problem_ids:
-        print(f"no specs/*.yaml found in {args.specs_dir}")
-        return 0
-
-    any_error = False
-    for problem_id in problem_ids:
-        print(f"=== {problem_id} ===")
-        statuses, spec_error = compute_step_statuses(
-            problem_id,
-            specs_dir=args.specs_dir,
-            prompts_dir=args.prompts_dir,
-            outputs_dir=args.outputs_dir,
-            templates_dir=args.templates_dir,
-        )
-        if spec_error is not None:
-            print(spec_error)
-            any_error = True
-            continue
-
-        for step_status in statuses:
-            line = f"  {step_status.step_name}: {step_status.state}"
-            if step_status.detail:
-                line += f" — {step_status.detail}"
-            print(line)
-
-    return 1 if any_error else 0
-
-
-def _print_polygon_outcomes(outcomes) -> None:
-    for outcome in outcomes:
-        line = f"  {outcome.step_name}: {outcome.status}"
-        if outcome.detail:
-            line += f" — {outcome.detail}"
-        print(line)
-
-
-def _shorten_error(detail: str) -> str:
-    """Первая строка текста ошибки, не длиннее `_CONSOLE_ERROR_MAX_LEN`."""
-    first_line = detail.strip().splitlines()[0] if detail.strip() else ""
-    if len(first_line) > _CONSOLE_ERROR_MAX_LEN:
-        return first_line[: _CONSOLE_ERROR_MAX_LEN - 1] + "…"
-    return first_line
-
-
-def _print_polygon_outcome(outcome, log_path: Path) -> None:
-    """Печатает итог одного polygon-шага сразу по его завершении (`flush` —
-    чтобы прогресс был виден и при выводе в pipe/файл). Ошибка — коротко,
-    со ссылкой на `polygon.log`, где лежит полный текст."""
-    line = f"  {outcome.step_name}: {outcome.status}"
-    if outcome.status == POLYGON_OUTCOME_ERROR:
-        line += f" — {_shorten_error(outcome.detail)} (details: {log_path})"
-    elif outcome.detail:
-        line += f" — {outcome.detail}"
-    print(line, flush=True)
-
-
-def _cmd_polygon_push(args: argparse.Namespace) -> int:
-    logger = _configure_console_logging(warnings_only=True)
-    log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
-
-    with _problem_log_handler(
-        logger, args.outputs_dir, args.problem_id, POLYGON_LOG, args.command_line
-    ):
-        result = run_polygon_pipeline(
-            args.problem_id,
-            only_step=args.step,
-            specs_dir=args.specs_dir,
-            outputs_dir=args.outputs_dir,
-            on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
-        )
-    if result.spec_error is not None:
-        print(result.spec_error, file=sys.stderr)
-        return 1
-    return 0 if result.ok else 1
-
-
-def _cmd_polygon_status(args: argparse.Namespace) -> int:
-    _print_polygon_outcomes(
-        compute_polygon_step_statuses(args.problem_id, outputs_dir=args.outputs_dir)
-    )
-    return 0
-
-
-def _cmd_polygon_pull(args: argparse.Namespace) -> int:
-    """Привязка к существующей на Polygon задаче и выгрузка недостающих
-    локально файлов (см. `orchestrator/polygon/pull.py`). Спек не нужен.
-    Лог — в тот же `polygon.log`, что и у `polygon push`."""
-    logger = _configure_console_logging(warnings_only=True)
-    log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
-
-    def print_item(item) -> None:
-        line = f"  {item.name}: {item.status}"
-        if item.status == PULL_ITEM_ERROR:
-            line += f" — {_shorten_error(item.detail)} (details: {log_path})"
-        elif item.detail:
-            line += f" — {item.detail}"
-        print(line, flush=True)
-
-    with _problem_log_handler(
-        logger, args.outputs_dir, args.problem_id, POLYGON_LOG, args.command_line
-    ):
-        try:
-            result = pull_problem(
-                args.problem_id,
-                polygon_id=args.polygon_id,
-                outputs_dir=args.outputs_dir,
-                on_item=print_item,
-            )
-        except (PolygonApiError, PolygonStepError) as exc:
-            logger.error("[pull] %s", exc)
-            print(f"{_shorten_error(str(exc))} (details: {log_path})", file=sys.stderr)
-            return 1
-    print(f"  {result.link_detail}")
-    return 0 if result.ok else 1
+def _complete_spec_and_output_ids(
+    prefix: str, parsed_args: argparse.Namespace, **kwargs
+) -> list[str]:
+    """То же для команд, работающих и без спека (`polygon status|pull`):
+    задача может существовать только как каталог в `outputs/`."""
+    return sorted(_spec_ids(parsed_args) | _output_ids(parsed_args))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -427,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_group = generate_parser.add_mutually_exclusive_group(required=True)
     generate_group.add_argument(
         "problem_id", nargs="?", help="problem_id (matches specs/<problem_id>.yaml)"
-    )
+    ).completer = _complete_spec_ids
     generate_group.add_argument("--all", action="store_true", help="run all specs/*.yaml")
     generate_parser.add_argument(
         "--step",
@@ -438,7 +105,7 @@ def build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument(
         "--force", action="store_true", help="ignore the cache and call the model again"
     )
-    generate_parser.set_defaults(func=_cmd_llm_generate)
+    generate_parser.set_defaults(handler="cmd_llm_generate")
 
     llm_status_parser = llm_commands.add_parser(
         "status", help="table step -> cache hit / stale / not run / uncertain, without calling the model"
@@ -448,8 +115,8 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         default=None,
         help="limit to one problem_id (default: all specs/*.yaml)",
-    )
-    llm_status_parser.set_defaults(func=_cmd_llm_status)
+    ).completer = _complete_spec_ids
+    llm_status_parser.set_defaults(handler="cmd_llm_status")
 
     polygon_parser = pipelines.add_parser(
         "polygon", help="upload the problem to Polygon / download it (API polygon.codeforces.com)"
@@ -461,46 +128,74 @@ def build_parser() -> argparse.ArgumentParser:
     polygon_push_parser = polygon_commands.add_parser(
         "push", help="upload to Polygon: run polygon steps in order (no cache — steps are invoked every time)"
     )
-    polygon_push_parser.add_argument("problem_id", help=problem_id_help)
+    polygon_push_parser.add_argument(
+        "problem_id", help=problem_id_help
+    ).completer = _complete_spec_ids
     polygon_push_parser.add_argument(
         "--step", choices=POLYGON_STEP_ORDER, default=None, help="run only one polygon step"
     )
-    polygon_push_parser.set_defaults(func=_cmd_polygon_push)
+    polygon_push_parser.set_defaults(handler="cmd_polygon_push")
 
     polygon_status_parser = polygon_commands.add_parser(
         "status", help="which polygon steps are already done, without network access"
     )
-    polygon_status_parser.add_argument("problem_id", help=problem_id_help)
-    polygon_status_parser.set_defaults(func=_cmd_polygon_status)
+    polygon_status_parser.add_argument(
+        "problem_id", help=problem_id_help
+    ).completer = _complete_spec_and_output_ids
+    polygon_status_parser.set_defaults(handler="cmd_polygon_status")
 
     polygon_pull_parser = polygon_commands.add_parser(
         "pull",
         help="link to an existing Polygon problem and download the parts missing locally "
         "(existing local files are never overwritten; no spec needed)",
     )
-    polygon_pull_parser.add_argument("problem_id", help=problem_id_help)
+    polygon_pull_parser.add_argument(
+        "problem_id", help=problem_id_help
+    ).completer = _complete_spec_and_output_ids
     polygon_pull_parser.add_argument(
         "--polygon-id",
         type=int,
         default=None,
         help="numeric Polygon problem id (default: search Polygon by problem_id as the name)",
     )
-    polygon_pull_parser.set_defaults(func=_cmd_polygon_pull)
+    polygon_pull_parser.set_defaults(handler="cmd_polygon_pull")
 
     return parser
 
 
+def _autocomplete(parser: argparse.ArgumentParser) -> None:
+    """В режиме Tab-дополнения (shell выставляет `_ARGCOMPLETE`) печатает
+    кандидатов и завершает процесс; при обычном запуске ничего не делает.
+
+    Без установленного `argcomplete` CLI работает как раньше, просто без
+    дополнения — на случай окружения, где зависимости не переустановили
+    после обновления кода.
+    """
+    if "_ARGCOMPLETE" not in os.environ:
+        return
+    try:
+        import argcomplete
+    except ImportError:
+        return
+    # Опции — только когда набран "-": иначе Tab на месте problem_id
+    # показывал бы флаги вперемешку с именами задач.
+    argcomplete.autocomplete(parser, always_complete_options=False)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
+    _autocomplete(parser)
     if argv is None:
         argv = sys.argv[1:]
     args = parser.parse_args(argv)
     args.command_line = " ".join(argv)
 
-    if args.func is _cmd_llm_generate and args.all and args.step is not None:
+    if args.handler == "cmd_llm_generate" and args.all and args.step is not None:
         parser.error("--step is incompatible with --all")
 
-    return args.func(args)
+    from orchestrator import cli_commands
+
+    return getattr(cli_commands, args.handler)(args)
 
 
 if __name__ == "__main__":

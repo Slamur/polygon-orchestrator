@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from orchestrator import cli
+from orchestrator import cli, cli_commands
 from orchestrator.polygon import pipeline as polygon_pipeline
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pipeline import (
@@ -679,7 +679,7 @@ def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(
     out = capsys.readouterr().out
     assert "create_problem: error — Polygon API problems.list: compilation failed" in out
     assert "error line 1" not in out
-    log_path = outputs_dir / PROBLEM_ID / cli.POLYGON_LOG
+    log_path = outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG
     assert str(log_path) in out
     log = log_path.read_text(encoding="utf-8")
     assert "error line 49" in log
@@ -699,7 +699,7 @@ def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(
     captured = capsys.readouterr()
     assert "create_problem: error — RuntimeError: POLYGON_API_KEY is not set" in captured.out
     assert "Traceback" not in captured.out + captured.err
-    log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
+    log = (outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
     assert "Traceback" in log
 
 
@@ -714,9 +714,9 @@ def test_cli_polygon_run_writes_step_progress_to_log(specs_dir, outputs_dir, cap
             + ["polygon", "push", PROBLEM_ID, "--step", "create_problem"]
         )
 
-    log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
+    log = (outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
     assert "[create_problem] step started" in log
-    assert not (outputs_dir / PROBLEM_ID / cli.LLM_GENERATION_LOG).exists()
+    assert not (outputs_dir / PROBLEM_ID / cli_commands.LLM_GENERATION_LOG).exists()
 
 
 def test_cli_polygon_run_appends_to_log_with_run_header(specs_dir, outputs_dir, capsys):
@@ -729,7 +729,7 @@ def test_cli_polygon_run_appends_to_log_with_run_header(specs_dir, outputs_dir, 
         cli.main(argv)
         cli.main(argv)
 
-    log = (outputs_dir / PROBLEM_ID / cli.POLYGON_LOG).read_text(encoding="utf-8")
+    log = (outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
     header = f"===== run started: orchestrator {' '.join(argv)} ====="
     assert log.count(header) == 2
     assert log.count("[create_problem] step started") == 2
