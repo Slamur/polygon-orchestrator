@@ -120,7 +120,7 @@ def _read_custom_checker(problem_id: str, outputs_dir: Path) -> bytes:
         raise PolygonStepError(
             f"'{problem_id}': checker.custom_needed=true, but "
             f"{checker_path} not found — first run the generative step checker_draft "
-            f"(orchestrator run {problem_id} --step checker_draft)"
+            f"(orchestrator llm generate {problem_id} --step checker_draft)"
         )
     return checker_path.read_bytes()
 

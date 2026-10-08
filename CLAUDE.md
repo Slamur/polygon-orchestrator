@@ -97,7 +97,7 @@ Python-оркестратор, который берёт структуриро�
 │       ├── system.md
 │       └── user.md.j2
 ├── orchestrator/
-│   ├── cli.py                     # входная точка: run / status (см. "Пакетный запуск")
+│   ├── cli.py                     # входная точка: llm generate|status, polygon push|status|pull (см. "Пакетный запуск")
 │   ├── spec.py                    # парсинг и валидация specs/*.yaml против SPEC_FORMAT.md
 │   ├── steps/
 │   │   ├── statement_draft.py
@@ -133,8 +133,8 @@ Python-оркестратор, который берёт структуриро�
         │   ├── generators_and_script.json
         │   ├── solutions_draft.json
         │   └── checker_draft.json
-        ├── llm_generation.log      # лог `orchestrator run` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
-        ├── polygon.log             # лог `orchestrator polygon <id> run` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
+        ├── llm_generation.log      # лог `orchestrator llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
+        ├── polygon.log             # лог `orchestrator polygon push <id>` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + что каждый polygon-шаг последним отправил (steps); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
@@ -229,30 +229,30 @@ Python-оркестратор, который берёт структуриро�
 что готовить параллельно много задач — базовый режим работы, а не
 доработка. То, что должно обеспечить CLI (`orchestrator/cli.py`):
 
-- `orchestrator run <problem_id> [--step NAME] [--force]` — прогон одной
+- `orchestrator llm generate <problem_id> [--step NAME] [--force]` — прогон одной
   задачи (всех шагов или одного конкретного). `--force` игнорирует кэш и
   вызывает модель заново.
-- `orchestrator run --all [--force]` — сканирует `specs/*.yaml` и прогоняет
+- `orchestrator llm generate --all [--force]` — сканирует `specs/*.yaml` и прогоняет
   каждую задачу; для каждой из них шаги, для которых кэш валиден,
   пропускаются автоматически (см. ниже), поэтому `--all` безопасно гонять
   часто, не боясь пережечь бюджет на уже готовые задачи.
-- `orchestrator status [--problem <id>]` — без вызовов модели: по каждому
+- `orchestrator llm status [<problem_id>]` — без вызовов модели: по каждому
   `problem_id` (или по одному, если указан) печатает таблицу "шаг → cache
-  hit / stale / not run", используя те же хеши, что и `run`. Полезно, чтобы
+  hit / stale / not run", используя те же хеши, что и `llm generate`. Полезно, чтобы
   до реального запуска увидеть, что вообще изменилось после правки спеков.
-- `orchestrator polygon <problem_id> run [--step NAME]` — прогон
+- `orchestrator polygon push <problem_id> [--step NAME]` — прогон
   polygon-шагов по порядку `POLYGON_STEP_ORDER`, без кэша (каждый шаг
   вызывается всегда, идемпотентность — через `check_done` самого шага),
   поэтому `--force` там нет. Реально обращается к Polygon API — те же
-  ограничения на запуск без явной команды, что и для `run`.
-- `orchestrator polygon <problem_id> status` — что из polygon-шагов уже
+  ограничения на запуск без явной команды, что и для `llm generate`.
+- `orchestrator polygon status <problem_id>` — что из polygon-шагов уже
   сделано, без обращения к сети: `done / stale / not run` по
   `PolygonStep.compute_status` (сравнение того, что шаг последним отправил в
-  Polygon, с тем, что он отправил бы сейчас из локальных файлов). На `run`
+  Polygon, с тем, что он отправил бы сейчас из локальных файлов). На `polygon push`
   это не влияет — ручные правки в UI Polygon локально не видны, поэтому
   шаги по этой записи не пропускаются.
 
-- `orchestrator polygon <problem_id> pull [--polygon-id N]` — обратное
+- `orchestrator polygon pull <problem_id> [--polygon-id N]` — обратное
   направление: привязывает `problem_id` к уже существующей на Polygon
   задаче (по `polygon_state.json`, иначе поиском неудалённой задачи с
   именем `problem_id`; `--polygon-id` дополнительно сужает поиск, если задач
@@ -510,14 +510,14 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 ## Ручные прогоны с реальным API — запрещены без явной команды
 
-`orchestrator run <problem_id>` (с `--step`, `--force` или без) вызывает
+`orchestrator llm generate <problem_id>` (с `--step`, `--force` или без) вызывает
 реальный Anthropic API через `AnthropicClient.generate` и стоит денег
 каждый раз. Это не "проверка кода" в обычном смысле — здесь любая проверка
 = потраченные токены.
 
 СТРОГО ЗАПРЕЩЕНО Claude Code самостоятельно, без явной команды пользователя
 в текущем сообщении, запускать:
-- `orchestrator run ...` на любом `problem_id` (реальном или синтетическом);
+- `orchestrator llm generate ...` на любом `problem_id` (реальном или синтетическом);
 - любой другой код, который инстанцирует `AnthropicClient` и реально
   доходит до `client.messages.create` — включая "быстро проверить одним
   шагом", "smoke test", "прогоним и посмотрим, что вернётся".
@@ -527,7 +527,7 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 неуместна: стоимость реального вызова не оправдывает прогон без спроса.
 
 Разрешено без спроса (сетевых вызовов к Anthropic не делает):
-- `orchestrator status` — читает только кэш и файлы, в сеть не ходит;
+- `orchestrator llm status` — читает только кэш и файлы, в сеть не ходит;
 - `pytest` (integration-тесты по умолчанию выключены `-m 'not integration'`
   — не трогать `pyproject.toml`, чтобы это не включить случайно);
 - компиляция и статический анализ сгенерированных C++-файлов;

@@ -166,7 +166,7 @@ def _read_solutions(problem_id: str, outputs_dir: Path) -> list[tuple[str, bytes
     if not solutions_dir.is_dir():
         raise PolygonStepError(
             f"'{problem_id}': directory {solutions_dir} not found — first "
-            f"run the generative step solutions_draft (orchestrator run "
+            f"run the generative step solutions_draft (orchestrator llm generate "
             f"{problem_id} --step solutions_draft)"
         )
     paths = sorted((p for p in solutions_dir.iterdir() if p.is_file()), key=lambda p: p.name)

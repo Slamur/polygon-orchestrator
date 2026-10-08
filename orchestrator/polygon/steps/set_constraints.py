@@ -34,7 +34,7 @@ _MEMORY_KEY = "memory_limit_mb"
 def _check_done(ctx: StepContext) -> str | None:
     """Шаг выполняется при каждом запуске: `problem.updateInfo` идемпотентен,
     а локальная запись в `polygon_state.json` не знает о ручных правках в
-    UI Polygon — пропускать по ней вызов нельзя (у `polygon run` нет
+    UI Polygon — пропускать по ней вызов нельзя (у `polygon push` нет
     `--force`, чтобы это обойти)."""
     return None
 
@@ -106,7 +106,7 @@ def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) ->
     if not constraints_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {constraints_path} not found — first run "
-            f"the generative step constraints_pick (orchestrator run {problem_id} "
+            f"the generative step constraints_pick (orchestrator llm generate {problem_id} "
             "--step constraints_pick)"
         )
 

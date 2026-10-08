@@ -206,7 +206,7 @@ def _commit_changes(
 def compute_polygon_step_statuses(
     problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR
 ) -> list[PolygonStepOutcome]:
-    """Состояние polygon-шагов для `orchestrator polygon <id> status`, без сети:
+    """Состояние polygon-шагов для `orchestrator polygon status <id>`, без сети:
     по `compute_status` каждого шага, в порядке `POLYGON_STEP_ORDER`.
 
     Состояние — только по локальным данным (`polygon_state.json` и входные
