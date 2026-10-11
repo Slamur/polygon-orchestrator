@@ -24,7 +24,7 @@ int main(int argc, char * argv[])
     vi a = inf.readInts(n);
 
     auto read_answer = [&](InStream & stream) {
-        std::string has_ans = stream.readLine("YES|NO", "yes_no");
+        std::string has_ans = stream.readToken("YES|NO", "yes_no");
         if ("NO" == has_ans) {
             return n + 1;
         }

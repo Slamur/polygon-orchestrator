@@ -3,6 +3,9 @@
 int main(int argc, char **argv) {
 	registerGen(argc, argv, 1);
 
+	const ll minK = opt<ll>("minK");
+	const ll maxK = opt<ll>("maxK");
+
 	const int delta = opt<int>("delta");
 
 	int n = ri();
@@ -15,6 +18,8 @@ int main(int argc, char **argv) {
 		}
 
 		ll k = rnd.any(prefs) + delta;
+		k = std::max(k, minK);
+		k = std::min(k, maxK);
 		
 		println(n, k);
 		println(a);

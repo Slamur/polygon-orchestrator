@@ -44,7 +44,7 @@
 
 <#assign desc = "Constraints"/>
 <#assign minN = 1/>
-<#assing maxN = 2 * pow(10, 5)/>
+<#assign maxN = 2 * pow(10, 5)/>
 <#assign minK = 0/>
 <#assign maxK = 1 * pow(10, 15)/>
 <#assign minA = 0/>
@@ -76,7 +76,7 @@ ${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${min
     ${array_rand} -n=${maxN} -minA=${startA} -maxA=${maxA} | ${k_large} -maxK=${maxK} > $
 
     <#list -1..1 as delta>
-        ${array_rand} -n=${maxN} -minA=${startA} -maxA=${maxA} | ${k_pref} -delta=${delta} > $
+        ${array_rand} -n=${maxN} -minA=${startA} -maxA=${maxA} | ${k_pref} -minK=${minK} -maxK=${maxK} -delta=${delta} > $
     </#list>
 </#list>
 

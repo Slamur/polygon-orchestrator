@@ -2,9 +2,10 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.io.PrintWriter;
+import java.util.StringTokenizer;
 
 public class Solution {
-    void yesNo(PrintWriter out, boolean yes, String yesStr, String noStr) {
+    boolean yesNo(PrintWriter out, boolean yes, String yesStr, String noStr) {
         out.println(yes ? yesStr : noStr);
         return yes;
     }
@@ -32,12 +33,12 @@ public class Solution {
         }
 
         int ans = getAns(n, k, a);
-        if (yesNo(out, ans >= 0)) {
+        if (yesNo(out, ans >= 0, "YES", "NO")) {
             out.println(ans + 1);
         }
     }
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         FastInput in = new FastInput(new InputStreamReader(System.in));
         PrintWriter out = new PrintWriter(System.out);
 
@@ -55,9 +56,17 @@ public class Solution {
             this.tok = new StringTokenizer("");
         }
 
+        String readLine() {
+            try {
+                return in.readLine();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         String readToken() {
             while (!tok.hasMoreTokens()) {
-                String nextLine = in.readLine();
+                String nextLine = readLine();
                 tok = new StringTokenizer(nextLine);
             }
 

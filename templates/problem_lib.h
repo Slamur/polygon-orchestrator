@@ -117,7 +117,7 @@ int string_to_int(const std::string& text, const std::string& name) {
     ss >> result;
  
     ensuref(
-        ss.fail() || !ss.eof(),
+        !ss.fail() && ss.eof(),
         "Expected int variable %s, but found '%s'",
         name.c_str(), text.c_str()
     );

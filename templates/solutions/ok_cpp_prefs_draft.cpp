@@ -2,7 +2,7 @@
 
 using ll = int64_t;
 
-bool yes_no(bool yes, const std::string& yes_str = "YES", const std::string no_str = "NO") {
+bool yes_no(bool yes, const std::string& yes_str = "YES", const std::string& no_str = "NO") {
     std::cout << (yes ? yes_str : no_str) << "\n";
     return yes;
 }
