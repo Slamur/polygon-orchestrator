@@ -33,7 +33,7 @@ void solve() {
 
     auto ans = get_ans();
     if (yes_no(ans >= 0)) {
-        std::cout << ans << "\n";
+        std::cout << ans + 1 << "\n";
     }
 }
 

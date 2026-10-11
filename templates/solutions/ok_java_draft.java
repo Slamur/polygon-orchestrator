@@ -33,7 +33,7 @@ public class Solution {
 
         int ans = getAns(n, k, a);
         if (yesNo(out, ans >= 0)) {
-            out.println(ans);
+            out.println(ans + 1);
         }
     }
 

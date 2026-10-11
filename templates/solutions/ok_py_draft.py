@@ -26,7 +26,7 @@ def solve():
     n, k = read_ints()
     a = list(read_ints())
 
-    def get_ans():
+    def get_ans() -> int:
         prefs = [0] * (n + 1)
         for i, v in enumerate(a):
             prefs[i + 1] = prefs[i] + v
@@ -35,11 +35,11 @@ def solve():
             if prefs[i + 1] > k:
                 return i
 
-        return None
+        return -1
 
     ans = get_ans()
-    if yes_no(ans is not None):
-        print(ans)
+    if yes_no(ans >= 0):
+        print(ans + 1)
 
 
 if __name__ == '__main__':
