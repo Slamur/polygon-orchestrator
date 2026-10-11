@@ -93,6 +93,7 @@ def test_compute_prompt_hash_changes_when_context_document_changes(tmp_path):
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
     _write_context_doc(templates_dir, "tutorials/requirements.md", "req v1")
     _write_context_doc(templates_dir, "validator.cpp", "validator v1")
+    _write_context_doc(templates_dir, "example_spec.yaml", "example spec v1")
     _write_context_doc(templates_dir, "problem_lib.h", "lib v1")
 
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
@@ -109,6 +110,7 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
     _write_context_doc(templates_dir, "tutorials/requirements.md", "req v1")
     _write_context_doc(templates_dir, "validator.cpp", "validator v1")
+    _write_context_doc(templates_dir, "example_spec.yaml", "example spec v1")
     _write_context_doc(templates_dir, "problem_lib.h", "lib v1")
     _write_context_doc(templates_dir, "tutorials/polygon.md", "polygon v1")
 
@@ -126,7 +128,7 @@ def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "generators_and_script", "rule v1", "user v1")
-    for rel_path in ["tutorials/requirements.md", "tutorials/freemarker.md", "problem_lib.h", "generators/gen_rand.cpp", "test_script"]:
+    for rel_path in ["tutorials/requirements.md", "tutorials/freemarker.md", "example_spec.yaml", "problem_lib.h", "generators/gen_rand.cpp", "test_script"]:
         _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
     extra_file = tmp_path / "extra_gen.cpp"
     extra_file.write_text("extra v1", encoding="utf-8")

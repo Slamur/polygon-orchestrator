@@ -49,6 +49,10 @@ TEMPLATES_DIR = Path("templates")
 # Запись с `*` — glob-шаблон относительно templates_dir: прикладываются все
 # подходящие файлы (в отсортированном порядке), так что новый пример,
 # положенный в каталог, подхватывается без правки этого списка. Шаблоны
+# `example_spec.yaml` — спек учебной задачи, для которой написаны все
+# шаблоны-образцы: вместе с ними он даёт модели пару "спек -> ожидаемый
+# результат". Прикладывается ко всем шагам, у которых есть шаблон-образец
+# результата (у `statement_draft` такого шаблона нет). Шаблоны
 # решений (`solutions/*`) здесь не перечислены — они зависят от
 # `solutions.languages` конкретного спека, см.
 # `solutions_draft.extra_context_documents`.
@@ -59,12 +63,14 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     ],
     "constraints_pick": [
         "tutorials/requirements.md",
+        "example_spec.yaml",
         "validator.cpp",
         "problem_lib.h",
     ],
     "generators_and_script": [
         "tutorials/requirements.md",
         "tutorials/freemarker.md",
+        "example_spec.yaml",
         "problem_lib.h",
         "generators/*.cpp",
         "test_script",
@@ -72,9 +78,11 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "solutions_draft": [
         "tutorials/requirements.md",
         "tutorials/polygon.md",
+        "example_spec.yaml",
     ],
     "checker_draft": [
         "tutorials/requirements.md",
+        "example_spec.yaml",
         "checker.cpp",
         "problem_lib.h",
     ],
