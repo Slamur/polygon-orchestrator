@@ -10,6 +10,7 @@ int main(int argc, char **argv) {
 
 	auto gen_test = [&]() {
 		vi a = rnd.distinct(n, minA, maxA);
+		shuffle(a.begin(), a.end()); // from testlib.h
 
 		println(n);
 		println(a);
