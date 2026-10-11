@@ -126,7 +126,7 @@ def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "generators_and_script", "rule v1", "user v1")
-    for rel_path in ["tutorials/requirements.md", "tutorials/freemarker.md", "problem_lib.h", "gen_rand.cpp", "test_script"]:
+    for rel_path in ["tutorials/requirements.md", "tutorials/freemarker.md", "problem_lib.h", "generators/gen_rand.cpp", "test_script"]:
         _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
     extra_file = tmp_path / "extra_gen.cpp"
     extra_file.write_text("extra v1", encoding="utf-8")

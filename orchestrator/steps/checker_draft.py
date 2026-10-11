@@ -55,7 +55,9 @@ def primary_artifact_path(
     return Path(outputs_dir) / problem_id / "checker.cpp"
 
 
-def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
+def extra_context_documents(
+    spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
+) -> Optional[list[str]]:
     """См. `constraints_pick.extra_context_documents` — у `checker_draft`
     тоже нет документов контекста, специфичных для конкретного вызова.
     """

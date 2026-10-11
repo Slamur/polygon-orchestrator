@@ -60,7 +60,7 @@ generation:
     - "N = N_max, значения максимальные"
   reuse_existing_generators: true
   base_template_refs:
-    - "templates/gen_rand.cpp"
+    - "templates/validator.cpp"
   script_style: "groups"
 
 solutions:

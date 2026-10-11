@@ -72,7 +72,7 @@ def compute_prompt_hash(
     (`orchestrator.steps.base.STEP_CONTEXT_DOCUMENTS[step_name]` +
     `extra_context_documents`, см. `orchestrator.steps.base.
     load_context_documents`) — иначе правка requirements.md/problem_lib.h/
-    gen_rand.cpp и т.п. не инвалидирует кэш шагов, которые от них зависят.
+    generators/*.cpp и т.п. не инвалидирует кэш шагов, которые от них зависят.
     Это наш собственный результат-кэш (`outputs/<id>/.cache/<step>.json`),
     не связан с Anthropic prompt caching.
     """

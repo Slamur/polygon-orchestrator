@@ -48,7 +48,9 @@ def primary_artifact_path(
     return Path(outputs_dir) / problem_id / "constraints.yaml"
 
 
-def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
+def extra_context_documents(
+    spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
+) -> Optional[list[str]]:
     """См. `statement_draft.extra_context_documents` — у `constraints_pick`
     тоже нет документов контекста, специфичных для конкретного вызова.
     """

@@ -28,6 +28,13 @@ STEP_NAME = "solutions_draft"
 # {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["known_wrong_approaches"]
 
+# Каталог шаблонов решений внутри templates_dir, см. `extra_context_documents`.
+SOLUTION_TEMPLATES_SUBDIR = "solutions"
+
+# `solutions.languages` — свободные строки; приводим распространённые
+# варианты записи к тому, как язык назван в именах файлов шаблонов.
+_LANGUAGE_ALIASES = {"c++": "cpp", "python": "py", "python3": "py"}
+
 
 def _require_solutions_section(problem_id: str, spec: ProblemSpec) -> None:
     if spec.solutions is None:
@@ -66,11 +73,37 @@ def primary_artifact_path(
     return Path(outputs_dir) / problem_id / "solutions"
 
 
-def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
-    """См. `statement_draft.extra_context_documents` — у `solutions_draft`
-    тоже нет документов контекста, специфичных для конкретного вызова.
+def extra_context_documents(
+    spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
+) -> Optional[list[str]]:
+    """Шаблоны решений из `templates/solutions/` на языках, заказанных в
+    `solutions.languages`, — образец структуры решения и ввода/вывода для
+    каждого языка (см. `prompts/solutions_draft/system.md`). Язык шаблона —
+    второй компонент имени файла по схеме `<verdict>_<language>_...`
+    (`ok_cpp_prefs_draft.cpp` -> `cpp`); шаблоны на незаказанных языках не
+    прикладываются, чтобы не тянуть в контекст чужой стиль ввода/вывода.
+
+    В отличие от фиксированного `STEP_CONTEXT_DOCUMENTS`, набор зависит от
+    спека, поэтому идёт через `extra_context_documents` (и, как и они, входит
+    в `compute_prompt_hash`). Если секции `solutions` нет или для заказанных
+    языков шаблонов нет — `None`: шаг работает без примеров, как и раньше.
     """
-    return None
+    if spec.solutions is None:
+        return None
+
+    languages = {_LANGUAGE_ALIASES.get(lang.lower(), lang.lower()) for lang in spec.solutions.languages}
+    solutions_dir = Path(templates_dir) / SOLUTION_TEMPLATES_SUBDIR
+    paths = sorted(
+        str(path)
+        for path in solutions_dir.glob("*")
+        if path.is_file() and _template_language(path) in languages
+    )
+    return paths or None
+
+
+def _template_language(path: Path) -> Optional[str]:
+    parts = path.stem.split("_")
+    return parts[1] if len(parts) >= 2 else None
 
 
 def run_step(
@@ -133,4 +166,5 @@ def run_step(
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
     )
