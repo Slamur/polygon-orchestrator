@@ -3,8 +3,8 @@
 int main(int argc, char **argv) {
 	registerGen(argc, argv, 1);
 
-	ll minK = opt<int>("minK");
-	ll maxK = opt<int>("maxK");
+	ll minK = opt<ll>("minK");
+	ll maxK = opt<ll>("maxK");
 
 	int n = ri();
 	vi a = rv<int>(n);
