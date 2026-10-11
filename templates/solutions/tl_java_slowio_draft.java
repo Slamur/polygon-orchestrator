@@ -3,7 +3,7 @@ import java.io.PrintStream;
 import java.util.Scanner;
 
 public class Solution {
-    void yesNo(PrintStream out, boolean yes, String yesStr, String noStr) {
+    boolean yesNo(PrintStream out, boolean yes, String yesStr, String noStr) {
         out.println(yes ? yesStr : noStr);
         return yes;
     }
