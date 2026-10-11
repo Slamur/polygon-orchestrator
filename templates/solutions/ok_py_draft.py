@@ -1,3 +1,6 @@
+from collections.abc import Iterator
+
+
 def read_line() -> str:
     return input()
 
@@ -10,7 +13,7 @@ def read_tokens() -> list[str]:
     return input().split()
 
 
-def read_ints() -> map[int]:
+def read_ints() -> Iterator[int]:
     return map(int, read_tokens())
 
 
