@@ -42,9 +42,30 @@ def test_run_step_passes_base_template_refs_as_extra_context_documents(spec, tmp
             templates_dir=TEMPLATES_DIR,
         )
 
+    # Ссылки внутри templates/ прикладываются под путём относительно
+    # templates_dir — так же, как документы фиксированного списка.
     context_documents = mock_call.call_args.kwargs["context_documents"]
     for ref in spec.generation.base_template_refs:
-        assert ref in context_documents
+        assert Path(ref).relative_to("templates").as_posix() in context_documents
+
+
+def test_run_step_attaches_every_generator_template(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "ok"}, notes=[])
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    context_documents = mock_call.call_args.kwargs["context_documents"]
+    expected = sorted(f"generators/{p.name}" for p in (TEMPLATES_DIR / "generators").glob("*.cpp"))
+    assert expected
+    assert [d for d in context_documents if d.startswith("generators/")] == expected
 
 
 def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):

@@ -40,11 +40,25 @@ TEMPLATES_DIR = Path("templates")
 
 # Обязательные документы контекста на шаг (пути относительно templates_dir),
 # см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
-# это правила, а не справочный материал, а problem_lib.h/gen_rand.cpp/
+# это правила, а не справочный материал, а problem_lib.h/generators/*.cpp/
 # test_script — основа, которую нужно расширять. Промпты (prompts/<step>/
-# system.md) сейчас лишь ссылаются на эти файлы по имени — здесь их
-# содержимое реально прикладывается к вызову модели (см. `call_model`
-# в `model_router.py` и `LLMClient.generate`), а не пересказывается.
+# system.md) лишь ссылаются на эти файлы по имени — здесь их содержимое
+# реально прикладывается к вызову модели (см. `call_model` в
+# `model_router.py` и `LLMClient.generate`), а не пересказывается.
+#
+# Запись с `*` — glob-шаблон относительно templates_dir: прикладываются все
+# подходящие файлы (в отсортированном порядке), так что новый пример,
+# положенный в каталог, подхватывается без правки этого списка. Шаблоны
+# `example_spec.yaml` — спек учебной задачи, для которой написаны все
+# шаблоны-образцы: вместе с ними он даёт модели пару "спек -> ожидаемый
+# результат". Прикладывается ко всем шагам, у которых есть шаблон-образец
+# результата (у `statement_draft` такого шаблона нет). `constraints.yaml` —
+# образец результата `constraints_pick` для того же учебного спека; шагу
+# `generators_and_script` он нужен как образец его входа (по нему написан
+# `test_script`). Шаблоны
+# решений (`solutions/*`) здесь не перечислены — они зависят от
+# `solutions.languages` конкретного спека, см.
+# `solutions_draft.extra_context_documents`.
 STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [
         "tutorials/requirements.md",
@@ -52,22 +66,28 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     ],
     "constraints_pick": [
         "tutorials/requirements.md",
+        "example_spec.yaml",
+        "constraints.yaml",
         "validator.cpp",
         "problem_lib.h",
     ],
     "generators_and_script": [
         "tutorials/requirements.md",
         "tutorials/freemarker.md",
+        "example_spec.yaml",
+        "constraints.yaml",
         "problem_lib.h",
-        "gen_rand.cpp",
+        "generators/*.cpp",
         "test_script",
     ],
     "solutions_draft": [
         "tutorials/requirements.md",
         "tutorials/polygon.md",
+        "example_spec.yaml",
     ],
     "checker_draft": [
         "tutorials/requirements.md",
+        "example_spec.yaml",
         "checker.cpp",
         "problem_lib.h",
     ],
@@ -161,6 +181,50 @@ def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> st
     return (Path(prompts_dir) / step_name / "system.md").read_text(encoding="utf-8")
 
 
+def _expand_context_entry(step_name: str, entry: str, templates_dir: Path) -> list[str]:
+    """Раскрывает запись `STEP_CONTEXT_DOCUMENTS` в список путей относительно
+    `templates_dir`: обычный путь — как есть, glob-запись (с `*`) — во все
+    подходящие файлы в отсортированном порядке (порядок входит в
+    `compute_prompt_hash`, поэтому он должен быть детерминированным).
+    """
+    if "*" not in entry:
+        if not (templates_dir / entry).exists():
+            raise FileNotFoundError(
+                f"Step '{step_name}': context document '{entry}' from "
+                f"STEP_CONTEXT_DOCUMENTS not found at {templates_dir / entry}"
+            )
+        return [entry]
+
+    matches = sorted(
+        path.relative_to(templates_dir).as_posix()
+        for path in templates_dir.glob(entry)
+        if path.is_file()
+    )
+    if not matches:
+        raise FileNotFoundError(
+            f"Step '{step_name}': context document pattern '{entry}' from "
+            f"STEP_CONTEXT_DOCUMENTS matches no files in {templates_dir}"
+        )
+    return matches
+
+
+def _context_document_key(path: Path, templates_dir: Path) -> str:
+    """Имя, под которым документ из `extra_paths` прикладывается к вызову.
+
+    Файл внутри `templates_dir` получает тот же вид ключа, что и документы
+    фиксированного списка, — путь относительно `templates_dir`. Так он не
+    прикладывается второй раз, если уже есть в фиксированном списке
+    (например, `base_template_refs` со ссылкой на генератор из
+    `generators/*.cpp`), а ключ (он входит в `compute_prompt_hash`) не
+    зависит от того, как записан сам `templates_dir` — относительно или
+    абсолютно. Файл вне `templates_dir` остаётся под путём как он передан.
+    """
+    try:
+        return path.resolve().relative_to(templates_dir.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def load_context_documents(
     step_name: str,
     *,
@@ -170,34 +234,34 @@ def load_context_documents(
     """Читает документы контекста для шага `step_name`.
 
     Порядок: сначала фиксированный список `STEP_CONTEXT_DOCUMENTS[step_name]`
-    (пути относительно `templates_dir`), затем `extra_paths` — пути
+    (пути относительно `templates_dir`; glob-записи раскрываются в
+    отсортированный список файлов), затем `extra_paths` — пути
     относительно корня репозитория, специфичные для конкретного вызова шага
     (например, `generation.base_template_refs`, см. CLAUDE.md,
     "base_template_refs"), а не для всех вызовов шага вообще.
 
-    Отсутствующий файл — понятная ошибка ДО вызова модели, с указанием пути
-    и того, откуда он взят (фиксированный список или `extra_paths`) — не
-    падаем молча и не пропускаем документ.
+    Отсутствующий файл (или glob-запись без единого совпадения) — понятная
+    ошибка ДО вызова модели, с указанием пути и того, откуда он взят
+    (фиксированный список или `extra_paths`) — не падаем молча и не
+    пропускаем документ.
     """
     documents: dict[str, str] = {}
 
-    for rel_path in STEP_CONTEXT_DOCUMENTS.get(step_name, []):
-        path = Path(templates_dir) / rel_path
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Step '{step_name}': context document '{rel_path}' from "
-                f"STEP_CONTEXT_DOCUMENTS not found at {path}"
-            )
-        documents[rel_path] = path.read_text(encoding="utf-8")
+    for entry in STEP_CONTEXT_DOCUMENTS.get(step_name, []):
+        for rel_path in _expand_context_entry(step_name, entry, Path(templates_dir)):
+            documents[rel_path] = (Path(templates_dir) / rel_path).read_text(encoding="utf-8")
 
     for rel_path in extra_paths or []:
         path = Path(rel_path)
+        key = _context_document_key(path, Path(templates_dir))
+        if key in documents:
+            continue
         if not path.exists():
             raise FileNotFoundError(
                 f"Step '{step_name}': extra context document "
                 f"'{rel_path}' (extra_context_documents) not found at {path}"
             )
-        documents[rel_path] = path.read_text(encoding="utf-8")
+        documents[key] = path.read_text(encoding="utf-8")
 
     return documents
 
@@ -247,9 +311,9 @@ def run_generative_step(
 
     `extra_context_documents` — дополнительные пути (относительно корня
     репозитория), специфичные для конкретного вызова этого шага, а не для
-    всех его вызовов вообще (сейчас единственный пример —
-    `generators_and_script` с `generation.base_template_refs`, см.
-    `load_context_documents`). Вместе с фиксированным списком
+    всех его вызовов вообще (`generators_and_script` —
+    `generation.base_template_refs`, `solutions_draft` — шаблоны решений на
+    языках из `solutions.languages`, см. `load_context_documents`). Вместе с фиксированным списком
     `STEP_CONTEXT_DOCUMENTS[step_name]` они читаются и передаются модели как
     `context_documents`, а также входят в `compute_prompt_hash` — правка
     любого из этих документов должна инвалидировать кэш шага.

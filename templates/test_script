@@ -1,5 +1,11 @@
 <#assign desc = "Generators"/>
-<#assign rand = "gen_rand"/>
+<#assign array_rand = "gen_array_rand"/>
+<#assign array_distinct = "gen_array_distinct"/>
+<#assign k_rand = "gen_k_rand"/>
+<#assign k_large = "gen_k_too_large"/>
+<#assign k_pref = "gen_k_eq_pref"/>
+<#assign upd_sort = "upd_array_sort"/>
+
 <#assign desc = "Functions"/>
 <#function div a b>
     <#return (a / b)?long>
@@ -35,25 +41,43 @@
     </#list>
     <#return false/>
 </#function>
+
 <#assign desc = "Constraints"/>
 <#assign minN = 1/>
-<#assign maxNPow = 9/>
-<#assign maxN = pow(10, maxNPow)/>
-<#assign manualN = 20/>
-<#list minN..manualN as n>
-    ${rand} -minN=${n} -maxN=${n} > $
+<#assign maxN = 2 * pow(10, 5)/>
+<#assign minK = 0/>
+<#assign maxK = 1 * pow(10, 15)/>
+<#assign minA = 0/>
+<#assign maxA = 1 * pow(10, 9)/>
+
+<#assign desc = "Generation"/>
+<#assign smallN = 10/>
+<#assign smallA = pow(10, 2)/>
+
+<#list minN..smallN as n>
+    <#assign smallK = n * smallA/>
+
+    ${array_rand} -n=${n} -minA=${minA} -maxA=${smallA} | ${k_rand} -minK=${minK} -maxK=${smallK} > $
 </#list>
-<#list [minN, maxN] as leftN>
-    ${rand} -minN=${leftN} -maxN=${maxN} > $
+
+<#list minN..smallN as n>
+    ${array_rand} -n=${n} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} > $
 </#list>
-<#assign testCnt = 2/>
-<#assign minNPow = 1/>
-<#list minNPow..<maxNPow as nPow>
-    <#assign startN = max(manualN + 1, pow(10, nPow))/>
-    <#assign endN = pow(10, nPow + 1)/>
-    <#assign nStep = div(endN - startN, testCnt)/>
-    <#list 0..<testCnt as it>
-        <#assign leftN = startN + it * nStep/>
-        ${rand} -minN=${leftN} -maxN=${leftN + nStep} > $
+
+${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} > $
+${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} | ${upd_sort} > $
+${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} | ${upd_sort} --desc > $
+
+<#list [minA, maxA] as startA>
+    <#list [minK, maxK] as startK>
+        ${array_rand} -n=${maxN} -minA=${startA} -maxA=${maxA} | ${k_rand} -minK=${startK} -maxK=${maxK} > $
+    </#list>
+
+    ${array_rand} -n=${maxN} -minA=${startA} -maxA=${maxA} | ${k_large} -maxK=${maxK} > $
+
+    <#list -1..1 as delta>
+        ${array_rand} -n=${maxN} -minA=${startA} -maxA=${maxA} | ${k_pref} -minK=${minK} -maxK=${maxK} -delta=${delta} > $
     </#list>
 </#list>
+
+

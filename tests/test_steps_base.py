@@ -95,17 +95,54 @@ def test_load_context_documents_missing_fixed_document_raises(tmp_path):
 
 
 def test_load_context_documents_appends_extra_paths_after_fixed_list(tmp_path):
+    templates_dir = tmp_path / "templates"
     for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
-        _write_template_doc(tmp_path, rel_path, "fixed content")
+        _write_template_doc(templates_dir, rel_path, "fixed content")
     extra_file = tmp_path / "extra.cpp"
     extra_file.write_text("extra content", encoding="utf-8")
 
     documents = load_context_documents(
-        "constraints_pick", templates_dir=tmp_path, extra_paths=[str(extra_file)]
+        "constraints_pick", templates_dir=templates_dir, extra_paths=[str(extra_file)]
     )
 
     assert list(documents) == [*STEP_CONTEXT_DOCUMENTS["constraints_pick"], str(extra_file)]
     assert documents[str(extra_file)] == "extra content"
+
+
+def test_load_context_documents_expands_glob_entries_sorted(tmp_path, monkeypatch):
+    monkeypatch.setitem(STEP_CONTEXT_DOCUMENTS, "glob-step", ["examples/*.cpp", "lib.h"])
+    for rel_path in ["examples/b.cpp", "examples/a.cpp", "examples/notes.txt", "lib.h"]:
+        _write_template_doc(tmp_path, rel_path, f"content of {rel_path}")
+
+    documents = load_context_documents("glob-step", templates_dir=tmp_path)
+
+    assert list(documents) == ["examples/a.cpp", "examples/b.cpp", "lib.h"]
+    assert documents["examples/a.cpp"] == "content of examples/a.cpp"
+
+
+def test_load_context_documents_glob_without_matches_raises(tmp_path, monkeypatch):
+    monkeypatch.setitem(STEP_CONTEXT_DOCUMENTS, "glob-step", ["examples/*.cpp"])
+
+    with pytest.raises(FileNotFoundError, match=r"examples/\*\.cpp"):
+        load_context_documents("glob-step", templates_dir=tmp_path)
+
+
+def test_load_context_documents_keys_extra_paths_inside_templates_dir_relatively(tmp_path):
+    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
+        _write_template_doc(tmp_path, rel_path, "fixed content")
+    extra_file = _write_template_doc(tmp_path, "solutions/ok_cpp_a.cpp", "extra content")
+    already_attached = tmp_path / "validator.cpp"
+
+    documents = load_context_documents(
+        "constraints_pick",
+        templates_dir=tmp_path,
+        extra_paths=[str(extra_file), str(already_attached)],
+    )
+
+    # Ключ не зависит от написания templates_dir, а файл из фиксированного
+    # списка второй раз не прикладывается.
+    assert list(documents) == [*STEP_CONTEXT_DOCUMENTS["constraints_pick"], "solutions/ok_cpp_a.cpp"]
+    assert documents["solutions/ok_cpp_a.cpp"] == "extra content"
 
 
 def test_load_context_documents_missing_extra_path_raises(tmp_path):

@@ -217,3 +217,4 @@ def test_sample_example_input_still_required(tmp_path):
         load_spec(path)
 
     assert "sample_examples[].input" in "\n".join(exc_info.value.errors)
+

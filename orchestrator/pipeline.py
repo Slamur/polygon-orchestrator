@@ -196,7 +196,9 @@ def run_pipeline(
             step_name,
             prompts_dir=prompts_dir,
             templates_dir=templates_dir,
-            extra_context_documents=module.extra_context_documents(spec),
+            extra_context_documents=module.extra_context_documents(
+                spec, templates_dir=templates_dir
+            ),
         )
         cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
@@ -347,7 +349,9 @@ def compute_step_statuses(
                 step_name,
                 prompts_dir=prompts_dir,
                 templates_dir=templates_dir,
-                extra_context_documents=module.extra_context_documents(spec),
+                extra_context_documents=module.extra_context_documents(
+                    spec, templates_dir=templates_dir
+                ),
             )
             if is_cache_valid(cache_entry, input_hash, prompt_hash) and _artifact_present(
                 primary_path

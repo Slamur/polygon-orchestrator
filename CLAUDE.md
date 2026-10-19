@@ -73,7 +73,10 @@ Python-оркестратор, который берёт структуриро�
 │   ├── problem_lib.h
 │   ├── validator.cpp
 │   ├── checker.cpp
-│   ├── gen_rand.cpp
+│   ├── example_spec.yaml         # спек учебной задачи, по которому написаны шаблоны-образцы (пара "спек -> результат")
+│   ├── constraints.yaml          # ожидаемый результат constraints_pick для example_spec.yaml
+│   ├── generators/               # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
+│   ├── solutions/                # решения-образцы: <verdict>_<language>_<description>_draft.<ext>
 │   ├── test_script
 │   ├── testlib.h
 │   └── tutorials/
@@ -179,10 +182,11 @@ Python-оркестратор, который берёт структуриро�
    чтобы не дублировать описание формата входа) +
    зафиксированные ограничения из шага 2 + (если секция `solutions` в
    спеке задана) `solutions.known_wrong_approaches`. Выход: C++/testlib-
-   генераторы (на основе `templates/gen_rand.cpp` и т.п., см.
-   `base_template_refs`) и FreeMarker test-script (`flat` или
-   `groups`-стиль — см. `templates/test_script` vs
-   `templates/test_script_groups`). Внутри шаг делает две разные по
+   генераторы (на основе `templates/generators/*.cpp`, см. также
+   `base_template_refs`) и FreeMarker test-script (`flat`-стиль — по образцу
+   `templates/test_script`; для `groups`-стиля отдельного шаблона нет, скрипт
+   `test_script_groups` строится на той же структуре с разбивкой тестов по
+   группам и помечается `proposed`). Внутри шаг делает две разные по
    характеру вещи, и это важно не смешивать: если `generation.generator_ideas`
    уже описывает нужный генератор — это механическая реализация; для каждого
    пункта `known_wrong_approaches`, под который в спеке ещё нет готового
@@ -407,12 +411,24 @@ read_and_check) — но ошибка здесь дороже, чем в сре�
   `templates/tutorials/freemarker.md` — это **правила**, а не справочный
   материал "для общего развития". Промпты должны явно инструктировать
   модель следовать им как обязательным ограничениям, а не как совету.
-- `templates/problem_lib.h`, `templates/validator*.cpp`,
-  `templates/checker.cpp`, `templates/gen_rand.cpp`, `templates/test_script*`
+- `templates/problem_lib.h`, `templates/validator.cpp`,
+  `templates/checker.cpp`, `templates/generators/*.cpp`,
+  `templates/test_script`, `templates/solutions/*`
   — это основа, которую нужно расширять, а не переизобретать. Если шаг
   генерации создаёт новый генератор — он должен `#include "problem_lib.h"` и
   следовать тем же соглашениям об именовании (`register...`, `opt<T>(...)`,
-  стиль `gen_test` из `gen_rand.cpp`).
+  стиль `gen_test` из `generators/*.cpp`).
+- Все эти шаблоны написаны для одной учебной задачи, спек которой лежит в
+  `templates/example_spec.yaml` (ожидаемый по нему результат
+  `constraints_pick` — `templates/constraints.yaml`; при правке шаблонов
+  держать оба согласованными с ними), и прикладываются вместе с ним к
+  вызову модели как образцы (`STEP_CONTEXT_DOCUMENTS` в
+  `orchestrator/steps/base.py`: генераторы — все файлы каталога, решения —
+  только на языках из `solutions.languages`). Промпты обязаны явно
+  разделять, что из образца переносить (каркас файла, ввод-вывод, функции
+  testlib, композицию генераторов через конвейер), а что нет (формат данных,
+  имена переменных и логику учебной задачи) — см. `docs/PROMPTS.md`,
+  "Приложенные шаблоны как образцы".
 
 ## Git-workflow для разработки оркестратора
 

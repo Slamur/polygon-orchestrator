@@ -19,8 +19,67 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-def test_extra_context_documents_is_none(spec):
-    assert extra_context_documents(spec) is None
+def _write_solution_templates(templates_dir: Path) -> None:
+    solutions_dir = templates_dir / "solutions"
+    solutions_dir.mkdir(parents=True)
+    for name in ["ok_cpp_a_draft.cpp", "wa_cpp_b_draft.cpp", "ok_py_a_draft.py", "ok_java_a_draft.java"]:
+        (solutions_dir / name).write_text(f"// {name}", encoding="utf-8")
+
+
+def _with_languages(spec, languages):
+    solutions = spec.solutions.model_copy(update={"languages": languages})
+    return spec.model_copy(update={"solutions": solutions})
+
+
+def test_extra_context_documents_filters_templates_by_language(spec, tmp_path):
+    _write_solution_templates(tmp_path)
+
+    documents = extra_context_documents(_with_languages(spec, ["cpp"]), templates_dir=tmp_path)
+
+    assert documents == [
+        str(tmp_path / "solutions" / "ok_cpp_a_draft.cpp"),
+        str(tmp_path / "solutions" / "wa_cpp_b_draft.cpp"),
+    ]
+
+
+def test_extra_context_documents_accepts_language_aliases(spec, tmp_path):
+    _write_solution_templates(tmp_path)
+
+    documents = extra_context_documents(_with_languages(spec, ["Python"]), templates_dir=tmp_path)
+
+    assert documents == [str(tmp_path / "solutions" / "ok_py_a_draft.py")]
+
+
+def test_extra_context_documents_none_without_matching_templates(spec, tmp_path):
+    _write_solution_templates(tmp_path)
+
+    assert extra_context_documents(_with_languages(spec, ["kotlin"]), templates_dir=tmp_path) is None
+    assert extra_context_documents(spec, templates_dir=tmp_path / "no-such-dir") is None
+    spec_no_solutions = spec.model_copy(update={"solutions": None})
+    assert extra_context_documents(spec_no_solutions, templates_dir=tmp_path) is None
+
+
+def test_run_step_attaches_solution_templates_of_requested_languages(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[])
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        result = run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+    for compiled in result.compile_results.values():
+        if compiled.binary_path:
+            compiled.binary_path.unlink(missing_ok=True)
+
+    # Фикстура заказывает только cpp — шаблоны на других языках не прикладываются.
+    attached = [d for d in mock_call.call_args.kwargs["context_documents"] if d.startswith("solutions/")]
+    expected = sorted(f"solutions/{p.name}" for p in (TEMPLATES_DIR / "solutions").glob("*_cpp_*"))
+    assert expected
+    assert attached == expected
 
 
 def test_missing_solutions_section_raises(spec, tmp_path):

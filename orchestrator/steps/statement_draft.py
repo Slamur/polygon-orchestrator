@@ -87,7 +87,9 @@ def primary_artifact_path(
     return Path(outputs_dir) / problem_id / STATEMENT_SUBDIR
 
 
-def extra_context_documents(spec: ProblemSpec) -> Optional[list[str]]:
+def extra_context_documents(
+    spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
+) -> Optional[list[str]]:
     """`statement_draft` не имеет документов контекста, специфичных для
     конкретного вызова — только фиксированный `STEP_CONTEXT_DOCUMENTS`
     (см. `orchestrator.steps.base`). Присутствует ради единой сигнатуры,
