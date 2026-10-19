@@ -18,6 +18,7 @@ from typing import Any
 import anthropic
 from dotenv import load_dotenv
 
+from orchestrator.llm_client import build_system_prompt
 from orchestrator.model_contracts import (
     RESPONSE_JSON_SCHEMA,
     ModelResponse,
@@ -78,7 +79,7 @@ class AnthropicClient:
     ) -> ModelResponse:
         model_id = MODEL_CLASS_TO_ID[model_class]
         client = self._get_sdk_client()
-        system = _build_system_prompt(system_prompt, context_documents)
+        system = build_system_prompt(system_prompt, context_documents)
 
         attempt = 0
         while True:
@@ -142,26 +143,6 @@ class AnthropicClient:
                 )
             self._sdk_client = anthropic.Anthropic(api_key=api_key, max_retries=0)
         return self._sdk_client
-
-
-def _build_system_prompt(
-    system_prompt: str, context_documents: dict[str, str] | None
-) -> str:
-    """Склеивает `system_prompt` с приложенными документами контекста.
-
-    Документы идут после `system_prompt` в порядке `context_documents`
-    (см. `orchestrator/steps/base.py:load_context_documents` — фиксированный
-    список STEP_CONTEXT_DOCUMENTS, затем extra_paths), каждый со своим путём
-    как заголовком, чтобы модель могла на него сослаться. `None`/пустая карта
-    — `system` остаётся просто `system_prompt` (обратная совместимость).
-    """
-    if not context_documents:
-        return system_prompt
-
-    parts = [system_prompt]
-    for path, content in context_documents.items():
-        parts.append(f"--- Приложенный документ: {path} ---\n{content}")
-    return "\n\n".join(parts)
 
 
 def _is_retryable(exc: Exception) -> bool:

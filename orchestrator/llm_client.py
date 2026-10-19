@@ -20,6 +20,17 @@ from typing import Protocol, runtime_checkable
 from orchestrator.model_contracts import ModelResponse
 
 
+class UsageLimitReachedError(RuntimeError):
+    """Вендор отказал из-за исчерпанного лимита использования (например,
+    5-часового или недельного лимита подписки), а не из-за ошибки запроса.
+
+    В отличие от прочих ошибок клиента, это не проблема конкретной задачи:
+    следующие вызовы до сброса лимита упадут так же, поэтому
+    `llm generate --all` на ней останавливается целиком, а не переходит к
+    следующему `problem_id`.
+    """
+
+
 @runtime_checkable
 class LLMClient(Protocol):
     """Вызывает одну генеративную модель и возвращает разобранный ответ.
@@ -53,3 +64,25 @@ class LLMClient(Protocol):
         памяти. `None`/пустая карта — вести себя как раньше (без документов).
         """
         ...
+
+
+def build_system_prompt(
+    system_prompt: str, context_documents: dict[str, str] | None
+) -> str:
+    """Склеивает `system_prompt` с приложенными документами контекста.
+
+    Общая для всех клиентов, у которых документы контекста едут в
+    system-промпте. Документы идут после `system_prompt` в порядке
+    `context_documents` (см.
+    `orchestrator/steps/base.py:load_context_documents` — фиксированный
+    список STEP_CONTEXT_DOCUMENTS, затем extra_paths), каждый со своим путём
+    как заголовком, чтобы модель могла на него сослаться. `None`/пустая карта
+    — `system` остаётся просто `system_prompt` (обратная совместимость).
+    """
+    if not context_documents:
+        return system_prompt
+
+    parts = [system_prompt]
+    for path, content in context_documents.items():
+        parts.append(f"--- Приложенный документ: {path} ---\n{content}")
+    return "\n\n".join(parts)
