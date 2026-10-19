@@ -18,7 +18,11 @@ from typing import Any
 import anthropic
 from dotenv import load_dotenv
 
-from orchestrator.model_contracts import ModelResponse
+from orchestrator.model_contracts import (
+    RESPONSE_JSON_SCHEMA,
+    ModelResponse,
+    model_response_from_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,67 +55,7 @@ _RESPONSE_TOOL: dict[str, Any] = {
         "Верни результат генеративного шага строго по контракту "
         "status/artifacts/notes, описанному в docs/PROMPTS.md."
     ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": ["confirmed", "proposed", "uncertain"],
-                "description": (
-                    "confirmed — все нужные данные были в спеке; proposed — "
-                    "что-то намеренно домыслено там, где это разрешено (см. "
-                    "notes); uncertain — не хватает обязательных данных, "
-                    "artifacts может быть пустым/частичным."
-                ),
-            },
-            "artifacts": {
-                "type": "array",
-                "description": (
-                    "Список файлов-артефактов. Anthropic strict tool use не "
-                    "поддерживает object-схему с произвольными ключами "
-                    "(additionalProperties должен быть false, а не схемой) — "
-                    "поэтому карта 'имя файла' -> 'содержимое' из "
-                    "docs/PROMPTS.md здесь представлена списком пар; "
-                    "`_parse_model_response` ниже собирает её обратно в dict "
-                    "для вендоронезависимого `ModelResponse.artifacts`."
-                ),
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "filename": {"type": "string"},
-                        "content": {"type": "string"},
-                    },
-                    "required": ["filename", "content"],
-                    "additionalProperties": False,
-                },
-            },
-            "notes": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "field": {
-                            "type": "string",
-                            "description": (
-                                "Путь до поля спека/артефакта, к которому "
-                                "относится заметка, например "
-                                "'constraints.variables[1].max'."
-                            ),
-                        },
-                        "kind": {
-                            "type": "string",
-                            "enum": ["proposed", "uncertain"],
-                        },
-                        "explanation": {"type": "string"},
-                    },
-                    "required": ["field", "kind", "explanation"],
-                    "additionalProperties": False,
-                },
-            },
-        },
-        "required": ["status", "artifacts", "notes"],
-        "additionalProperties": False,
-    },
+    "input_schema": RESPONSE_JSON_SCHEMA,
     "strict": True,
 }
 
@@ -272,12 +216,4 @@ def _parse_model_response(
             f"(stop_reason={response.stop_reason!r})"
         )
 
-    payload = tool_use_blocks[0].input
-    artifacts = {
-        entry["filename"]: entry["content"] for entry in payload.get("artifacts") or []
-    }
-    return ModelResponse(
-        status=payload["status"],
-        artifacts=artifacts,
-        notes=list(payload.get("notes") or []),
-    )
+    return model_response_from_payload(tool_use_blocks[0].input)
