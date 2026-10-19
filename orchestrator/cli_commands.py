@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from orchestrator.llm_client import UsageLimitReachedError
 from orchestrator.pipeline import (
     OUTCOME_CACHE_HIT,
     OUTCOME_CONFIRMED,
@@ -222,6 +223,18 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
                         outputs_dir=args.outputs_dir,
                         templates_dir=args.templates_dir,
                     )
+                except UsageLimitReachedError as exc:
+                    # Лимит общий для всех задач — следующие упадут так же,
+                    # поэтому --all останавливается, а не идёт дальше.
+                    logger.info(f"=== {problem_id} ===")
+                    logger.info(f"  ! {exc}")
+                    remaining = problem_ids[problem_ids.index(problem_id) + 1 :]
+                    if remaining:
+                        logger.info(f"--all stopped, not processed: {', '.join(remaining)}")
+                    _log_traceback_to_file(
+                        file_handler, f"usage limit reached while processing '{problem_id}'"
+                    )
+                    return 1
                 except Exception as exc:  # noqa: BLE001 — один problem_id не должен ронять весь --all
                     logger.info(f"=== {problem_id} ===")
                     logger.info(f"  ! unexpected error: {exc}")

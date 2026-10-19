@@ -6,7 +6,9 @@ CLAUDE.md, раздел "Маршрутизация моделей по крит
 ("low"/"medium"/"high"/"xhigh"/"max") на шаг, но не то, какой конкретно
 вендор их обслуживает. Настоящий вызов делает объект `LLMClient`
 (`orchestrator/llm_client.py`) — по умолчанию `AnthropicClient`
-(`orchestrator/llm_clients/anthropic_client.py`), но его можно подменить
+(`orchestrator/llm_clients/anthropic_client.py`) или `ClaudeCodeClient`
+(`orchestrator/llm_clients/claude_code_client.py`), если
+`ORCHESTRATOR_LLM_BACKEND=claude-code`, но его можно подменить
 через `set_client(...)` на что угодно другое (локальная модель, другой
 вендор), не трогая ни этот модуль, ни промпты, ни шаги.
 """
@@ -86,14 +88,37 @@ def set_client(client: LLMClient) -> None:
     _client = client
 
 
-def _default_client() -> LLMClient:
-    # Ленивый импорт: если клиент явно подменили через `set_client`, модуль
-    # ни разу не тронет `anthropic`/`python-dotenv` и не потребует
-    # ANTHROPIC_API_KEY — это вендорский пакет, а не общая зависимость
-    # оркестратора.
-    from orchestrator.llm_clients.anthropic_client import AnthropicClient
+# Переменная окружения (или строка в `.env`), выбирающая клиента по
+# умолчанию: "anthropic-api" (по умолчанию) — Anthropic API по
+# ANTHROPIC_API_KEY, "claude-code" — Claude Code CLI по подписке.
+LLM_BACKEND_ENV = "ORCHESTRATOR_LLM_BACKEND"
+_DEFAULT_BACKEND = "anthropic-api"
+_BACKENDS = ("anthropic-api", "claude-code")
 
-    return AnthropicClient()
+
+def _default_client() -> LLMClient:
+    # Ленивые импорты: если клиент явно подменили через `set_client`, модуль
+    # ни разу не тронет `anthropic`/`python-dotenv` и не потребует
+    # ANTHROPIC_API_KEY — это вендорские пакеты, а не общая зависимость
+    # оркестратора.
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    backend = os.environ.get(LLM_BACKEND_ENV) or _DEFAULT_BACKEND
+    if backend == "anthropic-api":
+        from orchestrator.llm_clients.anthropic_client import AnthropicClient
+
+        return AnthropicClient()
+    if backend == "claude-code":
+        from orchestrator.llm_clients.claude_code_client import ClaudeCodeClient
+
+        return ClaudeCodeClient()
+    raise ValueError(
+        f"{LLM_BACKEND_ENV}={backend!r} is not a known LLM backend, "
+        f"allowed: {', '.join(_BACKENDS)}"
+    )
 
 
 def _get_client() -> LLMClient:
