@@ -5,10 +5,10 @@ CLAUDE.md, раздел "Маршрутизация моделей по крит
 моделей ("strong-model"/"medium-model"/"fast-model") и уровни `effort`
 ("low"/"medium"/"high"/"xhigh"/"max") на шаг, но не то, какой конкретно
 вендор их обслуживает. Настоящий вызов делает объект `LLMClient`
-(`orchestrator/llm_client.py`) — по умолчанию `AnthropicClient`
-(`orchestrator/llm_clients/anthropic_client.py`) или `ClaudeCodeClient`
-(`orchestrator/llm_clients/claude_code_client.py`), если
-`ORCHESTRATOR_LLM_BACKEND=claude-code`, но его можно подменить
+(`orchestrator/llm_client.py`) — по умолчанию `ClaudeCodeClient`
+(`orchestrator/llm_clients/claude_code_client.py`) или `AnthropicClient`
+(`orchestrator/llm_clients/anthropic_client.py`), если
+`ORCHESTRATOR_LLM_BACKEND=anthropic-api`, но его можно подменить
 через `set_client(...)` на что угодно другое (локальная модель, другой
 вендор), не трогая ни этот модуль, ни промпты, ни шаги.
 """
@@ -89,11 +89,11 @@ def set_client(client: LLMClient) -> None:
 
 
 # Переменная окружения (или строка в `.env`), выбирающая клиента по
-# умолчанию: "anthropic-api" (по умолчанию) — Anthropic API по
-# ANTHROPIC_API_KEY, "claude-code" — Claude Code CLI по подписке.
+# умолчанию: "claude-code" (по умолчанию) — Claude Code CLI по подписке,
+# "anthropic-api" — Anthropic API по ANTHROPIC_API_KEY.
 LLM_BACKEND_ENV = "ORCHESTRATOR_LLM_BACKEND"
-_DEFAULT_BACKEND = "anthropic-api"
-_BACKENDS = ("anthropic-api", "claude-code")
+_DEFAULT_BACKEND = "claude-code"
+_BACKENDS = ("claude-code", "anthropic-api")
 
 
 def _default_client() -> LLMClient:

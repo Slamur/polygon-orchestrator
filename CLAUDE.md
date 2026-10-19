@@ -413,12 +413,12 @@ read_and_check) — но ошибка здесь дороже, чем в сре�
 он не знает конкретных имён моделей. Соответствие класса конкретной модели
 вендора (например, `"strong-model" -> "claude-opus-5"`), авторизация, retry
 и формат структурированного вывода — всё это инкапсулировано в реализации
-`LLMClient` (`orchestrator/llm_client.py`), по умолчанию `AnthropicClient`
-(`orchestrator/llm_clients/anthropic_client.py`); при
-`ORCHESTRATOR_LLM_BACKEND=claude-code` — `ClaudeCodeClient`
-(`orchestrator/llm_clients/claude_code_client.py`: те же модели через
-Claude Code CLI, расход из лимитов подписки, а не с API-баланса — см.
-`docs/SETUP.md`). Промпты не должны
+`LLMClient` (`orchestrator/llm_client.py`), по умолчанию `ClaudeCodeClient`
+(`orchestrator/llm_clients/claude_code_client.py`: модели через Claude Code
+CLI, расход из лимитов подписки, а не с API-баланса — см.
+`docs/SETUP.md`); при `ORCHESTRATOR_LLM_BACKEND=anthropic-api` —
+`AnthropicClient` (`orchestrator/llm_clients/anthropic_client.py`, те же
+модели через Anthropic API). Промпты не должны
 зависеть от того, какая именно модель/вендор их выполняет — вся эта
 информация не должна течь в `prompts/`.
 

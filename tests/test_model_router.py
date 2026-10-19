@@ -143,22 +143,22 @@ def _no_dotenv(monkeypatch):
     monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: False)
 
 
-def test_default_backend_is_anthropic_api(monkeypatch):
-    from orchestrator.llm_clients.anthropic_client import AnthropicClient
+def test_default_backend_is_claude_code(monkeypatch):
+    from orchestrator.llm_clients.claude_code_client import ClaudeCodeClient
 
     _no_dotenv(monkeypatch)
     monkeypatch.delenv("ORCHESTRATOR_LLM_BACKEND", raising=False)
 
-    assert isinstance(model_router._get_client(), AnthropicClient)
+    assert isinstance(model_router._get_client(), ClaudeCodeClient)
 
 
-def test_claude_code_backend_selected_by_env(monkeypatch):
-    from orchestrator.llm_clients.claude_code_client import ClaudeCodeClient
+def test_anthropic_api_backend_selected_by_env(monkeypatch):
+    from orchestrator.llm_clients.anthropic_client import AnthropicClient
 
     _no_dotenv(monkeypatch)
-    monkeypatch.setenv("ORCHESTRATOR_LLM_BACKEND", "claude-code")
+    monkeypatch.setenv("ORCHESTRATOR_LLM_BACKEND", "anthropic-api")
 
-    assert isinstance(model_router._get_client(), ClaudeCodeClient)
+    assert isinstance(model_router._get_client(), AnthropicClient)
 
 
 def test_unknown_backend_is_rejected(monkeypatch):

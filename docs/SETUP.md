@@ -75,13 +75,13 @@ eval "$(register-python-argcomplete orchestrator)"
 - дополнение только подсказывает: в команду всегда уходит полное имя
   задачи, сокращённые имена CLI не принимает.
 
-## Опционально: генерация через подписку Claude (Claude Code CLI)
+## Генерация: подписка Claude (Claude Code CLI) или Anthropic API
 
-По умолчанию `orchestrator llm generate` вызывает Anthropic API по
-`ANTHROPIC_API_KEY` и тратит деньги с API-баланса. Вместо этого шаги можно
-прогонять через Claude Code CLI — тогда расход идёт из лимитов подписки
-Pro/Max (тех же, что у интерактивного Claude Code и claude.ai: 5-часовое
-окно + недельный лимит, текущее заполнение — `/usage` в Claude Code).
+По умолчанию (`ORCHESTRATOR_LLM_BACKEND=claude-code` или переменная не
+задана) `orchestrator llm generate` прогоняет шаги через Claude Code CLI —
+расход идёт из лимитов подписки Pro/Max (тех же, что у интерактивного
+Claude Code и claude.ai: 5-часовое окно + недельный лимит, текущее
+заполнение — `/usage` в Claude Code). Настройка:
 
 1. Установить/обновить CLI: нужна версия с флагами `--system-prompt-file`
    и `--safe-mode` (`claude update`; старый CLI упадёт с подсказкой
@@ -90,12 +90,15 @@ Pro/Max (тех же, что у интерактивного Claude Code и clau
    `CLAUDE_CODE_BIN`.
 2. Убедиться, что CLI залогинен подпиской: `claude`, затем `/status`.
    Авторизация общая для всех копий Claude Code (`~/.claude/`).
-3. В `.env`: `ORCHESTRATOR_LLM_BACKEND=claude-code`.
 
-`ANTHROPIC_API_KEY` из `.env` можно не удалять: клиент вырезает его из
-окружения процесса `claude`, иначе CLI пошёл бы на API-биллинг. Модели по
-классам те же, что у Anthropic API, поэтому переключение бэкенда кэш шагов
-не инвалидирует. Если лимит подписки исчерпан, `llm generate --all`
+`ANTHROPIC_API_KEY` в `.env` этому бэкенду не нужен и не мешает: клиент
+вырезает его из окружения процесса `claude`, иначе CLI пошёл бы на
+API-биллинг.
+
+Альтернатива — `ORCHESTRATOR_LLM_BACKEND=anthropic-api`: те же модели через
+Anthropic API по `ANTHROPIC_API_KEY`, расход — деньги с API-баланса.
+Модели по классам у бэкендов одинаковые, поэтому переключение кэш шагов не
+инвалидирует. Если лимит подписки исчерпан, `llm generate --all`
 останавливается на текущей задаче — после сброса лимита можно просто
 запустить его снова (готовые шаги пропустятся по кэшу) или временно
-переключиться обратно на `anthropic-api`.
+переключиться на `anthropic-api`.
