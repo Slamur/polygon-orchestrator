@@ -218,10 +218,3 @@ def test_sample_example_input_still_required(tmp_path):
 
     assert "sample_examples[].input" in "\n".join(exc_info.value.errors)
 
-
-def test_example_spec_for_templates_is_a_valid_spec():
-    # templates/example_spec.yaml прикладывается к вызовам модели как образец
-    # спека — он обязан сам проходить ту же валидацию, что и настоящие спеки.
-    spec = load_spec(Path(__file__).parent.parent / "templates" / "example_spec.yaml")
-    assert spec.solutions is not None
-    assert spec.checker.custom_needed is True

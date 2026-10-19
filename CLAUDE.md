@@ -74,6 +74,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── validator.cpp
 │   ├── checker.cpp
 │   ├── example_spec.yaml         # спек учебной задачи, по которому написаны шаблоны-образцы (пара "спек -> результат")
+│   ├── constraints.yaml          # ожидаемый результат constraints_pick для example_spec.yaml
 │   ├── generators/               # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
 │   ├── solutions/                # решения-образцы: <verdict>_<language>_<description>_draft.<ext>
 │   ├── test_script
@@ -418,8 +419,9 @@ read_and_check) — но ошибка здесь дороже, чем в сре�
   следовать тем же соглашениям об именовании (`register...`, `opt<T>(...)`,
   стиль `gen_test` из `generators/*.cpp`).
 - Все эти шаблоны написаны для одной учебной задачи, спек которой лежит в
-  `templates/example_spec.yaml` (при правке шаблонов держать его
-  согласованным с ними), и прикладываются вместе с ним к
+  `templates/example_spec.yaml` (ожидаемый по нему результат
+  `constraints_pick` — `templates/constraints.yaml`; при правке шаблонов
+  держать оба согласованными с ними), и прикладываются вместе с ним к
   вызову модели как образцы (`STEP_CONTEXT_DOCUMENTS` в
   `orchestrator/steps/base.py`: генераторы — все файлы каталога, решения —
   только на языках из `solutions.languages`). Промпты обязаны явно

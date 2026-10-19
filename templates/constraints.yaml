@@ -1,0 +1,63 @@
+# Образец результата шага constraints_pick для templates/example_spec.yaml —
+# пара "спек -> ожидаемый constraints.yaml". По нему же написан
+# templates/validator.cpp (секция validator ниже реализована в нём 1-в-1),
+# а templates/test_script берёт из него значения ограничений.
+#
+# В учебном спеке все значения заданы автором, поэтому везде
+# status: confirmed. Значение, которое шаг предложил сам (например, max
+# переменной при max: null в спеке), помечается status: proposed с
+# обоснованием в rationale — и записью в notes ответа модели.
+problem_id: example_spec
+intended_complexity: "O(N)"
+complexity_reasoning: |
+  Один проход по массиву с накоплением префиксной суммы; ответ — первый
+  индекс, на котором сумма стала строго больше K.
+
+variables:
+  - name: "N"
+    min: 1
+    max: 200000
+    description: "длина массива"
+    status: confirmed
+  - name: "K"
+    min: 0
+    max: 1000000000000000
+    description: "порог для суммы префикса"
+    status: confirmed
+  - name: "A_i"
+    min: 0
+    max: 1000000000
+    description: "элемент массива"
+    status: confirmed
+
+limits:
+  time_limit_seconds: 1
+  memory_limit_mb: 256
+  status: confirmed
+  rationale: |
+    Заданы автором явно. Согласованность с O(N): при N = 2 * 10^5 это
+    ~2 * 10^5 операций плюс чтение входа — на порядки меньше 1 секунды
+    даже на Python; решение за O(N^2) (~2 * 10^10 операций) в 1 секунду
+    не укладывается.
+
+# test_groups отсутствует: в спеке нет test_groups_hint и
+# test_groups_needed не задан — группы автору не нужны.
+
+validator:
+  constants:
+    - name: "N"
+      cpp_type: int
+      min: 1
+      max: 200000
+    - name: "K"
+      cpp_type: ll
+      min: 0
+      max: 1000000000000000
+    - name: "A_i"
+      cpp_type: int
+      min: 0
+      max: 1000000000
+  checks:
+    - "первая строка: N, один пробел, K, конец строки"
+    - "вторая строка: N чисел A_i через один пробел, конец строки"
+    - "после второй строки — конец файла"

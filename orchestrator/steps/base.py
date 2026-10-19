@@ -52,7 +52,10 @@ TEMPLATES_DIR = Path("templates")
 # `example_spec.yaml` — спек учебной задачи, для которой написаны все
 # шаблоны-образцы: вместе с ними он даёт модели пару "спек -> ожидаемый
 # результат". Прикладывается ко всем шагам, у которых есть шаблон-образец
-# результата (у `statement_draft` такого шаблона нет). Шаблоны
+# результата (у `statement_draft` такого шаблона нет). `constraints.yaml` —
+# образец результата `constraints_pick` для того же учебного спека; шагу
+# `generators_and_script` он нужен как образец его входа (по нему написан
+# `test_script`). Шаблоны
 # решений (`solutions/*`) здесь не перечислены — они зависят от
 # `solutions.languages` конкретного спека, см.
 # `solutions_draft.extra_context_documents`.
@@ -64,6 +67,7 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "constraints_pick": [
         "tutorials/requirements.md",
         "example_spec.yaml",
+        "constraints.yaml",
         "validator.cpp",
         "problem_lib.h",
     ],
@@ -71,6 +75,7 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         "tutorials/requirements.md",
         "tutorials/freemarker.md",
         "example_spec.yaml",
+        "constraints.yaml",
         "problem_lib.h",
         "generators/*.cpp",
         "test_script",
