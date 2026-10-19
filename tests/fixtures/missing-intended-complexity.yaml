@@ -30,7 +30,6 @@ constraints:
       description: "количество вершин"
 
 generation:
-  reuse_existing_generators: true
   script_style: "flat"
 
 checker:

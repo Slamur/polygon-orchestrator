@@ -91,7 +91,6 @@ generation:
     - "N = N_max, K = K_max"
     - "K равно сумме некоторого префикса, а также на 1 меньше и на 1 больше"
     - "ответ NO: K не меньше суммы всего массива"
-  reuse_existing_generators: true
   script_style: "flat"
 
 solutions:

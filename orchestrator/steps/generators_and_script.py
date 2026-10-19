@@ -155,7 +155,7 @@ def run_step(
     """Прогоняет шаг `generators_and_script` для `problem_id`.
 
     Вход: секция `generation` спека (идеи генераторов,
-    `reuse_existing_generators`/`base_template_refs`, `script_style`) плюс
+    `base_template_refs`, `script_style`) плюс
     формат ввода из `statement_draft` (`formal_input_sketch`, `indexing`,
     input примеров — а не отдельное поле `generation`, см.
     `_build_context_sections`), плюс

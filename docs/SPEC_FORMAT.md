@@ -127,7 +127,6 @@ generation:
     # конкретное неверное решение) — это отдельный список "что обязательно
     # должно быть протестировано", который автор формулирует сам, не
     # выводя его из легенды/асимптотики.
-  reuse_existing_generators: true    # [required] bool — permission use готовые generator.cpp из репозитория как основу
   base_template_refs:                # [optional] пути (от корня репозитория) к ДОПОЛНИТЕЛЬНЫМ файлам-примерам; templates/generators/*.cpp и templates/test_script приложены всегда, их указывать не нужно
     - "my_examples/gen_tree.cpp"
   script_style: "groups"             # [required] "flat" | "groups" — простой скрипт (test_script) или по группам тестов (test_script_groups)
