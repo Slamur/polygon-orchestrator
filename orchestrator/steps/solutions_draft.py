@@ -15,6 +15,7 @@ from orchestrator.steps.base import (
     TEMPLATES_DIR,
     StepResult,
     run_generative_step,
+    statement_io_section,
     with_default_lists,
 )
 from orchestrator.steps.generators_and_script import (
@@ -45,6 +46,23 @@ def _require_solutions_section(problem_id: str, spec: ProblemSpec) -> None:
         )
 
 
+def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
+    """Секции спека для рендера промпта И для входа хеша кэша — единая точка
+    сборки, чтобы они не разошлись (CLAUDE.md, "Кэширование по хешу спека"):
+    секция `solutions`, `constraints.intended_complexity` и условие из
+    `statement_draft` целиком в части ввода-вывода (`formal_input_sketch`,
+    `formal_output_sketch`, `indexing`, примеры с ответами, легенда —
+    `base.statement_io_section`). Без последнего модели неоткуда взять
+    формат ввода-вывода своей задачи, кроме формата учебной из
+    `example_spec.yaml`.
+    """
+    return {
+        "solutions": with_default_lists(spec.solutions.model_dump(mode="json"), _LIST_FIELDS),
+        "constraints": {"intended_complexity": spec.constraints.intended_complexity},
+        "statement": statement_io_section(spec, include_output_and_legend=True),
+    }
+
+
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
@@ -53,12 +71,14 @@ def compute_input_hash(
     """Хеш входа шага без вызова модели, см. `statement_draft.compute_input_hash`
     и CLAUDE.md, "Кэширование по хешу спека". Как и `run_step`, требует
     секцию `solutions` в спеке и `upstream_artifacts["constraints.yaml"]`.
+    Вход — `_build_context_sections` + содержимое `constraints.yaml`.
     """
     _require_solutions_section(problem_id, spec)
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
-    section_data = with_default_lists(spec.solutions.model_dump(mode="json"), _LIST_FIELDS)
     return _cache_compute_input_hash(
-        STEP_NAME, section_data, upstream_artifacts={CONSTRAINTS_ARTIFACT: constraints_yaml}
+        STEP_NAME,
+        _build_context_sections(spec),
+        upstream_artifacts={CONSTRAINTS_ARTIFACT: constraints_yaml},
     )
 
 
@@ -121,12 +141,13 @@ def run_step(
     `languages`, `known_wrong_approaches`) плюс зафиксированная асимптотика
     из `constraints.intended_complexity` — она уже провалидирована как
     непустая (`orchestrator.spec.Constraints`) и не пересчитывается заново,
-    только передаётся в промпт как заданный факт. Апстрим-артефакт шага
-    `constraints_pick` (`upstream_artifacts["constraints.yaml"]`) сюда же
-    входит хешем на кэш (см. CLAUDE.md, "Кэширование по хешу спека": вход
-    шага 4 — секция `solutions` + `constraints.yaml`), хотя сам промпт его
-    текстом не использует — только `constraints.intended_complexity` из
-    спека.
+    только передаётся в промпт как заданный факт. Плюс условие из
+    `statement_draft` в части ввода-вывода (формат ввода и вывода,
+    индексация, примеры с ответами, легенда — см. `_build_context_sections`)
+    и полный текст апстрим-артефакта `constraints_pick`
+    (`upstream_artifacts["constraints.yaml"]`: диапазоны переменных, TL/ML,
+    гарантии валидатора) — без них модель вынуждена угадывать формат
+    ввода-вывода и типы величин.
 
     Требует, чтобы в спеке была включена опциональная секция `solutions`
     (`spec.solutions is not None`) — без неё черновики решений не
@@ -144,13 +165,12 @@ def run_step(
     При успехе пишет файлы решений в `outputs/<problem_id>/solutions/`.
     """
     _require_solutions_section(problem_id, spec)
-    _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
+    constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
 
-    section_data = with_default_lists(spec.solutions.model_dump(mode="json"), _LIST_FIELDS)
     context = {
         "problem_id": problem_id,
-        "solutions": section_data,
-        "constraints": spec.constraints.model_dump(mode="json"),
+        **_build_context_sections(spec),
+        "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
 

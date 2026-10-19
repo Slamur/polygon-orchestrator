@@ -15,6 +15,7 @@ from orchestrator.steps.base import (
     TEMPLATES_DIR,
     StepResult,
     run_generative_step,
+    statement_io_section,
     with_default_lists,
 )
 
@@ -25,20 +26,34 @@ STEP_NAME = "constraints_pick"
 _LIST_FIELDS = ["special_guarantees", "test_groups_hint", "uncertain_points"]
 
 
+def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
+    """Секции спека для рендера промпта И для входа хеша кэша — единая точка
+    сборки, чтобы они не разошлись. Помимо секции `constraints` — формат
+    ввода из `statement_draft` (`base.statement_io_section`, без легенды и
+    вывода): валидатор читает вход токен за токеном, и порядок/разбивку по
+    строкам ему не из чего взять, кроме `formal_input_sketch`.
+    """
+    return {
+        "constraints": with_default_lists(
+            spec.constraints.model_dump(mode="json"), _LIST_FIELDS
+        ),
+        "statement": statement_io_section(spec, include_output_and_legend=False),
+    }
+
+
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
     upstream_artifacts: Optional[dict[str, Any]] = None,
 ) -> str:
     """Хеш входа шага без вызова модели — см. `statement_draft.compute_input_hash`
-    и CLAUDE.md, "Кэширование по хешу спека". `problem_id`/`upstream_artifacts`
-    не используются (шаг зависит только от секции `constraints`), присутствуют
-    ради единой сигнатуры у всех пяти шагов.
+    и CLAUDE.md, "Кэширование по хешу спека". Вход — секция `constraints` +
+    формат ввода из `statement_draft` (см. `_build_context_sections`): правка
+    формата входа должна инвалидировать и `validator.cpp`.
+    `problem_id`/`upstream_artifacts` не используются, присутствуют ради
+    единой сигнатуры у всех пяти шагов.
     """
-    section_data = with_default_lists(
-        spec.constraints.model_dump(mode="json"), _LIST_FIELDS
-    )
-    return _cache_compute_input_hash(STEP_NAME, section_data)
+    return _cache_compute_input_hash(STEP_NAME, _build_context_sections(spec))
 
 
 def primary_artifact_path(
@@ -71,6 +86,9 @@ def run_step(
     Вход: секция `constraints` спека — в первую очередь
     `intended_complexity` и `complexity_reasoning`, а также `variables`,
     `special_guarantees`, `test_groups_hint`, лимиты и `uncertain_points`.
+    Плюс формат ввода из `statement_draft` (`formal_input_sketch`,
+    `indexing`, input примеров) — источник порядка чтения для
+    `validator.cpp`; легенда не передаётся.
 
     Модель **не имеет права** сама выводить асимптотику решения из легенды
     задачи — единственный источник асимптотики это
@@ -99,12 +117,9 @@ def run_step(
     см. `run_generative_step`).
 
     `upstream_artifacts` не используется: `constraints_pick` зависит только
-    от секции `constraints` спека (CLAUDE.md, "Кэширование по хешу спека").
+    от спека (CLAUDE.md, "Кэширование по хешу спека").
     """
-    section_data = with_default_lists(
-        spec.constraints.model_dump(mode="json"), _LIST_FIELDS
-    )
-    context = {"problem_id": problem_id, "constraints": section_data}
+    context = {"problem_id": problem_id, **_build_context_sections(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
 
     def resolve_artifact_path(filename: str) -> Path:

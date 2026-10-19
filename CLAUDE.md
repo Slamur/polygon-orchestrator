@@ -160,7 +160,9 @@ Python-оркестратор, который берёт структуриро�
    следующий структуре и стилистическим правилам из
    `templates/tutorials/requirements.md` (раздел "Условие задачи").
 2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
-   очередь `intended_complexity` и `complexity_reasoning`. Выход:
+   очередь `intended_complexity` и `complexity_reasoning`, + формат ввода из
+   `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
+   источник порядка чтения для валидатора; легенда не передаётся). Выход:
    зафиксированные диапазоны переменных, TL/ML, разбиение на тестовые
    группы (в `constraints.yaml`, включая секцию `validator` —
    `constants`/`checks`, описывающую, что именно должен проверять
@@ -177,8 +179,8 @@ Python-оркестратор, который берёт структуриро�
    "недостаточно данных", а не угадывать; в этом случае `validator.cpp`
    тоже не пишется — весь ответ шага уходит в `uncertain` целиком.
 3. **`generators_and_script`** — вход: секция `generation` спека +
-   `statement_draft.formal_input_sketch` (форма входных данных для
-   генераторов — отдельного поля `generation.input_shape` в спеке нет,
+   формат ввода из `statement_draft` (`formal_input_sketch`, `indexing`,
+   input примеров — отдельного поля `generation.input_shape` в спеке нет,
    чтобы не дублировать описание формата входа) +
    зафиксированные ограничения из шага 2 + (если секция `solutions` в
    спеке задана) `solutions.known_wrong_approaches`. Выход: C++/testlib-
@@ -198,8 +200,12 @@ Python-оркестратор, который берёт структуриро�
    ни `known_wrong_approaches` не дают зацепок для стресс-тестов — шаг не
    должен молчать об этом: явно указать в `notes`, что adversarial-случаи
    не придуманы и нужна ручная проверка.
-4. **`solutions_draft`** — вход: секция `solutions` спека + зафиксированные
-   ограничения. Выход: черновики решений с заявленными вердиктами
+4. **`solutions_draft`** — вход: секция `solutions` спека +
+   `constraints.intended_complexity` + полный текст `constraints.yaml` из
+   шага 2 + условие из `statement_draft` в части ввода-вывода
+   (`formal_input_sketch`, `formal_output_sketch`, `indexing`, примеры с
+   ответами, `legend_sketch` — для понимания терминов `algorithm_hint`, не
+   как источник алгоритма). Выход: черновики решений с заявленными вердиктами
    (ok/wa/tl), которые автор обязательно перепроверяет и вероятно
    переписывает сам — это не финальные решения.
 5. **`checker_draft`** (опциональный, как и `solutions_draft`) — запускается,
@@ -302,15 +308,21 @@ Python-оркестратор, который берёт структуриро�
 
 - каноническое JSON-представление той секции спека, от которой зависит шаг
   (`statement_draft` → секция `statement_draft`; `constraints_pick` →
-  секция `constraints`; `generators_and_script` → секция `generation` +
-  `statement_draft.formal_input_sketch` (форма входных данных — правка
+  секция `constraints` + формат ввода из `statement_draft`
+  (`formal_input_sketch`, `indexing`, input примеров — правка формата входа
+  должна инвалидировать и `validator.cpp`); `generators_and_script` → секция
+  `generation` + тот же формат ввода из `statement_draft` (правка
   формата входа в условии должна инвалидировать кэш генераторов, даже если
   секция `generation` не менялась) +
   содержимое `outputs/<id>/constraints.yaml`, полученное на шаге 2, +
   `solutions.known_wrong_approaches` (если секция `solutions` задана —
   правка `known_wrong_approaches` тоже должна инвалидировать кэш этого
   шага, не только правка `generation`); `solutions_draft` → секция
-  `solutions` + `constraints.yaml`);
+  `solutions` + `constraints.intended_complexity` + ввод-вывод из
+  `statement_draft` (формат ввода и вывода, `indexing`, примеры с ответами,
+  легенда) + `constraints.yaml`). Сборка этой части `statement_draft` —
+  `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
+  трёх шагов;
 - хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +
   `user.md.j2`) — если промпт поправили, кэш должен инвалидироваться, даже
   если спек не менялся;

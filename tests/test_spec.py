@@ -188,6 +188,18 @@ def test_spec_without_generation_input_shape_loads():
     assert not hasattr(spec.generation, "input_shape")
 
 
+def test_generation_reuse_existing_generators_is_forbidden(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace("generation:\n", "generation:\n  reuse_existing_generators: true\n")
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert "generation.reuse_existing_generators" in "\n".join(exc_info.value.errors)
+
+
 def _spec_without_first_sample_output(tmp_path, replacement: str) -> Path:
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     original = "      output: |\n        8\n"

@@ -7,7 +7,7 @@ from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
 from orchestrator.steps.generators_and_script import (
-    _build_generation_section,
+    _build_context_sections,
     compute_input_hash,
     extra_context_documents,
     run_step,
@@ -230,17 +230,34 @@ def test_missing_specific_test_ideas_notes_manual_review_in_prompt(spec, tmp_pat
     assert "автор не указал конкретных тестовых сценариев" in user_prompt
 
 
-# --- _build_generation_section ----------------------------------------------
+# --- _build_context_sections ------------------------------------------------
 
 
-def test_build_generation_section_input_shape_comes_from_formal_input_sketch(spec):
-    section = _build_generation_section(spec)
+def test_build_context_sections_takes_input_format_from_statement_draft(spec):
+    sections = _build_context_sections(spec)
 
-    assert section["input_shape"] == spec.statement_draft.formal_input_sketch
-    assert section["script_style"] == spec.generation.script_style
+    assert sections["generation"]["script_style"] == spec.generation.script_style
+    assert "input_shape" not in sections["generation"]
+    statement = sections["statement"]
+    assert statement["formal_input_sketch"] == spec.statement_draft.formal_input_sketch
+    assert statement["indexing"] == spec.statement_draft.indexing
+    assert statement["sample_examples"] == [
+        {"input": ex.input} for ex in spec.statement_draft.sample_examples
+    ]
+    # вывод и легенда генераторам не нужны
+    assert "formal_output_sketch" not in statement
+    assert "legend_sketch" not in statement
 
 
-def test_run_step_renders_formal_input_sketch_as_input_shape(spec, tmp_path):
+def test_build_context_sections_takes_only_known_wrong_approaches_from_solutions(spec):
+    sections = _build_context_sections(spec)
+
+    assert sections["solutions"] == {
+        "known_wrong_approaches": spec.solutions.known_wrong_approaches
+    }
+
+
+def test_run_step_renders_input_format_from_statement_draft(spec, tmp_path):
     upstream = {"constraints.yaml": "n_max: 100000"}
     response = ModelResponse(status="confirmed", artifacts={}, notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -255,6 +272,9 @@ def test_run_step_renders_formal_input_sketch_as_input_shape(spec, tmp_path):
 
     user_prompt = mock_call.call_args.args[2]
     assert spec.statement_draft.formal_input_sketch.strip() in user_prompt
+    assert f"Индексация: {spec.statement_draft.indexing}" in user_prompt
+    for ex in spec.statement_draft.sample_examples:
+        assert ex.input.strip() in user_prompt
 
 
 # --- compute_input_hash ------------------------------------------------------
@@ -327,8 +347,42 @@ def test_compute_input_hash_changes_when_only_formal_input_sketch_changes(spec):
             )
         }
     )
-    # секция generation у обоих спеков идентична — различается только источник input_shape
+    # секция generation у обоих спеков идентична — различается только формат ввода
     assert spec_other_sketch.generation == spec.generation
     h2 = compute_input_hash("valid-spec", spec_other_sketch, upstream)
 
     assert h1 != h2
+
+
+def test_compute_input_hash_changes_when_sample_input_changes(spec):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    first = spec.statement_draft.sample_examples[0]
+    spec_other_sample = spec.model_copy(
+        update={
+            "statement_draft": spec.statement_draft.model_copy(
+                update={
+                    "sample_examples": [
+                        first.model_copy(update={"input": "1\n42\n"}),
+                        *spec.statement_draft.sample_examples[1:],
+                    ]
+                }
+            )
+        }
+    )
+    h2 = compute_input_hash("valid-spec", spec_other_sample, upstream)
+
+    assert h1 != h2
+
+
+def test_compute_input_hash_ignores_algorithm_hint(spec):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    spec_other_hint = spec.model_copy(
+        update={"solutions": spec.solutions.model_copy(update={"algorithm_hint": "другая идея"})}
+    )
+    h2 = compute_input_hash("valid-spec", spec_other_hint, upstream)
+
+    assert h1 == h2
