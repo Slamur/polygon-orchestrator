@@ -1,10 +1,38 @@
 Спек задачи (problem_id: {{ problem_id }}):
 
+## Легенда (черновик автора — для понимания терминов, не источник алгоритма)
+{{ statement.legend_sketch }}
+
+## Формат входных данных
+{{ statement.formal_input_sketch }}
+
+## Формат выходных данных
+{{ statement.formal_output_sketch }}
+
+## Индексация
+{{ statement.indexing }}
+
+## Примеры из условия
+{% for ex in statement.sample_examples %}
+### Пример {{ loop.index }}
+Input:
+{{ ex.input }}
+{% if ex.output %}
+Output:
+{{ ex.output }}
+{% else %}
+Output: автор не указал — не вычисляй сам.
+{% endif %}
+{% endfor %}
+
 ## Идея алгоритма (от автора)
 {{ solutions.algorithm_hint }}
 
 ## Заявленная и зафиксированная асимптотика (из constraints_pick)
 {{ constraints.intended_complexity }}
+
+## Зафиксированные ограничения (результат шага constraints_pick)
+{{ constraints_pick_result.artifacts["constraints.yaml"] }}
 
 ## Нужные вердикты и языки
 wanted_verdicts: {{ solutions.wanted_verdicts }}

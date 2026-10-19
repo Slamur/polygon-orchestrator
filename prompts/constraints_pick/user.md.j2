@@ -10,6 +10,17 @@ complexity_reasoning:
 - {{ v.name }}: min={{ v.min }}, max={{ v.max }}, description="{{ v.description }}"
 {% endfor %}
 
+## Формат входных данных (из statement_draft спека)
+{{ statement.formal_input_sketch }}
+
+Индексация: {{ statement.indexing }}
+
+Входы примеров из условия (иллюстрация формата — валидатор обязан их принять):
+{% for ex in statement.sample_examples %}
+### Пример {{ loop.index }}
+{{ ex.input }}
+{% endfor %}
+
 ## Дополнительные гарантии
 {% for g in constraints.special_guarantees %}
 - {{ g }}

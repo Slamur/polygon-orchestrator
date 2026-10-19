@@ -1,7 +1,16 @@
 Спек задачи (problem_id: {{ problem_id }}):
 
-## Форма входных данных
-{{ generation.input_shape }}
+## Формат входных данных (из statement_draft спека)
+{{ statement.formal_input_sketch }}
+
+Индексация: {{ statement.indexing }}
+
+Входы примеров из условия (иллюстрация формата — генерируемые тесты должны
+печататься ровно в таком же виде):
+{% for ex in statement.sample_examples %}
+### Пример {{ loop.index }}
+{{ ex.input }}
+{% endfor %}
 
 ## Идеи по генераторам от автора
 {% for g in generation.generator_ideas %}

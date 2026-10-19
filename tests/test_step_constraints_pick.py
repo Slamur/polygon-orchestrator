@@ -6,7 +6,7 @@ import pytest
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
-from orchestrator.steps.constraints_pick import extra_context_documents, run_step
+from orchestrator.steps.constraints_pick import compute_input_hash, extra_context_documents, run_step
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -222,3 +222,44 @@ def test_renders_without_crashing_when_optional_lists_are_null(spec, tmp_path):
         )
 
     assert result.status == "confirmed"
+
+
+def test_user_prompt_includes_input_format_but_not_legend(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts={}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    statement = spec.statement_draft
+    assert statement.formal_input_sketch.strip() in user_prompt
+    assert f"Индексация: {statement.indexing}" in user_prompt
+    for ex in statement.sample_examples:
+        assert ex.input.strip() in user_prompt
+    # асимптотику из легенды выводить запрещено — легенду шаг не получает
+    assert statement.legend_sketch.strip() not in user_prompt
+
+
+@pytest.mark.parametrize(
+    "field, value, changes",
+    [
+        ("formal_input_sketch", "Одна строка: N.", True),
+        ("indexing", "0-indexed", True),
+        ("legend_sketch", "Другая легенда.", False),
+        ("formal_output_sketch", "Выведите YES или NO.", False),
+    ],
+)
+def test_compute_input_hash_depends_only_on_input_part_of_statement(spec, field, value, changes):
+    h1 = compute_input_hash("valid-spec", spec)
+
+    spec_changed = spec.model_copy(
+        update={"statement_draft": spec.statement_draft.model_copy(update={field: value})}
+    )
+    h2 = compute_input_hash("valid-spec", spec_changed)
+
+    assert (h1 != h2) == changes

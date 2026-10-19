@@ -6,7 +6,7 @@ import pytest
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
-from orchestrator.steps.solutions_draft import extra_context_documents, run_step
+from orchestrator.steps.solutions_draft import compute_input_hash, extra_context_documents, run_step
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -164,3 +164,81 @@ def test_renders_without_crashing_when_known_wrong_approaches_is_null(spec, tmp_
         )
 
     assert result.status == "confirmed"
+
+
+def _run_and_get_user_prompt(spec, tmp_path, upstream):
+    response = ModelResponse(status="confirmed", artifacts={}, notes=[])
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+    return mock_call.call_args.args[2]
+
+
+def test_user_prompt_includes_statement_io(spec, tmp_path):
+    user_prompt = _run_and_get_user_prompt(spec, tmp_path, {"constraints.yaml": "n_max: 100000"})
+
+    statement = spec.statement_draft
+    assert statement.legend_sketch.strip() in user_prompt
+    assert statement.formal_input_sketch.strip() in user_prompt
+    assert statement.formal_output_sketch.strip() in user_prompt
+    assert statement.indexing in user_prompt
+    for ex in statement.sample_examples:
+        assert ex.input.strip() in user_prompt
+        assert ex.output.strip() in user_prompt
+
+
+def test_user_prompt_includes_constraints_yaml(spec, tmp_path):
+    constraints_yaml = "variables:\n  n: {min: 1, max: 200000}\nlimits:\n  time_limit_seconds: 2\n"
+    user_prompt = _run_and_get_user_prompt(spec, tmp_path, {"constraints.yaml": constraints_yaml})
+
+    assert constraints_yaml.strip() in user_prompt
+
+
+def test_user_prompt_marks_missing_sample_output(spec, tmp_path):
+    examples = [ex.model_copy(update={"output": None}) for ex in spec.statement_draft.sample_examples]
+    spec_no_output = spec.model_copy(
+        update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
+    )
+    user_prompt = _run_and_get_user_prompt(spec_no_output, tmp_path, {"constraints.yaml": "n_max: 1"})
+
+    assert "Output: автор не указал" in user_prompt
+
+
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("formal_input_sketch", "Одна строка: N."),
+        ("formal_output_sketch", "Выведите YES или NO."),
+        ("indexing", "0-indexed"),
+        ("legend_sketch", "Другая легенда."),
+    ],
+)
+def test_compute_input_hash_changes_when_statement_io_changes(spec, field, value):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    spec_changed = spec.model_copy(
+        update={"statement_draft": spec.statement_draft.model_copy(update={field: value})}
+    )
+    h2 = compute_input_hash("valid-spec", spec_changed, upstream)
+
+    assert h1 != h2
+
+
+def test_compute_input_hash_changes_when_sample_output_changes(spec):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    examples = [ex.model_copy(update={"output": "-1\n"}) for ex in spec.statement_draft.sample_examples]
+    spec_changed = spec.model_copy(
+        update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
+    )
+    h2 = compute_input_hash("valid-spec", spec_changed, upstream)
+
+    assert h1 != h2

@@ -167,6 +167,41 @@ def with_default_lists(data: dict[str, Any], list_fields: list[str]) -> dict[str
     return result
 
 
+def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[str, Any]:
+    """Формат ввода-вывода задачи из секции `statement_draft` спека — для
+    шагов, которые сами по себе от этой секции не зависят, но без неё
+    вынуждены угадывать формат (валидатор, генераторы, решения).
+
+    Берётся именно спек, а не сгенерированные `outputs/<id>/statement/*.tex`:
+    спек — первоисточник, и он есть, даже если `statement_draft` ушёл в
+    `uncertain`. Возвращаемый словарь — одновременно контекст для
+    `user.md.j2` и часть входа хеша кэша шага (единая точка сборки, чтобы они
+    не разошлись).
+
+    `include_output_and_legend=False` — только ввод (`formal_input_sketch`,
+    `indexing`, input примеров): для `constraints_pick` легенда не
+    передаётся намеренно — асимптотику из неё выводить запрещено, и лишний
+    повод так сделать в промпте не нужен. `True` — дополнительно
+    `formal_output_sketch`, `legend_sketch` и output примеров (`null`, если
+    автор его не указал) — для решений, которым нужно и читать вход, и
+    печатать ответ.
+    """
+    statement = spec.statement_draft
+    section: dict[str, Any] = {
+        "formal_input_sketch": statement.formal_input_sketch,
+        "indexing": statement.indexing,
+    }
+    if include_output_and_legend:
+        section["legend_sketch"] = statement.legend_sketch
+        section["formal_output_sketch"] = statement.formal_output_sketch
+        section["sample_examples"] = [
+            {"input": ex.input, "output": ex.output} for ex in statement.sample_examples
+        ]
+    else:
+        section["sample_examples"] = [{"input": ex.input} for ex in statement.sample_examples]
+    return section
+
+
 def render_user_prompt(
     step_name: str, context: dict[str, Any], *, prompts_dir: Path = PROMPTS_DIR
 ) -> str:
