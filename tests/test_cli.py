@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from orchestrator import cli, cli_commands
+from orchestrator.llm_client import UsageLimitReachedError
 from orchestrator.model_router import ModelResponse
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -145,6 +146,27 @@ def test_run_all_continues_past_invalid_spec_and_reports_exit_code(specs_dir, tm
     assert "failed validation" in out
     assert "=== good ===" in out
     assert "statement_draft: confirmed" in out
+
+
+def test_run_all_stops_on_usage_limit(specs_dir, tmp_path, capsys):
+    for problem_id in ("p1", "p2", "p3"):
+        _write_spec(specs_dir, problem_id)
+    outputs_dir = tmp_path / "outputs"
+    calls = []
+
+    def limited_call_model(step, system_prompt, user_prompt, context_documents=None):
+        calls.append(step)
+        raise UsageLimitReachedError("usage limit reached")
+
+    with patch("orchestrator.model_router.call_model", side_effect=limited_call_model):
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all"])
+
+    assert rc == 1
+    assert len(calls) == 1  # p2/p3 не тронуты — лимит общий
+    out = capsys.readouterr().out
+    assert "=== p1 ===" in out
+    assert "usage limit reached" in out
+    assert "not processed: p2, p3" in out
 
 
 def test_run_all_with_no_specs_reports_and_exits_zero(specs_dir, tmp_path, capsys):

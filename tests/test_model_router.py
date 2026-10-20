@@ -135,3 +135,35 @@ def test_call_model_uses_default_client_when_none_registered(monkeypatch):
     call_model("constraints_pick", "sys", "usr")
 
     assert fake_client.calls
+
+
+def _no_dotenv(monkeypatch):
+    import dotenv
+
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: False)
+
+
+def test_default_backend_is_claude_code(monkeypatch):
+    from orchestrator.llm_clients.claude_code_client import ClaudeCodeClient
+
+    _no_dotenv(monkeypatch)
+    monkeypatch.delenv("ORCHESTRATOR_LLM_BACKEND", raising=False)
+
+    assert isinstance(model_router._get_client(), ClaudeCodeClient)
+
+
+def test_anthropic_api_backend_selected_by_env(monkeypatch):
+    from orchestrator.llm_clients.anthropic_client import AnthropicClient
+
+    _no_dotenv(monkeypatch)
+    monkeypatch.setenv("ORCHESTRATOR_LLM_BACKEND", "anthropic-api")
+
+    assert isinstance(model_router._get_client(), AnthropicClient)
+
+
+def test_unknown_backend_is_rejected(monkeypatch):
+    _no_dotenv(monkeypatch)
+    monkeypatch.setenv("ORCHESTRATOR_LLM_BACKEND", "nope")
+
+    with pytest.raises(ValueError, match="ORCHESTRATOR_LLM_BACKEND"):
+        model_router._get_client()

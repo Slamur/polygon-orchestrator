@@ -116,7 +116,8 @@ Python-оркестратор, который берёт структуриро�
 │   ├── model_contracts.py          # ModelResponse — вендоронезависимый контракт status/artifacts/notes
 │   ├── llm_clients/
 │   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
-│   │   └── anthropic_client.py     # AnthropicClient(LLMClient) — вся Anthropic-специфика тут
+│   │   ├── anthropic_client.py     # AnthropicClient(LLMClient) — вся Anthropic-API-специфика тут
+│   │   └── claude_code_client.py   # ClaudeCodeClient(LLMClient) — те же модели через `claude -p` по подписке
 │   ├── polygon/
 │   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
 │   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
@@ -412,8 +413,12 @@ read_and_check) — но ошибка здесь дороже, чем в сре�
 он не знает конкретных имён моделей. Соответствие класса конкретной модели
 вендора (например, `"strong-model" -> "claude-opus-5"`), авторизация, retry
 и формат структурированного вывода — всё это инкапсулировано в реализации
-`LLMClient` (`orchestrator/llm_client.py`), по умолчанию `AnthropicClient`
-(`orchestrator/llm_clients/anthropic_client.py`). Промпты не должны
+`LLMClient` (`orchestrator/llm_client.py`), по умолчанию `ClaudeCodeClient`
+(`orchestrator/llm_clients/claude_code_client.py`: модели через Claude Code
+CLI, расход из лимитов подписки, а не с API-баланса — см.
+`docs/SETUP.md`); при `ORCHESTRATOR_LLM_BACKEND=anthropic-api` —
+`AnthropicClient` (`orchestrator/llm_clients/anthropic_client.py`, те же
+модели через Anthropic API). Промпты не должны
 зависеть от того, какая именно модель/вендор их выполняет — вся эта
 информация не должна течь в `prompts/`.
 
@@ -551,27 +556,32 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 ## Ручные прогоны с реальным API — запрещены без явной команды
 
 `orchestrator llm generate <problem_id>` (с `--step`, `--force` или без) вызывает
-реальный Anthropic API через `AnthropicClient.generate` и стоит денег
-каждый раз. Это не "проверка кода" в обычном смысле — здесь любая проверка
-= потраченные токены.
+реальную модель и стоит каждый раз: через `AnthropicClient.generate` — денег
+с API-баланса, через `ClaudeCodeClient.generate` (`claude -p`) — лимитов
+подписки автора, общих с его интерактивной работой. Это не "проверка кода"
+в обычном смысле — здесь любая проверка = потраченные токены.
 
 СТРОГО ЗАПРЕЩЕНО Claude Code самостоятельно, без явной команды пользователя
 в текущем сообщении, запускать:
 - `orchestrator llm generate ...` на любом `problem_id` (реальном или синтетическом);
 - любой другой код, который инстанцирует `AnthropicClient` и реально
   доходит до `client.messages.create` — включая "быстро проверить одним
-  шагом", "smoke test", "прогоним и посмотрим, что вернётся".
+  шагом", "smoke test", "прогоним и посмотрим, что вернётся";
+- `claude -p` с запросом к модели (вручную или через `ClaudeCodeClient`) —
+  по тем же причинам; `claude --version`/`--help` модель не вызывают и
+  разрешены.
 
 Это касается даже ситуаций, где мотивация выглядит разумной ("хочу
 убедиться, что фикс действительно работает end-to-end") — инициатива здесь
 неуместна: стоимость реального вызова не оправдывает прогон без спроса.
 
-Разрешено без спроса (сетевых вызовов к Anthropic не делает):
+Разрешено без спроса (к модели не обращается):
 - `orchestrator llm status` — читает только кэш и файлы, в сеть не ходит;
 - `pytest` (integration-тесты по умолчанию выключены `-m 'not integration'`
   — не трогать `pyproject.toml`, чтобы это не включить случайно);
 - компиляция и статический анализ сгенерированных C++-файлов;
-- unit-тесты с моком `LLMClient` (Protocol в `orchestrator/llm_client.py`).
+- unit-тесты с моком `LLMClient` (Protocol в `orchestrator/llm_client.py`)
+  или с замоканным `subprocess.run` для `ClaudeCodeClient`.
 
 Если для отладки бага нужен реальный end-to-end прогон — Claude Code должен
 явно спросить и дождаться отдельного подтверждения от пользователя в чате

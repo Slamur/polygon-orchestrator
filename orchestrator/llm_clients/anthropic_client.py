@@ -18,7 +18,12 @@ from typing import Any
 import anthropic
 from dotenv import load_dotenv
 
-from orchestrator.model_contracts import ModelResponse
+from orchestrator.llm_client import build_system_prompt
+from orchestrator.model_contracts import (
+    RESPONSE_JSON_SCHEMA,
+    ModelResponse,
+    model_response_from_payload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,67 +56,7 @@ _RESPONSE_TOOL: dict[str, Any] = {
         "Верни результат генеративного шага строго по контракту "
         "status/artifacts/notes, описанному в docs/PROMPTS.md."
     ),
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "status": {
-                "type": "string",
-                "enum": ["confirmed", "proposed", "uncertain"],
-                "description": (
-                    "confirmed — все нужные данные были в спеке; proposed — "
-                    "что-то намеренно домыслено там, где это разрешено (см. "
-                    "notes); uncertain — не хватает обязательных данных, "
-                    "artifacts может быть пустым/частичным."
-                ),
-            },
-            "artifacts": {
-                "type": "array",
-                "description": (
-                    "Список файлов-артефактов. Anthropic strict tool use не "
-                    "поддерживает object-схему с произвольными ключами "
-                    "(additionalProperties должен быть false, а не схемой) — "
-                    "поэтому карта 'имя файла' -> 'содержимое' из "
-                    "docs/PROMPTS.md здесь представлена списком пар; "
-                    "`_parse_model_response` ниже собирает её обратно в dict "
-                    "для вендоронезависимого `ModelResponse.artifacts`."
-                ),
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "filename": {"type": "string"},
-                        "content": {"type": "string"},
-                    },
-                    "required": ["filename", "content"],
-                    "additionalProperties": False,
-                },
-            },
-            "notes": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "field": {
-                            "type": "string",
-                            "description": (
-                                "Путь до поля спека/артефакта, к которому "
-                                "относится заметка, например "
-                                "'constraints.variables[1].max'."
-                            ),
-                        },
-                        "kind": {
-                            "type": "string",
-                            "enum": ["proposed", "uncertain"],
-                        },
-                        "explanation": {"type": "string"},
-                    },
-                    "required": ["field", "kind", "explanation"],
-                    "additionalProperties": False,
-                },
-            },
-        },
-        "required": ["status", "artifacts", "notes"],
-        "additionalProperties": False,
-    },
+    "input_schema": RESPONSE_JSON_SCHEMA,
     "strict": True,
 }
 
@@ -134,7 +79,7 @@ class AnthropicClient:
     ) -> ModelResponse:
         model_id = MODEL_CLASS_TO_ID[model_class]
         client = self._get_sdk_client()
-        system = _build_system_prompt(system_prompt, context_documents)
+        system = build_system_prompt(system_prompt, context_documents)
 
         attempt = 0
         while True:
@@ -200,26 +145,6 @@ class AnthropicClient:
         return self._sdk_client
 
 
-def _build_system_prompt(
-    system_prompt: str, context_documents: dict[str, str] | None
-) -> str:
-    """Склеивает `system_prompt` с приложенными документами контекста.
-
-    Документы идут после `system_prompt` в порядке `context_documents`
-    (см. `orchestrator/steps/base.py:load_context_documents` — фиксированный
-    список STEP_CONTEXT_DOCUMENTS, затем extra_paths), каждый со своим путём
-    как заголовком, чтобы модель могла на него сослаться. `None`/пустая карта
-    — `system` остаётся просто `system_prompt` (обратная совместимость).
-    """
-    if not context_documents:
-        return system_prompt
-
-    parts = [system_prompt]
-    for path, content in context_documents.items():
-        parts.append(f"--- Приложенный документ: {path} ---\n{content}")
-    return "\n\n".join(parts)
-
-
 def _is_retryable(exc: Exception) -> bool:
     """Транзиентная ли ошибка: 5xx/overloaded_error или сетевой обрыв/таймаут.
 
@@ -272,12 +197,4 @@ def _parse_model_response(
             f"(stop_reason={response.stop_reason!r})"
         )
 
-    payload = tool_use_blocks[0].input
-    artifacts = {
-        entry["filename"]: entry["content"] for entry in payload.get("artifacts") or []
-    }
-    return ModelResponse(
-        status=payload["status"],
-        artifacts=artifacts,
-        notes=list(payload.get("notes") or []),
-    )
+    return model_response_from_payload(tool_use_blocks[0].input)
