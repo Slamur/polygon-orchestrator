@@ -1,0 +1,46 @@
+# Формат constraints.yaml — результата шага constraints_pick. Файл читают
+# следующие шаги (generators_and_script, solutions_draft) и оркестратор
+# (polygon push берёт TL/ML из limits), поэтому структура верхнего уровня
+# обязательна и одинакова для всех задач. Значения ниже — заглушки
+# <в угловых скобках>, а не образец содержания.
+#
+# Каждое решение помечается status: confirmed (значение задано автором в
+# спеке) или status: proposed (значение предложено моделью — тогда с
+# обоснованием в rationale и записью в notes ответа модели).
+problem_id: <problem_id из спека>
+intended_complexity: "<constraints.intended_complexity из спека, как есть>"
+complexity_reasoning: |
+  <constraints.complexity_reasoning из спека, как есть>
+
+variables:                      # по записи на каждую переменную из constraints.variables спека
+  - name: "<имя>"
+    min: <число>
+    max: <число>
+    description: "<описание>"
+    status: <confirmed | proposed>
+    rationale: |                # только при status: proposed
+      <почему выбрано такое значение>
+
+limits:
+  time_limit_seconds: <целое число секунд (или +0.5)>
+  memory_limit_mb: <число, кратное 256 (или 32/64/128 при основаниях)>
+  status: <confirmed | proposed>
+  rationale: |
+    <согласованность TL/ML с intended_complexity при максимальных значениях>
+
+test_groups:                    # только если группы нужны; иначе ключа нет вовсе
+  - name: "<имя группы>"        # поля — как у constraints.test_groups_hint в спеке
+    subset_of: "<имя группы | null>"
+    max_n: <число | null>
+    special_property: "<особенность тестов группы | null>"
+    status: <confirmed | proposed>
+
+validator:                      # validator.cpp реализует эту секцию 1-в-1
+  constants:                    # по записи на каждую переменную из variables
+    - name: "<имя>"
+      cpp_type: <int | ll>
+      min: <число>
+      max: <число>
+  checks:                       # всё, что проверяет валидатор сверх min/max
+    - "<порядок чтения токенов и строк, по formal_input_sketch>"
+    - "<проверка для каждой special_guarantees>"

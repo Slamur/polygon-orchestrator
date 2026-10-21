@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.spec import ProblemSpec
+from orchestrator.references import reference_documents
+from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
     OUTPUTS_DIR,
     PROMPTS_DIR,
@@ -35,7 +36,7 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
     """
     return {
         "constraints": with_default_lists(
-            spec.constraints.model_dump(mode="json"), _LIST_FIELDS
+            spec.constraints.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
         ),
         "statement": statement_io_section(spec, include_output_and_legend=False),
     }
@@ -66,10 +67,12 @@ def primary_artifact_path(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> Optional[list[str]]:
-    """См. `statement_draft.extra_context_documents` — у `constraints_pick`
-    тоже нет документов контекста, специфичных для конкретного вызова.
+    """Образцы для конкретного вызова — файлы, которые этому шагу дают
+    референсы спека (общие `references` и `constraints.references`, см.
+    `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
+    `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково.
     """
-    return None
+    return reference_documents(STEP_NAME, spec)
 
 
 def run_step(
@@ -134,4 +137,5 @@ def run_step(
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
     )

@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.spec import ProblemSpec
+from orchestrator.references import reference_documents
+from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
     OUTPUTS_DIR,
     PROMPTS_DIR,
@@ -71,7 +72,7 @@ def compute_input_hash(
     у всех пяти шагов.
     """
     section_data = with_default_lists(
-        spec.statement_draft.model_dump(mode="json"), _LIST_FIELDS
+        spec.statement_draft.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
     )
     return _cache_compute_input_hash(STEP_NAME, section_data)
 
@@ -90,13 +91,12 @@ def primary_artifact_path(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> Optional[list[str]]:
-    """`statement_draft` не имеет документов контекста, специфичных для
-    конкретного вызова — только фиксированный `STEP_CONTEXT_DOCUMENTS`
-    (см. `orchestrator.steps.base`). Присутствует ради единой сигнатуры,
-    которую использует `pipeline.py` (см.
-    `generators_and_script.extra_context_documents`).
+    """Образцы для конкретного вызова — файлы, которые этому шагу дают
+    референсы спека (общие `references` и `statement_draft.references`, см.
+    `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
+    `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково.
     """
-    return None
+    return reference_documents(STEP_NAME, spec)
 
 
 def run_step(
@@ -142,7 +142,7 @@ def run_step(
     upstream_artifacts)` у всех пяти шагов.
     """
     section_data = with_default_lists(
-        spec.statement_draft.model_dump(mode="json"), _LIST_FIELDS
+        spec.statement_draft.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
     )
     context = {"problem_id": problem_id, "statement_draft": section_data}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
@@ -163,5 +163,6 @@ def run_step(
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
         validate_artifacts=_validate_statement_artifacts(expected),
     )

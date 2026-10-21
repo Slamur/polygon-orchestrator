@@ -5,9 +5,9 @@ import pytest
 
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
-from orchestrator.steps.base import DEFAULT_EXAMPLE_SUBDIR, StepUncertainError
+from orchestrator.references import SpecReferenceError
+from orchestrator.steps.base import StepUncertainError
 from orchestrator.steps.solutions_draft import (
-    SOLUTION_TEMPLATES_SUBDIR,
     compute_input_hash,
     extra_context_documents,
     run_step,
@@ -24,47 +24,60 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-def _write_solution_templates(templates_dir: Path) -> None:
-    solutions_dir = templates_dir / SOLUTION_TEMPLATES_SUBDIR
+EXAMPLE_DIR = TEMPLATES_DIR / "examples" / "array--prefix-sums"
+
+
+def _write_reference(tmp_path: Path) -> Path:
+    reference_dir = tmp_path / "old-task"
+    solutions_dir = reference_dir / "solutions"
     solutions_dir.mkdir(parents=True)
     for name in ["ok_cpp_a_draft.cpp", "wa_cpp_b_draft.cpp", "ok_py_a_draft.py", "ok_java_a_draft.java"]:
         (solutions_dir / name).write_text(f"// {name}", encoding="utf-8")
+    return reference_dir
 
 
-def _with_languages(spec, languages):
-    solutions = spec.solutions.model_copy(update={"languages": languages})
+def _with_solutions(spec, languages, references):
+    solutions = spec.solutions.model_copy(update={"languages": languages, "references": references})
     return spec.model_copy(update={"solutions": solutions})
 
 
-def test_extra_context_documents_filters_templates_by_language(spec, tmp_path):
-    _write_solution_templates(tmp_path)
+def test_extra_context_documents_filters_solutions_by_language(spec, tmp_path):
+    reference_dir = _write_reference(tmp_path)
 
-    documents = extra_context_documents(_with_languages(spec, ["cpp"]), templates_dir=tmp_path)
+    documents = extra_context_documents(_with_solutions(spec, ["cpp"], [str(reference_dir)]))
 
     assert documents == [
-        str(tmp_path / SOLUTION_TEMPLATES_SUBDIR / "ok_cpp_a_draft.cpp"),
-        str(tmp_path / SOLUTION_TEMPLATES_SUBDIR / "wa_cpp_b_draft.cpp"),
+        str(reference_dir / "solutions" / "ok_cpp_a_draft.cpp"),
+        str(reference_dir / "solutions" / "wa_cpp_b_draft.cpp"),
     ]
 
 
 def test_extra_context_documents_accepts_language_aliases(spec, tmp_path):
-    _write_solution_templates(tmp_path)
+    reference_dir = _write_reference(tmp_path)
 
-    documents = extra_context_documents(_with_languages(spec, ["Python"]), templates_dir=tmp_path)
+    documents = extra_context_documents(_with_solutions(spec, ["Python"], [str(reference_dir)]))
 
-    assert documents == [str(tmp_path / SOLUTION_TEMPLATES_SUBDIR / "ok_py_a_draft.py")]
+    assert documents == [str(reference_dir / "solutions" / "ok_py_a_draft.py")]
 
 
-def test_extra_context_documents_none_without_matching_templates(spec, tmp_path):
-    _write_solution_templates(tmp_path)
+def test_extra_context_documents_without_matching_solutions(spec, tmp_path):
+    reference_dir = _write_reference(tmp_path)
 
-    assert extra_context_documents(_with_languages(spec, ["kotlin"]), templates_dir=tmp_path) is None
-    assert extra_context_documents(spec, templates_dir=tmp_path / "no-such-dir") is None
+    # Шаговый референс, не давший шагу ни одного файла, — ошибка спека.
+    with pytest.raises(SpecReferenceError, match="solutions.references"):
+        extra_context_documents(_with_solutions(spec, ["kotlin"], [str(reference_dir)]))
+    # Общий референс без подходящих файлов для этого шага просто пропускается.
+    common_only = _with_solutions(spec, ["kotlin"], None).model_copy(
+        update={"references": [str(reference_dir)]}
+    )
+    assert extra_context_documents(common_only) is None
+    assert extra_context_documents(_with_solutions(spec, ["cpp"], None)) is None
     spec_no_solutions = spec.model_copy(update={"solutions": None})
-    assert extra_context_documents(spec_no_solutions, templates_dir=tmp_path) is None
+    assert extra_context_documents(spec_no_solutions) is None
 
 
-def test_run_step_attaches_solution_templates_of_requested_languages(spec, tmp_path):
+def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_path):
+    spec = spec.model_copy(update={"references": [str(EXAMPLE_DIR)]})
     response = ModelResponse(status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[])
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -80,12 +93,16 @@ def test_run_step_attaches_solution_templates_of_requested_languages(spec, tmp_p
         if compiled.binary_path:
             compiled.binary_path.unlink(missing_ok=True)
 
-    # Фикстура заказывает только cpp — шаблоны на других языках не прикладываются.
-    attached = [d for d in mock_call.call_args.kwargs["context_documents"] if d.startswith(f"{DEFAULT_EXAMPLE_SUBDIR}/solutions/")]
-    example_dir = TEMPLATES_DIR / DEFAULT_EXAMPLE_SUBDIR / "solutions"
-    expected = sorted(f"{DEFAULT_EXAMPLE_SUBDIR}/solutions/{p.name}" for p in example_dir.glob("*_cpp_*"))
+    # Фикстура заказывает только cpp — решения на других языках не прикладываются.
+    context_documents = mock_call.call_args.kwargs["context_documents"]
+    attached = [d for d in context_documents if d.startswith("examples/array--prefix-sums/solutions/")]
+    expected = sorted(
+        f"examples/array--prefix-sums/solutions/{p.name}"
+        for p in (EXAMPLE_DIR / "solutions").glob("*_cpp_*")
+    )
     assert expected
     assert attached == expected
+    assert "examples/array--prefix-sums/spec.yaml" in context_documents
 
 
 def test_missing_solutions_section_raises(spec, tmp_path):

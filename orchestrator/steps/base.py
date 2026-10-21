@@ -41,68 +41,48 @@ TEMPLATES_DIR = Path("templates")
 # Раскладка templates_dir: `common/` — общее для всех задач (правила
 # `tutorials/*.md`, `problem_lib.h`, `testlib.h`; `common/` же — include-каталог
 # для compile-check), `examples/<problem_id>/` — учебные задачи-образцы, каждая
-# в раскладке `outputs/<problem_id>/` плюс свой спек `spec.yaml`.
+# в раскладке `outputs/<problem_id>/` плюс свой спек `spec.yaml`. Учебные
+# задачи сами по себе к вызову не прикладываются — только как референсы
+# спека (`orchestrator/references.py`).
 COMMON_SUBDIR = "common"
 EXAMPLES_SUBDIR = "examples"
-# Учебная задача, образцы которой прикладываются ко всем шагам. Выбора образцов
-# по спеку пока нет — до тех пор пример один и общий для всех задач.
-DEFAULT_EXAMPLE_SUBDIR = f"{EXAMPLES_SUBDIR}/array--prefix-sums"
-EXAMPLE_SPEC_FILENAME = "spec.yaml"
-
-_COMMON = COMMON_SUBDIR
-_EXAMPLE = DEFAULT_EXAMPLE_SUBDIR
 
 # Обязательные документы контекста на шаг (пути относительно templates_dir),
 # см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
-# это правила, а не справочный материал, а problem_lib.h/generators/*.cpp/
-# test_script — основа, которую нужно расширять. Промпты (prompts/<step>/
-# system.md) лишь ссылаются на эти файлы по имени — здесь их содержимое
-# реально прикладывается к вызову модели (см. `call_model` в
-# `model_router.py` и `LLMClient.generate`), а не пересказывается.
+# это правила, а не справочный материал, `constraints_format.yaml` — формат
+# результата `constraints_pick`, который читают следующие шаги и
+# оркестратор (обязателен и при спеке без референсов), а problem_lib.h —
+# основа, которую нужно расширять. Промпты (prompts/<step>/system.md) лишь ссылаются на эти
+# файлы по имени — здесь их содержимое реально прикладывается к вызову
+# модели (см. `call_model` в `model_router.py` и `LLMClient.generate`), а не
+# пересказывается.
 #
 # Запись с `*` — glob-шаблон относительно templates_dir: прикладываются все
-# подходящие файлы (в отсортированном порядке), так что новый пример,
-# положенный в каталог, подхватывается без правки этого списка. `spec.yaml`
-# учебной задачи — спек, для которого написаны все её файлы-образцы: вместе
-# с ними он даёт модели пару "спек -> ожидаемый результат". Прикладывается ко
-# всем шагам, у которых есть образец результата (у `statement_draft` такого
-# образца нет). `constraints.yaml` — образец результата `constraints_pick`
-# для того же учебного спека; шагу `generators_and_script` он нужен как
-# образец его входа (по нему написан `test_script`). Решения учебной задачи
-# (`solutions/*`) здесь не перечислены — они зависят от
-# `solutions.languages` конкретного спека, см.
-# `solutions_draft.extra_context_documents`.
+# подходящие файлы (в отсортированном порядке). Образцы (файлы других задач)
+# здесь не перечислены — они зависят от референсов конкретного спека, см.
+# `extra_context_documents` шагов и `orchestrator/references.py`.
 STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [
-        f"{_COMMON}/tutorials/requirements.md",
-        f"{_COMMON}/tutorials/polygon.md",
+        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/tutorials/polygon.md",
     ],
     "constraints_pick": [
-        f"{_COMMON}/tutorials/requirements.md",
-        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
-        f"{_EXAMPLE}/constraints.yaml",
-        f"{_EXAMPLE}/validator.cpp",
-        f"{_COMMON}/problem_lib.h",
+        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/constraints_format.yaml",
+        f"{COMMON_SUBDIR}/problem_lib.h",
     ],
     "generators_and_script": [
-        f"{_COMMON}/tutorials/requirements.md",
-        f"{_COMMON}/tutorials/freemarker.md",
-        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
-        f"{_EXAMPLE}/constraints.yaml",
-        f"{_COMMON}/problem_lib.h",
-        f"{_EXAMPLE}/generators/*.cpp",
-        f"{_EXAMPLE}/test_script",
+        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/tutorials/freemarker.md",
+        f"{COMMON_SUBDIR}/problem_lib.h",
     ],
     "solutions_draft": [
-        f"{_COMMON}/tutorials/requirements.md",
-        f"{_COMMON}/tutorials/polygon.md",
-        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
+        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/tutorials/polygon.md",
     ],
     "checker_draft": [
-        f"{_COMMON}/tutorials/requirements.md",
-        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
-        f"{_EXAMPLE}/checker.cpp",
-        f"{_COMMON}/problem_lib.h",
+        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/problem_lib.h",
     ],
 }
 
@@ -260,12 +240,13 @@ def _context_document_key(path: Path, templates_dir: Path) -> str:
     """Имя, под которым документ из `extra_paths` прикладывается к вызову.
 
     Файл внутри `templates_dir` получает тот же вид ключа, что и документы
-    фиксированного списка, — путь относительно `templates_dir`. Так он не
-    прикладывается второй раз, если уже есть в фиксированном списке
-    (например, `base_template_refs` со ссылкой на генератор из
-    `generators/*.cpp`), а ключ (он входит в `compute_prompt_hash`) не
-    зависит от того, как записан сам `templates_dir` — относительно или
-    абсолютно. Файл вне `templates_dir` остаётся под путём как он передан.
+    фиксированного списка, — путь относительно `templates_dir`
+    (`examples/<problem_id>/validator.cpp`). Так он не прикладывается второй
+    раз, если на него ведут два референса (общий каталог и шаговый файл из
+    него), а ключ (он входит в `compute_prompt_hash`) не зависит от того,
+    как записан сам `templates_dir` — относительно или абсолютно. Файл вне
+    `templates_dir` остаётся под путём как он передан
+    (`outputs/<problem_id>/validator.cpp`).
     """
     try:
         return path.resolve().relative_to(templates_dir.resolve()).as_posix()
@@ -285,8 +266,8 @@ def load_context_documents(
     (пути относительно `templates_dir`; glob-записи раскрываются в
     отсортированный список файлов), затем `extra_paths` — пути
     относительно корня репозитория, специфичные для конкретного вызова шага
-    (например, `generation.base_template_refs`, см. CLAUDE.md,
-    "base_template_refs"), а не для всех вызовов шага вообще.
+    (файлы референсов спека, см. `orchestrator/references.py`), а не для
+    всех вызовов шага вообще.
 
     Отсутствующий файл (или glob-запись без единого совпадения) — понятная
     ошибка ДО вызова модели, с указанием пути и того, откуда он взят
@@ -359,9 +340,8 @@ def run_generative_step(
 
     `extra_context_documents` — дополнительные пути (относительно корня
     репозитория), специфичные для конкретного вызова этого шага, а не для
-    всех его вызовов вообще (`generators_and_script` —
-    `generation.base_template_refs`, `solutions_draft` — шаблоны решений на
-    языках из `solutions.languages`, см. `load_context_documents`). Вместе с фиксированным списком
+    всех его вызовов вообще (файлы референсов спека, см.
+    `orchestrator/references.py` и `load_context_documents`). Вместе с фиксированным списком
     `STEP_CONTEXT_DOCUMENTS[step_name]` они читаются и передаются модели как
     `context_documents`, а также входят в `compute_prompt_hash` — правка
     любого из этих документов должна инвалидировать кэш шага.

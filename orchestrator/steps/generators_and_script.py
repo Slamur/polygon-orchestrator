@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.spec import ProblemSpec
+from orchestrator.references import reference_documents
+from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
     OUTPUTS_DIR,
     PROMPTS_DIR,
@@ -28,7 +29,7 @@ CONSTRAINTS_ARTIFACT = "constraints.yaml"
 
 # Optional[list[...]]-поля секции generation, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
-_LIST_FIELDS = ["generator_ideas", "specific_test_ideas", "base_template_refs"]
+_LIST_FIELDS = ["generator_ideas", "specific_test_ideas"]
 
 # Optional[list[...]]-поле секции solutions, которое используется этим шагом
 # (не всей секцией solutions_draft, а только это поле — источник adversarial-
@@ -50,7 +51,7 @@ def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
     if spec.solutions is None:
         return {"known_wrong_approaches": []}
     section_data = with_default_lists(
-        spec.solutions.model_dump(mode="json"), _SOLUTIONS_LIST_FIELDS
+        spec.solutions.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _SOLUTIONS_LIST_FIELDS
     )
     return {"known_wrong_approaches": section_data["known_wrong_approaches"]}
 
@@ -66,7 +67,7 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
     """
     return {
         "generation": with_default_lists(
-            spec.generation.model_dump(mode="json"), _LIST_FIELDS
+            spec.generation.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
         ),
         "solutions": _solutions_section_data(spec),
         "statement": statement_io_section(spec, include_output_and_legend=False),
@@ -120,15 +121,12 @@ def compute_input_hash(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> Optional[list[str]]:
-    """Документы контекста, специфичные для конкретного вызова (а не для всех
-    вызовов шага вообще) — `generation.base_template_refs` (пути относительно
-    корня репозитория, см. CLAUDE.md, "base_template_refs"). Примеры
-    генераторов учебной задачи (`templates/examples/*/generators/`) сюда не входят — они приложены
-    всегда, через `STEP_CONTEXT_DOCUMENTS`. Единая сигнатура с остальными
-    шагами нужна `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково
-    для всех шагов.
+    """Образцы для конкретного вызова — файлы, которые этому шагу дают
+    референсы спека (общие `references` и `generation.references`, см.
+    `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
+    `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково.
     """
-    return spec.generation.base_template_refs
+    return reference_documents(STEP_NAME, spec)
 
 
 def primary_artifact_path(
@@ -154,8 +152,7 @@ def run_step(
 ) -> StepResult:
     """Прогоняет шаг `generators_and_script` для `problem_id`.
 
-    Вход: секция `generation` спека (идеи генераторов,
-    `base_template_refs`, `script_style`) плюс
+    Вход: секция `generation` спека (идеи генераторов, `script_style`) плюс
     формат ввода из `statement_draft` (`formal_input_sketch`, `indexing`,
     input примеров — а не отдельное поле `generation`, см.
     `_build_context_sections`), плюс

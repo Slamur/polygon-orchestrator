@@ -15,6 +15,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 PROBLEM_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
+# `references` секций — какие образцы приложить к вызову (их содержимое входит
+# в `compute_prompt_hash`, см. orchestrator/references.py), а не содержание
+# задачи: из `model_dump` секций для промпта и `input_hash` поле исключается.
+SPEC_REFERENCES_FIELD = {"references"}
+
 # Подсказки для конкретных полей — добавляются к сообщению об ошибке
 # валидации, чтобы явно указать, зачем поле нужно и где про это написано
 # (см. "Правило эскалации при неуверенности" в CLAUDE.md).
@@ -27,6 +32,10 @@ _FIELD_HINTS: dict[str, str] = {
         "required for the constraints_pick step — the model checks N/TL "
         "for consistency with the author's reasoning instead of "
         "guessing anew, see CLAUDE.md and SPEC_FORMAT.md"
+    ),
+    "generation.base_template_refs": (
+        "the field was renamed to generation.references (a reference may now "
+        "also be a directory laid out like outputs/<problem_id>/), see SPEC_FORMAT.md"
     ),
 }
 
@@ -84,6 +93,7 @@ class StatementDraft(BaseModel):
     sample_examples: list[SampleExample] = Field(min_length=1)
     known_ambiguities: Optional[list[str]] = None
     preserve_legend_verbatim: bool = False
+    references: Optional[list[str]] = None
 
     @model_validator(mode="after")
     def _check_non_blank(self) -> "StatementDraft":
@@ -129,6 +139,7 @@ class Constraints(BaseModel):
     time_limit_seconds: Optional[float] = None
     memory_limit_mb: Optional[int] = None
     uncertain_points: Optional[list[str]] = None
+    references: Optional[list[str]] = None
 
     @model_validator(mode="after")
     def _check_non_blank(self) -> "Constraints":
@@ -159,8 +170,8 @@ class Generation(BaseModel):
 
     generator_ideas: Optional[list[GeneratorIdea]] = None
     specific_test_ideas: Optional[list[str]] = None
-    base_template_refs: Optional[list[str]] = None
     script_style: Literal["flat", "groups"]
+    references: Optional[list[str]] = None
 
 
 _ALLOWED_VERDICTS = {"ok", "wa", "tl", "tle", "ml", "mle", "re"}
@@ -173,6 +184,7 @@ class Solutions(BaseModel):
     languages: list[str] = Field(min_length=1)
     algorithm_hint: str
     known_wrong_approaches: Optional[list[str]] = None
+    references: Optional[list[str]] = None
 
     @model_validator(mode="after")
     def _check_fields(self) -> "Solutions":
@@ -192,6 +204,7 @@ class Checker(BaseModel):
     standard: Optional[str] = None
     custom_needed: bool
     custom_comparison_notes: Optional[str] = None
+    references: Optional[list[str]] = None
 
     @model_validator(mode="after")
     def _check_custom_notes(self) -> "Checker":
@@ -217,6 +230,7 @@ class ProblemSpec(BaseModel):
 
     problem_id: str
     title: Title
+    references: Optional[list[str]] = None
     statement_draft: StatementDraft
     constraints: Constraints
     generation: Generation

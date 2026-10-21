@@ -26,6 +26,7 @@ from orchestrator.cache import (
     is_cache_valid,
     load_cache_entry,
 )
+from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_spec
 from orchestrator.step_order import STEP_ORDER
 from orchestrator.steps import (
@@ -192,13 +193,20 @@ def run_pipeline(
             result.stopped_uncertain = True
             return result
 
+        try:
+            extra_documents = module.extra_context_documents(spec, templates_dir=templates_dir)
+        except SpecReferenceError as exc:
+            # Референс спека не найден или ничего не даёт шагу — спек нужно
+            # поправить; остальные problem_id в `llm generate --all` идут дальше.
+            result.outcomes.append(StepOutcome(step_name, "error", str(exc)))
+            result.stopped_uncertain = True
+            return result
+
         prompt_hash = compute_prompt_hash(
             step_name,
             prompts_dir=prompts_dir,
             templates_dir=templates_dir,
-            extra_context_documents=module.extra_context_documents(
-                spec, templates_dir=templates_dir
-            ),
+            extra_context_documents=extra_documents,
         )
         cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
@@ -334,7 +342,15 @@ def compute_step_statuses(
         cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
 
-        if cache_entry is None:
+        try:
+            extra_documents = module.extra_context_documents(spec, templates_dir=templates_dir)
+            reference_error = None
+        except SpecReferenceError as exc:
+            reference_error = str(exc)
+
+        if reference_error is not None:
+            statuses.append(StepStatus(step_name, STATUS_BLOCKED, reference_error))
+        elif cache_entry is None:
             statuses.append(StepStatus(step_name, STATUS_NOT_RUN))
         elif cache_entry.status == UNCERTAIN_STATUS:
             statuses.append(
@@ -349,9 +365,7 @@ def compute_step_statuses(
                 step_name,
                 prompts_dir=prompts_dir,
                 templates_dir=templates_dir,
-                extra_context_documents=module.extra_context_documents(
-                    spec, templates_dir=templates_dir
-                ),
+                extra_context_documents=extra_documents,
             )
             if is_cache_valid(cache_entry, input_hash, prompt_hash) and _artifact_present(
                 primary_path

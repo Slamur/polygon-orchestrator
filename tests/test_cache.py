@@ -11,6 +11,7 @@ from orchestrator.cache import (
     load_cache_entry,
     save_cache_entry,
 )
+from orchestrator.steps.base import STEP_CONTEXT_DOCUMENTS
 
 
 def _write_prompt(
@@ -87,15 +88,16 @@ def _write_context_doc(templates_dir: Path, rel_path: str, content: str) -> None
     path.write_text(content, encoding="utf-8")
 
 
+def _write_step_context_docs(templates_dir: Path, step_name: str) -> None:
+    for rel_path in STEP_CONTEXT_DOCUMENTS[step_name]:
+        _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
+
+
 def test_compute_prompt_hash_changes_when_context_document_changes(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
-    _write_context_doc(templates_dir, "common/tutorials/requirements.md", "req v1")
-    _write_context_doc(templates_dir, "examples/array--prefix-sums/validator.cpp", "validator v1")
-    _write_context_doc(templates_dir, "examples/array--prefix-sums/spec.yaml", "example spec v1")
-    _write_context_doc(templates_dir, "examples/array--prefix-sums/constraints.yaml", "constraints v1")
-    _write_context_doc(templates_dir, "common/problem_lib.h", "lib v1")
+    _write_step_context_docs(templates_dir, "constraints_pick")
 
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
 
@@ -109,11 +111,7 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
-    _write_context_doc(templates_dir, "common/tutorials/requirements.md", "req v1")
-    _write_context_doc(templates_dir, "examples/array--prefix-sums/validator.cpp", "validator v1")
-    _write_context_doc(templates_dir, "examples/array--prefix-sums/spec.yaml", "example spec v1")
-    _write_context_doc(templates_dir, "examples/array--prefix-sums/constraints.yaml", "constraints v1")
-    _write_context_doc(templates_dir, "common/problem_lib.h", "lib v1")
+    _write_step_context_docs(templates_dir, "constraints_pick")
     _write_context_doc(templates_dir, "common/tutorials/polygon.md", "polygon v1")
 
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
@@ -130,8 +128,7 @@ def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "generators_and_script", "rule v1", "user v1")
-    for rel_path in ["common/tutorials/requirements.md", "common/tutorials/freemarker.md", "examples/array--prefix-sums/spec.yaml", "examples/array--prefix-sums/constraints.yaml", "common/problem_lib.h", "examples/array--prefix-sums/generators/gen_rand.cpp", "examples/array--prefix-sums/test_script"]:
-        _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
+    _write_step_context_docs(templates_dir, "generators_and_script")
     extra_file = tmp_path / "extra_gen.cpp"
     extra_file.write_text("extra v1", encoding="utf-8")
 

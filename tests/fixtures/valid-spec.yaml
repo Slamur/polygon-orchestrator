@@ -58,7 +58,7 @@ generation:
   specific_test_ideas:
     - "N = 1 (минимальный случай)"
     - "N = N_max, значения максимальные"
-  base_template_refs:
+  references:
     - "templates/examples/array--prefix-sums/validator.cpp"
   script_style: "groups"
 
