@@ -27,8 +27,8 @@ def outputs_dir(tmp_path):
 @pytest.fixture
 def templates_dir(tmp_path):
     path = tmp_path / "templates"
-    path.mkdir()
-    (path / "problem_lib.h").write_bytes(LIB_CONTENT)
+    (path / "common").mkdir(parents=True)
+    (path / "common" / "problem_lib.h").write_bytes(LIB_CONTENT)
     return path
 
 
@@ -121,8 +121,8 @@ def test_status_not_run_then_done_then_stale(outputs_dir, templates_dir, spec):
     _run(spec, outputs_dir, templates_dir, MagicMock())
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"
 
-    (templates_dir / "problem_lib.h").write_bytes(LIB_CONTENT + b"// changed\n")
+    (templates_dir / "common" / "problem_lib.h").write_bytes(LIB_CONTENT + b"// changed\n")
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
 
-    (templates_dir / "problem_lib.h").unlink()
+    (templates_dir / "common" / "problem_lib.h").unlink()
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"

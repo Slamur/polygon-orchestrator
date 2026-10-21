@@ -10,6 +10,7 @@ from typing import Any, Optional
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
+    DEFAULT_EXAMPLE_SUBDIR,
     OUTPUTS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -29,8 +30,8 @@ STEP_NAME = "solutions_draft"
 # {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["known_wrong_approaches"]
 
-# Каталог шаблонов решений внутри templates_dir, см. `extra_context_documents`.
-SOLUTION_TEMPLATES_SUBDIR = "solutions"
+# Каталог решений учебной задачи внутри templates_dir, см. `extra_context_documents`.
+SOLUTION_TEMPLATES_SUBDIR = f"{DEFAULT_EXAMPLE_SUBDIR}/solutions"
 
 # `solutions.languages` — свободные строки; приводим распространённые
 # варианты записи к тому, как язык назван в именах файлов шаблонов.
@@ -54,7 +55,7 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
     `formal_output_sketch`, `indexing`, примеры с ответами, легенда —
     `base.statement_io_section`). Без последнего модели неоткуда взять
     формат ввода-вывода своей задачи, кроме формата учебной из
-    `example_spec.yaml`.
+    `spec.yaml`.
     """
     return {
         "solutions": with_default_lists(spec.solutions.model_dump(mode="json"), _LIST_FIELDS),
@@ -96,7 +97,7 @@ def primary_artifact_path(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> Optional[list[str]]:
-    """Шаблоны решений из `templates/solutions/` на языках, заказанных в
+    """Решения учебной задачи (`SOLUTION_TEMPLATES_SUBDIR`) на языках, заказанных в
     `solutions.languages`, — образец структуры решения и ввода/вывода для
     каждого языка (см. `prompts/solutions_draft/system.md`). Язык шаблона —
     второй компонент имени файла по схеме `<verdict>_<language>_...`

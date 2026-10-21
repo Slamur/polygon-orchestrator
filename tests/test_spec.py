@@ -63,6 +63,19 @@ def test_problem_id_mismatch_with_filename_raises(tmp_path):
     assert "does not match the file name" in str(exc_info.value)
 
 
+def test_expected_id_replaces_file_name_check(tmp_path):
+    # Так загружается spec.yaml учебной задачи: id сверяется с именем каталога.
+    path = tmp_path / "spec.yaml"
+    path.write_text(
+        (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    assert load_spec(path, expected_id="valid-spec").problem_id == "valid-spec"
+    with pytest.raises(SpecValidationError, match="does not match the expected id"):
+        load_spec(path, expected_id="other-name")
+
+
 def test_specific_test_ideas_loaded():
     spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
 

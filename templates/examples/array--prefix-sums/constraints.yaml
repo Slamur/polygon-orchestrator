@@ -1,13 +1,13 @@
-# Образец результата шага constraints_pick для templates/example_spec.yaml —
+# Образец результата шага constraints_pick для spec.yaml из этого каталога —
 # пара "спек -> ожидаемый constraints.yaml". По нему же написан
-# templates/validator.cpp (секция validator ниже реализована в нём 1-в-1),
-# а templates/test_script берёт из него значения ограничений.
+# validator.cpp (секция validator ниже реализована в нём 1-в-1),
+# а test_script берёт из него значения ограничений.
 #
 # В учебном спеке все значения заданы автором, поэтому везде
 # status: confirmed. Значение, которое шаг предложил сам (например, max
 # переменной при max: null в спеке), помечается status: proposed с
 # обоснованием в rationale — и записью в notes ответа модели.
-problem_id: example_spec
+problem_id: array--prefix-sums
 intended_complexity: "O(N)"
 complexity_reasoning: |
   Один проход по массиву с накоплением префиксной суммы; ответ — первый

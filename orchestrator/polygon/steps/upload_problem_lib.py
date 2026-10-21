@@ -1,4 +1,4 @@
-"""Polygon-шаг 3 — загрузка `templates/problem_lib.h` в Polygon как
+"""Polygon-шаг 3 — загрузка `templates/common/problem_lib.h` в Polygon как
 resource-файла (`problem.saveFile`, `type=resource`).
 
 `problem_lib.h` общий для всех задач и не генерируется под конкретную
@@ -25,7 +25,7 @@ from orchestrator.polygon.steps.base import (
     StepContext,
     require_polygon_state,
 )
-from orchestrator.steps.base import TEMPLATES_DIR
+from orchestrator.steps.base import COMMON_SUBDIR, TEMPLATES_DIR
 
 STEP_NAME = "upload_problem_lib"
 
@@ -102,7 +102,7 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
 
 
 def _read_problem_lib(templates_dir: Path) -> bytes:
-    resource_path = templates_dir / _RESOURCE_FILENAME
+    resource_path = templates_dir / COMMON_SUBDIR / _RESOURCE_FILENAME
     if not resource_path.exists():
         raise PolygonStepError(f"template {resource_path} not found — check templates_dir")
     return resource_path.read_bytes()

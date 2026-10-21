@@ -106,7 +106,7 @@ def run_step(
 
     Помимо `constraints.yaml`, этот же вызов модели пишет `validator.cpp` —
     реализацию секции `validator` (`constants`/`checks`) из `constraints.yaml`
-    1-в-1, по образцу `templates/validator.cpp` (CLAUDE.md, "Роль каждого
+    1-в-1, по образцу `validator.cpp` учебной задачи (CLAUDE.md, "Роль каждого
     генеративного шага", п.2). Это не отдельный шаг: `status: uncertain`
     останавливает оба файла разом, `validator.cpp` не пишется без
     `constraints.yaml` и наоборот.

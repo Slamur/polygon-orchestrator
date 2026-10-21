@@ -247,12 +247,17 @@ def _format_pydantic_errors(exc: ValidationError) -> list[str]:
     return lines
 
 
-def load_spec(path: Path) -> ProblemSpec:
+def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
     """Загружает и валидирует спек задачи.
 
     Кидает SpecValidationError с человекочитаемым списком проблем вместо
     трудночитаемого traceback pydantic — вызывающий код (пайплайн, CLI)
     должен показать эти ошибки автору спека и остановиться, а не гадать.
+
+    `problem_id` спека должен совпадать с `expected_id` — по умолчанию это
+    имя файла (`specs/<problem_id>.yaml`); у учебной задачи спек лежит в
+    `templates/examples/<problem_id>/spec.yaml`, и `problem_id` сверяется с
+    именем каталога.
     """
     path = Path(path)
     if not path.exists():
@@ -278,13 +283,17 @@ def load_spec(path: Path) -> ProblemSpec:
     except ValidationError as exc:
         raise SpecValidationError(path, _format_pydantic_errors(exc)) from exc
 
-    expected_id = path.stem
+    if expected_id is None:
+        expected_id = path.stem
+        source = f"the file name ('{expected_id}.yaml')"
+    else:
+        source = f"the expected id ('{expected_id}')"
     if spec.problem_id != expected_id:
         raise SpecValidationError(
             path,
             [
-                f"problem_id ('{spec.problem_id}') does not match the file name "
-                f"('{expected_id}.yaml'), see SPEC_FORMAT.md"
+                f"problem_id ('{spec.problem_id}') does not match {source}, "
+                "see SPEC_FORMAT.md"
             ],
         )
 

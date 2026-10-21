@@ -7,7 +7,7 @@
 (`prompts/solutions_draft/system.md`, правило 5):
 
 - ровно один `ok`-файл получает `MA` (Main correct — эталон для генерации
-  ответов на тесты, `templates/tutorials/polygon.md`, "Solution files"),
+  ответов на тесты, `templates/common/tutorials/polygon.md`, "Solution files"),
   выбор — по приоритету языков `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по
   алфавиту имён;
 - остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `wa` -> `WA`, `ml`/`mle` -> `ML`;
