@@ -342,3 +342,42 @@ def test_compute_step_statuses_reports_spec_error(specs_dir, tmp_path):
     )
     assert statuses == []
     assert spec_error is not None
+
+
+def _break_reference(specs_dir):
+    # Общий референс — его получает каждый шаг, начиная с первого.
+    path = specs_dir / "p1.yaml"
+    content = path.read_text(encoding="utf-8")
+    content = content.replace(
+        "problem_id: p1\n", "problem_id: p1\nreferences:\n  - templates/examples/no-such-task\n", 1
+    )
+    path.write_text(content, encoding="utf-8")
+
+
+def test_missing_reference_stops_pipeline_before_calling_model(specs_dir, tmp_path):
+    _break_reference(specs_dir)
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        result = _run(specs_dir, outputs_dir)
+
+    assert not result.ok
+    assert [(o.step_name, o.status) for o in result.outcomes] == [("statement_draft", "error")]
+    assert "no-such-task" in result.outcomes[0].detail
+    mock_call.assert_not_called()
+
+
+def test_compute_step_statuses_blocked_by_missing_reference(specs_dir, tmp_path):
+    _break_reference(specs_dir)
+
+    statuses, error = pipeline.compute_step_statuses(
+        "p1",
+        specs_dir=specs_dir,
+        prompts_dir=PROMPTS_DIR,
+        outputs_dir=tmp_path / "outputs",
+        templates_dir=TEMPLATES_DIR,
+    )
+
+    assert error is None
+    by_step = {s.step_name: s for s in statuses}
+    assert by_step["statement_draft"].state == pipeline.STATUS_BLOCKED
+    assert "no-such-task" in by_step["statement_draft"].detail

@@ -130,8 +130,8 @@ def test_load_context_documents_glob_without_matches_raises(tmp_path, monkeypatc
 def test_load_context_documents_keys_extra_paths_inside_templates_dir_relatively(tmp_path):
     for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
         _write_template_doc(tmp_path, rel_path, "fixed content")
-    extra_file = _write_template_doc(tmp_path, "examples/array--prefix-sums/solutions/ok_cpp_a.cpp", "extra content")
-    already_attached = tmp_path / "examples/array--prefix-sums/validator.cpp"
+    extra_file = _write_template_doc(tmp_path, "examples/some-task/validator.cpp", "extra content")
+    already_attached = tmp_path / STEP_CONTEXT_DOCUMENTS["constraints_pick"][0]
 
     documents = load_context_documents(
         "constraints_pick",
@@ -141,8 +141,8 @@ def test_load_context_documents_keys_extra_paths_inside_templates_dir_relatively
 
     # Ключ не зависит от написания templates_dir, а файл из фиксированного
     # списка второй раз не прикладывается.
-    assert list(documents) == [*STEP_CONTEXT_DOCUMENTS["constraints_pick"], "examples/array--prefix-sums/solutions/ok_cpp_a.cpp"]
-    assert documents["examples/array--prefix-sums/solutions/ok_cpp_a.cpp"] == "extra content"
+    assert list(documents) == [*STEP_CONTEXT_DOCUMENTS["constraints_pick"], "examples/some-task/validator.cpp"]
+    assert documents["examples/some-task/validator.cpp"] == "extra content"
 
 
 def test_load_context_documents_missing_extra_path_raises(tmp_path):

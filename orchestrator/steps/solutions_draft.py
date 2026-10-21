@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.spec import ProblemSpec
+from orchestrator.references import reference_documents
+from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
-    DEFAULT_EXAMPLE_SUBDIR,
     OUTPUTS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -30,8 +30,8 @@ STEP_NAME = "solutions_draft"
 # {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["known_wrong_approaches"]
 
-# Каталог решений учебной задачи внутри templates_dir, см. `extra_context_documents`.
-SOLUTION_TEMPLATES_SUBDIR = f"{DEFAULT_EXAMPLE_SUBDIR}/solutions"
+# Каталог решений внутри каталога-референса, см. `extra_context_documents`.
+SOLUTIONS_SUBDIR = "solutions"
 
 # `solutions.languages` — свободные строки; приводим распространённые
 # варианты записи к тому, как язык назван в именах файлов шаблонов.
@@ -58,7 +58,9 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
     `spec.yaml`.
     """
     return {
-        "solutions": with_default_lists(spec.solutions.model_dump(mode="json"), _LIST_FIELDS),
+        "solutions": with_default_lists(
+            spec.solutions.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
+        ),
         "constraints": {"intended_complexity": spec.constraints.intended_complexity},
         "statement": statement_io_section(spec, include_output_and_legend=True),
     }
@@ -97,29 +99,28 @@ def primary_artifact_path(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> Optional[list[str]]:
-    """Решения учебной задачи (`SOLUTION_TEMPLATES_SUBDIR`) на языках, заказанных в
-    `solutions.languages`, — образец структуры решения и ввода/вывода для
-    каждого языка (см. `prompts/solutions_draft/system.md`). Язык шаблона —
-    второй компонент имени файла по схеме `<verdict>_<language>_...`
-    (`ok_cpp_prefs_draft.cpp` -> `cpp`); шаблоны на незаказанных языках не
-    прикладываются, чтобы не тянуть в контекст чужой стиль ввода/вывода.
-
-    В отличие от фиксированного `STEP_CONTEXT_DOCUMENTS`, набор зависит от
-    спека, поэтому идёт через `extra_context_documents` (и, как и они, входит
-    в `compute_prompt_hash`). Если секции `solutions` нет или для заказанных
-    языков шаблонов нет — `None`: шаг работает без примеров, как и раньше.
+    """Образцы для конкретного вызова — файлы, которые этому шагу дают
+    референсы спека (общие `references` и `solutions.references`, см.
+    `orchestrator/references.py`). Из `solutions/` каталога-референса берутся
+    только решения на языках, заказанных в `solutions.languages`, — образец
+    структуры решения и ввода/вывода для каждого языка (см.
+    `prompts/solutions_draft/system.md`). Язык решения — второй компонент
+    имени файла по схеме `<verdict>_<language>_...` (`ok_cpp_prefs_draft.cpp`
+    -> `cpp`); решения на незаказанных языках не прикладываются, чтобы не
+    тянуть в контекст чужой стиль ввода/вывода. Если секции `solutions` нет —
+    `None`: шаг всё равно не запускается.
     """
     if spec.solutions is None:
         return None
 
     languages = {_LANGUAGE_ALIASES.get(lang.lower(), lang.lower()) for lang in spec.solutions.languages}
-    solutions_dir = Path(templates_dir) / SOLUTION_TEMPLATES_SUBDIR
-    paths = sorted(
-        str(path)
-        for path in solutions_dir.glob("*")
-        if path.is_file() and _template_language(path) in languages
-    )
-    return paths or None
+
+    def keep(rel_path: str) -> bool:
+        if not rel_path.startswith(f"{SOLUTIONS_SUBDIR}/"):
+            return True
+        return _template_language(Path(rel_path)) in languages
+
+    return reference_documents(STEP_NAME, spec, keep=keep)
 
 
 def _template_language(path: Path) -> Optional[str]:

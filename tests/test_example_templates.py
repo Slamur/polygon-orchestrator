@@ -20,12 +20,8 @@ import yaml
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.polygon.steps.set_constraints import _extract_limits
 from orchestrator.spec import load_spec
-from orchestrator.steps.base import (
-    COMMON_SUBDIR,
-    DEFAULT_EXAMPLE_SUBDIR,
-    EXAMPLE_SPEC_FILENAME,
-    EXAMPLES_SUBDIR,
-)
+from orchestrator.references import SPEC_FILENAME
+from orchestrator.steps.base import COMMON_SUBDIR, EXAMPLES_SUBDIR
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 EXAMPLE_DIRS = sorted(path for path in (TEMPLATES_DIR / EXAMPLES_SUBDIR).iterdir() if path.is_dir())
@@ -40,15 +36,15 @@ examples = pytest.mark.parametrize("example_dir", EXAMPLE_DIRS, ids=_id)
 
 
 def _example_spec(example_dir: Path):
-    return load_spec(example_dir / EXAMPLE_SPEC_FILENAME, expected_id=example_dir.name)
+    return load_spec(example_dir / SPEC_FILENAME, expected_id=example_dir.name)
 
 
 def _example_constraints(example_dir: Path) -> dict:
     return yaml.safe_load((example_dir / "constraints.yaml").read_text(encoding="utf-8"))
 
 
-def test_default_example_exists():
-    assert TEMPLATES_DIR / DEFAULT_EXAMPLE_SUBDIR in EXAMPLE_DIRS
+def test_examples_exist():
+    assert EXAMPLE_DIRS
 
 
 @examples
@@ -70,6 +66,18 @@ def test_example_constraints_match_example_spec(example_dir):
     expected = [(v.name, v.min, v.max) for v in spec.constraints.variables]
     assert [(v["name"], v["min"], v["max"]) for v in constraints["variables"]] == expected
     assert [(c["name"], c["min"], c["max"]) for c in constraints["validator"]["constants"]] == expected
+
+
+@examples
+def test_example_constraints_follow_constraints_format(example_dir):
+    # constraints_format.yaml прикладывается к constraints_pick как формат
+    # результата — образцы не должны ему противоречить.
+    format_keys = set(
+        yaml.safe_load((TEMPLATES_DIR / COMMON_SUBDIR / "constraints_format.yaml").read_text(encoding="utf-8"))
+    )
+    constraints_keys = set(_example_constraints(example_dir))
+    assert constraints_keys <= format_keys
+    assert format_keys - {"test_groups"} <= constraints_keys
 
 
 @examples

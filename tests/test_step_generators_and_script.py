@@ -5,7 +5,7 @@ import pytest
 
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
-from orchestrator.steps.base import DEFAULT_EXAMPLE_SUBDIR, StepUncertainError
+from orchestrator.steps.base import StepUncertainError
 from orchestrator.steps.generators_and_script import (
     _build_context_sections,
     compute_input_hash,
@@ -25,11 +25,14 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-def test_extra_context_documents_returns_base_template_refs(spec):
-    assert extra_context_documents(spec) == spec.generation.base_template_refs
+EXAMPLE_DIR = TEMPLATES_DIR / "examples" / "array--prefix-sums"
 
 
-def test_run_step_passes_base_template_refs_as_extra_context_documents(spec, tmp_path):
+def test_extra_context_documents_returns_generation_file_references(spec):
+    assert extra_context_documents(spec) == spec.generation.references
+
+
+def test_run_step_passes_references_as_extra_context_documents(spec, tmp_path):
     response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "ok"}, notes=[])
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -45,11 +48,12 @@ def test_run_step_passes_base_template_refs_as_extra_context_documents(spec, tmp
     # Ссылки внутри templates/ прикладываются под путём относительно
     # templates_dir — так же, как документы фиксированного списка.
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    for ref in spec.generation.base_template_refs:
+    for ref in spec.generation.references:
         assert Path(ref).relative_to("templates").as_posix() in context_documents
 
 
-def test_run_step_attaches_every_generator_template(spec, tmp_path):
+def test_run_step_attaches_every_generator_of_reference_directory(spec, tmp_path):
+    spec = spec.model_copy(update={"references": [str(EXAMPLE_DIR)]})
     response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "ok"}, notes=[])
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -63,10 +67,14 @@ def test_run_step_attaches_every_generator_template(spec, tmp_path):
         )
 
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    example_dir = TEMPLATES_DIR / DEFAULT_EXAMPLE_SUBDIR / "generators"
-    expected = sorted(f"{DEFAULT_EXAMPLE_SUBDIR}/generators/{p.name}" for p in example_dir.glob("*.cpp"))
+    expected = sorted(
+        f"examples/array--prefix-sums/generators/{p.name}"
+        for p in (EXAMPLE_DIR / "generators").glob("*.cpp")
+    )
     assert expected
-    assert [d for d in context_documents if d.startswith(f"{DEFAULT_EXAMPLE_SUBDIR}/generators/")] == expected
+    attached = [d for d in context_documents if d.startswith("examples/array--prefix-sums/generators/")]
+    assert attached == expected
+    assert "examples/array--prefix-sums/spec.yaml" in context_documents
 
 
 def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):
