@@ -72,6 +72,7 @@ Python-оркестратор, который берёт структуриро�
 │   │                             # использовать как основу для генерации
 │   ├── common/                   # общее для всех задач; include-каталог compile-check
 │   │   ├── problem_lib.h         # загружается в Polygon шагом upload_problem_lib
+│   │   ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
 │   │   ├── testlib.h
 │   │   └── tutorials/
 │   │       ├── polygon.md        # правила по разделам Polygon
@@ -85,7 +86,7 @@ Python-оркестратор, который берёт структуриро�
 │           ├── checker.cpp
 │           ├── generators/       # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
 │           ├── solutions/        # решения-образцы: <verdict>_<language>_<description>_draft.<ext>
-│           └── test_script
+│           └── test_script       # к шагам прикладывается только через references спека
 ├── prompts/
 │   ├── statement_draft/
 │   │   ├── system.md
@@ -107,6 +108,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── cli_commands.py            # реализация команд llm generate|status, polygon push|status|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
 │   ├── spec.py                    # парсинг и валидация specs/*.yaml против SPEC_FORMAT.md
+│   ├── references.py              # референсы спека (`references`): какие файлы каких каталогов получает каждый шаг
 │   ├── steps/
 │   │   ├── statement_draft.py
 │   │   ├── constraints_pick.py
@@ -170,7 +172,8 @@ Python-оркестратор, который берёт структуриро�
    зафиксированные диапазоны переменных, TL/ML, разбиение на тестовые
    группы (в `constraints.yaml`, включая секцию `validator` —
    `constants`/`checks`, описывающую, что именно должен проверять
-   валидатор) + `validator.cpp` по образцу `validator.cpp` учебной задачи,
+   валидатор, по формату `templates/common/constraints_format.yaml`) +
+   `validator.cpp` (по образцу `validator.cpp` из референсов, если есть),
    реализующий 1-в-1 `validator.constants`/`validator.checks`, которые шаг
    сам же и зафиксировал в `constraints.yaml` — никаких проверок сверх или
    помимо перечисленных там. Генерация `validator.cpp` — не отдельный шаг,
@@ -188,9 +191,9 @@ Python-оркестратор, который берёт структуриро�
    чтобы не дублировать описание формата входа) +
    зафиксированные ограничения из шага 2 + (если секция `solutions` в
    спеке задана) `solutions.known_wrong_approaches`. Выход: C++/testlib-
-   генераторы (на основе `generators/*.cpp` учебной задачи, см. также
-   `base_template_refs`) и FreeMarker test-script (`flat`-стиль — по образцу
-   `test_script` учебной задачи; для `groups`-стиля отдельного шаблона нет, скрипт
+   генераторы (на основе `generators/*.cpp` из референсов спека) и
+   FreeMarker test-script (`flat`-стиль — по образцу `test_script` из
+   референсов; если образца `test_script_groups` нет, скрипт
    `test_script_groups` строится на той же структуре с разбивкой тестов по
    группам и помечается `proposed`). Внутри шаг делает две разные по
    характеру вещи, и это важно не смешивать: если `generation.generator_ideas`
@@ -218,8 +221,8 @@ Python-оркестратор, который берёт структуриро�
    запускается вообще, генерировать нечего. Вход: `checker.custom_comparison_notes`
    (самодостаточное текстовое описание формата ответа и правила сравнения —
    автор пишет его сам, шаг ничего не выводит из условия/легенды
-   самостоятельно). Выход: `checker.cpp` по паттерну read_and_check из
-   `checker.cpp` учебной задачи — функция `read_answer(InStream&)`,
+   самостоятельно). Выход: `checker.cpp` по паттерну read_and_check (как в
+   `checker.cpp` учебной задачи `array--prefix-sums`) — функция `read_answer(InStream&)`,
    параметризуемая потоком (используется для `ans` и `ouf` одинаково),
    которая читает И валидирует ответ, оборачивается в `read_answer_from`
    с проверкой `seekEof()` (лишние данные после ответа → `_pe`). Модель
@@ -328,8 +331,9 @@ Python-оркестратор, который берёт структуриро�
   `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
   трёх шагов;
 - хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +
-  `user.md.j2`) — если промпт поправили, кэш должен инвалидироваться, даже
-  если спек не менялся;
+  `user.md.j2`) и приложенных к нему документов (`templates/common/` и
+  файлы референсов спека) — если промпт или образец поправили, кэш должен
+  инвалидироваться, даже если спек не менялся;
 - имя/версия модели из `model_router.py` для этого шага (смена модели тоже
   инвалидирует кэш).
 
@@ -438,22 +442,32 @@ CLI, расход из лимитов подписки, а не с API-бала�
   генерации создаёт новый генератор — он должен `#include "problem_lib.h"` и
   следовать тем же соглашениям об именовании (`register...`, `opt<T>(...)`,
   стиль `gen_test` из `generators/*.cpp`).
-- `templates/common/` — общее для всех задач; `templates/examples/` —
-  учебные задачи, по каталогу `<вид входных данных>--<суть задачи>` на
-  каждую (`array--prefix-sums`), в раскладке `outputs/<problem_id>/` плюс
-  свой спек `spec.yaml` (`problem_id` = имя каталога; ожидаемый по нему
+- `templates/common/` — общее для всех задач и прикладывается к шагам
+  всегда (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`); там же
+  `constraints_format.yaml` — формат результата `constraints_pick`, который
+  читают следующие шаги и `polygon push`. `templates/examples/` — учебные
+  задачи, по каталогу `<вид входных данных>--<суть задачи>` на каждую
+  (`array--prefix-sums`), в раскладке `outputs/<problem_id>/` плюс свой
+  спек `spec.yaml` (`problem_id` = имя каталога; ожидаемый по нему
   результат `constraints_pick` — `constraints.yaml` рядом; при правке
-  образцов держать оба согласованными с ними — это проверяет
-  `tests/test_example_templates.py`, там же compile-check всех `.cpp`
-  образцов). Пока учебная задача одна (`DEFAULT_EXAMPLE_SUBDIR`), и её
-  образцы прикладываются к вызову модели вместе со спеком
-  (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`: генераторы — все
-  файлы каталога, решения — только на языках из `solutions.languages`).
-  Промпты обязаны явно
+  образцов держать оба согласованными с ними и с `constraints_format.yaml`
+  — это проверяет `tests/test_example_templates.py`, там же compile-check
+  всех `.cpp` образцов).
+- Образцы (файлы других задач) прикладываются к вызову модели только как
+  **референсы спека** — поле `references` в корне спека (для всех шагов) и
+  в секциях шагов (только для своего шага), см. `docs/SPEC_FORMAT.md`,
+  "Референсы", и `orchestrator/references.py`. Референс — файл или каталог
+  в раскладке `outputs/<problem_id>/` (учебная задача из
+  `templates/examples/`, прошлая задача автора в `outputs/`); каждый шаг
+  берёт из каталога только свою часть (`REFERENCE_DOCUMENTS`), решения —
+  только на языках из `solutions.languages`. Без референсов шаг получает
+  только `templates/common/`. Содержимое референсов входит в хеш промпта
+  шага (см. "Кэширование по хешу спека"), сами пути `references` в
+  `input_hash` не входят. Промпты обязаны явно
   разделять, что из образца переносить (каркас файла, ввод-вывод, функции
   testlib, композицию генераторов через конвейер), а что нет (формат данных,
-  имена переменных и логику учебной задачи) — см. `docs/PROMPTS.md`,
-  "Приложенные шаблоны как образцы".
+  имена переменных и логику задачи-образца), и работать без образцов — см.
+  `docs/PROMPTS.md`, "Приложенные шаблоны как образцы".
 
 ## Git-workflow для разработки оркестратора
 
