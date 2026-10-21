@@ -91,15 +91,15 @@ def test_compute_prompt_hash_changes_when_context_document_changes(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
-    _write_context_doc(templates_dir, "tutorials/requirements.md", "req v1")
-    _write_context_doc(templates_dir, "validator.cpp", "validator v1")
-    _write_context_doc(templates_dir, "example_spec.yaml", "example spec v1")
-    _write_context_doc(templates_dir, "constraints.yaml", "constraints v1")
-    _write_context_doc(templates_dir, "problem_lib.h", "lib v1")
+    _write_context_doc(templates_dir, "common/tutorials/requirements.md", "req v1")
+    _write_context_doc(templates_dir, "examples/array--prefix-sums/validator.cpp", "validator v1")
+    _write_context_doc(templates_dir, "examples/array--prefix-sums/spec.yaml", "example spec v1")
+    _write_context_doc(templates_dir, "examples/array--prefix-sums/constraints.yaml", "constraints v1")
+    _write_context_doc(templates_dir, "common/problem_lib.h", "lib v1")
 
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
 
-    _write_context_doc(templates_dir, "tutorials/requirements.md", "req v2")
+    _write_context_doc(templates_dir, "common/tutorials/requirements.md", "req v2")
     h2 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
 
     assert h1 != h2
@@ -109,18 +109,18 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
-    _write_context_doc(templates_dir, "tutorials/requirements.md", "req v1")
-    _write_context_doc(templates_dir, "validator.cpp", "validator v1")
-    _write_context_doc(templates_dir, "example_spec.yaml", "example spec v1")
-    _write_context_doc(templates_dir, "constraints.yaml", "constraints v1")
-    _write_context_doc(templates_dir, "problem_lib.h", "lib v1")
-    _write_context_doc(templates_dir, "tutorials/polygon.md", "polygon v1")
+    _write_context_doc(templates_dir, "common/tutorials/requirements.md", "req v1")
+    _write_context_doc(templates_dir, "examples/array--prefix-sums/validator.cpp", "validator v1")
+    _write_context_doc(templates_dir, "examples/array--prefix-sums/spec.yaml", "example spec v1")
+    _write_context_doc(templates_dir, "examples/array--prefix-sums/constraints.yaml", "constraints v1")
+    _write_context_doc(templates_dir, "common/problem_lib.h", "lib v1")
+    _write_context_doc(templates_dir, "common/tutorials/polygon.md", "polygon v1")
 
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
 
     # constraints_pick не читает polygon.md (это документ statement_draft/
     # solutions_draft) — его правка не должна инвалидировать кэш constraints_pick.
-    _write_context_doc(templates_dir, "tutorials/polygon.md", "polygon v2")
+    _write_context_doc(templates_dir, "common/tutorials/polygon.md", "polygon v2")
     h2 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
 
     assert h1 == h2
@@ -130,7 +130,7 @@ def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "generators_and_script", "rule v1", "user v1")
-    for rel_path in ["tutorials/requirements.md", "tutorials/freemarker.md", "example_spec.yaml", "constraints.yaml", "problem_lib.h", "generators/gen_rand.cpp", "test_script"]:
+    for rel_path in ["common/tutorials/requirements.md", "common/tutorials/freemarker.md", "examples/array--prefix-sums/spec.yaml", "examples/array--prefix-sums/constraints.yaml", "common/problem_lib.h", "examples/array--prefix-sums/generators/gen_rand.cpp", "examples/array--prefix-sums/test_script"]:
         _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
     extra_file = tmp_path / "extra_gen.cpp"
     extra_file.write_text("extra v1", encoding="utf-8")
@@ -158,7 +158,7 @@ def test_compute_prompt_hash_missing_context_document_raises(tmp_path):
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
 
-    with pytest.raises(FileNotFoundError, match="tutorials/requirements.md"):
+    with pytest.raises(FileNotFoundError, match="common/tutorials/requirements.md"):
         compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
 
 

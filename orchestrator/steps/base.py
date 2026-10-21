@@ -38,6 +38,20 @@ PROMPTS_DIR = Path("prompts")
 OUTPUTS_DIR = Path("outputs")
 TEMPLATES_DIR = Path("templates")
 
+# Раскладка templates_dir: `common/` — общее для всех задач (правила
+# `tutorials/*.md`, `problem_lib.h`, `testlib.h`; `common/` же — include-каталог
+# для compile-check), `examples/<problem_id>/` — учебные задачи-образцы, каждая
+# в раскладке `outputs/<problem_id>/` плюс свой спек `spec.yaml`.
+COMMON_SUBDIR = "common"
+EXAMPLES_SUBDIR = "examples"
+# Учебная задача, образцы которой прикладываются ко всем шагам. Выбора образцов
+# по спеку пока нет — до тех пор пример один и общий для всех задач.
+DEFAULT_EXAMPLE_SUBDIR = f"{EXAMPLES_SUBDIR}/array--prefix-sums"
+EXAMPLE_SPEC_FILENAME = "spec.yaml"
+
+_COMMON = COMMON_SUBDIR
+_EXAMPLE = DEFAULT_EXAMPLE_SUBDIR
+
 # Обязательные документы контекста на шаг (пути относительно templates_dir),
 # см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
 # это правила, а не справочный материал, а problem_lib.h/generators/*.cpp/
@@ -48,48 +62,47 @@ TEMPLATES_DIR = Path("templates")
 #
 # Запись с `*` — glob-шаблон относительно templates_dir: прикладываются все
 # подходящие файлы (в отсортированном порядке), так что новый пример,
-# положенный в каталог, подхватывается без правки этого списка. Шаблоны
-# `example_spec.yaml` — спек учебной задачи, для которой написаны все
-# шаблоны-образцы: вместе с ними он даёт модели пару "спек -> ожидаемый
-# результат". Прикладывается ко всем шагам, у которых есть шаблон-образец
-# результата (у `statement_draft` такого шаблона нет). `constraints.yaml` —
-# образец результата `constraints_pick` для того же учебного спека; шагу
-# `generators_and_script` он нужен как образец его входа (по нему написан
-# `test_script`). Шаблоны
-# решений (`solutions/*`) здесь не перечислены — они зависят от
+# положенный в каталог, подхватывается без правки этого списка. `spec.yaml`
+# учебной задачи — спек, для которого написаны все её файлы-образцы: вместе
+# с ними он даёт модели пару "спек -> ожидаемый результат". Прикладывается ко
+# всем шагам, у которых есть образец результата (у `statement_draft` такого
+# образца нет). `constraints.yaml` — образец результата `constraints_pick`
+# для того же учебного спека; шагу `generators_and_script` он нужен как
+# образец его входа (по нему написан `test_script`). Решения учебной задачи
+# (`solutions/*`) здесь не перечислены — они зависят от
 # `solutions.languages` конкретного спека, см.
 # `solutions_draft.extra_context_documents`.
 STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [
-        "tutorials/requirements.md",
-        "tutorials/polygon.md",
+        f"{_COMMON}/tutorials/requirements.md",
+        f"{_COMMON}/tutorials/polygon.md",
     ],
     "constraints_pick": [
-        "tutorials/requirements.md",
-        "example_spec.yaml",
-        "constraints.yaml",
-        "validator.cpp",
-        "problem_lib.h",
+        f"{_COMMON}/tutorials/requirements.md",
+        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
+        f"{_EXAMPLE}/constraints.yaml",
+        f"{_EXAMPLE}/validator.cpp",
+        f"{_COMMON}/problem_lib.h",
     ],
     "generators_and_script": [
-        "tutorials/requirements.md",
-        "tutorials/freemarker.md",
-        "example_spec.yaml",
-        "constraints.yaml",
-        "problem_lib.h",
-        "generators/*.cpp",
-        "test_script",
+        f"{_COMMON}/tutorials/requirements.md",
+        f"{_COMMON}/tutorials/freemarker.md",
+        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
+        f"{_EXAMPLE}/constraints.yaml",
+        f"{_COMMON}/problem_lib.h",
+        f"{_EXAMPLE}/generators/*.cpp",
+        f"{_EXAMPLE}/test_script",
     ],
     "solutions_draft": [
-        "tutorials/requirements.md",
-        "tutorials/polygon.md",
-        "example_spec.yaml",
+        f"{_COMMON}/tutorials/requirements.md",
+        f"{_COMMON}/tutorials/polygon.md",
+        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
     ],
     "checker_draft": [
-        "tutorials/requirements.md",
-        "example_spec.yaml",
-        "checker.cpp",
-        "problem_lib.h",
+        f"{_COMMON}/tutorials/requirements.md",
+        f"{_EXAMPLE}/{EXAMPLE_SPEC_FILENAME}",
+        f"{_EXAMPLE}/checker.cpp",
+        f"{_COMMON}/problem_lib.h",
     ],
 }
 
@@ -393,7 +406,7 @@ def run_generative_step(
     artifact_paths = _write_artifacts(response.artifacts, resolve_artifact_path)
 
     compile_results: dict[str, CompileResult] = {
-        filename: compile_check(path, templates_dir)
+        filename: compile_check(path, Path(templates_dir) / COMMON_SUBDIR)
         for filename, path in artifact_paths.items()
         if path.suffix == ".cpp"
     }

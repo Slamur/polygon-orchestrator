@@ -123,7 +123,7 @@ def extra_context_documents(
     """Документы контекста, специфичные для конкретного вызова (а не для всех
     вызовов шага вообще) — `generation.base_template_refs` (пути относительно
     корня репозитория, см. CLAUDE.md, "base_template_refs"). Примеры
-    генераторов из `templates/generators/` сюда не входят — они приложены
+    генераторов учебной задачи (`templates/examples/*/generators/`) сюда не входят — они приложены
     всегда, через `STEP_CONTEXT_DOCUMENTS`. Единая сигнатура с остальными
     шагами нужна `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково
     для всех шагов.

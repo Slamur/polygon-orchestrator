@@ -5,7 +5,7 @@ import pytest
 
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
-from orchestrator.steps.base import StepUncertainError
+from orchestrator.steps.base import DEFAULT_EXAMPLE_SUBDIR, StepUncertainError
 from orchestrator.steps.generators_and_script import (
     _build_context_sections,
     compute_input_hash,
@@ -63,9 +63,10 @@ def test_run_step_attaches_every_generator_template(spec, tmp_path):
         )
 
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    expected = sorted(f"generators/{p.name}" for p in (TEMPLATES_DIR / "generators").glob("*.cpp"))
+    example_dir = TEMPLATES_DIR / DEFAULT_EXAMPLE_SUBDIR / "generators"
+    expected = sorted(f"{DEFAULT_EXAMPLE_SUBDIR}/generators/{p.name}" for p in example_dir.glob("*.cpp"))
     assert expected
-    assert [d for d in context_documents if d.startswith("generators/")] == expected
+    assert [d for d in context_documents if d.startswith(f"{DEFAULT_EXAMPLE_SUBDIR}/generators/")] == expected
 
 
 def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):

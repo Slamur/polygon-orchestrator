@@ -59,7 +59,7 @@ generation:
     - "N = 1 (минимальный случай)"
     - "N = N_max, значения максимальные"
   base_template_refs:
-    - "templates/validator.cpp"
+    - "templates/examples/array--prefix-sums/validator.cpp"
   script_style: "groups"
 
 solutions:
@@ -77,5 +77,5 @@ checker:
 
 meta:
   requirements_docs:
-    - "templates/tutorials/requirements.md"
+    - "templates/common/tutorials/requirements.md"
   status: "draft"

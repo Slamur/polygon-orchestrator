@@ -5,8 +5,13 @@ import pytest
 
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
-from orchestrator.steps.base import StepUncertainError
-from orchestrator.steps.solutions_draft import compute_input_hash, extra_context_documents, run_step
+from orchestrator.steps.base import DEFAULT_EXAMPLE_SUBDIR, StepUncertainError
+from orchestrator.steps.solutions_draft import (
+    SOLUTION_TEMPLATES_SUBDIR,
+    compute_input_hash,
+    extra_context_documents,
+    run_step,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -20,7 +25,7 @@ def spec():
 
 
 def _write_solution_templates(templates_dir: Path) -> None:
-    solutions_dir = templates_dir / "solutions"
+    solutions_dir = templates_dir / SOLUTION_TEMPLATES_SUBDIR
     solutions_dir.mkdir(parents=True)
     for name in ["ok_cpp_a_draft.cpp", "wa_cpp_b_draft.cpp", "ok_py_a_draft.py", "ok_java_a_draft.java"]:
         (solutions_dir / name).write_text(f"// {name}", encoding="utf-8")
@@ -37,8 +42,8 @@ def test_extra_context_documents_filters_templates_by_language(spec, tmp_path):
     documents = extra_context_documents(_with_languages(spec, ["cpp"]), templates_dir=tmp_path)
 
     assert documents == [
-        str(tmp_path / "solutions" / "ok_cpp_a_draft.cpp"),
-        str(tmp_path / "solutions" / "wa_cpp_b_draft.cpp"),
+        str(tmp_path / SOLUTION_TEMPLATES_SUBDIR / "ok_cpp_a_draft.cpp"),
+        str(tmp_path / SOLUTION_TEMPLATES_SUBDIR / "wa_cpp_b_draft.cpp"),
     ]
 
 
@@ -47,7 +52,7 @@ def test_extra_context_documents_accepts_language_aliases(spec, tmp_path):
 
     documents = extra_context_documents(_with_languages(spec, ["Python"]), templates_dir=tmp_path)
 
-    assert documents == [str(tmp_path / "solutions" / "ok_py_a_draft.py")]
+    assert documents == [str(tmp_path / SOLUTION_TEMPLATES_SUBDIR / "ok_py_a_draft.py")]
 
 
 def test_extra_context_documents_none_without_matching_templates(spec, tmp_path):
@@ -76,8 +81,9 @@ def test_run_step_attaches_solution_templates_of_requested_languages(spec, tmp_p
             compiled.binary_path.unlink(missing_ok=True)
 
     # Фикстура заказывает только cpp — шаблоны на других языках не прикладываются.
-    attached = [d for d in mock_call.call_args.kwargs["context_documents"] if d.startswith("solutions/")]
-    expected = sorted(f"solutions/{p.name}" for p in (TEMPLATES_DIR / "solutions").glob("*_cpp_*"))
+    attached = [d for d in mock_call.call_args.kwargs["context_documents"] if d.startswith(f"{DEFAULT_EXAMPLE_SUBDIR}/solutions/")]
+    example_dir = TEMPLATES_DIR / DEFAULT_EXAMPLE_SUBDIR / "solutions"
+    expected = sorted(f"{DEFAULT_EXAMPLE_SUBDIR}/solutions/{p.name}" for p in example_dir.glob("*_cpp_*"))
     assert expected
     assert attached == expected
 
