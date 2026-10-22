@@ -14,7 +14,7 @@
 ```yaml
 problem_id: unique-slug            # [required] латиница, совпадает с именем файла
 title:
-  ru: "Название на русском"        # [required]
+  ru: "Название на русском"        # [required] начальное название на Polygon; дальше источник — outputs/<id>/statement/name.txt
   en: "English title"              # [optional]
 references:                        # [optional] общие референсы — образцы для ВСЕХ шагов, см. "Референсы" ниже
   - "templates/examples/array--prefix-sums"

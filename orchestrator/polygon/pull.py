@@ -31,7 +31,9 @@ Pull отказывается работать, если в рабочей ко�
 
 - условие (`problem.statements`, язык `russian`) -> `statement/legend.tex`,
   `input_format.tex`, `output_format.tex`, `notes.tex`. Пустой на Polygon
-  раздел выгружается пустым файлом — `upload_statement` требует все четыре;
+  раздел выгружается пустым файлом — `upload_statement` требует все четыре.
+  Название задачи из условия -> `statement/name.txt` (сравнивается без
+  окружающих пробелов и переводов строк);
 - тесты с флагом "use in statements" (`problem.tests`, testset `tests`) ->
   `statement/examples/example_<K>.txt`, K — порядковый номер такого теста
   (1-based), а не его индекс на Polygon;
@@ -84,6 +86,7 @@ from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.set_constraints import read_limits
 from orchestrator.polygon.steps.upload_problem_lib import read_problem_lib
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
+from orchestrator.polygon.steps.upload_statement import NAME_FILENAME
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.polygon.sync import (
     CHECKER_FILE_KEY,
@@ -343,19 +346,34 @@ class _Puller:
     def pull_statement(self) -> None:
         statements = self._call("problem.statements") or {}
         statement = statements.get(_LANG)
+        name_file = f"statement/{NAME_FILENAME}"
         if statement is None:
             for filename in _STATEMENT_FILES.values():
                 self._missing_on_polygon(
                     f"statement/{filename}", f"no {_LANG!r} statement on Polygon"
                 )
-            self.synced[STATEMENT_NAME_KEY] = None
+            self._missing_on_polygon(
+                name_file, f"no {_LANG!r} statement on Polygon", key=STATEMENT_NAME_KEY
+            )
             return
         for field_name, filename in _STATEMENT_FILES.items():
             self._sync_file(
                 f"statement/{filename}",
                 lambda field_name=field_name: (statement.get(field_name) or "").encode("utf-8"),
             )
-        self.synced[STATEMENT_NAME_KEY] = digest(statement.get("name") or "")
+        name = (statement.get("name") or "").strip()
+        if not name:
+            self._missing_on_polygon(
+                name_file, "no problem name in the statement on Polygon", key=STATEMENT_NAME_KEY
+            )
+            return
+        self._sync_file(
+            name_file,
+            lambda: f"{name}\n".encode("utf-8"),
+            key=STATEMENT_NAME_KEY,
+            # Как `upload_statement.read_name`: хеш и сравнение — по самому названию.
+            normalize=lambda content: content.decode("utf-8").strip().encode("utf-8"),
+        )
 
     def pull_examples(self) -> None:
         tests = self._call("problem.tests", {"testset": _TESTSET}) or []
@@ -583,11 +601,13 @@ class _Puller:
         key: str | None = None,
         also: dict[str, str] | None = None,
         detail: str = "",
+        normalize: Callable[[bytes], bytes] = lambda content: content,
     ) -> bool:
         """Сравнивает локальный файл `name` с версией на Polygon (`fetch`) и
         при необходимости пишет её на диск (см. докстринг модуля). Ключ базы —
         `key` (по умолчанию `name`) и дополнительные записи `also` — все они
         записываются, только если файл теперь совпадает с Polygon.
+        `normalize` применяется к содержимому перед сравнением и хешем.
 
         Возвращает, был ли файл записан. Ошибка API — запись "error" по этому
         файлу, остальные файлы той же части продолжают обрабатываться."""
@@ -605,7 +625,7 @@ class _Puller:
             self._write(name, remote)
             self.add(name, ITEM_DOWNLOADED, detail)
             written = True
-        elif _same(path.read_bytes(), remote):
+        elif _same(normalize(path.read_bytes()), normalize(remote)):
             self.add(name, ITEM_SAME, detail)
         elif self.overwrite:
             self._backup(name)
@@ -617,7 +637,7 @@ class _Puller:
             self.synced.update(keys)
             return False
 
-        self.synced[key or name] = digest(path.read_bytes())
+        self.synced[key or name] = digest(normalize(path.read_bytes()))
         self.synced.update(also or {})
         return written
 

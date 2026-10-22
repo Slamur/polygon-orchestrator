@@ -25,6 +25,12 @@
 Если число примеров уменьшилось с прошлой загрузки, лишние тесты с
 индексами > N на Polygon остаются — шаг их не удаляет.
 
+Название задачи берётся из `statement/name.txt`, а не из спека: `title.ru`
+спека — только начальное значение, которым шаг заполняет `name.txt`, если
+его ещё нет. Иначе название, поменянное на Polygon и выгруженное `polygon
+pull` (он пишет его в тот же `name.txt`), следующий push перезаписал бы
+значением из спека.
+
 Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
@@ -68,6 +74,8 @@ _TEX_PARAM_NAMES = {
 
 _EXAMPLE_PATTERN = re.compile(r"^example_(\d+)\.txt$")
 
+NAME_FILENAME = "name.txt"
+
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Загружает условие (если какой-то из tex-файлов или название
@@ -81,11 +89,12 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     statement_dir = _statement_dir(ctx.problem_id, ctx.outputs_dir)
     tex_files = _read_statement_dir(statement_dir)
     examples = _read_examples(statement_dir)
+    name_path = statement_dir / NAME_FILENAME
+    if not name_path.exists():
+        name_path.write_text(ctx.spec.title.ru + "\n", encoding="utf-8")
+    name = read_name(name_path)
 
-    statement_items = {
-        **_tex_items(tex_files),
-        STATEMENT_NAME_KEY: digest(ctx.spec.title.ru),
-    }
+    statement_items = {**_tex_items(tex_files), STATEMENT_NAME_KEY: digest(name)}
     example_items = _example_items(examples)
     uploaded: dict[str, str] = {}
     done: list[str] = []
@@ -96,7 +105,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
             {
                 "problemId": str(polygon_id),
                 "lang": _LANG,
-                "name": ctx.spec.title.ru,
+                "name": name,
                 **{
                     _TEX_PARAM_NAMES[filename]: content.decode("utf-8")
                     for filename, content in tex_files.items()
@@ -104,7 +113,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
             },
         )
         uploaded.update(statement_items)
-        done.append(f"saved statement (name={ctx.spec.title.ru!r})")
+        done.append(f"saved statement (name={name!r})")
 
     changed_examples = changed_items(ctx, example_items)
     sent_examples = 0
@@ -132,18 +141,30 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации (`sync_status`). Название (`title.ru` из спека)
-    не сравнивается — `compute_status` не получает спек, так что правка
-    заголовка отсюда не видна."""
+    """По базе синхронизации (`sync_status`). Пока `name.txt` нет (его
+    создаст push из `title.ru` спека), название не сравнивается."""
 
     def read_items() -> dict[str, str]:
         statement_dir = _statement_dir(problem_id, outputs_dir)
-        return {
+        items = {
             **_tex_items(_read_statement_dir(statement_dir)),
             **_example_items(_read_examples(statement_dir)),
         }
+        name_path = statement_dir / NAME_FILENAME
+        if name_path.exists():
+            items[STATEMENT_NAME_KEY] = digest(read_name(name_path))
+        return items
 
     return sync_status(problem_id, outputs_dir, key_prefix="statement/", read_items=read_items)
+
+
+def read_name(path: Path) -> str:
+    """Название задачи из `name.txt` без окружающих пробелов и переводов
+    строк — их добавляют редакторы, в название они не входят."""
+    name = path.read_text(encoding="utf-8").strip()
+    if not name:
+        raise PolygonStepError(f"{path} is empty — write the problem name into it")
+    return name
 
 
 def _tex_items(tex_files: dict[str, bytes]) -> dict[str, str]:

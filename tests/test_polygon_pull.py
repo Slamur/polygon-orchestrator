@@ -22,6 +22,7 @@ from orchestrator.polygon.steps import (
     upload_generators,
     upload_problem_lib,
     upload_solutions,
+    upload_statement,
     upload_test_script,
     upload_validator,
 )
@@ -43,7 +44,7 @@ class FakePolygon:
             {"id": POLYGON_ID, "name": PROBLEM_ID, "owner": "author", "revision": 5, "modified": False}
         ]
         self.statements = {
-            "russian": {"legend": "L", "input": "I", "output": "O", "notes": ""}
+            "russian": {"name": "Polygon Name", "legend": "L", "input": "I", "output": "O", "notes": ""}
         }
         self.info = {"timeLimit": 2000, "memoryLimit": 256}
         self.validator = "val.cpp"
@@ -160,6 +161,7 @@ def test_pull_into_missing_directory_downloads_everything(outputs_dir, polygon):
     assert (problem_dir / "statement" / "output_format.tex").read_text() == "O"
     # Пустой раздел выгружается пустым файлом — upload_statement требует все 4.
     assert (problem_dir / "statement" / "notes.tex").read_text() == ""
+    assert (problem_dir / "statement" / "name.txt").read_text() == "Polygon Name\n"
     assert (problem_dir / "statement" / "examples" / "example_1.txt").read_text() == "1 2\n"
     # Сгенерированный тест: input берётся через problem.testInput.
     assert (problem_dir / "statement" / "examples" / "example_2.txt").read_bytes() == b"3 4\n"
@@ -227,6 +229,36 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, output
         assert uploaded(step) == {}, step.name
     # на Polygon валидатор назначен под другим именем — push загрузит validator.cpp
     assert set(uploaded(upload_validator.STEP)) == {"validator", "validator.cpp"}
+
+
+def test_name_is_compared_without_surrounding_whitespace(outputs_dir, polygon):
+    problem_dir = outputs_dir / PROBLEM_ID
+    _write(problem_dir, "statement/name.txt", "  Polygon Name")
+
+    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert _statuses(result)["statement/name.txt"] == ITEM_SAME
+    assert _synced(outputs_dir)["statement/name"] == pull_module.digest("Polygon Name")
+
+
+def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(outputs_dir, polygon):
+    problem_dir = outputs_dir / PROBLEM_ID
+    _write(problem_dir, "statement/name.txt", "Old Name\n")
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+    assert _statuses(result)["statement/name.txt"] == ITEM_OVERWRITTEN
+
+    # title.ru спека ("Кратчайшие пути") больше не источник названия
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+    uploaded = run_step(
+        upload_statement.STEP,
+        PROBLEM_ID,
+        spec,
+        outputs_dir=outputs_dir,
+        client=MagicMock(),
+        synced=_synced(outputs_dir),
+    ).uploaded
+    assert "statement/name" not in uploaded
 
 
 def test_uncommitted_changes_on_polygon_stop_pull_before_writing(outputs_dir, polygon):
