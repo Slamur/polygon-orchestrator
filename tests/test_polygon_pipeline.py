@@ -899,6 +899,21 @@ def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(
     assert "error line 49" in log
 
 
+def test_cli_polygon_run_own_step_error_is_printed_in_full(specs_dir, outputs_dir, capsys):
+    # ревизия неизвестна — длинное сообщение с подсказкой в конце
+    _write_spec(specs_dir, PROBLEM_ID)
+    _link(outputs_dir, revision=None)
+
+    with patch.object(polygon_pipeline, "PolygonClient", return_value=RevisionClient(10)):
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID])
+
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert len(out.splitlines()[1]) > cli_commands._CONSOLE_ERROR_MAX_LEN
+    assert f"orchestrator polygon push {PROBLEM_ID} --force" in out
+    assert "…" not in out
+
+
 def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(
     specs_dir, outputs_dir, capsys
 ):

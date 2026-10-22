@@ -81,6 +81,10 @@ class PolygonStepOutcome:
     step_name: str
     status: str
     detail: str = ""
+    # `detail` — собственный текст оркестратора (`PolygonStepError`): короткий,
+    # однострочный, с подсказкой в конце, — CLI печатает его целиком, а не
+    # обрезает, как ответы Polygon API и неожиданные исключения.
+    full_detail: bool = False
 
 
 @dataclass
@@ -180,7 +184,14 @@ def run_polygon_pipeline(
                 )
         except (PolygonApiError, PolygonStepError) as exc:
             logger.error("[%s] %s", step_name, exc)
-            record(PolygonStepOutcome(step_name, OUTCOME_ERROR, str(exc)))
+            record(
+                PolygonStepOutcome(
+                    step_name,
+                    OUTCOME_ERROR,
+                    str(exc),
+                    full_detail=isinstance(exc, PolygonStepError),
+                )
+            )
             return result
         except Exception as exc:  # noqa: BLE001 — traceback в лог, а не в консоль
             logger.exception("[%s] unexpected error", step_name)

@@ -64,7 +64,8 @@ _RUN_HEADER = "===== run started: orchestrator %s ====="
 
 # Сколько символов текста ошибки polygon-шага печатать в консоль: `comment`
 # от Polygon бывает многострочным (например, лог компиляции валидатора) —
-# целиком он пишется в `polygon.log`.
+# целиком он пишется в `polygon.log`. Собственные ошибки оркестратора
+# (`PolygonStepError`) не обрезаются: подсказка, что делать, у них в конце.
 _CONSOLE_ERROR_MAX_LEN = 200
 
 _console_handler: logging.Handler | None = None
@@ -330,7 +331,9 @@ def _print_polygon_outcome(outcome, log_path: Path) -> None:
     чтобы прогресс был виден и при выводе в pipe/файл). Ошибка — коротко,
     со ссылкой на `polygon.log`, где лежит полный текст."""
     line = f"  {outcome.step_name}: {outcome.status}"
-    if outcome.status == POLYGON_OUTCOME_ERROR:
+    if outcome.status == POLYGON_OUTCOME_ERROR and outcome.full_detail:
+        line += f" — {outcome.detail}"
+    elif outcome.status == POLYGON_OUTCOME_ERROR:
         line += f" — {_shorten_error(outcome.detail)} (details: {log_path})"
     elif outcome.detail:
         line += f" — {outcome.detail}"
@@ -392,7 +395,11 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
                 outputs_dir=args.outputs_dir,
                 on_item=print_item,
             )
-        except (PolygonApiError, PolygonStepError) as exc:
+        except PolygonStepError as exc:
+            logger.error("[pull] %s", exc)
+            print(str(exc), file=sys.stderr)
+            return 1
+        except PolygonApiError as exc:
             logger.error("[pull] %s", exc)
             print(f"{_shorten_error(str(exc))} (details: {log_path})", file=sys.stderr)
             return 1

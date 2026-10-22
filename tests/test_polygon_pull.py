@@ -603,7 +603,10 @@ def test_cli_pull_unresolved_problem_exits_with_error(outputs_dir, polygon, caps
     exit_code = cli.main(["--outputs-dir", str(outputs_dir), "polygon", "pull", PROBLEM_ID])
 
     assert exit_code == 1
-    assert "no Polygon problem named" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "no Polygon problem named" in err
+    # собственная ошибка печатается целиком, без ссылки на лог
+    assert err.strip().endswith("is available to this API key")
 
 
 def test_cli_pull_overwrite_reports_backup_dir(outputs_dir, polygon, capsys, monkeypatch):
