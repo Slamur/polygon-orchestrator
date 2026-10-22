@@ -1,0 +1,109 @@
+<#assign desc = "Generators"/>
+<#assign randGen = "gen_n_rand"/>
+<#assign powerGen = "gen_n_power"/>
+<#assign baseGen = "gen_n_pow_of_base"/>
+
+<#assign desc = "Functions"/>
+<#function div a b>
+    <#return (a / b)?long>
+</#function>
+<#function ceil a b>
+    <#return div(a - 1, b) + 1/>
+</#function>
+<#function min a b>
+    <#return [a, b]?sort?first>
+</#function>
+<#function max a b>
+    <#return [a, b]?sort?last>
+</#function>
+<#function pow base power>
+    <#assign res = 1/>
+    <#list 0..<power as it>
+        <#assign res = res * base/>
+    </#list>
+    <#return res>
+</#function>
+<#function fact n>
+    <#assign res = 1/>
+    <#list 0..<n as it>
+        <#assign res = res * (it + 1)/>
+    </#list>
+    <#return res>
+</#function>
+<#function contains items value>
+    <#list items as item>
+        <#if item == value>
+            <#return true/>
+        </#if>
+    </#list>
+    <#return false/>
+</#function>
+
+<#assign desc = "Constraints"/>
+<#assign minN = 1/>
+<#assign maxN = pow(10, 18)/>
+
+<#-- наибольшие B, для которых B^2/B^3/B^6 <= maxN; значения близки к 10^9 / 10^6 / 1000,
+     как явно указано автором в specific_test_ideas -->
+<#assign maxB_sq = pow(10, 9)/>
+<#assign maxB_cube = pow(10, 6)/>
+<#assign maxB_six = pow(10, 3)/>
+
+<#assign ks = [2, 3, 4, 5, 6, 12]/>
+<#assign deltas = [-1, 0, 1]/>
+
+<#assign desc = "Generation"/>
+
+<#assign desc = "Small tests"/>
+<#list minN..30 as n>
+    ${randGen} -minN=${n} -maxN=${n} > $
+</#list>
+
+<#assign smallMaxN = 1000/>
+${randGen} -minN=${minN} -maxN=${smallMaxN} > $
+${randGen} -minN=${smallMaxN} -maxN=${smallMaxN * smallMaxN} > $
+
+<#assign desc = "Edge cases: exact powers near their boundaries"/>
+
+<#-- степени двойки 2^p и 2^p - 1, p от 1 до 59 (2^60 уже превышает maxN) -->
+<#list 1..59 as p>
+    ${baseGen} -b=2 -p=${p} -delta=0 -minN=${minN} -maxN=${maxN} > $
+    ${baseGen} -b=2 -p=${p} -delta=-1 -minN=${minN} -maxN=${maxN} > $
+</#list>
+
+<#-- степени десятки 10^p и 10^p - 1, p от 1 до 17; p = 18 выделен отдельно в разделе максимальных тестов -->
+<#list 1..17 as p>
+    ${baseGen} -b=10 -p=${p} -delta=0 -minN=${minN} -maxN=${maxN} > $
+    ${baseGen} -b=10 -p=${p} -delta=-1 -minN=${minN} -maxN=${maxN} > $
+</#list>
+
+<#-- обязательное использование gen_n_power: k = 2, 3, 6 (основное требование) и k = 4, 5, 12 (дополнительное),
+     delta из {-1, 0, +1}, B случайный по всему допустимому диапазону (maxB по умолчанию из генератора) -->
+<#list ks as k>
+    <#list deltas as delta>
+        ${powerGen} -k=${k} -minB=${minN} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
+    </#list>
+</#list>
+
+<#-- точные квадраты/кубы/шестые степени для B на верхней границе своего диапазона
+     (близких к 10^9 / 10^6, включая максимальное B = 1000 для k = 6), delta из {-1, 0, +1} -->
+<#list deltas as delta>
+    ${powerGen} -k=2 -minB=${maxB_sq} -maxB=${maxB_sq} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
+</#list>
+<#list deltas as delta>
+    ${powerGen} -k=3 -minB=${maxB_cube} -maxB=${maxB_cube} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
+</#list>
+<#list deltas as delta>
+    ${powerGen} -k=6 -minB=${maxB_six} -maxB=${maxB_six} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
+</#list>
+
+<#assign desc = "Maximal tests"/>
+
+<#-- N = 10^18 (одновременно 10^6 в кубе и 10^9 в квадрате) и N = 10^18 - 1 -->
+${baseGen} -b=10 -p=18 -delta=0 -minN=${minN} -maxN=${maxN} > $
+${baseGen} -b=10 -p=18 -delta=-1 -minN=${minN} -maxN=${maxN} > $
+
+<#assign desc = "Specific: random N across the whole range"/>
+${randGen} -minN=${minN} -maxN=${maxN} > $
+${randGen} -minN=${div(maxN, 2)} -maxN=${maxN} > $
+${randGen} -minN=${minN} -maxN=${div(maxN, 2)} > $
