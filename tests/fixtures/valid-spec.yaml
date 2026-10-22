@@ -77,5 +77,5 @@ checker:
 
 meta:
   requirements_docs:
-    - "templates/common/tutorials/requirements.md"
+    - "templates/common/tutorials/statement.md"
   status: "draft"

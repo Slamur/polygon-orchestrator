@@ -91,7 +91,7 @@ def test_load_context_documents_unknown_step_has_no_fixed_documents(tmp_path):
 
 
 def test_load_context_documents_missing_fixed_document_raises(tmp_path):
-    with pytest.raises(FileNotFoundError, match="tutorials/requirements.md"):
+    with pytest.raises(FileNotFoundError, match="tutorials/limits.md"):
         load_context_documents("constraints_pick", templates_dir=tmp_path)
 
 
@@ -399,7 +399,7 @@ def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
         )
 
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    assert "common/tutorials/requirements.md" in context_documents
+    assert "common/tutorials/limits.md" in context_documents
 
 
 def test_run_generative_step_extra_context_documents_none_is_backward_compatible(tmp_path):
