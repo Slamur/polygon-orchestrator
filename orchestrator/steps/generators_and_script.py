@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
+from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
@@ -110,12 +111,19 @@ def compute_input_hash(
       даже если секция `generation` не менялась (CLAUDE.md, "Кэширование по
       хешу спека").
     """
+    return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
+
+
+def hash_inputs(
+    problem_id: str,
+    spec: ProblemSpec,
+    upstream_artifacts: Optional[dict[str, Any]] = None,
+) -> tuple[Any, Optional[dict[str, Any]]]:
+    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
+    общий источник для `compute_input_hash` и хешей по частям
+    (`cache.compute_input_parts`), чтобы они не разошлись."""
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
-    return _cache_compute_input_hash(
-        STEP_NAME,
-        _build_context_sections(spec),
-        upstream_artifacts={CONSTRAINTS_ARTIFACT: constraints_yaml},
-    )
+    return _build_context_sections(spec), {CONSTRAINTS_ARTIFACT: constraints_yaml}
 
 
 def extra_context_documents(
@@ -197,6 +205,7 @@ def run_step(
         "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
+    input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
         base = Path(outputs_dir) / problem_id
@@ -209,6 +218,7 @@ def run_step(
         problem_id=problem_id,
         context=context,
         input_hash=input_hash,
+        input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,

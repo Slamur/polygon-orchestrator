@@ -32,7 +32,12 @@ from typing import Any, Callable
 import jinja2
 
 from orchestrator import model_router
-from orchestrator.cache import CacheEntry, compute_prompt_hash, save_cache_entry
+from orchestrator.cache import (
+    CacheEntry,
+    compute_prompt_hash,
+    compute_prompt_parts,
+    save_cache_entry,
+)
 from orchestrator.checks.compile_check import CompileResult, compile_check
 
 PROMPTS_DIR = Path("prompts")
@@ -348,6 +353,7 @@ def run_generative_step(
     context: dict[str, Any],
     input_hash: str,
     resolve_artifact_path: Callable[[str], Path],
+    input_parts: dict[str, str] | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -365,7 +371,9 @@ def run_generative_step(
     `input_hash` — уже посчитанный `cache.compute_input_hash(...)` для этого
     шага; сюда же передаётся вызывающим модулем, поскольку только он знает,
     какая секция спека и какие апстрим-артефакты на шаг влияют (см.
-    CLAUDE.md, "Кэширование по хешу спека").
+    CLAUDE.md, "Кэширование по хешу спека"). `input_parts` — тот же вход по
+    частям (`cache.compute_input_parts`), сохраняется в `CacheEntry`, чтобы
+    `llm status` мог сказать, что именно изменилось.
 
     `resolve_artifact_path(filename)` — как разложить `artifacts` ответа
     модели по каталогам `outputs/<problem_id>/...` (у каждого шага своя
@@ -435,6 +443,12 @@ def run_generative_step(
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents,
     )
+    prompt_parts = compute_prompt_parts(
+        step_name,
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents,
+    )
     save_cache_entry(
         problem_id,
         step_name,
@@ -444,6 +458,8 @@ def run_generative_step(
             model=model_router.STEP_TO_MODEL[step_name],
             status=response.status,
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            input_parts=input_parts,
+            prompt_parts=prompt_parts,
         ),
         outputs_dir=outputs_dir,
     )

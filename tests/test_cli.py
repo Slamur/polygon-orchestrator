@@ -202,6 +202,44 @@ def test_status_reports_cache_hit_after_run(specs_dir, tmp_path, capsys):
     assert out.count("cache hit") == 4
 
 
+def test_accept_marks_stale_step_and_reports_it(specs_dir, tmp_path, capsys):
+    _write_spec(specs_dir, "p1")
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
+    (outputs_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
+    capsys.readouterr()
+
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "accept", "p1"])
+
+    mock_call.assert_not_called()
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "generators_and_script: accepted — was stale: " in out
+    assert "upstream: constraints.yaml" in out
+
+    cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "status", "p1"])
+    assert capsys.readouterr().out.count("cache hit") == 4
+
+
+def test_accept_before_any_run_exits_nonzero(specs_dir, tmp_path, capsys):
+    _write_spec(specs_dir, "p1")
+    outputs_dir = tmp_path / "outputs"
+
+    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "accept", "p1"])
+
+    assert rc == 1
+    assert "statement_draft: not accepted" in capsys.readouterr().out
+
+
+def test_accept_all_and_step_are_mutually_incompatible(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "accept", "--all", "--step", "statement_draft"])
+    assert exc_info.value.code == 2
+
+
 def test_run_all_and_step_are_mutually_incompatible(specs_dir, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with pytest.raises(SystemExit) as exc_info:

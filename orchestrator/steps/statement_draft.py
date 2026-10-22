@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
+from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
@@ -71,10 +72,21 @@ def compute_input_hash(
     единой сигнатуры `compute_input_hash(problem_id, spec, upstream_artifacts)`
     у всех пяти шагов.
     """
+    return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
+
+
+def hash_inputs(
+    problem_id: str,
+    spec: ProblemSpec,
+    upstream_artifacts: Optional[dict[str, Any]] = None,
+) -> tuple[Any, Optional[dict[str, Any]]]:
+    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
+    общий источник для `compute_input_hash` и хешей по частям
+    (`cache.compute_input_parts`), чтобы они не разошлись."""
     section_data = with_default_lists(
         spec.statement_draft.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
     )
-    return _cache_compute_input_hash(STEP_NAME, section_data)
+    return section_data, None
 
 
 def primary_artifact_path(
@@ -146,6 +158,7 @@ def run_step(
     )
     context = {"problem_id": problem_id, "statement_draft": section_data}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
+    input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
         # filename приходит как "legend.tex" или "examples/example_1.txt" —
@@ -159,6 +172,7 @@ def run_step(
         problem_id=problem_id,
         context=context,
         input_hash=input_hash,
+        input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,

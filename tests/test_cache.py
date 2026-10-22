@@ -6,7 +6,9 @@ import pytest
 from orchestrator.cache import (
     CacheEntry,
     compute_input_hash,
+    compute_input_parts,
     compute_prompt_hash,
+    describe_changed_parts,
     is_cache_valid,
     load_cache_entry,
     save_cache_entry,
@@ -184,6 +186,9 @@ def test_save_and_load_cache_entry_roundtrip(tmp_path):
         "model": "strong-model-v1",
         "status": "ok",
         "timestamp": "2026-09-13T00:00:00Z",
+        "input_parts": None,
+        "prompt_parts": None,
+        "accepted": False,
     }
 
 
@@ -224,3 +229,60 @@ def test_is_cache_valid_false_when_status_uncertain_even_with_matching_hashes():
 
 def test_is_cache_valid_false_when_no_entry():
     assert is_cache_valid(None, "h1", "p1") is False
+
+
+# --- хеши по частям и модель --------------------------------------------
+
+
+def test_is_cache_valid_false_when_model_changed():
+    entry = CacheEntry("h1", "p1", "medium-model", "confirmed", "t")
+    assert is_cache_valid(entry, "h1", "p1", "medium-model") is True
+    assert is_cache_valid(entry, "h1", "p1", "strong-model") is False
+
+
+def test_compute_input_parts_splits_sections_two_levels_deep():
+    parts = compute_input_parts(
+        {"constraints": {"n": 1, "m": 2}, "flag": True}, {"constraints.yaml": "x"}
+    )
+    assert set(parts) == {
+        "spec: constraints.n",
+        "spec: constraints.m",
+        "spec: flag",
+        "upstream: constraints.yaml",
+    }
+    changed = compute_input_parts(
+        {"constraints": {"n": 1, "m": 3}, "flag": True}, {"constraints.yaml": "x"}
+    )
+    assert describe_changed_parts(parts, changed) == ["spec: constraints.m"]
+
+
+def test_compute_input_parts_of_non_dict_section():
+    assert set(compute_input_parts("notes")) == {"spec"}
+
+
+def test_describe_changed_parts_marks_added_and_removed():
+    old = {"a": "1", "b": "2"}
+    new = {"a": "1", "c": "3"}
+    assert describe_changed_parts(old, new) == ["c (added)", "b (removed)"]
+    assert describe_changed_parts(None, new) == []
+
+
+def test_load_cache_entry_without_parts_fields_is_still_valid(tmp_path):
+    cache_dir = tmp_path / "p1" / ".cache"
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "statement_draft.json").write_text(
+        json.dumps(
+            {
+                "input_hash": "h",
+                "prompt_hash": "p",
+                "model": "medium-model",
+                "status": "confirmed",
+                "timestamp": "t",
+            }
+        ),
+        encoding="utf-8",
+    )
+    entry = load_cache_entry("p1", "statement_draft", outputs_dir=tmp_path)
+    assert entry is not None
+    assert entry.input_parts is None and entry.prompt_parts is None
+    assert entry.accepted is False

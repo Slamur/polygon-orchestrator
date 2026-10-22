@@ -1,4 +1,4 @@
-"""Реализация команд CLI: `llm generate|status`, `polygon push|status|pull`.
+"""Реализация команд CLI: `llm generate|status|accept`, `polygon push|status|pull`.
 
 Парсер аргументов и входная точка — в `cli.py`; этот модуль он импортирует
 только после разбора аргументов, потому что отсюда тянутся оба пайплайна (а
@@ -21,6 +21,9 @@ from orchestrator.pipeline import (
     OUTCOME_PROPOSED,
     OUTCOME_SKIPPED_OPTIONAL,
     OUTCOME_UNCERTAIN,
+    STATUS_BLOCKED,
+    STATUS_NOT_ACCEPTED,
+    accept_steps,
     compute_step_statuses,
     run_pipeline,
 )
@@ -276,26 +279,14 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
-def cmd_llm_status(args: argparse.Namespace) -> int:
-    problem_ids = (
-        [args.problem_id]
-        if args.problem_id is not None
-        else _discover_problem_ids(args.specs_dir)
-    )
-    if not problem_ids:
-        print(f"no specs/*.yaml found in {args.specs_dir}")
-        return 0
-
+def _print_step_statuses(problem_ids: list[str], compute) -> bool:
+    """Печатает `шаг: состояние — подробности` по каждому `problem_id`;
+    `compute(problem_id)` — `(статусы, spec_error)`. Возвращает, была ли
+    ошибка спека."""
     any_error = False
     for problem_id in problem_ids:
         print(f"=== {problem_id} ===")
-        statuses, spec_error = compute_step_statuses(
-            problem_id,
-            specs_dir=args.specs_dir,
-            prompts_dir=args.prompts_dir,
-            outputs_dir=args.outputs_dir,
-            templates_dir=args.templates_dir,
-        )
+        statuses, spec_error = compute(problem_id)
         if spec_error is not None:
             print(spec_error)
             any_error = True
@@ -306,8 +297,59 @@ def cmd_llm_status(args: argparse.Namespace) -> int:
             if step_status.detail:
                 line += f" — {step_status.detail}"
             print(line)
+    return any_error
 
+
+def cmd_llm_status(args: argparse.Namespace) -> int:
+    problem_ids = (
+        [args.problem_id]
+        if args.problem_id is not None
+        else _discover_problem_ids(args.specs_dir)
+    )
+    if not problem_ids:
+        print(f"no specs/*.yaml found in {args.specs_dir}")
+        return 0
+
+    any_error = _print_step_statuses(
+        problem_ids,
+        lambda problem_id: compute_step_statuses(
+            problem_id,
+            specs_dir=args.specs_dir,
+            prompts_dir=args.prompts_dir,
+            outputs_dir=args.outputs_dir,
+            templates_dir=args.templates_dir,
+        ),
+    )
     return 1 if any_error else 0
+
+
+def cmd_llm_accept(args: argparse.Namespace) -> int:
+    """Принимает текущие артефакты устаревших шагов без вызова модели (см.
+    `pipeline.accept_steps`). Код возврата 1 — ошибка спека или хотя бы один
+    шаг не принят (или заблокирован)."""
+    problem_ids = [args.problem_id] if not args.all else _discover_problem_ids(args.specs_dir)
+    if not problem_ids:
+        print(f"no specs/*.yaml found in {args.specs_dir}")
+        return 0
+
+    any_not_accepted = False
+
+    def accept(problem_id: str):
+        nonlocal any_not_accepted
+        statuses, spec_error = accept_steps(
+            problem_id,
+            only_step=args.step,
+            specs_dir=args.specs_dir,
+            prompts_dir=args.prompts_dir,
+            outputs_dir=args.outputs_dir,
+            templates_dir=args.templates_dir,
+        )
+        if any(status.state in (STATUS_NOT_ACCEPTED, STATUS_BLOCKED) for status in statuses):
+            any_not_accepted = True
+        return statuses, spec_error
+
+    any_error = _print_step_statuses(problem_ids, accept)
+    return 1 if any_error or any_not_accepted else 0
 
 
 def _print_polygon_outcomes(outcomes) -> None:

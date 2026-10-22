@@ -57,6 +57,33 @@ def compute_input_hash(
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def compute_input_parts(spec_section: Any, upstream_artifacts: Any = None) -> dict[str, str]:
+    """Хеши отдельных частей входа шага — тех же данных, что
+    `compute_input_hash`, но по частям: `spec: <ключ>[.<подключ>]` для полей
+    секции спека (на два уровня вглубь) и `upstream: <имя>` для апстрим-
+    артефактов. Решение "валиден ли кэш" принимается только по общему хешу,
+    части нужны, чтобы `llm status`/`llm generate` могли сказать, что
+    именно изменилось (`describe_changed_parts`).
+    """
+    parts: dict[str, str] = {}
+    if isinstance(spec_section, dict):
+        for key, value in spec_section.items():
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    parts[f"spec: {key}.{sub_key}"] = _sha256(_canonical_json(sub_value))
+            else:
+                parts[f"spec: {key}"] = _sha256(_canonical_json(value))
+    else:
+        parts["spec"] = _sha256(_canonical_json(spec_section))
+    for name, content in (upstream_artifacts or {}).items():
+        parts[f"upstream: {name}"] = _sha256(_canonical_json(content))
+    return parts
+
+
 def compute_prompt_hash(
     step_name: str,
     *,
@@ -76,13 +103,58 @@ def compute_prompt_hash(
     Это наш собственный результат-кэш (`outputs/<id>/.cache/<step>.json`),
     не связан с Anthropic prompt caching.
     """
-    step_dir = Path(prompts_dir) / step_name
-    system_text = (step_dir / "system.md").read_text(encoding="utf-8")
-    user_text = (step_dir / "user.md.j2").read_text(encoding="utf-8")
+    system_text, user_text, context_documents = _read_prompt_inputs(
+        step_name,
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents,
+    )
 
     digest = hashlib.sha256()
     digest.update(system_text.encode("utf-8"))
     digest.update(user_text.encode("utf-8"))
+    for doc_path, content in context_documents.items():
+        digest.update(doc_path.encode("utf-8"))
+        digest.update(content.encode("utf-8"))
+
+    return digest.hexdigest()
+
+
+def compute_prompt_parts(
+    step_name: str,
+    *,
+    prompts_dir: Path = PROMPTS_DIR,
+    templates_dir: Path = TEMPLATES_DIR,
+    extra_context_documents: list[str] | None = None,
+) -> dict[str, str]:
+    """Хеши по файлам того же набора, что `compute_prompt_hash`: оба
+    промпт-шаблона шага и каждый документ контекста по отдельности. Как и
+    `compute_input_parts`, только для объяснения, что изменилось."""
+    system_text, user_text, context_documents = _read_prompt_inputs(
+        step_name,
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents,
+    )
+    parts = {
+        f"prompt: {step_name}/system.md": _sha256(system_text),
+        f"prompt: {step_name}/user.md.j2": _sha256(user_text),
+    }
+    for doc_path, content in context_documents.items():
+        parts[f"document: {doc_path}"] = _sha256(content)
+    return parts
+
+
+def _read_prompt_inputs(
+    step_name: str,
+    *,
+    prompts_dir: Path,
+    templates_dir: Path,
+    extra_context_documents: list[str] | None,
+) -> tuple[str, str, dict[str, str]]:
+    step_dir = Path(prompts_dir) / step_name
+    system_text = (step_dir / "system.md").read_text(encoding="utf-8")
+    user_text = (step_dir / "user.md.j2").read_text(encoding="utf-8")
 
     # Локальный импорт разрывает цикл base.py (импортирует cache.py) <->
     # cache.py (импортировал бы base.py на уровне модуля).
@@ -91,22 +163,28 @@ def compute_prompt_hash(
     context_documents = steps_base.load_context_documents(
         step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
     )
-    for doc_path, content in context_documents.items():
-        digest.update(doc_path.encode("utf-8"))
-        digest.update(content.encode("utf-8"))
-
-    return digest.hexdigest()
+    return system_text, user_text, context_documents
 
 
 @dataclass
 class CacheEntry:
-    """Содержимое `outputs/<problem_id>/.cache/<step>.json`."""
+    """Содержимое `outputs/<problem_id>/.cache/<step>.json`.
+
+    `input_parts`/`prompt_parts` — хеши по частям (`compute_input_parts`/
+    `compute_prompt_parts`), только для объяснения, что изменилось; `None` у
+    записей, сделанных до их появления. `accepted` — запись сделана
+    `llm accept` (текущие файлы приняты без вызова модели), а не
+    генерацией.
+    """
 
     input_hash: str
     prompt_hash: str
     model: str
     status: str
     timestamp: str
+    input_parts: Optional[dict[str, str]] = None
+    prompt_parts: Optional[dict[str, str]] = None
+    accepted: bool = False
 
 
 def _cache_file_path(
@@ -162,17 +240,41 @@ def is_cache_valid(
     entry: Optional[CacheEntry],
     current_input_hash: str,
     current_prompt_hash: str,
+    current_model: Optional[str] = None,
 ) -> bool:
     """Можно ли пропустить вызов модели и переиспользовать `entry`.
 
     `uncertain` никогда не считается валидным кэшем, независимо от хешей
-    (см. CLAUDE.md, "Кэширование по хешу спека", пункт 3).
+    (см. CLAUDE.md, "Кэширование по хешу спека", пункт 3). Смена модели
+    шага (`current_model`, класс модели из `model_router.STEP_TO_MODEL`)
+    тоже инвалидирует кэш; `None` — не сравнивать модель.
     """
     if entry is None:
         return False
     if entry.status == UNCERTAIN_STATUS:
         return False
+    if current_model is not None and entry.model != current_model:
+        return False
     return (
         entry.input_hash == current_input_hash
         and entry.prompt_hash == current_prompt_hash
     )
+
+
+def describe_changed_parts(
+    old_parts: Optional[dict[str, str]], new_parts: dict[str, str]
+) -> list[str]:
+    """Какие части изменились между двумя наборами хешей по частям: имя
+    части, с пометкой ` (added)`/` (removed)` для появившихся и исчезнувших.
+    `old_parts=None` (запись кэша без частей) — пустой список: сказать
+    нечего, вызывающий код сообщает об этом сам."""
+    if old_parts is None:
+        return []
+    names = [
+        name
+        for name in new_parts
+        if name in old_parts and old_parts[name] != new_parts[name]
+    ]
+    names += [f"{name} (added)" for name in new_parts if name not in old_parts]
+    names += [f"{name} (removed)" for name in old_parts if name not in new_parts]
+    return names
