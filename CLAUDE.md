@@ -78,9 +78,14 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
 │   │   ├── testlib.h
 │   │   └── tutorials/
-│   │       ├── polygon.md        # правила по разделам Polygon
-│   │       ├── requirements.md   # правила по условию/тестам/валидатору/чекеру
-│   │       └── freemarker.md     # правила по FreeMarker-скриптам
+│   │       ├── statement.md      # правила по условию (statement_draft)
+│   │       ├── limits.md         # правила по TL/ML (constraints_pick, solutions_draft)
+│   │       ├── validator.md      # правила по валидатору (constraints_pick)
+│   │       ├── tests.md          # правила по тестам, генераторам и test-script (generators_and_script)
+│   │       ├── freemarker.md     # правила по FreeMarker-скриптам (generators_and_script)
+│   │       ├── solutions.md      # правила по решениям (solutions_draft)
+│   │       ├── checker.md        # правила по чекеру (checker_draft)
+│   │       └── polygon.md        # справка по интерфейсу Polygon — шагам не прикладывается
 │   └── examples/                 # учебные задачи-образцы, по каталогу на задачу
 │       └── <вид-входа>--<суть>/  # например array--prefix-sums; раскладка как у outputs/<problem_id>/
 │           ├── spec.yaml         # спек учебной задачи (problem_id = имя каталога) — пара "спек -> результат"
@@ -171,7 +176,7 @@ Python-оркестратор, который берёт структуриро�
    легенду/ввод/вывод/примечание + input каждого примера в
    `examples/example_<N>.txt` (набор имён проверяется до записи на диск),
    следующий структуре и стилистическим правилам из
-   `templates/common/tutorials/requirements.md` (раздел "Условие задачи").
+   `templates/common/tutorials/statement.md`.
 2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
    очередь `intended_complexity` и `complexity_reasoning`, + формат ввода из
    `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
@@ -473,10 +478,14 @@ CLI, расход из лимитов подписки, а не с API-бала�
 
 ## Как использовать приложенные материалы
 
-- `templates/common/tutorials/requirements.md`, `.../polygon.md`,
-  `.../freemarker.md` — это **правила**, а не справочный
+- `templates/common/tutorials/*.md` (кроме `polygon.md`) — это **правила**, а не справочный
   материал "для общего развития". Промпты должны явно инструктировать
   модель следовать им как обязательным ограничениям, а не как совету.
+  Правила разбиты по темам, и шаг получает только нужные ему
+  (`STEP_CONTEXT_DOCUMENTS`), поэтому правка одной темы инвалидирует кэш
+  только читающих её шагов. Файлы пишутся для модели: каждый
+  самодостаточен, без ссылок на другие файлы правил. `polygon.md` — справка
+  по интерфейсу Polygon, ни одному шагу не прикладывается.
 - `templates/common/problem_lib.h` и файлы учебных задач
   `templates/examples/<problem_id>/` (`validator.cpp`, `checker.cpp`,
   `generators/*.cpp`, `test_script`, `solutions/*`)

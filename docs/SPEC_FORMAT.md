@@ -57,7 +57,7 @@ statement_draft:
     # false (по умолчанию) — стандартное правило: вводный художественный
     # абзац сокращается до 2-3 строк, а описание модели задачи (процесс,
     # правила, определения, вопрос) остаётся в легенде полностью; в формат
-    # ввода/вывода переносится только описание данных (см. requirements.md).
+    # ввода/вывода переносится только описание данных (см. tutorials/statement.md).
     # true — для задач, где сама легенда содержательна и опирается на
     # реальные факты/историю, а не просто оборачивает формальную
     # постановку: модель обязана сохранять фактическую плотность
@@ -104,7 +104,7 @@ constraints:
     # test_groups_needed: true, а test_groups_hint не задан — шаг предлагает
     # разумный набор сам, как proposed (текущее поведение).
   time_limit_seconds: null           # [optional] если null — модель предлагает, помечая как black-box предложение
-  memory_limit_mb: 256               # [optional], желательно кратно 256 (см. requirements.md)
+  memory_limit_mb: 256               # [optional], желательно кратно 256 (см. tutorials/limits.md)
   uncertain_points:                  # [optional] то, в чём сам автор не уверен — акцент для шага
     - "не уверен, что 10^6 для группы 3 — не слишком щедро для проверки TL без оптимизаций ввода"
   references: []                     # [optional] референсы только для constraints_pick (см. "Референсы")
@@ -164,14 +164,12 @@ checker:
   standard: "ncmp"                   # [optional] имя стандартного чекера ИЛИ null
   custom_needed: false                # [required] bool
   custom_comparison_notes: null       # [required если custom_needed=true] — как сравнивать ответы,
-                                       # точность для вещественных и т.д. (см. requirements.md)
+                                       # точность для вещественных и т.д. (см. tutorials/checker.md)
   references: []                      # [optional] референсы только для checker_draft (см. "Референсы")
 
 meta:
   requirements_docs:                  # ссылки на приложенные md с правилами — не дублируются в спеке,
-    - "Polygon/tutorials/requirements.md"
-    - "Polygon/tutorials/polygon.md"
-    - "Polygon/tutorials/freemarker.md"
+    - "templates/common/tutorials/statement.md"
   status: "draft"                     # "draft" | "ready_for_generation" | "reviewed"
 ```
 
@@ -255,6 +253,6 @@ meta:
    текущей версии его нет, т.к. ты не упоминал интерактивные задачи в
    контексте. Добавить, если понадобится.
 2. Нужно ли явное поле для группировки тестов "во сколько баллов оценивается
-   группа" (partial scoring) — в приложенном `polygon.md` разбалловка
+   группа" (partial scoring) — в приложенном `statement.md` разбалловка
    упомянута как опциональный блок условия. Пока не включил, чтобы не
    раздувать MVP-спек.
