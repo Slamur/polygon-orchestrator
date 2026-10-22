@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
+from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
@@ -76,13 +77,20 @@ def compute_input_hash(
     секцию `solutions` в спеке и `upstream_artifacts["constraints.yaml"]`.
     Вход — `_build_context_sections` + содержимое `constraints.yaml`.
     """
+    return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
+
+
+def hash_inputs(
+    problem_id: str,
+    spec: ProblemSpec,
+    upstream_artifacts: Optional[dict[str, Any]] = None,
+) -> tuple[Any, Optional[dict[str, Any]]]:
+    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
+    общий источник для `compute_input_hash` и хешей по частям
+    (`cache.compute_input_parts`), чтобы они не разошлись."""
     _require_solutions_section(problem_id, spec)
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
-    return _cache_compute_input_hash(
-        STEP_NAME,
-        _build_context_sections(spec),
-        upstream_artifacts={CONSTRAINTS_ARTIFACT: constraints_yaml},
-    )
+    return _build_context_sections(spec), {CONSTRAINTS_ARTIFACT: constraints_yaml}
 
 
 def primary_artifact_path(
@@ -175,6 +183,7 @@ def run_step(
         "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
+    input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
         return Path(outputs_dir) / problem_id / "solutions" / filename
@@ -184,6 +193,7 @@ def run_step(
         problem_id=problem_id,
         context=context,
         input_hash=input_hash,
+        input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,

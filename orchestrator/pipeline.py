@@ -1,5 +1,7 @@
 """Прогон 5 шагов для одного `problem_id`, с учётом кэша (CLAUDE.md,
-"Пакетный запуск", "Кэширование по хешу спека").
+"Пакетный запуск", "Кэширование по хешу спека"), статус кэша шагов
+(`compute_step_statuses`) и принятие текущих файлов без вызова модели
+(`accept_steps`).
 
 `run_pipeline` не вызывает модель, если это не нужно: перед каждым шагом
 считает `input_hash`/`prompt_hash` (не запуская сам шаг) и проверяет
@@ -13,18 +15,25 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Optional
 
+from orchestrator import model_router
 from orchestrator.cache import (
     SPECS_DIR,
     UNCERTAIN_STATUS,
+    CacheEntry,
+    compute_input_parts,
     compute_prompt_hash,
+    compute_prompt_parts,
+    describe_changed_parts,
     is_cache_valid,
     load_cache_entry,
+    save_cache_entry,
 )
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_spec
@@ -104,6 +113,117 @@ def _artifact_present(path: Path) -> bool:
     return path.exists()
 
 
+
+
+@dataclass
+class _StepHashes:
+    """Текущие хеши входа шага — то, с чем сравнивается `CacheEntry`."""
+
+    input_hash: str
+    prompt_hash: str
+    input_parts: dict[str, str]
+    prompt_parts: dict[str, str]
+    model: str
+
+
+def _optional_skip_detail(step_name: str, spec: Any) -> Optional[str]:
+    """Почему опциональный шаг не нужен этому спеку; `None` — нужен."""
+    if step_name == "solutions_draft" and spec.solutions is None:
+        return "spec has no 'solutions' section — solution drafts were not requested by the author"
+    if step_name == "checker_draft" and spec.checker.custom_needed is False:
+        return "checker.custom_needed=false — a standard checker is used, no draft requested"
+    return None
+
+
+def _load_constraints_upstream(
+    step_name: str,
+    problem_id: str,
+    spec: Any,
+    upstream_artifacts: dict[str, Any],
+    outputs_dir: Path,
+) -> None:
+    """generators_and_script и solutions_draft зависят от constraints.yaml с
+    диска. Если constraints_pick в этом прогоне не запускался (только --step
+    или пропущен по кэшу), артефакт подхватывается с диска."""
+    if step_name not in ("generators_and_script", "solutions_draft"):
+        return
+    if CONSTRAINTS_ARTIFACT in upstream_artifacts:
+        return
+    constraints_path = constraints_pick.primary_artifact_path(
+        problem_id, spec, outputs_dir=outputs_dir
+    )
+    if constraints_path.exists():
+        upstream_artifacts[CONSTRAINTS_ARTIFACT] = constraints_path.read_text(encoding="utf-8")
+
+
+def _compute_step_hashes(
+    problem_id: str,
+    step_name: str,
+    spec: Any,
+    upstream_artifacts: dict[str, Any],
+    *,
+    prompts_dir: Path,
+    templates_dir: Path,
+) -> _StepHashes:
+    """Хеши шага без вызова модели. `ValueError` — нет нужного
+    upstream-артефакта (`constraints.yaml`), `SpecReferenceError` —
+    референс спека не найден или ничего не даёт шагу."""
+    module = _STEP_MODULES[step_name]
+    input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
+    input_parts = compute_input_parts(*module.hash_inputs(problem_id, spec, upstream_artifacts))
+    extra_documents = module.extra_context_documents(spec, templates_dir=templates_dir)
+    prompt_kwargs = dict(
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=extra_documents,
+    )
+    return _StepHashes(
+        input_hash=input_hash,
+        prompt_hash=compute_prompt_hash(step_name, **prompt_kwargs),
+        input_parts=input_parts,
+        prompt_parts=compute_prompt_parts(step_name, **prompt_kwargs),
+        model=model_router.STEP_TO_MODEL[step_name],
+    )
+
+
+def _stale_reason(entry: CacheEntry, hashes: _StepHashes) -> str:
+    """Почему кэш шага невалиден (при уже известном, что он невалиден и
+    `entry.status` — не `uncertain`): что именно изменилось — по хешам
+    частей, если они есть в записи кэша."""
+    reasons: list[str] = []
+    parts_unknown = False
+    if entry.model != hashes.model:
+        reasons.append(f"model changed ({entry.model} -> {hashes.model})")
+    for summary, old_hash, new_hash, old_parts, new_parts in (
+        (
+            "spec (or upstream artifact) changed",
+            entry.input_hash,
+            hashes.input_hash,
+            entry.input_parts,
+            hashes.input_parts,
+        ),
+        (
+            "prompt template changed",
+            entry.prompt_hash,
+            hashes.prompt_hash,
+            entry.prompt_parts,
+            hashes.prompt_parts,
+        ),
+    ):
+        if old_hash == new_hash:
+            continue
+        if old_parts is None:
+            parts_unknown = True
+            reasons.append(summary)
+            continue
+        changed = describe_changed_parts(old_parts, new_parts)
+        reasons.append(f"{summary}: {', '.join(changed)}" if changed else summary)
+    reason = "; ".join(reasons) or "cache entry does not match"
+    if parts_unknown:
+        reason += " (which parts — unknown: the cache entry predates per-part hashes)"
+    return reason
+
+
 def run_pipeline(
     problem_id: str,
     *,
@@ -123,7 +243,9 @@ def run_pipeline(
     `run <problem_id> --step NAME`, требующий этого руками).
 
     `force=True` обходит кэш полностью — каждый нужный шаг вызывает модель
-    заново, независимо от `input_hash`/`prompt_hash`.
+    заново, независимо от `input_hash`/`prompt_hash`. Если шаг перезапущен
+    без `force` из-за устаревшего кэша, в `StepOutcome.detail` — что именно
+    изменилось (`_stale_reason`).
 
     Останавливается (не бросая исключение) на первом `StepUncertainError` —
     `result.stopped_uncertain=True`, `result.outcomes` содержит всё, что
@@ -145,76 +267,42 @@ def run_pipeline(
         module = _STEP_MODULES[step_name]
         logger.info("[%s] step started", step_name)
 
-        if step_name == "solutions_draft" and spec.solutions is None:
-            result.outcomes.append(
-                StepOutcome(
-                    step_name,
-                    OUTCOME_SKIPPED_OPTIONAL,
-                    "spec has no 'solutions' section — solution drafts were not requested by the author",
-                )
-            )
+        skip_detail = _optional_skip_detail(step_name, spec)
+        if skip_detail is not None:
+            result.outcomes.append(StepOutcome(step_name, OUTCOME_SKIPPED_OPTIONAL, skip_detail))
             continue
 
-        if step_name == "checker_draft" and spec.checker.custom_needed is False:
-            result.outcomes.append(
-                StepOutcome(
-                    step_name,
-                    OUTCOME_SKIPPED_OPTIONAL,
-                    "checker.custom_needed=false — a standard checker is used, "
-                    "no draft requested",
-                )
-            )
-            continue
-
-        # generators_and_script и solutions_draft зависят от constraints.yaml
-        # с диска. Если запускаем не с начала (только --step или пропущенные
-        # по кэшу предыдущие шаги), артефакт нужно подхватить, а не требовать,
-        # чтобы это делал constraints_pick в этом же прогоне.
-        if step_name in ("generators_and_script", "solutions_draft") and (
-            CONSTRAINTS_ARTIFACT not in upstream_artifacts
-        ):
-            constraints_path = constraints_pick.primary_artifact_path(
-                problem_id, spec, outputs_dir=outputs_dir
-            )
-            if constraints_path.exists():
-                upstream_artifacts[CONSTRAINTS_ARTIFACT] = constraints_path.read_text(
-                    encoding="utf-8"
-                )
+        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, outputs_dir)
 
         try:
-            input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
-        except ValueError as exc:
-            # Нет constraints.yaml (constraints_pick ещё не запускался
-            # успешно) — это ошибка конфигурации запуска, а не uncertain:
-            # пайплайн должен остановиться так же, как остановился бы
-            # run_step с той же ValueError, но без падения всего процесса
+            hashes = _compute_step_hashes(
+                problem_id,
+                step_name,
+                spec,
+                upstream_artifacts,
+                prompts_dir=prompts_dir,
+                templates_dir=templates_dir,
+            )
+        except (ValueError, SpecReferenceError) as exc:
+            # ValueError — нет constraints.yaml (constraints_pick ещё не
+            # запускался успешно), SpecReferenceError — референс спека не
+            # найден: спек или запуск нужно поправить. Это не uncertain, но
+            # пайплайн останавливается так же — без падения всего процесса
             # llm generate --all.
             result.outcomes.append(StepOutcome(step_name, "error", str(exc)))
             result.stopped_uncertain = True
             return result
 
-        try:
-            extra_documents = module.extra_context_documents(spec, templates_dir=templates_dir)
-        except SpecReferenceError as exc:
-            # Референс спека не найден или ничего не даёт шагу — спек нужно
-            # поправить; остальные problem_id в `llm generate --all` идут дальше.
-            result.outcomes.append(StepOutcome(step_name, "error", str(exc)))
-            result.stopped_uncertain = True
-            return result
-
-        prompt_hash = compute_prompt_hash(
-            step_name,
-            prompts_dir=prompts_dir,
-            templates_dir=templates_dir,
-            extra_context_documents=extra_documents,
-        )
         cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
+        artifact_present = _artifact_present(primary_path)
 
         cache_hit = (
             not force
-            and is_cache_valid(cache_entry, input_hash, prompt_hash)
-            and _artifact_present(primary_path)
+            and is_cache_valid(
+                cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model
+            )
+            and artifact_present
         )
 
         if cache_hit:
@@ -222,10 +310,20 @@ def run_pipeline(
                 StepOutcome(
                     step_name,
                     OUTCOME_CACHE_HIT,
-                    f"input unchanged (input_hash={input_hash[:12]}…) — model not called",
+                    f"input unchanged (input_hash={hashes.input_hash[:12]}…) — model not called",
                 )
             )
         else:
+            if force:
+                rerun_reason = "forced (--force)"
+            elif cache_entry is None or cache_entry.status == UNCERTAIN_STATUS:
+                rerun_reason = ""
+            elif not artifact_present:
+                rerun_reason = "regenerated: artifact is missing on disk"
+            else:
+                rerun_reason = f"regenerated: {_stale_reason(cache_entry, hashes)}"
+            if rerun_reason:
+                logger.info("[%s] %s", step_name, rerun_reason)
             try:
                 step_result = module.run_step(
                     problem_id,
@@ -243,7 +341,7 @@ def run_pipeline(
                 return result
 
             result.outcomes.append(
-                StepOutcome(step_name, step_result.status, notes=step_result.notes)
+                StepOutcome(step_name, step_result.status, rerun_reason, notes=step_result.notes)
             )
 
         if step_name == "constraints_pick":
@@ -261,11 +359,16 @@ STATUS_UNCERTAIN = "uncertain"
 STATUS_SKIPPED_OPTIONAL = "skipped (optional)"
 STATUS_BLOCKED = "blocked"
 
+# Дополнительные состояния StepStatus.state для `orchestrator llm accept`.
+STATUS_ACCEPTED = "accepted"
+STATUS_NOT_ACCEPTED = "not accepted"
+
 
 @dataclass
 class StepStatus:
-    """Состояние одного шага для `orchestrator llm status` — считается только по
-    `.cache/*.json` и текущим хешам, без вызова модели."""
+    """Состояние одного шага для `orchestrator llm status`/`llm accept` —
+    считается только по `.cache/*.json`, файлам и текущим хешам, без вызова
+    модели."""
 
     step_name: str
     state: str
@@ -283,14 +386,78 @@ def compute_step_statuses(
     """Статус каждого шага для `problem_id`: cache hit / stale / not run /
     uncertain / blocked / skipped (optional) — без единого вызова модели.
 
-    Использует те же `compute_input_hash`/`compute_prompt_hash`/
-    `is_cache_valid`, что и `run_pipeline`, поэтому "cache hit" здесь и
-    реальный пропуск шага в `run_pipeline` всегда согласованы (CLAUDE.md,
-    "Пакетный запуск": "используя те же хеши, что и run").
+    Использует те же хеши (`_compute_step_hashes`) и `is_cache_valid`, что и
+    `run_pipeline`, поэтому "cache hit" здесь и реальный пропуск шага в
+    `run_pipeline` всегда согласованы (CLAUDE.md, "Пакетный запуск":
+    "используя те же хеши, что и run"). У `stale` в `detail` — что именно
+    изменилось (`_stale_reason`).
 
     Возвращает `(статусы, spec_error)`: если спек не проходит валидацию,
     статусы — пустой список, а `spec_error` — текст ошибки.
     """
+    return _walk_steps(
+        problem_id,
+        _status_of_step,
+        only_step=None,
+        specs_dir=specs_dir,
+        prompts_dir=prompts_dir,
+        outputs_dir=outputs_dir,
+        templates_dir=templates_dir,
+    )
+
+
+def accept_steps(
+    problem_id: str,
+    *,
+    only_step: Optional[str] = None,
+    specs_dir: Path = SPECS_DIR,
+    prompts_dir: Path = PROMPTS_DIR,
+    outputs_dir: Path = OUTPUTS_DIR,
+    templates_dir: Path = TEMPLATES_DIR,
+) -> tuple[list[StepStatus], Optional[str]]:
+    """`orchestrator llm accept`: принимает текущие артефакты шагов как
+    актуальные — перезаписывает кэш устаревших (`stale`) шагов текущими
+    хешами, без вызова модели. Нужно, когда изменилось то, что не должно
+    менять результат (рефакторинг промптов/шаблонов, смена раскладки
+    `templates/`), или когда автор поправил спек под уже исправленные
+    руками файлы: после этого `llm generate` перезапускает только шаги,
+    вход которых изменится уже после принятия.
+
+    Не принимаются: шаги без артефакта на диске, шаги без записи кэша
+    (`not run` — ни разу не генерировались) и шаги со `status: uncertain`
+    (провал по недостатку данных должен всплывать, пока спек не поправят).
+    Статус записи кэша (`confirmed`/`proposed`) сохраняется, у записи
+    выставляется `accepted: true`.
+
+    Шаги обходятся по порядку: принятый `constraints.yaml` — тот, что на
+    диске, — сразу же входит в хеш `generators_and_script`/`solutions_draft`.
+    Возвращает `(состояния, spec_error)` как `compute_step_statuses`.
+    """
+    return _walk_steps(
+        problem_id,
+        _accept_step,
+        only_step=only_step,
+        specs_dir=specs_dir,
+        prompts_dir=prompts_dir,
+        outputs_dir=outputs_dir,
+        templates_dir=templates_dir,
+    )
+
+
+def _walk_steps(
+    problem_id: str,
+    visit,
+    *,
+    only_step: Optional[str],
+    specs_dir: Path,
+    prompts_dir: Path,
+    outputs_dir: Path,
+    templates_dir: Path,
+) -> tuple[list[StepStatus], Optional[str]]:
+    """Общий обход шагов для `llm status`/`llm accept`: опциональные шаги,
+    подхват `constraints.yaml`, хеши — как в `run_pipeline`;
+    `visit(problem_id, step_name, entry, hashes, artifact_present, outputs_dir)`
+    решает, что сказать (и сделать) про шаг."""
     try:
         spec = load_spec(Path(specs_dir) / f"{problem_id}.yaml")
     except SpecValidationError as exc:
@@ -299,90 +466,105 @@ def compute_step_statuses(
     statuses: list[StepStatus] = []
     upstream_artifacts: dict[str, Any] = {}
 
-    for step_name in STEP_ORDER:
+    for step_name in STEP_ORDER if only_step is None else [only_step]:
         module = _STEP_MODULES[step_name]
 
-        if step_name == "solutions_draft" and spec.solutions is None:
-            statuses.append(
-                StepStatus(
-                    step_name,
-                    STATUS_SKIPPED_OPTIONAL,
-                    "spec has no 'solutions' section — solution drafts not requested",
-                )
-            )
+        skip_detail = _optional_skip_detail(step_name, spec)
+        if skip_detail is not None:
+            statuses.append(StepStatus(step_name, STATUS_SKIPPED_OPTIONAL, skip_detail))
             continue
 
-        if step_name == "checker_draft" and spec.checker.custom_needed is False:
-            statuses.append(
-                StepStatus(
-                    step_name,
-                    STATUS_SKIPPED_OPTIONAL,
-                    "checker.custom_needed=false — a standard checker is used",
-                )
-            )
-            continue
-
-        if step_name in ("generators_and_script", "solutions_draft") and (
-            CONSTRAINTS_ARTIFACT not in upstream_artifacts
-        ):
-            constraints_path = constraints_pick.primary_artifact_path(
-                problem_id, spec, outputs_dir=outputs_dir
-            )
-            if constraints_path.exists():
-                upstream_artifacts[CONSTRAINTS_ARTIFACT] = constraints_path.read_text(
-                    encoding="utf-8"
-                )
-
-        try:
-            input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
-        except ValueError as exc:
-            statuses.append(StepStatus(step_name, STATUS_BLOCKED, str(exc)))
-            continue
-
-        cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
+        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, outputs_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
 
         try:
-            extra_documents = module.extra_context_documents(spec, templates_dir=templates_dir)
-            reference_error = None
-        except SpecReferenceError as exc:
-            reference_error = str(exc)
-
-        if reference_error is not None:
-            statuses.append(StepStatus(step_name, STATUS_BLOCKED, reference_error))
-        elif cache_entry is None:
-            statuses.append(StepStatus(step_name, STATUS_NOT_RUN))
-        elif cache_entry.status == UNCERTAIN_STATUS:
-            statuses.append(
-                StepStatus(
-                    step_name,
-                    STATUS_UNCERTAIN,
-                    "last run ended with status: uncertain — fix the spec and run again",
-                )
-            )
-        else:
-            prompt_hash = compute_prompt_hash(
+            hashes = _compute_step_hashes(
+                problem_id,
                 step_name,
+                spec,
+                upstream_artifacts,
                 prompts_dir=prompts_dir,
                 templates_dir=templates_dir,
-                extra_context_documents=extra_documents,
             )
-            if is_cache_valid(cache_entry, input_hash, prompt_hash) and _artifact_present(
-                primary_path
-            ):
-                statuses.append(StepStatus(step_name, STATUS_CACHE_HIT))
-            elif not _artifact_present(primary_path):
-                statuses.append(
-                    StepStatus(step_name, STATUS_STALE, "artifact is missing on disk")
+        except (ValueError, SpecReferenceError) as exc:
+            statuses.append(StepStatus(step_name, STATUS_BLOCKED, str(exc)))
+        else:
+            cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
+            statuses.append(
+                visit(
+                    problem_id,
+                    step_name,
+                    cache_entry,
+                    hashes,
+                    _artifact_present(primary_path),
+                    outputs_dir,
                 )
-            elif cache_entry.input_hash != input_hash:
-                statuses.append(
-                    StepStatus(step_name, STATUS_STALE, "spec (or upstream artifact) changed")
-                )
-            else:
-                statuses.append(StepStatus(step_name, STATUS_STALE, "prompt template changed"))
+            )
 
         if step_name == "constraints_pick" and primary_path.exists():
             upstream_artifacts[CONSTRAINTS_ARTIFACT] = primary_path.read_text(encoding="utf-8")
 
     return statuses, None
+
+
+def _status_of_step(
+    problem_id: str,
+    step_name: str,
+    cache_entry: Optional[CacheEntry],
+    hashes: _StepHashes,
+    artifact_present: bool,
+    outputs_dir: Path,
+) -> StepStatus:
+    if cache_entry is None:
+        return StepStatus(step_name, STATUS_NOT_RUN)
+    if cache_entry.status == UNCERTAIN_STATUS:
+        return StepStatus(
+            step_name,
+            STATUS_UNCERTAIN,
+            "last run ended with status: uncertain — fix the spec and run again",
+        )
+    if not artifact_present:
+        return StepStatus(step_name, STATUS_STALE, "artifact is missing on disk")
+    if is_cache_valid(cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model):
+        return StepStatus(step_name, STATUS_CACHE_HIT)
+    return StepStatus(step_name, STATUS_STALE, _stale_reason(cache_entry, hashes))
+
+
+def _accept_step(
+    problem_id: str,
+    step_name: str,
+    cache_entry: Optional[CacheEntry],
+    hashes: _StepHashes,
+    artifact_present: bool,
+    outputs_dir: Path,
+) -> StepStatus:
+    current = _status_of_step(
+        problem_id, step_name, cache_entry, hashes, artifact_present, outputs_dir
+    )
+    if current.state == STATUS_CACHE_HIT:
+        return current
+    if current.state != STATUS_STALE or not artifact_present:
+        detail = current.detail or "the step has never been generated"
+        return StepStatus(
+            step_name,
+            STATUS_NOT_ACCEPTED,
+            f"{current.state}: {detail} — run 'orchestrator llm generate'",
+        )
+
+    assert cache_entry is not None
+    save_cache_entry(
+        problem_id,
+        step_name,
+        CacheEntry(
+            input_hash=hashes.input_hash,
+            prompt_hash=hashes.prompt_hash,
+            model=hashes.model,
+            status=cache_entry.status,
+            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            input_parts=hashes.input_parts,
+            prompt_parts=hashes.prompt_parts,
+            accepted=True,
+        ),
+        outputs_dir=outputs_dir,
+    )
+    return StepStatus(step_name, STATUS_ACCEPTED, f"was stale: {current.detail}")

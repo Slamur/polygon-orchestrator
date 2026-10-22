@@ -1,6 +1,6 @@
 """Входная точка оркестратора. Все команды имеют вид
 `orchestrator <pipeline> <command> <problem_id> [аргументы]` (CLAUDE.md,
-"Пакетный запуск"): `llm generate|status` — генеративные шаги,
+"Пакетный запуск"): `llm generate|status|accept` — генеративные шаги,
 `polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
 
 Здесь только парсер аргументов и диспетчеризация; сами команды — в
@@ -118,6 +118,24 @@ def build_parser() -> argparse.ArgumentParser:
     ).completer = _complete_spec_ids
     llm_status_parser.set_defaults(handler="cmd_llm_status")
 
+    accept_parser = llm_commands.add_parser(
+        "accept",
+        help="mark current outputs of stale steps as up to date (rewrite their cache with current "
+        "hashes) without calling the model",
+    )
+    accept_group = accept_parser.add_mutually_exclusive_group(required=True)
+    accept_group.add_argument(
+        "problem_id", nargs="?", help="problem_id (matches specs/<problem_id>.yaml)"
+    ).completer = _complete_spec_ids
+    accept_group.add_argument("--all", action="store_true", help="accept for all specs/*.yaml")
+    accept_parser.add_argument(
+        "--step",
+        choices=STEP_ORDER,
+        default=None,
+        help="accept only one step (incompatible with --all)",
+    )
+    accept_parser.set_defaults(handler="cmd_llm_accept")
+
     polygon_parser = pipelines.add_parser(
         "polygon", help="upload the problem to Polygon / download it (API polygon.codeforces.com)"
     )
@@ -202,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     args.command_line = " ".join(argv)
 
-    if args.handler == "cmd_llm_generate" and args.all and args.step is not None:
+    if args.handler in ("cmd_llm_generate", "cmd_llm_accept") and args.all and args.step is not None:
         parser.error("--step is incompatible with --all")
 
     from orchestrator import cli_commands

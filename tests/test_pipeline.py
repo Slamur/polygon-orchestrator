@@ -381,3 +381,201 @@ def test_compute_step_statuses_blocked_by_missing_reference(specs_dir, tmp_path)
     by_step = {s.step_name: s for s in statuses}
     assert by_step["statement_draft"].state == pipeline.STATUS_BLOCKED
     assert "no-such-task" in by_step["statement_draft"].detail
+
+
+# --- что именно изменилось, смена модели, llm accept ---------------------
+
+
+def _statuses(specs_dir, outputs_dir, prompts_dir=PROMPTS_DIR):
+    statuses, spec_error = pipeline.compute_step_statuses(
+        "p1",
+        specs_dir=specs_dir,
+        prompts_dir=prompts_dir,
+        outputs_dir=outputs_dir,
+        templates_dir=TEMPLATES_DIR,
+    )
+    assert spec_error is None
+    return {s.step_name: s for s in statuses}
+
+
+def _accept(specs_dir, outputs_dir, **kwargs):
+    statuses, spec_error = pipeline.accept_steps(
+        "p1",
+        specs_dir=specs_dir,
+        prompts_dir=PROMPTS_DIR,
+        outputs_dir=outputs_dir,
+        templates_dir=TEMPLATES_DIR,
+        **kwargs,
+    )
+    assert spec_error is None
+    return {s.step_name: s for s in statuses}
+
+
+def _edit_legend(specs_dir):
+    content = (specs_dir / "p1.yaml").read_text(encoding="utf-8")
+    content = content.replace("Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)")
+    (specs_dir / "p1.yaml").write_text(content, encoding="utf-8")
+
+
+def test_stale_detail_names_changed_spec_field(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+    _edit_legend(specs_dir)
+
+    detail = _statuses(specs_dir, outputs_dir)["statement_draft"].detail
+    assert detail == "spec (or upstream artifact) changed: spec: legend_sketch"
+
+
+def test_stale_detail_names_changed_prompt_file(specs_dir, tmp_path):
+    import shutil
+
+    outputs_dir = tmp_path / "outputs"
+    prompts_dir = tmp_path / "prompts"
+    shutil.copytree(PROMPTS_DIR, prompts_dir)
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        pipeline.run_pipeline(
+            "p1",
+            specs_dir=specs_dir,
+            prompts_dir=prompts_dir,
+            outputs_dir=outputs_dir,
+            templates_dir=TEMPLATES_DIR,
+        )
+    system_md = prompts_dir / "statement_draft" / "system.md"
+    system_md.write_text(system_md.read_text(encoding="utf-8") + "\nedit\n", encoding="utf-8")
+
+    detail = _statuses(specs_dir, outputs_dir, prompts_dir)["statement_draft"].detail
+    assert detail == "prompt template changed: prompt: statement_draft/system.md"
+
+
+def test_stale_detail_for_cache_entry_without_parts(specs_dir, tmp_path):
+    import json
+
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+    cache_file = outputs_dir / "p1" / ".cache" / "statement_draft.json"
+    raw = json.loads(cache_file.read_text(encoding="utf-8"))
+    del raw["input_parts"], raw["prompt_parts"], raw["accepted"]
+    cache_file.write_text(json.dumps(raw), encoding="utf-8")
+    _edit_legend(specs_dir)
+
+    detail = _statuses(specs_dir, outputs_dir)["statement_draft"].detail
+    assert "spec (or upstream artifact) changed" in detail
+    assert "predates per-part hashes" in detail
+
+
+def test_model_change_invalidates_cache(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+
+    with patch.dict(
+        "orchestrator.model_router.STEP_TO_MODEL", {"statement_draft": "strong-model"}
+    ):
+        assert _statuses(specs_dir, outputs_dir)["statement_draft"].detail == (
+            "model changed (medium-model -> strong-model)"
+        )
+        with patch(
+            "orchestrator.model_router.call_model", side_effect=_fake_call_model
+        ) as mock_call:
+            result = _run(specs_dir, outputs_dir)
+
+    assert [c.args[0] for c in mock_call.call_args_list] == ["statement_draft"]
+    outcome = result.outcomes[0]
+    assert outcome.detail == "regenerated: model changed (medium-model -> strong-model)"
+
+
+def test_accept_makes_stale_step_a_cache_hit_without_calling_model(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+    _edit_legend(specs_dir)
+
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        accepted = _accept(specs_dir, outputs_dir)
+        result = _run(specs_dir, outputs_dir)
+
+    mock_call.assert_not_called()
+    assert accepted["statement_draft"].state == pipeline.STATUS_ACCEPTED
+    assert "spec: legend_sketch" in accepted["statement_draft"].detail
+    assert accepted["constraints_pick"].state == pipeline.STATUS_CACHE_HIT
+    assert result.outcomes[0].status == pipeline.OUTCOME_CACHE_HIT
+
+    from orchestrator.cache import load_cache_entry
+
+    entry = load_cache_entry("p1", "statement_draft", outputs_dir=outputs_dir)
+    assert entry.accepted is True
+    assert entry.status == "confirmed"
+
+
+def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+    (outputs_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
+
+    before = _statuses(specs_dir, outputs_dir)
+    assert before["generators_and_script"].detail == (
+        "spec (or upstream artifact) changed: upstream: constraints.yaml"
+    )
+
+    accepted = _accept(specs_dir, outputs_dir)
+    assert accepted["generators_and_script"].state == pipeline.STATUS_ACCEPTED
+    assert accepted["solutions_draft"].state == pipeline.STATUS_ACCEPTED
+    after = _statuses(specs_dir, outputs_dir)
+    assert after["generators_and_script"].state == pipeline.STATUS_CACHE_HIT
+    assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
+
+
+def test_accept_only_step_leaves_other_steps_stale(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+    (outputs_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
+
+    accepted = _accept(specs_dir, outputs_dir, only_step="solutions_draft")
+    assert list(accepted) == ["solutions_draft"]
+    after = _statuses(specs_dir, outputs_dir)
+    assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
+    assert after["generators_and_script"].state == pipeline.STATUS_STALE
+
+
+def test_accept_refuses_steps_never_generated(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    accepted = _accept(specs_dir, outputs_dir)
+    assert accepted["statement_draft"].state == pipeline.STATUS_NOT_ACCEPTED
+    assert not (outputs_dir / "p1" / ".cache").exists()
+
+
+def test_accept_refuses_step_with_missing_artifact(specs_dir, tmp_path):
+    import shutil
+
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+    shutil.rmtree(outputs_dir / "p1" / "statement")
+
+    accepted = _accept(specs_dir, outputs_dir)
+    assert accepted["statement_draft"].state == pipeline.STATUS_NOT_ACCEPTED
+    assert "artifact is missing" in accepted["statement_draft"].detail
+
+
+def test_accept_refuses_uncertain_step(specs_dir, tmp_path):
+    from orchestrator.cache import CacheEntry, UNCERTAIN_STATUS, load_cache_entry, save_cache_entry
+
+    outputs_dir = tmp_path / "outputs"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(specs_dir, outputs_dir)
+    save_cache_entry(
+        "p1",
+        "statement_draft",
+        CacheEntry("h", "p", "medium-model", UNCERTAIN_STATUS, "t"),
+        outputs_dir=outputs_dir,
+    )
+
+    accepted = _accept(specs_dir, outputs_dir)
+    assert accepted["statement_draft"].state == pipeline.STATUS_NOT_ACCEPTED
+    assert load_cache_entry("p1", "statement_draft", outputs_dir=outputs_dir).status == (
+        UNCERTAIN_STATUS
+    )
