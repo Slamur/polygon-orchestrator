@@ -76,6 +76,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── common/                   # общее для всех задач; include-каталог compile-check
 │   │   ├── problem_lib.h         # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
 │   │   ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
+│   │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
 │   │   ├── testlib.h
 │   │   └── tutorials/
 │   │       ├── statement.md      # правила по условию (statement_draft)

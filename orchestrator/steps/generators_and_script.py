@@ -4,14 +4,16 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
+    COMMON_SUBDIR,
     OUTPUTS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -27,6 +29,16 @@ STEP_NAME = "generators_and_script"
 # (CLAUDE.md, "Кэширование по хешу спека": вход шага 3 — секция generation +
 # содержимое outputs/<id>/constraints.yaml, полученное на шаге 2).
 CONSTRAINTS_ARTIFACT = "constraints.yaml"
+
+# Стандартные функции test-script'а (div, pow, fact, ...) — шаблон автора в
+# templates/common/. Модель обязана копировать блок целиком (prompts/
+# generators_and_script/system.md), но на практике выкидывает неиспользуемые
+# функции, а автору они нужны под рукой при ручной правке скрипта, —
+# поэтому выкинутые дописываются механически (`restore_script_functions`).
+SCRIPT_FUNCTIONS_FILENAME = "test_script_functions.ftl"
+SCRIPT_NAMES = ("test_script", "test_script_groups")
+_SCRIPT_SECTION_MARKER = '<#assign desc = "{}"/>'
+_FUNCTION_RE = re.compile(r"<#function\s+(\w+)\b.*?</#function>", re.S)
 
 # Optional[list[...]]-поля секции generation, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
@@ -90,6 +102,72 @@ def _require_constraints_yaml(
             "succeed first (CLAUDE.md, generative step roles, item 3)"
         )
     return upstream_artifacts[CONSTRAINTS_ARTIFACT]
+
+
+def _script_functions(script: str) -> dict[str, str]:
+    """Имя функции -> её определение `<#function ...>...</#function>`."""
+    return {m.group(1): m.group(0) for m in _FUNCTION_RE.finditer(script)}
+
+
+def restore_script_functions(script: str, functions_block: str) -> tuple[str, list[str]]:
+    """Дописывает в `script` функции из `functions_block`, которых в нём нет
+    (по имени; функцию, которую модель переписала, не трогает). Куда:
+    - после маркера секции `<#assign desc = "Functions"/>`, если он есть;
+    - иначе перед первой функцией скрипта, если она есть;
+    - иначе весь блок с маркером — перед секцией "Constraints", а без неё —
+      в начало скрипта (определения функций в FreeMarker видны во всём
+      шаблоне, так что порядок на работу скрипта не влияет).
+    Возвращает новый скрипт и имена дописанных функций (в порядке блока).
+    """
+    present = _script_functions(script)
+    missing = [(name, body) for name, body in _script_functions(functions_block).items()
+               if name not in present]
+    if not missing:
+        return script, []
+    names = [name for name, _ in missing]
+    bodies = "\n".join(body for _, body in missing) + "\n"
+
+    functions_marker = _SCRIPT_SECTION_MARKER.format("Functions")
+    marker_at = script.find(functions_marker)
+    if marker_at != -1:
+        insert_at = marker_at + len(functions_marker)
+        return script[:insert_at] + "\n" + bodies.rstrip("\n") + script[insert_at:], names
+    first_function = _FUNCTION_RE.search(script)
+    if first_function:
+        insert_at = first_function.start()
+        return script[:insert_at] + bodies + script[insert_at:], names
+    block = functions_marker + "\n" + bodies + "\n"
+    constraints_at = script.find(_SCRIPT_SECTION_MARKER.format("Constraints"))
+    insert_at = 0 if constraints_at == -1 else constraints_at
+    return script[:insert_at] + block + script[insert_at:], names
+
+
+def _restore_functions_in_artifacts(
+    functions_block: str,
+) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
+    """`postprocess_artifacts` для `run_generative_step`: прогоняет каждый
+    test-script ответа через `restore_script_functions` и оставляет заметку
+    по каждому, куда что-то дописано."""
+
+    def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
+        result = dict(artifacts)
+        notes: list[dict[str, Any]] = []
+        for name in SCRIPT_NAMES:
+            if name not in result:
+                continue
+            result[name], restored = restore_script_functions(result[name], functions_block)
+            if restored:
+                notes.append({
+                    "field": name,
+                    "kind": "restored",
+                    "explanation": (
+                        f"модель не скопировала стандартные функции {', '.join(restored)} "
+                        f"из {SCRIPT_FUNCTIONS_FILENAME} — дописаны оркестратором"
+                    ),
+                })
+        return result, notes
+
+    return postprocess
 
 
 def compute_input_hash(
@@ -224,4 +302,9 @@ def run_step(
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
+        postprocess_artifacts=_restore_functions_in_artifacts(
+            (Path(templates_dir) / COMMON_SUBDIR / SCRIPT_FUNCTIONS_FILENAME).read_text(
+                encoding="utf-8"
+            )
+        ),
     )
