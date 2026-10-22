@@ -153,6 +153,7 @@ Python-оркестратор, который берёт структуриро�
         ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull --overwrite`
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
+        │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml

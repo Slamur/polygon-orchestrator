@@ -233,3 +233,47 @@ def test_status_not_run_then_done_then_stale(outputs_dir, spec):
 
     (_statement_dir(outputs_dir) / "legend.tex").unlink()
     assert STEP.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
+
+
+def test_name_txt_is_seeded_from_spec_title_once(outputs_dir, spec):
+    _link(outputs_dir)
+    _write_tex(outputs_dir)
+    _write_examples(outputs_dir, {1: "1\n"})
+    name_path = _statement_dir(outputs_dir) / "name.txt"
+
+    _run(spec, outputs_dir, MagicMock())
+    assert name_path.read_text(encoding="utf-8") == spec.title.ru + "\n"
+
+    name_path.write_text("Другое название\n", encoding="utf-8")
+    client = MagicMock()
+    message = _run(spec, outputs_dir, client, incremental=True)
+
+    [statement_call] = client.call.call_args_list
+    assert statement_call.args[1]["name"] == "Другое название"
+    assert "Другое название" in message
+
+
+def test_empty_name_txt_is_an_error(outputs_dir, spec):
+    _link(outputs_dir)
+    _write_tex(outputs_dir)
+    _write_examples(outputs_dir, {1: "1\n"})
+    (_statement_dir(outputs_dir) / "name.txt").write_text("\n", encoding="utf-8")
+    client = MagicMock()
+
+    with pytest.raises(PolygonStepError, match=r"name\.txt is empty"):
+        _run(spec, outputs_dir, client)
+
+    client.call.assert_not_called()
+
+
+def test_status_sees_name_change(outputs_dir, spec):
+    _link(outputs_dir)
+    _write_tex(outputs_dir)
+    _write_examples(outputs_dir, {1: "1\n"})
+    _run(spec, outputs_dir, MagicMock())
+
+    (_statement_dir(outputs_dir) / "name.txt").write_text("Другое\n", encoding="utf-8")
+
+    status, detail = STEP.compute_status(PROBLEM_ID, outputs_dir)
+    assert status == "stale"
+    assert "statement/name" in detail
