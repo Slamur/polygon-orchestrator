@@ -10,21 +10,21 @@ resource-файла (`problem.saveFile`, `type=resource`).
 
 from __future__ import annotations
 
-import datetime
-import hashlib
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
-from orchestrator.polygon.state import load_polygon_state, record_polygon_step
 from orchestrator.polygon.steps.base import (
-    STATUS_DONE,
-    STATUS_NOT_RUN,
-    STATUS_STALE,
+    NO_CHANGES_MESSAGE,
     PolygonStep,
     PolygonStepError,
     StepContext,
+    StepResult,
+    changed_items,
+    never_done,
     require_polygon_state,
+    sync_status,
 )
+from orchestrator.polygon.sync import PROBLEM_LIB_KEY, digest
 from orchestrator.steps.base import COMMON_SUBDIR, TEMPLATES_DIR
 
 STEP_NAME = "upload_problem_lib"
@@ -42,18 +42,15 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
     """
     templates_dir = Path(templates_dir)
 
-    def check_done(ctx: StepContext) -> str | None:
-        """Шаг выполняется при каждом запуске: `problem.saveFile`
-        перезаписывает файл, а ручные правки в UI Polygon локально не
-        видны — пропускать загрузку по локальной записи нельзя."""
-        return None
-
-    def execute(ctx: StepContext, client: PolygonClient) -> str:
-        """Загружает `problem_lib.h` как есть (`ctx.spec` не используется) и
-        записывает sha256 загруженного содержимого в `polygon_state.json` —
-        для `status`."""
+    def execute(ctx: StepContext, client: PolygonClient) -> StepResult:
+        """Загружает `problem_lib.h` как есть (`ctx.spec` не используется),
+        если он отличается от базы синхронизации."""
         polygon_id = require_polygon_state(ctx).polygon_id
-        content = _read_problem_lib(templates_dir)
+        content = read_problem_lib(templates_dir)
+        items = {PROBLEM_LIB_KEY: digest(content)}
+        if not changed_items(ctx, items):
+            return StepResult(NO_CHANGES_MESSAGE)
+
         client.call(
             "problem.saveFile",
             {
@@ -63,53 +60,35 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
                 "file": content,
             },
         )
-        record_polygon_step(
-            ctx.problem_id,
-            STEP_NAME,
-            {
-                "sha256": _sha256(content),
-                "sent_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            },
-            outputs_dir=ctx.outputs_dir,
+        return StepResult(
+            f"uploaded {_RESOURCE_FILENAME} as resource to Polygon id={polygon_id}", items
         )
-        return f"uploaded {_RESOURCE_FILENAME} as resource to Polygon id={polygon_id}"
 
     def compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-        """"done", если последний загруженный `problem_lib.h` совпадает по
-        sha256 с текущим в `templates_dir`; "stale", если шаблон с тех пор
-        изменился (или пропал); "not run", если шаг ещё ни разу не
-        выполнялся успешно."""
-        state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-        record = state.steps.get(STEP_NAME) if state is not None else None
-        if not isinstance(record, dict) or not isinstance(record.get("sha256"), str):
-            return STATUS_NOT_RUN, ""
-
-        try:
-            content = _read_problem_lib(templates_dir)
-        except PolygonStepError as exc:
-            return STATUS_STALE, f"current {_RESOURCE_FILENAME} is unreadable: {exc}"
-        current = _sha256(content)
-        if current != record["sha256"]:
-            return STATUS_STALE, f"{_RESOURCE_FILENAME} changed since the last upload"
-        return STATUS_DONE, f"{_RESOURCE_FILENAME} sha256={current[:12]}"
+        """По базе синхронизации (`sync_status`) — с текущим `problem_lib.h`
+        в `templates_dir`."""
+        return sync_status(
+            problem_id,
+            outputs_dir,
+            key_prefix=PROBLEM_LIB_KEY,
+            read_items=lambda: {PROBLEM_LIB_KEY: digest(read_problem_lib(templates_dir))},
+        )
 
     return PolygonStep(
         name=STEP_NAME,
-        check_done=check_done,
+        check_done=never_done,
         execute=execute,
         compute_status=compute_status,
     )
 
 
-def _read_problem_lib(templates_dir: Path) -> bytes:
-    resource_path = templates_dir / COMMON_SUBDIR / _RESOURCE_FILENAME
+def read_problem_lib(templates_dir: Path = TEMPLATES_DIR) -> bytes:
+    """Содержимое шаблона `problem_lib.h`; нужно и `polygon pull` — сравнить
+    с resource-файлом на Polygon."""
+    resource_path = Path(templates_dir) / COMMON_SUBDIR / _RESOURCE_FILENAME
     if not resource_path.exists():
         raise PolygonStepError(f"template {resource_path} not found — check templates_dir")
     return resource_path.read_bytes()
-
-
-def _sha256(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
 
 
 STEP = make_step()

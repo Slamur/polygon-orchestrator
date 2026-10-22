@@ -5,9 +5,11 @@ import pytest
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
+from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.upload_generators import STEP, STEP_NAME
 from orchestrator.spec import load_spec
+
+from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
@@ -54,8 +56,10 @@ def _write_generators(outputs_dir: Path, files: dict[str, bytes] = GENERATORS) -
     return generators_dir
 
 
-def _run(spec, outputs_dir, client) -> str:
-    return run_step(STEP, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client)
+def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+    return run_and_record(
+        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+    ).message
 
 
 def test_step_is_a_polygon_step_with_expected_name():
@@ -151,7 +155,7 @@ def test_save_file_error_propagates_and_is_not_recorded(outputs_dir, spec):
         _run(spec, outputs_dir, client)
 
     assert client.call.call_count == 2
-    assert STEP_NAME not in load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).steps
+    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced == {}
 
 
 def test_upload_is_recorded_in_polygon_state(outputs_dir, spec):
@@ -160,9 +164,29 @@ def test_upload_is_recorded_in_polygon_state(outputs_dir, spec):
 
     _run(spec, outputs_dir, MagicMock())
 
-    record = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).steps[STEP_NAME]
-    assert set(record) == {"sha256", "files", "sent_at"}
-    assert record["files"] == ["gen_edge.cpp", "gen_max.cpp", "gen_random.cpp"]
+    synced = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced
+    assert sorted(synced) == [
+        "generators/gen_edge.cpp",
+        "generators/gen_max.cpp",
+        "generators/gen_random.cpp",
+    ]
+
+
+def test_incremental_run_uploads_only_new_and_changed_generators(outputs_dir, spec):
+    _link(outputs_dir)
+    generators_dir = _write_generators(outputs_dir)
+    _run(spec, outputs_dir, MagicMock())
+
+    client = MagicMock()
+    assert _run(spec, outputs_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    client.call.assert_not_called()
+
+    (generators_dir / "gen_max.cpp").write_bytes(b"// changed\n")
+    (generators_dir / "gen_new.cpp").write_bytes(b"// new\n")
+    message = _run(spec, outputs_dir, client, incremental=True)
+
+    assert [c.args[1]["name"] for c in client.call.call_args_list] == ["gen_max.cpp", "gen_new.cpp"]
+    assert "2 of 4 generator(s)" in message
 
 
 def test_status_not_run_then_done_then_stale(outputs_dir, spec):

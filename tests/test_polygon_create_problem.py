@@ -10,9 +10,11 @@ from orchestrator.polygon.state import (
     load_polygon_state,
     save_polygon_state,
 )
-from orchestrator.polygon.steps.base import PolygonStep, run_step
+from orchestrator.polygon.steps.base import PolygonStep
 from orchestrator.polygon.steps.create_problem import STEP, STEP_NAME
 from orchestrator.spec import load_spec
+
+from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "p1"
@@ -27,8 +29,10 @@ def _state_path(outputs_dir: Path) -> Path:
     return outputs_dir / PROBLEM_ID / "polygon_state.json"
 
 
-def _run(spec, outputs_dir, client) -> str:
-    return run_step(STEP, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client)
+def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+    return run_and_record(
+        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+    ).message
 
 
 def test_step_is_a_polygon_step_with_expected_name():

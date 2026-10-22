@@ -11,8 +11,11 @@ from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,
     StepContext,
+    StepResult,
+    changed_items,
     require_polygon_state,
     run_step,
+    sync_status,
 )
 from orchestrator.spec import load_spec
 
@@ -34,7 +37,7 @@ def no_default_client(monkeypatch):
 
 def _step(check_done_result, execute_result="did it") -> tuple[PolygonStep, MagicMock, MagicMock]:
     check_done = MagicMock(return_value=check_done_result)
-    execute = MagicMock(return_value=execute_result)
+    execute = MagicMock(return_value=StepResult(execute_result, {"k": "v"}))
     step = PolygonStep(
         name="fake",
         check_done=check_done,
@@ -47,9 +50,9 @@ def _step(check_done_result, execute_result="did it") -> tuple[PolygonStep, Magi
 def test_already_done_skips_execute_and_never_builds_client(tmp_path, spec, no_default_client):
     step, check_done, execute = _step("already done")
 
-    message = run_step(step, "p1", spec, outputs_dir=tmp_path)
+    result = run_step(step, "p1", spec, outputs_dir=tmp_path)
 
-    assert message == "already done"
+    assert result == StepResult("already done")
     execute.assert_not_called()
     no_default_client.assert_not_called()
     ctx = check_done.call_args.args[0]
@@ -60,9 +63,9 @@ def test_not_done_executes_with_given_client(tmp_path, spec):
     step, _, execute = _step(None, "did it")
     client = MagicMock()
 
-    message = run_step(step, "p1", spec, outputs_dir=tmp_path, client=client)
+    result = run_step(step, "p1", spec, outputs_dir=tmp_path, client=client)
 
-    assert message == "did it"
+    assert result == StepResult("did it", {"k": "v"})
     ctx, passed_client = execute.call_args.args
     assert ctx.problem_id == "p1"
     assert passed_client is client
@@ -110,3 +113,63 @@ def test_require_polygon_state_points_to_create_problem(tmp_path, spec):
 
     with pytest.raises(PolygonStepError, match="create_problem"):
         require_polygon_state(ctx)
+
+
+def test_synced_baseline_is_passed_to_execute(tmp_path, spec):
+    step, _, execute = _step(None)
+
+    run_step(step, "p1", spec, outputs_dir=tmp_path, client=MagicMock(), synced={"a": "1"})
+
+    assert execute.call_args.args[0].synced == {"a": "1"}
+
+
+def _ctx(spec, synced):
+    return StepContext(problem_id="p1", spec=spec, outputs_dir=Path("."), synced=synced)
+
+
+def test_changed_items_without_baseline_returns_everything(spec):
+    items = {"a": "1", "b": "2"}
+
+    assert changed_items(_ctx(spec, None), items) == items
+
+
+def test_changed_items_returns_new_and_changed_only(spec):
+    ctx = _ctx(spec, {"a": "1", "b": "old", "gone": "x"})
+
+    assert changed_items(ctx, {"a": "1", "b": "2", "c": "3"}) == {"b": "2", "c": "3"}
+
+
+def _save_synced(tmp_path, synced):
+    save_polygon_state(
+        "p1",
+        PolygonState(
+            problem_id="p1", polygon_id=1, created_at="x", revision=3, synced=synced
+        ),
+        outputs_dir=tmp_path,
+    )
+
+
+def test_sync_status_not_run_without_own_keys(tmp_path):
+    _save_synced(tmp_path, {"other/x": "1"})
+
+    status = sync_status("p1", tmp_path, key_prefix="gen/", read_items=lambda: {"gen/a": "1"})
+
+    assert status == ("not run", "")
+
+
+def test_sync_status_done_and_stale(tmp_path):
+    _save_synced(tmp_path, {"gen/a": "1", "gen/b": "2"})
+
+    assert sync_status("p1", tmp_path, key_prefix="gen/", read_items=lambda: {"gen/a": "1"})[0] == "done"
+    assert sync_status(
+        "p1", tmp_path, key_prefix="gen/", read_items=lambda: {"gen/a": "1", "gen/c": "3"}
+    ) == ("stale", "changed since the last sync: gen/c")
+
+
+def test_sync_status_unreadable_files(tmp_path):
+    def unreadable():
+        raise PolygonStepError("no files")
+
+    assert sync_status("p1", tmp_path, key_prefix="gen/", read_items=unreadable)[0] == "not run"
+    _save_synced(tmp_path, {"gen/a": "1"})
+    assert sync_status("p1", tmp_path, key_prefix="gen/", read_items=unreadable)[0] == "stale"

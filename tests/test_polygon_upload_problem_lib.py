@@ -4,9 +4,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
+from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.upload_problem_lib import STEP, STEP_NAME, make_step
 from orchestrator.spec import load_spec
+
+from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
@@ -44,10 +46,10 @@ def _link(outputs_dir: Path) -> None:
     )
 
 
-def _run(spec, outputs_dir, templates_dir, client) -> str:
-    return run_step(
-        make_step(templates_dir), PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client
-    )
+def _run(spec, outputs_dir, templates_dir, client, *, incremental: bool = False) -> str:
+    return run_and_record(
+        make_step(templates_dir), PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+    ).message
 
 
 def test_step_is_a_polygon_step_with_expected_name():
@@ -109,8 +111,18 @@ def test_upload_is_recorded_in_polygon_state(outputs_dir, templates_dir, spec):
 
     _run(spec, outputs_dir, templates_dir, MagicMock())
 
-    record = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).steps[STEP_NAME]
-    assert set(record) == {"sha256", "sent_at"}
+    assert list(load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced) == ["problem_lib.h"]
+
+
+def test_incremental_run_skips_unchanged_template(outputs_dir, templates_dir, spec):
+    _link(outputs_dir)
+    _run(spec, outputs_dir, templates_dir, MagicMock())
+    client = MagicMock()
+
+    message = _run(spec, outputs_dir, templates_dir, client, incremental=True)
+
+    assert message == "no changes since the last sync, skipped"
+    client.call.assert_not_called()
 
 
 def test_status_not_run_then_done_then_stale(outputs_dir, templates_dir, spec):

@@ -347,6 +347,7 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
         result = run_polygon_pipeline(
             args.problem_id,
             only_step=args.step,
+            force=args.force,
             specs_dir=args.specs_dir,
             outputs_dir=args.outputs_dir,
             on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
@@ -365,8 +366,9 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 
 
 def cmd_polygon_pull(args: argparse.Namespace) -> int:
-    """Привязка к существующей на Polygon задаче и выгрузка недостающих
-    локально файлов (см. `orchestrator/polygon/pull.py`). Спек не нужен.
+    """Привязка к существующей на Polygon задаче, сравнение с ней локальных
+    файлов и выгрузка недостающих / с `--overwrite` — отличающихся (см.
+    `orchestrator/polygon/pull.py`). Спек не нужен.
     Лог — в тот же `polygon.log`, что и у `polygon push`."""
     logger = _configure_console_logging(warnings_only=True)
     log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
@@ -386,6 +388,7 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
             result = pull_problem(
                 args.problem_id,
                 polygon_id=args.polygon_id,
+                overwrite=args.overwrite,
                 outputs_dir=args.outputs_dir,
                 on_item=print_item,
             )
@@ -393,5 +396,7 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
             logger.error("[pull] %s", exc)
             print(f"{_shorten_error(str(exc))} (details: {log_path})", file=sys.stderr)
             return 1
-    print(f"  {result.link_detail}")
+    print(f"  {result.link_detail}, revision {result.revision}")
+    if result.backup_dir is not None:
+        print(f"  overwritten local files are backed up in {result.backup_dir}")
     return 0 if result.ok else 1

@@ -16,6 +16,7 @@ from orchestrator.polygon.steps.base import (
     STATUS_NOT_RUN,
     PolygonStep,
     StepContext,
+    StepResult,
 )
 
 STEP_NAME = "create_problem"
@@ -37,16 +38,16 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     return STATUS_DONE, f"polygon_id={state.polygon_id}"
 
 
-def _execute(ctx: StepContext, client: PolygonClient) -> str:
+def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Переиспользует существующую на Polygon задачу с таким именем, иначе создаёт новую."""
     polygon_id = _find_polygon_id_by_name(client, ctx.problem_id)
     if polygon_id is not None:
         _link(ctx, polygon_id)
-        return f"found existing Polygon problem by name (id={polygon_id}), reused"
+        return StepResult(f"found existing Polygon problem by name (id={polygon_id}), reused")
 
     polygon_id = _create_polygon_problem(client, ctx.problem_id)
     _link(ctx, polygon_id)
-    return f"created new Polygon problem (id={polygon_id})"
+    return StepResult(f"created new Polygon problem (id={polygon_id})")
 
 
 def _find_polygon_id_by_name(client: PolygonClient, name: str) -> int | None:

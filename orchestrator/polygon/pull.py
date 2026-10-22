@@ -1,17 +1,33 @@
 """Выгрузка задачи из Polygon в `outputs/<problem_id>/` —
-`orchestrator polygon pull <problem_id>`.
+`orchestrator polygon pull <problem_id> [--overwrite]`.
 
 Обратное направление к polygon-шагам (`steps/`): привязывает `problem_id` к
-уже существующей на Polygon задаче (`polygon_state.json`) и скачивает те
-части задачи, которыми пользуется оркестратор и которых локально НЕТ.
-Существующие локальные файлы никогда не перезаписываются и не сравниваются
-с Polygon — решение принимается по каждому файлу отдельно (есть
-`legend.tex`, но нет `notes.tex` — скачивается только `notes.tex`).
+уже существующей на Polygon задаче (`polygon_state.json`), сравнивает с
+Polygon каждую часть задачи, которой пользуется оркестратор, и
+переписывает базу синхронизации (`revision`/`synced`, см.
+`orchestrator/polygon/sync.py`) по тому, что сейчас на Polygon. По
+аналогии с git: без `--overwrite` — `git fetch` (локальные файлы не
+трогаются, кроме отсутствующих), с `--overwrite` — `git fetch && git reset
+--hard`.
+
+Решение принимается по каждому файлу отдельно:
+
+- локально файла нет — скачивается (`downloaded`);
+- совпадает с Polygon — не трогается (`up to date`);
+- отличается — без `--overwrite` остаётся локальная версия (`kept`), и
+  следующий `polygon push` загрузит её на Polygon; с `--overwrite`
+  локальный файл переносится в `.pull_backup/<время>/` (`outputs/` вне git,
+  другой копии у него нет) и заменяется версией с Polygon (`overwritten`);
+- есть только локально — не трогается (`local only`), и следующий push
+  загрузит его; локальные файлы pull никогда не удаляет.
+
+Pull отказывается работать, если в рабочей копии задачи на Polygon есть
+незакоммиченные правки: база синхронизации — всегда закоммиченная ревизия.
 
 Спек (`specs/<problem_id>.yaml`) не нужен и не читается: команда рассчитана
 в том числе на задачи, у которых локально нет вообще ничего.
 
-Что куда выгружается (имена — те же, что читают polygon-шаги):
+Что с чем сравнивается (имена — те же, что читают polygon-шаги):
 
 - условие (`problem.statements`, язык `russian`) -> `statement/legend.tex`,
   `input_format.tex`, `output_format.tex`, `notes.tex`. Пустой на Polygon
@@ -21,25 +37,31 @@
   (1-based), а не его индекс на Polygon;
 - TL/ML (`problem.info`) -> `constraints.yaml`, только секция `limits`.
   Это НЕ результат `constraints_pick`: диапазонов переменных, групп и
-  секции `validator` в нём нет (см. `_CONSTRAINTS_HEADER`);
+  секции `validator` в нём нет (см. `_CONSTRAINTS_HEADER`). Сравниваются
+  только TL/ML; результат `constraints_pick` не перезаписывается и с
+  `--overwrite` — расходящиеся TL/ML нужно поправить в нём руками;
 - валидатор (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
 - чекер (`problem.checker`) -> `checker.cpp`, если он не стандартный
   (`std::...` — скачивать нечего);
 - остальные source-файлы `*.cpp` (`problem.files`) -> `generators/`.
   Эвристика: Polygon не различает генераторы и прочие source-файлы, поэтому
   генератором считается всё, что не валидатор и не чекер;
-- test-script (`problem.script`, testset `tests`) -> `test_script`, если
-  локально нет ни `test_script`, ни `test_script_groups`;
+- test-script (`problem.script`, testset `tests`) -> `test_script` (или уже
+  существующий локально `test_script_groups`);
 - решения (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   Тег решения на Polygon локально не сохраняется: `upload_solutions` выводит
-  тег из имени файла, поэтому про имена не по его схеме — предупреждение.
+  тег из имени файла, поэтому про имена не по его схеме — предупреждение;
+- resource `problem_lib.h` — только сравнивается с
+  `templates/common/problem_lib.h` (общий шаблон, а не артефакт задачи —
+  не скачивается и не перезаписывается).
 
-`templates/common/problem_lib.h` не выгружается — это общий шаблон, а не артефакт
-задачи. Записи шагов в `polygon_state.json` (`steps`) не создаются: они
-означают "что шаг последним отправил", а `pull` ничего не отправляет —
-`polygon status` для выгруженных частей остаётся "not run".
+Текст сравнивается с точностью до переводов строк (`\\r\\n` = `\\n`).
+NOTE: не проверено на реальном API, не нормализует ли Polygon содержимое
+как-то ещё (например, концевой перевод строки) — если да, такие файлы
+будут всегда `kept`, и push будет загружать их каждый раз.
 
-Ошибка Polygon API при выгрузке одной части не останавливает остальные.
+Ошибка Polygon API при выгрузке одной части не останавливает остальные, но
+тогда ревизия в базе не обновляется (`PullResult.ok` ложно).
 """
 
 from __future__ import annotations
@@ -52,16 +74,41 @@ from typing import Callable
 
 from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.state import (
+    PolygonState,
+    load_polygon_state,
+    save_polygon_state,
+    update_sync,
+)
 from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.set_constraints import read_limits
+from orchestrator.polygon.steps.upload_problem_lib import read_problem_lib
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
+from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
+from orchestrator.polygon.sync import (
+    CHECKER_FILE_KEY,
+    CHECKER_KEY,
+    LIMITS_KEY,
+    PROBLEM_LIB_KEY,
+    SCRIPT_KEY,
+    STATEMENT_NAME_KEY,
+    VALIDATOR_FILE_KEY,
+    VALIDATOR_KEY,
+    digest,
+    fetch_revision,
+    limits_digest,
+)
+from orchestrator.steps.base import TEMPLATES_DIR
 
 logger = logging.getLogger(__name__)
 
 # Статусы PullItem.status:
-ITEM_DOWNLOADED = "downloaded"
-ITEM_KEPT = "kept"  # локальный файл уже есть — не тронут
-ITEM_ABSENT = "absent"  # на Polygon этой части нет — скачивать нечего
+ITEM_DOWNLOADED = "downloaded"  # локально не было — скачан
+ITEM_SAME = "up to date"  # совпадает с Polygon — не тронут
+ITEM_OVERWRITTEN = "overwritten"  # отличался, --overwrite: заменён, старый — в бэкапе
+ITEM_KEPT = "kept"  # отличается от Polygon, оставлена локальная версия
+ITEM_LOCAL_ONLY = "local only"  # есть только локально — не тронут
+ITEM_ABSENT = "absent"  # нет ни на Polygon, ни локально
 ITEM_ERROR = "error"
 
 _LANG = "russian"
@@ -79,8 +126,12 @@ _STATEMENT_FILES = {
 _VALIDATOR_FILENAME = "validator.cpp"
 _CHECKER_FILENAME = "checker.cpp"
 _CONSTRAINTS_FILENAME = "constraints.yaml"
-_SCRIPT_FILENAMES = ("test_script", "test_script_groups")
+_PROBLEM_LIB_FILENAME = "problem_lib.h"
 _STANDARD_CHECKER_PREFIX = "std::"
+_BACKUP_DIRNAME = ".pull_backup"
+
+_KEPT_DETAIL = "differs from Polygon, local version kept — the next push will upload it"
+_LOCAL_ONLY_DETAIL = "not on Polygon — the next push will upload it"
 
 _CONSTRAINTS_HEADER = (
     "# Pulled from Polygon (orchestrator polygon pull ...): TL/ML only.\n"
@@ -104,6 +155,8 @@ class PullResult:
     problem_id: str
     polygon_id: int
     link_detail: str
+    revision: int | None = None
+    backup_dir: Path | None = None  # куда перенесены перезаписанные файлы, если были
     items: list[PullItem] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -116,18 +169,22 @@ def pull_problem(
     problem_id: str,
     *,
     polygon_id: int | None = None,
+    overwrite: bool = False,
     outputs_dir: Path = OUTPUTS_DIR,
+    templates_dir: Path = TEMPLATES_DIR,
     client: PolygonClient | None = None,
     on_item: Callable[[PullItem], None] | None = None,
 ) -> PullResult:
-    """Привязывает `problem_id` к задаче на Polygon и скачивает недостающие
-    локально части (см. докстринг модуля).
+    """Привязывает `problem_id` к задаче на Polygon, сравнивает с ней
+    локальные файлы и переписывает базу синхронизации (см. докстринг
+    модуля).
 
     Какая задача на Polygon: уже записанная в `polygon_state.json`; иначе
     поиск неудалённой задачи с именем `problem_id` (и id `polygon_id`, если
     он передан — на случай нескольких задач с одним именем). Если
-    задачу определить не удалось — `PolygonStepError`, на диск ничего не
-    пишется. `PolygonApiError` на этом этапе тоже пробрасывается наружу.
+    задачу определить не удалось или в её рабочей копии есть
+    незакоммиченные правки — `PolygonStepError`, файлы не трогаются.
+    `PolygonApiError` на этом этапе тоже пробрасывается наружу.
 
     `on_item` вызывается после каждой части — чтобы CLI показывал прогресс
     по мере выполнения.
@@ -138,11 +195,29 @@ def pull_problem(
     )
     logger.info("[pull] %s", link_detail)
 
-    result = PullResult(problem_id=problem_id, polygon_id=resolved_id, link_detail=link_detail)
+    current = fetch_revision(client, resolved_id)
+    if current.modified:
+        raise PolygonStepError(
+            f"'{problem_id}': Polygon problem id={resolved_id} has uncommitted changes in "
+            "its working copy — commit or discard them on Polygon first"
+        )
+
+    result = PullResult(
+        problem_id=problem_id,
+        polygon_id=resolved_id,
+        link_detail=link_detail,
+        revision=current.revision,
+    )
+    problem_dir = Path(outputs_dir) / problem_id
     puller = _Puller(
         client=client,
         polygon_id=resolved_id,
-        problem_dir=Path(outputs_dir) / problem_id,
+        problem_dir=problem_dir,
+        templates_dir=Path(templates_dir),
+        overwrite=overwrite,
+        backup_dir=problem_dir
+        / _BACKUP_DIRNAME
+        / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         result=result,
         on_item=on_item,
     )
@@ -150,6 +225,7 @@ def pull_problem(
         ("statement", puller.pull_statement),
         ("statement/examples", puller.pull_examples),
         (_CONSTRAINTS_FILENAME, puller.pull_limits),
+        (_PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
         (_VALIDATOR_FILENAME, puller.pull_validator),
         (_CHECKER_FILENAME, puller.pull_checker),
         ("generators", puller.pull_generators),
@@ -160,6 +236,18 @@ def pull_problem(
             part()
         except PolygonApiError as exc:
             puller.add(name, ITEM_ERROR, str(exc))
+
+    # Базу по успешно сравненным частям записываем всегда, ревизию — только
+    # если сравнились все: иначе push не должен считать базу полной.
+    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    update_sync(
+        problem_id,
+        synced=puller.synced,
+        revision=current.revision if result.ok else state.revision,
+        outputs_dir=outputs_dir,
+    )
+    if puller.backed_up:
+        result.backup_dir = puller.backup_dir
     return result
 
 
@@ -221,13 +309,24 @@ def _resolve_and_link(
 
 @dataclass
 class _Puller:
-    """Выгрузка частей одной задачи; каждая `pull_*` — одна часть."""
+    """Сравнение частей одной задачи; каждая `pull_*` — одна часть.
+
+    `synced` копит изменения базы синхронизации: ключ -> sha256 того, что
+    теперь одинаково локально и на Polygon, или `None` — локальное
+    расходится с Polygon (или чего-то нет на Polygon), push должен
+    загрузить."""
 
     client: PolygonClient
     polygon_id: int
     problem_dir: Path
+    templates_dir: Path
+    overwrite: bool
+    backup_dir: Path
     result: PullResult
     on_item: Callable[[PullItem], None] | None = None
+    synced: dict[str, str | None] = field(default_factory=dict)
+    backed_up: bool = False
+    _files: dict | None = None
 
     def add(self, name: str, status: str, detail: str = "") -> None:
         item = PullItem(name, status, detail)
@@ -242,25 +341,21 @@ class _Puller:
         logger.warning("[pull] %s", message)
 
     def pull_statement(self) -> None:
-        missing = {
-            field_name: filename
-            for field_name, filename in _STATEMENT_FILES.items()
-            if not (self.problem_dir / "statement" / filename).exists()
-        }
-        for filename in _STATEMENT_FILES.values():
-            if filename not in missing.values():
-                self.add(f"statement/{filename}", ITEM_KEPT)
-        if not missing:
-            return
-
         statements = self._call("problem.statements") or {}
         statement = statements.get(_LANG)
-        for field_name, filename in missing.items():
-            name = f"statement/{filename}"
-            if statement is None:
-                self.add(name, ITEM_ABSENT, f"no {_LANG!r} statement on Polygon")
-            else:
-                self._write(name, (statement.get(field_name) or "").encode("utf-8"))
+        if statement is None:
+            for filename in _STATEMENT_FILES.values():
+                self._missing_on_polygon(
+                    f"statement/{filename}", f"no {_LANG!r} statement on Polygon"
+                )
+            self.synced[STATEMENT_NAME_KEY] = None
+            return
+        for field_name, filename in _STATEMENT_FILES.items():
+            self._sync_file(
+                f"statement/{filename}",
+                lambda field_name=field_name: (statement.get(field_name) or "").encode("utf-8"),
+            )
+        self.synced[STATEMENT_NAME_KEY] = digest(statement.get("name") or "")
 
     def pull_examples(self) -> None:
         tests = self._call("problem.tests", {"testset": _TESTSET}) or []
@@ -268,84 +363,152 @@ class _Puller:
             (test for test in tests if test.get("useInStatements")),
             key=lambda test: test["index"],
         )
-        if not statement_tests:
-            self.add("statement/examples", ITEM_ABSENT, "no tests used in statements on Polygon")
-            return
-
         for number, test in enumerate(statement_tests, start=1):
-            name = f"statement/examples/example_{number}.txt"
-            if (self.problem_dir / name).exists():
-                self.add(name, ITEM_KEPT)
-                continue
-            try:
+            self._sync_file(
+                f"statement/examples/example_{number}.txt",
                 # У сгенерированных (не manual) тестов поля `input` нет.
-                content = (
+                lambda test=test: (
                     test["input"].encode("utf-8")
                     if test.get("input") is not None
                     else self._call_raw(
                         "problem.testInput",
                         {"testset": _TESTSET, "testIndex": str(test["index"])},
                     )
-                )
-            except PolygonApiError as exc:
-                self.add(name, ITEM_ERROR, str(exc))
-                continue
-            self._write(name, content, detail=f"Polygon test {test['index']}")
+                ),
+                detail=f"Polygon test {test['index']}",
+            )
+
+        examples_dir = self.problem_dir / "statement" / "examples"
+        local_extra = sorted(
+            path.name
+            for path in (examples_dir.glob("example_*.txt") if examples_dir.is_dir() else [])
+            if path.name
+            not in {f"example_{n}.txt" for n in range(1, len(statement_tests) + 1)}
+        )
+        for filename in local_extra:
+            self._missing_on_polygon(f"statement/examples/{filename}")
+        if not statement_tests and not local_extra:
+            self.add("statement/examples", ITEM_ABSENT, "no tests used in statements on Polygon")
 
     def pull_limits(self) -> None:
-        if (self.problem_dir / _CONSTRAINTS_FILENAME).exists():
-            self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT)
-            return
         info = self._call("problem.info") or {}
         time_limit_ms, memory_limit_mb = info.get("timeLimit"), info.get("memoryLimit")
         if time_limit_ms is None or memory_limit_mb is None:
-            self.add(_CONSTRAINTS_FILENAME, ITEM_ABSENT, "no timeLimit/memoryLimit on Polygon")
+            self._missing_on_polygon(
+                _CONSTRAINTS_FILENAME, "no timeLimit/memoryLimit on Polygon", key=LIMITS_KEY
+            )
             return
+        remote = (int(time_limit_ms), int(memory_limit_mb))
         seconds = time_limit_ms / 1000
         content = (
             f"{_CONSTRAINTS_HEADER}"
             "limits:\n"
             f"  time_limit_seconds: {int(seconds) if seconds.is_integer() else seconds}\n"
             f"  memory_limit_mb: {memory_limit_mb}\n"
+        ).encode("utf-8")
+
+        path = self.problem_dir / _CONSTRAINTS_FILENAME
+        if not path.exists():
+            self._write(_CONSTRAINTS_FILENAME, content)
+            self.add(_CONSTRAINTS_FILENAME, ITEM_DOWNLOADED, "TL/ML only, see file header")
+            self.synced[LIMITS_KEY] = limits_digest(*remote)
+            return
+
+        try:
+            local = read_limits(self.problem_dir.name, self.problem_dir.parent)
+        except PolygonStepError:
+            local = None
+        if local == remote:
+            self.add(_CONSTRAINTS_FILENAME, ITEM_SAME, "TL/ML")
+            self.synced[LIMITS_KEY] = limits_digest(*remote)
+            return
+
+        differs = f"TL/ML differ: local {_describe_limits(local)}, Polygon {_describe_limits(remote)}"
+        is_pulled = path.read_bytes().startswith(_CONSTRAINTS_HEADER.encode("utf-8"))
+        if self.overwrite and is_pulled:
+            self._backup(_CONSTRAINTS_FILENAME)
+            self._write(_CONSTRAINTS_FILENAME, content)
+            self.add(_CONSTRAINTS_FILENAME, ITEM_OVERWRITTEN, differs)
+            self.synced[LIMITS_KEY] = limits_digest(*remote)
+            return
+        if self.overwrite:
+            differs += (
+                " — constraints.yaml is a constraints_pick result and is never "
+                "overwritten, fix the limits in it manually"
+            )
+        self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_KEPT_DETAIL}")
+        self.synced[LIMITS_KEY] = None
+
+    def pull_problem_lib(self) -> None:
+        name = f"{_PROBLEM_LIB_FILENAME} (resource)"
+        resources = {file["name"] for file in self._polygon_files().get("resourceFiles") or []}
+        if _PROBLEM_LIB_FILENAME not in resources:
+            self.add(name, ITEM_ABSENT, "not on Polygon — the next push will upload it")
+            self.synced[PROBLEM_LIB_KEY] = None
+            return
+        remote = self._call_raw(
+            "problem.viewFile", {"type": "resource", "name": _PROBLEM_LIB_FILENAME}
         )
-        self._write(
-            _CONSTRAINTS_FILENAME, content.encode("utf-8"), detail="TL/ML only, see file header"
-        )
+        try:
+            template = read_problem_lib(self.templates_dir)
+        except PolygonStepError as exc:
+            self.add(name, ITEM_ERROR, str(exc))
+            self.synced[PROBLEM_LIB_KEY] = None
+            return
+        if _same(template, remote):
+            self.add(name, ITEM_SAME)
+            self.synced[PROBLEM_LIB_KEY] = digest(template)
+        else:
+            self.add(
+                name,
+                ITEM_KEPT,
+                "differs from templates/common/problem_lib.h — the next push will upload "
+                "the template (it is shared by all problems and is never overwritten)",
+            )
+            self.synced[PROBLEM_LIB_KEY] = None
 
     def pull_validator(self) -> None:
-        if (self.problem_dir / _VALIDATOR_FILENAME).exists():
-            self.add(_VALIDATOR_FILENAME, ITEM_KEPT)
-            return
         polygon_name = self._call("problem.validator")
         if not polygon_name:
-            self.add(_VALIDATOR_FILENAME, ITEM_ABSENT, "no validator set on Polygon")
+            self._missing_on_polygon(
+                _VALIDATOR_FILENAME, "no validator set on Polygon", key=VALIDATOR_FILE_KEY
+            )
+            self.synced[VALIDATOR_KEY] = None
             return
-        self._write(
+        self._sync_file(
             _VALIDATOR_FILENAME,
-            self._view_source(polygon_name),
+            lambda: self._view_source(polygon_name),
+            key=VALIDATOR_FILE_KEY,
+            also={VALIDATOR_KEY: digest(polygon_name)},
             detail=f"Polygon source file {polygon_name}",
         )
 
     def pull_checker(self) -> None:
-        if (self.problem_dir / _CHECKER_FILENAME).exists():
-            self.add(_CHECKER_FILENAME, ITEM_KEPT)
-            return
         polygon_name = self._call("problem.checker")
         if not polygon_name:
-            self.add(_CHECKER_FILENAME, ITEM_ABSENT, "no checker set on Polygon")
-        elif polygon_name.startswith(_STANDARD_CHECKER_PREFIX):
-            self.add(
-                _CHECKER_FILENAME, ITEM_ABSENT, f"standard checker {polygon_name} — no file"
+            self._missing_on_polygon(
+                _CHECKER_FILENAME, "no checker set on Polygon", key=CHECKER_FILE_KEY
             )
-        else:
-            self._write(
+            self.synced[CHECKER_KEY] = None
+        elif polygon_name.startswith(_STANDARD_CHECKER_PREFIX):
+            self._missing_on_polygon(
                 _CHECKER_FILENAME,
-                self._view_source(polygon_name),
+                f"standard checker {polygon_name} on Polygon",
+                key=CHECKER_FILE_KEY,
+                local_only_detail="the next push will upload it if the spec has "
+                "checker.custom_needed: true",
+            )
+            self.synced[CHECKER_KEY] = digest(polygon_name)
+        else:
+            self._sync_file(
+                _CHECKER_FILENAME,
+                lambda: self._view_source(polygon_name),
+                key=CHECKER_FILE_KEY,
+                also={CHECKER_KEY: digest(polygon_name)},
                 detail=f"Polygon source file {polygon_name}",
             )
 
     def pull_generators(self) -> None:
-        files = self._call("problem.files") or {}
         not_generators = {
             _VALIDATOR_FILENAME,
             _CHECKER_FILENAME,
@@ -354,55 +517,53 @@ class _Puller:
         }
         names = sorted(
             file["name"]
-            for file in files.get("sourceFiles") or []
+            for file in self._polygon_files().get("sourceFiles") or []
             if file["name"].endswith(".cpp") and file["name"] not in not_generators
         )
-        if not names:
-            self.add("generators", ITEM_ABSENT, "no generator source files on Polygon")
-            return
         for polygon_name in names:
             name = f"generators/{polygon_name}"
             if not _is_plain_filename(polygon_name):
                 self.add(name, ITEM_ERROR, "unsafe file name, skipped")
-            elif (self.problem_dir / name).exists():
-                self.add(name, ITEM_KEPT)
             else:
-                self._download(name, lambda: self._view_source(polygon_name))
+                self._sync_file(name, lambda polygon_name=polygon_name: self._view_source(polygon_name))
+
+        local_only = self._local_only("generators", set(names), pattern="*.cpp")
+        if not names and not local_only:
+            self.add("generators", ITEM_ABSENT, "no generator source files on Polygon")
 
     def pull_script(self) -> None:
-        existing = [name for name in _SCRIPT_FILENAMES if (self.problem_dir / name).exists()]
-        if existing:
-            self.add(existing[0], ITEM_KEPT)
-            return
+        existing = [name for name in SCRIPT_FILENAMES if (self.problem_dir / name).exists()]
+        local_name = existing[0] if existing else SCRIPT_FILENAMES[0]
         content = self._call_raw("problem.script", {"testset": _TESTSET})
         if not content.strip():
-            self.add(_SCRIPT_FILENAMES[0], ITEM_ABSENT, "empty test script on Polygon")
+            self._missing_on_polygon(local_name, "empty test script on Polygon", key=SCRIPT_KEY)
             return
-        self._write(_SCRIPT_FILENAMES[0], content)
+        self._sync_file(local_name, lambda: content, key=SCRIPT_KEY)
 
     def pull_solutions(self) -> None:
         solutions = sorted(
             self._call("problem.solutions") or [], key=lambda solution: solution["name"]
         )
-        if not solutions:
-            self.add("solutions", ITEM_ABSENT, "no solutions on Polygon")
-            return
         for solution in solutions:
             polygon_name = solution["name"]
             name = f"solutions/{polygon_name}"
             if not _is_plain_filename(polygon_name):
                 self.add(name, ITEM_ERROR, "unsafe file name, skipped")
                 continue
-            if (self.problem_dir / name).exists():
-                self.add(name, ITEM_KEPT)
-                continue
-            downloaded = self._download(
+            written = self._sync_file(
                 name,
-                lambda: self._call_raw("problem.viewSolution", {"name": polygon_name}),
+                lambda polygon_name=polygon_name: self._call_raw(
+                    "problem.viewSolution", {"name": polygon_name}
+                ),
                 detail=f"Polygon tag {solution.get('tag')}",
             )
-            if downloaded:
+            if written:
                 self._warn_if_unparseable_solution_name(polygon_name, solution.get("tag"))
+
+        remote_names = {solution["name"] for solution in solutions}
+        local_only = self._local_only("solutions", remote_names, pattern="*")
+        if not solutions and not local_only:
+            self.add("solutions", ITEM_ABSENT, "no solutions on Polygon")
 
     def _warn_if_unparseable_solution_name(self, polygon_name: str, tag: object) -> None:
         try:
@@ -414,22 +575,95 @@ class _Puller:
                 f"will refuse to run until it is renamed (tag on Polygon: {tag})"
             )
 
-    def _download(self, name: str, fetch: Callable[[], bytes], *, detail: str = "") -> bool:
-        """Скачивает и пишет один файл; ошибка API — запись "error" по этому
-        файлу, остальные файлы той же части продолжают выгружаться."""
+    def _sync_file(
+        self,
+        name: str,
+        fetch: Callable[[], bytes],
+        *,
+        key: str | None = None,
+        also: dict[str, str] | None = None,
+        detail: str = "",
+    ) -> bool:
+        """Сравнивает локальный файл `name` с версией на Polygon (`fetch`) и
+        при необходимости пишет её на диск (см. докстринг модуля). Ключ базы —
+        `key` (по умолчанию `name`) и дополнительные записи `also` — все они
+        записываются, только если файл теперь совпадает с Polygon.
+
+        Возвращает, был ли файл записан. Ошибка API — запись "error" по этому
+        файлу, остальные файлы той же части продолжают обрабатываться."""
+        keys = {key or name: None, **{k: None for k in also or {}}}
         try:
-            content = fetch()
+            remote = fetch()
         except PolygonApiError as exc:
             self.add(name, ITEM_ERROR, str(exc))
+            self.synced.update(keys)
             return False
-        self._write(name, content, detail=detail)
-        return True
 
-    def _write(self, name: str, content: bytes, *, detail: str = "") -> None:
+        path = self.problem_dir / name
+        written = False
+        if not path.exists():
+            self._write(name, remote)
+            self.add(name, ITEM_DOWNLOADED, detail)
+            written = True
+        elif _same(path.read_bytes(), remote):
+            self.add(name, ITEM_SAME, detail)
+        elif self.overwrite:
+            self._backup(name)
+            self._write(name, remote)
+            self.add(name, ITEM_OVERWRITTEN, detail)
+            written = True
+        else:
+            self.add(name, ITEM_KEPT, _join(detail, _KEPT_DETAIL))
+            self.synced.update(keys)
+            return False
+
+        self.synced[key or name] = digest(path.read_bytes())
+        self.synced.update(also or {})
+        return written
+
+    def _missing_on_polygon(
+        self,
+        name: str,
+        detail: str = "",
+        *,
+        key: str | None = None,
+        local_only_detail: str = _LOCAL_ONLY_DETAIL,
+    ) -> None:
+        """Части `name` на Polygon нет: если она есть локально — "local only"
+        (push её загрузит), иначе "absent". В базе её быть не должно."""
+        self.synced[key or name] = None
+        if (self.problem_dir / name).exists():
+            self.add(name, ITEM_LOCAL_ONLY, _join(detail, local_only_detail))
+        else:
+            self.add(name, ITEM_ABSENT, detail)
+
+    def _local_only(self, subdir: str, remote_names: set[str], *, pattern: str) -> list[str]:
+        """Файлы `subdir/` (по `pattern`), которых нет на Polygon, — "local only"."""
+        directory = self.problem_dir / subdir
+        names = sorted(
+            path.name
+            for path in (directory.glob(pattern) if directory.is_dir() else [])
+            if path.is_file() and path.name not in remote_names
+        )
+        for filename in names:
+            self._missing_on_polygon(f"{subdir}/{filename}")
+        return names
+
+    def _backup(self, name: str) -> None:
+        target = self.backup_dir / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((self.problem_dir / name).read_bytes())
+        self.backed_up = True
+
+    def _write(self, name: str, content: bytes) -> None:
         path = self.problem_dir / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-        self.add(name, ITEM_DOWNLOADED, detail)
+
+    def _polygon_files(self) -> dict:
+        if self._files is None:
+            self._files = self._call("problem.files") or {}
+        return self._files
 
     def _view_source(self, polygon_name: str) -> bytes:
         return self._call_raw("problem.viewFile", {"type": "source", "name": polygon_name})
@@ -439,6 +673,20 @@ class _Puller:
 
     def _call_raw(self, method_name: str, params: dict[str, str]) -> bytes:
         return self.client.call_raw(method_name, {"problemId": str(self.polygon_id), **params})
+
+
+def _same(local: bytes, remote: bytes) -> bool:
+    return local == remote or local.replace(b"\r\n", b"\n") == remote.replace(b"\r\n", b"\n")
+
+
+def _join(detail: str, suffix: str) -> str:
+    return f"{detail}; {suffix}" if detail else suffix
+
+
+def _describe_limits(limits: tuple[int, int] | None) -> str:
+    if limits is None:
+        return "unreadable"
+    return f"{limits[0]}ms/{limits[1]}MB"
 
 
 def _is_plain_filename(name: str) -> bool:

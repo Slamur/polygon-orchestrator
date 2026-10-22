@@ -30,21 +30,26 @@
 
 from __future__ import annotations
 
-import datetime
-import hashlib
 import re
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
-from orchestrator.polygon.state import load_polygon_state, record_polygon_step
 from orchestrator.polygon.steps.base import (
-    STATUS_DONE,
-    STATUS_NOT_RUN,
-    STATUS_STALE,
+    NO_CHANGES_MESSAGE,
     PolygonStep,
     PolygonStepError,
     StepContext,
+    StepResult,
+    changed_items,
+    never_done,
     require_polygon_state,
+    sync_status,
+)
+from orchestrator.polygon.sync import (
+    STATEMENT_NAME_KEY,
+    digest,
+    example_key,
+    statement_file_key,
 )
 
 STEP_NAME = "upload_statement"
@@ -64,96 +69,97 @@ _TEX_PARAM_NAMES = {
 _EXAMPLE_PATTERN = re.compile(r"^example_(\d+)\.txt$")
 
 
-def _check_done(ctx: StepContext) -> str | None:
-    """Шаг выполняется при каждом запуске: `problem.saveStatement` и
-    `problem.saveTest` перезаписывают условие и тесты, а ручные правки в UI
-    Polygon локально не видны — пропускать по локальной записи нельзя."""
-    return None
-
-
-def _execute(ctx: StepContext, client: PolygonClient) -> str:
-    """Загружает условие, затем примеры по порядку `testIndex`; записывает
-    sha256 загруженного содержимого в `polygon_state.json` — для `status`.
+def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
+    """Загружает условие (если какой-то из tex-файлов или название
+    отличаются от базы синхронизации — `problem.saveStatement` принимает
+    их только вместе), затем изменившиеся примеры по порядку `testIndex`.
 
     Обе зависимости (`create_problem`, `statement_draft`) проверяются до
-    первого сетевого вызова. Запись делается только после успеха всех
-    вызовов: если упал какой-то `saveTest`, шаг остаётся "not run"/"stale"
-    и повторится целиком при следующем запуске.
+    первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
     statement_dir = _statement_dir(ctx.problem_id, ctx.outputs_dir)
-    tex_params = _read_statement_dir(statement_dir)
+    tex_files = _read_statement_dir(statement_dir)
     examples = _read_examples(statement_dir)
 
-    client.call(
-        "problem.saveStatement",
-        {
-            "problemId": str(polygon_id),
-            "lang": _LANG,
-            "name": ctx.spec.title.ru,
-            **tex_params,
-        },
-    )
+    statement_items = {
+        **_tex_items(tex_files),
+        STATEMENT_NAME_KEY: digest(ctx.spec.title.ru),
+    }
+    example_items = _example_items(examples)
+    uploaded: dict[str, str] = {}
+    done: list[str] = []
+
+    if changed_items(ctx, statement_items):
+        client.call(
+            "problem.saveStatement",
+            {
+                "problemId": str(polygon_id),
+                "lang": _LANG,
+                "name": ctx.spec.title.ru,
+                **{
+                    _TEX_PARAM_NAMES[filename]: content.decode("utf-8")
+                    for filename, content in tex_files.items()
+                },
+            },
+        )
+        uploaded.update(statement_items)
+        done.append(f"saved statement (name={ctx.spec.title.ru!r})")
+
+    changed_examples = changed_items(ctx, example_items)
+    sent_examples = 0
     for test_index, content in examples:
+        if example_key(test_index) not in changed_examples:
+            continue
         client.call(
             "problem.saveTest",
             {
                 "problemId": str(polygon_id),
                 "testset": _TESTSET,
                 "testIndex": str(test_index),
-                "testInput": content,
+                "testInput": content.decode("utf-8"),
                 "testUseInStatements": "true",
             },
         )
+        sent_examples += 1
+    if sent_examples:
+        uploaded.update(changed_examples)
+        done.append(f"{sent_examples} of {len(examples)} sample test(s)")
 
-    record_polygon_step(
-        ctx.problem_id,
-        STEP_NAME,
-        {
-            "sha256": _content_hash(tex_params, examples),
-            "examples": len(examples),
-            "sent_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        },
-        outputs_dir=ctx.outputs_dir,
-    )
-    return (
-        f"saved statement (name={ctx.spec.title.ru!r}) and {len(examples)} "
-        f"sample test(s) on Polygon id={polygon_id}"
-    )
+    if not uploaded:
+        return StepResult(NO_CHANGES_MESSAGE)
+    return StepResult(f"{' and '.join(done)} on Polygon id={polygon_id}", uploaded)
 
 
 def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-    """"done", если последнее загруженное содержимое `statement/` совпадает
-    по sha256 с текущим; "stale", если файлы с тех пор изменились (или
-    больше не читаются); "not run", если шаг ещё ни разу не выполнялся
-    успешно.
+    """По базе синхронизации (`sync_status`). Название (`title.ru` из спека)
+    не сравнивается — `compute_status` не получает спек, так что правка
+    заголовка отсюда не видна."""
 
-    `name` (`title.ru` из спека) в хеш не входит — `compute_status` не
-    получает спек, так что правка заголовка отсюда не видна.
-    """
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    record = state.steps.get(STEP_NAME) if state is not None else None
-    if not isinstance(record, dict) or not isinstance(record.get("sha256"), str):
-        return STATUS_NOT_RUN, ""
+    def read_items() -> dict[str, str]:
+        statement_dir = _statement_dir(problem_id, outputs_dir)
+        return {
+            **_tex_items(_read_statement_dir(statement_dir)),
+            **_example_items(_read_examples(statement_dir)),
+        }
 
-    statement_dir = _statement_dir(problem_id, outputs_dir)
-    try:
-        tex_params = _read_statement_dir(statement_dir)
-        examples = _read_examples(statement_dir)
-    except PolygonStepError as exc:
-        return STATUS_STALE, f"current statement is unreadable: {exc}"
-    current = _content_hash(tex_params, examples)
-    if current != record["sha256"]:
-        return STATUS_STALE, "statement/ changed since the last upload"
-    return STATUS_DONE, f"{len(examples)} sample test(s), sha256={current[:12]}"
+    return sync_status(problem_id, outputs_dir, key_prefix="statement/", read_items=read_items)
+
+
+def _tex_items(tex_files: dict[str, bytes]) -> dict[str, str]:
+    return {statement_file_key(name): digest(content) for name, content in tex_files.items()}
+
+
+def _example_items(examples: list[tuple[int, bytes]]) -> dict[str, str]:
+    return {example_key(index): digest(content) for index, content in examples}
 
 
 def _statement_dir(problem_id: str, outputs_dir: Path) -> Path:
     return Path(outputs_dir) / problem_id / "statement"
 
 
-def _read_statement_dir(statement_dir: Path) -> dict[str, str]:
-    """Параметры `problem.saveStatement` из 4 фиксированных tex-файлов.
+def _read_statement_dir(statement_dir: Path) -> dict[str, bytes]:
+    """Содержимое 4 фиксированных tex-файлов (имя файла -> содержимое).
     Если какого-то нет — `PolygonStepError` с его именем, а не пустая
     строка вместо содержимого."""
     missing = [name for name in _TEX_PARAM_NAMES if not (statement_dir / name).exists()]
@@ -162,13 +168,10 @@ def _read_statement_dir(statement_dir: Path) -> dict[str, str]:
             f"files missing in {statement_dir}: {missing} — first "
             "run the generative step statement_draft"
         )
-    return {
-        param_name: (statement_dir / filename).read_text(encoding="utf-8")
-        for filename, param_name in _TEX_PARAM_NAMES.items()
-    }
+    return {filename: (statement_dir / filename).read_bytes() for filename in _TEX_PARAM_NAMES}
 
 
-def _read_examples(statement_dir: Path) -> list[tuple[int, str]]:
+def _read_examples(statement_dir: Path) -> list[tuple[int, bytes]]:
     """[(testIndex, input), ...] по возрастанию `testIndex`.
 
     Нумерация `example_<N>.txt` должна быть непрерывной 1..N. Набор файлов
@@ -182,11 +185,11 @@ def _read_examples(statement_dir: Path) -> list[tuple[int, str]]:
             "the generative step statement_draft"
         )
 
-    found: dict[int, str] = {}
+    found: dict[int, bytes] = {}
     for path in examples_dir.iterdir():
         match = _EXAMPLE_PATTERN.match(path.name)
         if match:
-            found[int(match.group(1))] = path.read_text(encoding="utf-8")
+            found[int(match.group(1))] = path.read_bytes()
 
     if not found:
         raise PolygonStepError(f"no example_<N>.txt files in {examples_dir}")
@@ -200,19 +203,9 @@ def _read_examples(statement_dir: Path) -> list[tuple[int, str]]:
     return sorted(found.items())
 
 
-def _content_hash(tex_params: dict[str, str], examples: list[tuple[int, str]]) -> str:
-    digest = hashlib.sha256()
-    for part in [*tex_params.values(), *(content for _, content in examples)]:
-        data = part.encode("utf-8")
-        # длина перед содержимым — чтобы перенос текста между файлами менял хеш
-        digest.update(len(data).to_bytes(8, "big"))
-        digest.update(data)
-    return digest.hexdigest()
-
-
 STEP = PolygonStep(
     name=STEP_NAME,
-    check_done=_check_done,
+    check_done=never_done,
     execute=_execute,
     compute_status=_compute_status,
 )
