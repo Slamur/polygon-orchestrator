@@ -64,7 +64,10 @@ PROBLEM_LIB_FILENAME = "problem_lib.h"
 
 # Обязательные документы контекста на шаг (пути относительно templates_dir),
 # см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
-# это правила, а не справочный материал, `constraints_format.yaml` — формат
+# это правила, а не справочный материал. Правила разбиты по темам, и шаг
+# получает только нужные ему темы: правка одной темы инвалидирует кэш только
+# читающих её шагов (tutorials/polygon.md — справка по интерфейсу Polygon,
+# ни одному шагу не прикладывается). `constraints_format.yaml` — формат
 # результата `constraints_pick`, который читают следующие шаги и
 # оркестратор (обязателен и при спеке без референсов), а problem_lib.h —
 # основа, которую нужно расширять. Промпты (prompts/<step>/system.md) лишь ссылаются на эти
@@ -78,25 +81,25 @@ PROBLEM_LIB_FILENAME = "problem_lib.h"
 # `extra_context_documents` шагов и `orchestrator/references.py`.
 STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [
-        f"{COMMON_SUBDIR}/tutorials/requirements.md",
-        f"{COMMON_SUBDIR}/tutorials/polygon.md",
+        f"{COMMON_SUBDIR}/tutorials/statement.md",
     ],
     "constraints_pick": [
-        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/tutorials/limits.md",
+        f"{COMMON_SUBDIR}/tutorials/validator.md",
         f"{COMMON_SUBDIR}/constraints_format.yaml",
         f"{COMMON_SUBDIR}/problem_lib.h",
     ],
     "generators_and_script": [
-        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/tutorials/tests.md",
         f"{COMMON_SUBDIR}/tutorials/freemarker.md",
         f"{COMMON_SUBDIR}/problem_lib.h",
     ],
     "solutions_draft": [
-        f"{COMMON_SUBDIR}/tutorials/requirements.md",
-        f"{COMMON_SUBDIR}/tutorials/polygon.md",
+        f"{COMMON_SUBDIR}/tutorials/solutions.md",
+        f"{COMMON_SUBDIR}/tutorials/limits.md",
     ],
     "checker_draft": [
-        f"{COMMON_SUBDIR}/tutorials/requirements.md",
+        f"{COMMON_SUBDIR}/tutorials/checker.md",
         f"{COMMON_SUBDIR}/problem_lib.h",
     ],
 }
