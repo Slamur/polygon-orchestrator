@@ -9,13 +9,16 @@
 
 - ревизия равна записанной и в рабочей копии нет незакоммиченных правок —
   базе можно доверять, шаги загружают только изменённое;
+- в рабочей копии есть незакоммиченные правки — push останавливается
+  всегда, даже с `force`: иначе коммит после шага унёс бы их в ревизию;
 - задан `force` — база не используется, шаги загружают всё (как `git push
   --force`);
 - ревизия неизвестна (задача привязана к уже существующей на Polygon или
   до появления этого поля) — что на Polygon, неизвестно, push
   останавливается до `polygon pull` (или `--force`);
-- иначе Polygon меняли в обход оркестратора — push останавливается с
-  предложением сделать `polygon pull` или `polygon push --force`.
+- ревизия другая — Polygon меняли в обход оркестратора, push
+  останавливается с предложением сделать `polygon pull` или `polygon push
+  --force`.
 
 После каждого шага, который что-то загрузил (кроме тех, у кого
 `commits_changes=False`), рабочая копия задачи коммитится на Polygon
@@ -110,7 +113,8 @@ def run_polygon_pipeline(
 
     Каждый шаг вызывается всегда; что загружать, шаг решает сам по базе
     синхронизации (см. докстринг модуля). `force` — загружать всё, не
-    сверяясь ни с базой, ни с ревизией на Polygon.
+    сверяясь ни с базой, ни с ревизией на Polygon (незакоммиченные правки
+    на Polygon останавливают push и с `force`).
 
     После каждого шага с `commits_changes=True`, который что-то загрузил, —
     `problem.commitChanges` и запись базы (см. `_commit_and_record`). Ошибка
@@ -198,10 +202,24 @@ def _sync_baseline(
     Задача ещё не привязана — `None` без сети: шаг сам упадёт с указанием
     запустить `create_problem`. Polygon меняли в обход оркестратора —
     `PolygonStepError`.
+
+    Незакоммиченные правки в рабочей копии на Polygon останавливают push
+    всегда, в том числе с `force`: коммит после шага коммитит рабочую копию
+    целиком и унёс бы чужие правки в ревизию оркестратора (а правки в
+    перезаписанных файлах потерялись бы без следа в истории).
     """
     state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
     if state is None:
         return None
+
+    current = fetch_revision(client, state.polygon_id)
+    if current.modified:
+        raise PolygonStepError(
+            f"'{problem_id}': Polygon problem id={state.polygon_id} has uncommitted changes "
+            "in its working copy — commit or discard them on Polygon first (push refuses "
+            "to commit them, even with --force), then run "
+            f"orchestrator polygon pull {problem_id} [--overwrite]"
+        )
     if force:
         logger.info("--force: uploading everything, the sync baseline is ignored")
         return None
@@ -211,15 +229,6 @@ def _sync_baseline(
             "was linked to an existing Polygon problem or before revisions were recorded) — "
             f"run orchestrator polygon pull {problem_id} [--overwrite] first, or overwrite "
             f"Polygon with orchestrator polygon push {problem_id} --force"
-        )
-
-    current = fetch_revision(client, state.polygon_id)
-    if current.modified:
-        raise PolygonStepError(
-            f"'{problem_id}': Polygon problem id={state.polygon_id} has uncommitted changes "
-            "in its working copy — commit or discard them on Polygon and run "
-            f"orchestrator polygon pull {problem_id}, or overwrite them with "
-            f"orchestrator polygon push {problem_id} --force"
         )
     if current.revision != state.revision:
         raise PolygonStepError(

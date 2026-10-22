@@ -409,7 +409,7 @@ def test_unknown_revision_stops_push_until_pull(specs_dir, outputs_dir, fake_ste
     assert [(o.step_name, o.status) for o in result.outcomes] == [("step_a", "error")]
     assert "revision of the last sync is unknown" in result.outcomes[0].detail
     assert "polygon pull" in result.outcomes[0].detail
-    assert client.calls == []
+    assert client.methods() == ["problems.list"]
 
 
 def test_force_uploads_everything_with_unknown_revision(specs_dir, outputs_dir, fake_steps):
@@ -425,7 +425,7 @@ def test_force_uploads_everything_with_unknown_revision(specs_dir, outputs_dir, 
 
     assert result.ok
     assert baselines == [None, None, None]
-    assert client.methods()[0] == "problem.commitChanges"
+    assert client.methods()[:2] == ["problems.list", "problem.commitChanges"]
 
 
 def test_reused_polygon_problem_needs_pull_before_push(specs_dir, outputs_dir):
@@ -446,7 +446,8 @@ def test_reused_polygon_problem_needs_pull_before_push(specs_dir, outputs_dir):
     ]
     assert "polygon pull" in result.outcomes[0].detail
     assert "polygon pull" in result.outcomes[1].detail
-    assert [c.args[0] for c in client.call.call_args_list] == ["problems.list"]
+    # поиск по имени и проверка незакоммиченных правок — до загрузки не дошло
+    assert [c.args[0] for c in client.call.call_args_list] == ["problems.list", "problems.list"]
 
 
 def test_matching_revision_passes_baseline_and_skips_commit_without_changes(
@@ -512,7 +513,7 @@ def test_force_ignores_changed_polygon_and_uploads_everything(specs_dir, outputs
     _link(outputs_dir, revision=10, synced={f"step_{x}/item": "h" for x in "abc"})
     baselines: list = []
     fake_steps(commits_changes=True, baselines=baselines)
-    client = RevisionClient(revision=12, modified=True)
+    client = RevisionClient(revision=12)
 
     result = run_polygon_pipeline(
         PROBLEM_ID, force=True, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
@@ -521,6 +522,25 @@ def test_force_ignores_changed_polygon_and_uploads_everything(specs_dir, outputs
     assert result.ok
     assert baselines == [None, None, None]
     assert len(client.commits()) == 3
+
+
+@pytest.mark.parametrize("revision", [10, None])
+def test_uncommitted_changes_on_polygon_stop_push_even_with_force(
+    specs_dir, outputs_dir, fake_steps, revision
+):
+    _write_spec(specs_dir, PROBLEM_ID)
+    _link(outputs_dir, revision=revision)
+    calls = fake_steps(commits_changes=True)
+    client = RevisionClient(revision=10, modified=True)
+
+    result = run_polygon_pipeline(
+        PROBLEM_ID, force=True, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
+    )
+
+    assert calls == []
+    assert [(o.step_name, o.status) for o in result.outcomes] == [("step_a", "error")]
+    assert "uncommitted changes" in result.outcomes[0].detail
+    assert client.methods() == ["problems.list"]
 
 
 def test_create_problem_does_not_commit(specs_dir, outputs_dir):
@@ -630,18 +650,13 @@ def test_step_order_ends_with_upload_solutions():
 
 
 def test_polygon_step_error_stops_pipeline_before_network(specs_dir, outputs_dir):
-    # задача привязана, но constraints.yaml нет -> PolygonStepError в set_constraints;
-    # --force — чтобы до шага не было и проверки ревизии
+    # задача привязана, но constraints.yaml нет -> PolygonStepError в set_constraints
     _write_spec(specs_dir, PROBLEM_ID)
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(problem_id=PROBLEM_ID, polygon_id=777, created_at="2026-09-19T12:00:00+00:00"),
-        outputs_dir=outputs_dir,
-    )
-    client = MagicMock()
+    _link(outputs_dir)
+    client = RevisionClient(revision=10)
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, force=True, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, specs_dir=specs_dir, outputs_dir=outputs_dir, client=client
     )
 
     assert result.ok is False
@@ -650,7 +665,8 @@ def test_polygon_step_error_stops_pipeline_before_network(specs_dir, outputs_dir
         ("set_constraints", "error"),
     ]
     assert "constraints_pick" in result.outcomes[-1].detail
-    client.call.assert_not_called()
+    # только проверка ревизии — шаг упал до загрузки
+    assert client.methods() == ["problems.list"]
 
 
 def test_invalid_spec_sets_spec_error_and_never_creates_client(specs_dir, outputs_dir):
