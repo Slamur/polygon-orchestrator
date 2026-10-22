@@ -114,72 +114,19 @@
 
 - [Ссылка](https://freemarker.apache.org/docs/ref_directive_macro.html) на документацию
 
-## Удобные функции
+## Стандартные функции
 
-Приведены код функции, а также пример использования.
-
-### Целочисленное деление
-
-```
-<#function div a b>
-    <#return (a / b)?int>
-</#function>
-
-generate -n=${div(maxN, 2)} > $
-```
-
-### Минимум и максимум
-
-```
-<#function min a b>
-    <#return [a, b]?sort?first>
-</#function>
-
-<#function max a b>
-    <#return [a, b]?sort?last>
-</#function>
-
-generate -left=${min(a, b)} -right=${max(a, b)} > $
-```
-
-### Возведение в степень
-
-```
-<#function pow base power>
-    <#assign res = 1/>
-    <#list 1..power as it>
-        <#assign res = res * base/>
-    </#list>
-    <#return res>
-</#function>
-
-<#assign maxN = 2 * pow(10, 5)/>
-```
+Стандартный набор функций скрипта (div, ceil, min, max, pow, fact, contains) —
+в приложенном `test_script_functions.ftl`. Этот блок целиком, без изменений
+копируется в каждый скрипт, даже если часть функций в нём не используется:
+автор пользуется ими при ручной доработке скрипта.
 
 ## Пример полного скрипта для задачи
 
 Предполагается, что входными данными является массив из N целых чисел.
 
 ```
-<#function div a b>
-    <#return (a / b)?int>
-</#function>
-
-<#function min a b>
-    <#return [a, b]?sort?first>
-</#function>
-
-<#function max a b>
-    <#return [a, b]?sort?last>
-</#function>
-
-<#function pow base power>
-    <#assign res = 1/>
-    <#list 1..power as it>
-        <#assign res = res * base/>
-    </#list>
-    <#return res>
-</#function>
+<#-- блок из test_script_functions.ftl, целиком -->
 
 <#assign rand = "gen_rand"/>
 <#assign sort = "sorted"/>

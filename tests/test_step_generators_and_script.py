@@ -10,6 +10,7 @@ from orchestrator.steps.generators_and_script import (
     _build_context_sections,
     compute_input_hash,
     extra_context_documents,
+    restore_script_functions,
     run_step,
 )
 
@@ -26,6 +27,7 @@ def spec():
 
 
 EXAMPLE_DIR = TEMPLATES_DIR / "examples" / "array--prefix-sums"
+SCRIPT_FUNCTIONS = (TEMPLATES_DIR / "common" / "test_script_functions.ftl").read_text(encoding="utf-8")
 
 
 def test_extra_context_documents_returns_generation_file_references(spec):
@@ -89,7 +91,7 @@ def test_confirmed_splits_cpp_and_script_artifacts(spec, tmp_path):
     valid_cpp = (CPP_FIXTURES_DIR / "valid_generator.cpp").read_text(encoding="utf-8")
     response = ModelResponse(
         status="confirmed",
-        artifacts={"gen_rand.cpp": valid_cpp, "test_script_groups": "<#-- freemarker --#>"},
+        artifacts={"gen_rand.cpp": valid_cpp, "test_script_groups": SCRIPT_FUNCTIONS + "<#-- freemarker --#>"},
         notes=[],
     )
     upstream = {"constraints.yaml": "n_max: 100000\ntime_limit_seconds: 2"}
@@ -107,7 +109,8 @@ def test_confirmed_splits_cpp_and_script_artifacts(spec, tmp_path):
     gen_path = tmp_path / "valid-spec" / "generators" / "gen_rand.cpp"
     script_path = tmp_path / "valid-spec" / "test_script_groups"
     assert gen_path.exists()
-    assert script_path.read_text(encoding="utf-8") == "<#-- freemarker --#>"
+    assert script_path.read_text(encoding="utf-8") == SCRIPT_FUNCTIONS + "<#-- freemarker --#>"
+    assert result.notes == []
     assert result.compile_results["gen_rand.cpp"].success is True
     if result.compile_results["gen_rand.cpp"].binary_path:
         result.compile_results["gen_rand.cpp"].binary_path.unlink(missing_ok=True)
@@ -395,3 +398,75 @@ def test_compute_input_hash_ignores_algorithm_hint(spec):
     h2 = compute_input_hash("valid-spec", spec_other_hint, upstream)
 
     assert h1 == h2
+
+
+# --- стандартные функции test-script'а ------------------------------------------
+
+_BLOCK = (
+    '<#assign desc = "Functions"/>\n'
+    "<#function div a b>\n    <#return (a / b)?long>\n</#function>\n"
+    "<#function pow base power>\n    <#return 1>\n</#function>\n"
+)
+_DIV = "<#function div a b>\n    <#return (a / b)?long>\n</#function>"
+_POW = "<#function pow base power>\n    <#return 1>\n</#function>"
+
+
+def test_restore_script_functions_nothing_missing_keeps_script():
+    script = 'x\n<#function pow base power>\n    <#return 2>\n</#function>\n' + _DIV + "\n"
+    assert restore_script_functions(script, _BLOCK) == (script, [])
+
+
+def test_restore_script_functions_inserts_after_functions_marker():
+    script = '<#assign g = "gen"/>\n\n<#assign desc = "Functions"/>\n' + _POW + "\n\nbody\n"
+    restored, names = restore_script_functions(script, _BLOCK)
+    assert names == ["div"]
+    assert restored == (
+        '<#assign g = "gen"/>\n\n<#assign desc = "Functions"/>\n' + _DIV + "\n" + _POW + "\n\nbody\n"
+    )
+
+
+def test_restore_script_functions_inserts_before_first_function_without_marker():
+    script = "head\n" + _POW + "\nbody\n"
+    restored, names = restore_script_functions(script, _BLOCK)
+    assert names == ["div"]
+    assert restored == "head\n" + _DIV + "\n" + _POW + "\nbody\n"
+
+
+def test_restore_script_functions_without_functions_goes_before_constraints():
+    script = 'gens\n\n<#assign desc = "Constraints"/>\nbody\n'
+    restored, names = restore_script_functions(script, _BLOCK)
+    assert names == ["div", "pow"]
+    assert restored == (
+        'gens\n\n<#assign desc = "Functions"/>\n' + _DIV + "\n" + _POW + "\n\n"
+        '<#assign desc = "Constraints"/>\nbody\n'
+    )
+
+
+def test_restore_script_functions_without_sections_goes_to_top():
+    restored, names = restore_script_functions("body\n", _BLOCK)
+    assert names == ["div", "pow"]
+    assert restored == '<#assign desc = "Functions"/>\n' + _DIV + "\n" + _POW + "\n\nbody\n"
+
+
+def test_run_step_restores_dropped_script_functions_with_note(spec, tmp_path):
+    response = ModelResponse(
+        status="confirmed",
+        artifacts={"test_script_groups": '<#assign desc = "Functions"/>\n\nbody\n'},
+        notes=[],
+    )
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    script = (tmp_path / "valid-spec" / "test_script_groups").read_text(encoding="utf-8")
+    for name in ("div", "ceil", "min", "max", "pow", "fact", "contains"):
+        assert f"<#function {name} " in script
+    assert [note["field"] for note in result.notes] == ["test_script_groups"]
+    assert result.notes[0]["kind"] == "restored"

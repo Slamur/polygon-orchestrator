@@ -68,7 +68,7 @@
 |-----|--------------------|-----------------------|
 | `statement_draft` | `statement.md` | `spec.yaml`, `statement/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
-| `generators_and_script` | `tests.md`, `freemarker.md`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `generators/*.cpp`, `test_script`, `test_script_groups` |
+| `generators_and_script` | `tests.md`, `freemarker.md`, `problem_lib.h`, `test_script_functions.ftl` | `spec.yaml`, `constraints.yaml`, `generators/*.cpp`, `test_script`, `test_script_groups` |
 | `solutions_draft` | `solutions.md`, `limits.md` | `spec.yaml`, `solutions/*` на языках из `solutions.languages` |
 | `checker_draft` | `checker.md`, `problem_lib.h` | `spec.yaml`, `checker.cpp` |
 
@@ -520,6 +520,14 @@ memory_limit_mb: {{ constraints.memory_limit_mb }}
   `<#assign>`-переменные, затем сама генерация тестов; в вызовах
   генераторов — только эти переменные и выражения над ними, без "магических"
   чисел.
+
+Блок функций скрипта — это test_script_functions.ftl (приложен всегда):
+копируй его в каждый скрипт (`test_script` и `test_script_groups`) целиком и
+дословно, вместе с маркером `<#assign desc = "Functions"/>`, — в том числе
+функции, которые твой скрипт не вызывает: автор пользуется ими при ручной
+доработке скрипта. Не удаляй и не переписывай их; свои функции, если
+нужны, дописывай после них. Если в скрипте-образце набор функций другой —
+бери набор из test_script_functions.ftl.
 
 НЕ ПЕРЕНОСИ: формат входных данных задачи-образца, имена её переменных и
 параметров, значения её ограничений и сами идеи её тестов — всё это

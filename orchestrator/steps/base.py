@@ -93,6 +93,7 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         f"{COMMON_SUBDIR}/tutorials/tests.md",
         f"{COMMON_SUBDIR}/tutorials/freemarker.md",
         f"{COMMON_SUBDIR}/problem_lib.h",
+        f"{COMMON_SUBDIR}/test_script_functions.ftl",
     ],
     "solutions_draft": [
         f"{COMMON_SUBDIR}/tutorials/solutions.md",
@@ -362,6 +363,9 @@ def run_generative_step(
     templates_dir: Path = TEMPLATES_DIR,
     extra_context_documents: list[str] | None = None,
     validate_artifacts: Callable[[dict[str, str]], None] | None = None,
+    postprocess_artifacts: (
+        Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]] | None
+    ) = None,
 ) -> StepResult:
     """Общий цикл шага: рендер промптов, вызов модели, запись результата.
 
@@ -398,6 +402,11 @@ def run_generative_step(
     всплывает из этой функции как есть, в `outputs/` не пишется ни один
     файл и `CacheEntry` не сохраняется.
 
+    `postprocess_artifacts(artifacts)` — необязательная механическая
+    доработка артефактов после `validate_artifacts` и до записи на диск:
+    возвращает новый набор артефактов и заметки о сделанном (добавляются к
+    `notes` ответа модели, чтобы автор видел, что файл правила не модель).
+
     При `status: uncertain` бросает `StepUncertainError` и не пишет ничего в
     `outputs/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
     записанные `.cpp`-файлы через `compile_check` (без запуска — см.
@@ -427,7 +436,13 @@ def run_generative_step(
     if validate_artifacts is not None:
         validate_artifacts(response.artifacts)
 
-    artifact_paths = _write_artifacts(response.artifacts, resolve_artifact_path)
+    artifacts = response.artifacts
+    notes = list(response.notes)
+    if postprocess_artifacts is not None:
+        artifacts, extra_notes = postprocess_artifacts(artifacts)
+        notes.extend(extra_notes)
+
+    artifact_paths = _write_artifacts(artifacts, resolve_artifact_path)
 
     if any(path.suffix == ".cpp" for path in artifact_paths.values()):
         ensure_problem_lib(problem_id, outputs_dir=outputs_dir, templates_dir=templates_dir)
@@ -472,6 +487,6 @@ def run_generative_step(
         problem_id=problem_id,
         status=response.status,
         artifact_paths=artifact_paths,
-        notes=response.notes,
+        notes=notes,
         compile_results=compile_results,
     )

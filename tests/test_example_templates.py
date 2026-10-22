@@ -22,6 +22,7 @@ from orchestrator.polygon.steps.set_constraints import _extract_limits
 from orchestrator.spec import load_spec
 from orchestrator.references import SPEC_FILENAME
 from orchestrator.steps.base import COMMON_SUBDIR, EXAMPLES_SUBDIR
+from orchestrator.steps.generators_and_script import SCRIPT_FUNCTIONS_FILENAME, SCRIPT_NAMES
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 EXAMPLE_DIRS = sorted(path for path in (TEMPLATES_DIR / EXAMPLES_SUBDIR).iterdir() if path.is_dir())
@@ -100,6 +101,18 @@ def test_example_validator_uses_constraints_bounds(example_dir):
         for bound in (constant["min"], constant["max"])
     )
     assert sorted(declared.values()) == bounds
+
+
+@examples
+def test_example_test_scripts_contain_standard_functions(example_dir):
+    # Шаблон стандартных функций приложен к generators_and_script всегда, а
+    # скрипт-образец — через референсы: если в образце окажется другой набор,
+    # модель получит два противоречащих друг другу образца.
+    functions = (TEMPLATES_DIR / COMMON_SUBDIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
+    for name in SCRIPT_NAMES:
+        script_path = example_dir / name
+        if script_path.exists():
+            assert functions in script_path.read_text(encoding="utf-8"), script_path
 
 
 def _compile(cpp_path: Path) -> str | None:
