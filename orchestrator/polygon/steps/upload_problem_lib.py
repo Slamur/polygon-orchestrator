@@ -1,9 +1,10 @@
-"""Polygon-шаг 3 — загрузка `templates/common/problem_lib.h` в Polygon как
-resource-файла (`problem.saveFile`, `type=resource`).
+"""Polygon-шаг 3 — загрузка `outputs/<problem_id>/problem_lib.h` в Polygon
+как resource-файла (`problem.saveFile`, `type=resource`).
 
-`problem_lib.h` общий для всех задач и не генерируется под конкретную
-задачу (CLAUDE.md, "Как использовать приложенные материалы"), поэтому
-генеративного шага-зависимости нет — только `create_problem`.
+У каждой задачи своя копия `problem_lib.h` (см. `PROBLEM_LIB_FILENAME` в
+`orchestrator/steps/base.py`): если её ещё нет, шаг сначала копирует туда
+`templates/common/problem_lib.h`.
+Генеративного шага-зависимости нет — только `create_problem`.
 
 Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
@@ -25,15 +26,19 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import PROBLEM_LIB_KEY, digest
-from orchestrator.steps.base import COMMON_SUBDIR, TEMPLATES_DIR
+from orchestrator.steps.base import (
+    PROBLEM_LIB_FILENAME,
+    TEMPLATES_DIR,
+    ensure_problem_lib,
+    problem_lib_path,
+    template_problem_lib_path,
+)
 
 STEP_NAME = "upload_problem_lib"
 
-_RESOURCE_FILENAME = "problem_lib.h"
-
 
 def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
-    """`PolygonStep`, читающий `problem_lib.h` из `templates_dir`.
+    """`PolygonStep`, берущий шаблон `problem_lib.h` из `templates_dir`.
 
     `StepContext` не несёт `templates_dir` — остальные polygon-шаги файлов
     из `templates/` не читают, — поэтому каталог фиксируется при сборке
@@ -43,10 +48,16 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
     templates_dir = Path(templates_dir)
 
     def execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-        """Загружает `problem_lib.h` как есть (`ctx.spec` не используется),
-        если он отличается от базы синхронизации."""
+        """Загружает `problem_lib.h` задачи как есть (`ctx.spec` не
+        используется), если он отличается от базы синхронизации."""
         polygon_id = require_polygon_state(ctx).polygon_id
-        content = read_problem_lib(templates_dir)
+        try:
+            path = ensure_problem_lib(
+                ctx.problem_id, outputs_dir=ctx.outputs_dir, templates_dir=templates_dir
+            )
+        except FileNotFoundError as exc:
+            raise PolygonStepError(str(exc)) from exc
+        content = path.read_bytes()
         items = {PROBLEM_LIB_KEY: digest(content)}
         if not changed_items(ctx, items):
             return StepResult(NO_CHANGES_MESSAGE)
@@ -56,22 +67,28 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
             {
                 "problemId": str(polygon_id),
                 "type": "resource",
-                "name": _RESOURCE_FILENAME,
+                "name": PROBLEM_LIB_FILENAME,
                 "file": content,
             },
         )
         return StepResult(
-            f"uploaded {_RESOURCE_FILENAME} as resource to Polygon id={polygon_id}", items
+            f"uploaded {PROBLEM_LIB_FILENAME} as resource to Polygon id={polygon_id}", items
         )
 
     def compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-        """По базе синхронизации (`sync_status`) — с текущим `problem_lib.h`
-        в `templates_dir`."""
+        """По базе синхронизации (`sync_status`). Пока копии задачи нет,
+        сравнивается шаблон — его push скопирует и загрузит."""
+
+        def read_items() -> dict[str, str]:
+            path = problem_lib_path(problem_id, outputs_dir)
+            if not path.exists():
+                path = template_problem_lib_path(templates_dir)
+            if not path.exists():
+                raise PolygonStepError(f"{path} not found")
+            return {PROBLEM_LIB_KEY: digest(path.read_bytes())}
+
         return sync_status(
-            problem_id,
-            outputs_dir,
-            key_prefix=PROBLEM_LIB_KEY,
-            read_items=lambda: {PROBLEM_LIB_KEY: digest(read_problem_lib(templates_dir))},
+            problem_id, outputs_dir, key_prefix=PROBLEM_LIB_KEY, read_items=read_items
         )
 
     return PolygonStep(
@@ -80,15 +97,6 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
         execute=execute,
         compute_status=compute_status,
     )
-
-
-def read_problem_lib(templates_dir: Path = TEMPLATES_DIR) -> bytes:
-    """Содержимое шаблона `problem_lib.h`; нужно и `polygon pull` — сравнить
-    с resource-файлом на Polygon."""
-    resource_path = Path(templates_dir) / COMMON_SUBDIR / _RESOURCE_FILENAME
-    if not resource_path.exists():
-        raise PolygonStepError(f"template {resource_path} not found — check templates_dir")
-    return resource_path.read_bytes()
 
 
 STEP = make_step()

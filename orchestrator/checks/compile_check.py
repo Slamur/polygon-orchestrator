@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 _DEFAULT_COMPILE_TIMEOUT_SECONDS = 30.0
 
@@ -25,11 +26,14 @@ class CompileResult:
 
 def compile_check(
     path: Path,
-    include_dir: Path,
+    include_dirs: Path | Sequence[Path],
     *,
     timeout_seconds: float = _DEFAULT_COMPILE_TIMEOUT_SECONDS,
 ) -> CompileResult:
-    """Компилирует `path` через g++ с `-I include_dir`, не запуская результат."""
+    """Компилирует `path` через g++ с `-I` на каждый из `include_dirs` (в
+    этом порядке поиска), не запуская результат."""
+    if isinstance(include_dirs, Path):
+        include_dirs = [include_dirs]
 
     fd, tmp_binary = tempfile.mkstemp(prefix=f"{path.stem}_", suffix=".bin")
     os.close(fd)
@@ -41,8 +45,7 @@ def compile_check(
                 "g++",
                 "-std=c++17",
                 "-O2",
-                "-I",
-                str(include_dir),
+                *(arg for directory in include_dirs for arg in ("-I", str(directory))),
                 str(path),
                 "-o",
                 str(binary_path),

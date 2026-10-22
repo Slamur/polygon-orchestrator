@@ -8,6 +8,7 @@ from orchestrator.model_router import ModelResponse
 from orchestrator.steps.base import (
     STEP_CONTEXT_DOCUMENTS,
     StepUncertainError,
+    ensure_problem_lib,
     load_context_documents,
     render_user_prompt,
     run_generative_step,
@@ -369,6 +370,10 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
         )
 
     assert set(result.compile_results) == {"gen_ok.cpp", "gen_bad.cpp"}
+    # перед compile-check у задачи появилась своя копия problem_lib.h
+    assert (outputs_dir / "p1" / "problem_lib.h").read_bytes() == (
+        TEMPLATES_DIR / "common" / "problem_lib.h"
+    ).read_bytes()
     assert result.compile_results["gen_ok.cpp"].success is True
     assert result.compile_results["gen_bad.cpp"].success is False
     if result.compile_results["gen_ok.cpp"].binary_path:
@@ -419,3 +424,20 @@ def test_run_generative_step_extra_context_documents_none_is_backward_compatible
     assert result.status == "confirmed"
     context_documents = mock_call.call_args.kwargs["context_documents"]
     assert set(context_documents) == set(STEP_CONTEXT_DOCUMENTS["statement_draft"])
+    # без .cpp-артефактов копия problem_lib.h не нужна
+    assert not (outputs_dir / "p1" / "problem_lib.h").exists()
+
+
+def test_ensure_problem_lib_does_not_overwrite_existing_copy(tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    copy = outputs_dir / "p1" / "problem_lib.h"
+    copy.parent.mkdir(parents=True)
+    copy.write_text("// edited for this problem\n")
+
+    assert ensure_problem_lib("p1", outputs_dir=outputs_dir, templates_dir=TEMPLATES_DIR) == copy
+    assert copy.read_text() == "// edited for this problem\n"
+
+
+def test_ensure_problem_lib_without_template(tmp_path):
+    with pytest.raises(FileNotFoundError, match="problem_lib.h"):
+        ensure_problem_lib("p1", outputs_dir=tmp_path / "outputs", templates_dir=tmp_path)

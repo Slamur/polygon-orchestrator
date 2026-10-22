@@ -66,7 +66,7 @@ def test_missing_polygon_state_points_to_create_problem(outputs_dir, templates_d
     client.call.assert_not_called()
 
 
-def test_missing_problem_lib_in_templates_dir(tmp_path, outputs_dir, spec):
+def test_missing_template_and_problem_copy(tmp_path, outputs_dir, spec):
     _link(outputs_dir)
     empty_templates = tmp_path / "empty-templates"
     empty_templates.mkdir()
@@ -78,11 +78,13 @@ def test_missing_problem_lib_in_templates_dir(tmp_path, outputs_dir, spec):
     client.call.assert_not_called()
 
 
-def test_uploads_problem_lib_as_resource(outputs_dir, templates_dir, spec):
+def test_seeds_problem_copy_from_template_and_uploads_it(outputs_dir, templates_dir, spec):
     _link(outputs_dir)
     client = MagicMock()
 
     message = _run(spec, outputs_dir, templates_dir, client)
+
+    assert (outputs_dir / PROBLEM_ID / "problem_lib.h").read_bytes() == LIB_CONTENT
 
     client.call.assert_called_once()
     method, params = client.call.call_args.args
@@ -94,6 +96,29 @@ def test_uploads_problem_lib_as_resource(outputs_dir, templates_dir, spec):
         "file": LIB_CONTENT,
     }
     assert str(POLYGON_ID) in message
+
+
+def test_problem_copy_wins_over_template(outputs_dir, templates_dir, spec):
+    _link(outputs_dir)
+    (outputs_dir / PROBLEM_ID / "problem_lib.h").write_bytes(b"// edited\n")
+    client = MagicMock()
+
+    _run(spec, outputs_dir, templates_dir, client)
+
+    assert client.call.call_args.args[1]["file"] == b"// edited\n"
+    assert (templates_dir / "common" / "problem_lib.h").read_bytes() == LIB_CONTENT
+
+
+def test_template_change_does_not_touch_existing_copy(outputs_dir, templates_dir, spec):
+    _link(outputs_dir)
+    _run(spec, outputs_dir, templates_dir, MagicMock())
+    (templates_dir / "common" / "problem_lib.h").write_bytes(b"// new template\n")
+    client = MagicMock()
+
+    message = _run(spec, outputs_dir, templates_dir, client, incremental=True)
+
+    assert message == "no changes since the last sync, skipped"
+    client.call.assert_not_called()
 
 
 def test_reupload_on_every_run(outputs_dir, templates_dir, spec):
@@ -114,7 +139,7 @@ def test_upload_is_recorded_in_polygon_state(outputs_dir, templates_dir, spec):
     assert list(load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced) == ["problem_lib.h"]
 
 
-def test_incremental_run_skips_unchanged_template(outputs_dir, templates_dir, spec):
+def test_incremental_run_skips_unchanged_copy(outputs_dir, templates_dir, spec):
     _link(outputs_dir)
     _run(spec, outputs_dir, templates_dir, MagicMock())
     client = MagicMock()
@@ -133,8 +158,16 @@ def test_status_not_run_then_done_then_stale(outputs_dir, templates_dir, spec):
     _run(spec, outputs_dir, templates_dir, MagicMock())
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"
 
-    (templates_dir / "common" / "problem_lib.h").write_bytes(LIB_CONTENT + b"// changed\n")
+    # шаблон после копирования не влияет
+    (templates_dir / "common" / "problem_lib.h").write_bytes(b"// new template\n")
+    assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"
+
+    copy = outputs_dir / PROBLEM_ID / "problem_lib.h"
+    copy.write_bytes(LIB_CONTENT + b"// changed\n")
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
 
-    (templates_dir / "common" / "problem_lib.h").unlink()
+    # копии нет — сравнивается шаблон, который push скопирует
+    copy.unlink()
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
+    (templates_dir / "common" / "problem_lib.h").write_bytes(LIB_CONTENT)
+    assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"

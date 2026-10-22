@@ -27,7 +27,7 @@ from orchestrator.polygon.steps import (
     upload_validator,
 )
 from orchestrator.polygon.steps.base import PolygonStepError, run_step
-from orchestrator.polygon.steps.upload_problem_lib import read_problem_lib
+from orchestrator.steps.base import template_problem_lib_path
 from orchestrator.spec import load_spec
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -50,7 +50,7 @@ class FakePolygon:
         self.validator = "val.cpp"
         self.checker = "std::ncmp.cpp"
         self.source_files = {"val.cpp": b"// validator\n", "gen_rand.cpp": b"// gen\n"}
-        self.resource_files = {"problem_lib.h": read_problem_lib()}
+        self.resource_files = {"problem_lib.h": template_problem_lib_path().read_bytes()}
         self.script = b"gen_rand 1 > $\n"
         self.solutions = {"ok_cpp_main_author.cpp": ("MA", b"// ok\n")}
         self.tests = [
@@ -172,7 +172,7 @@ def test_pull_into_missing_directory_downloads_everything(outputs_dir, polygon):
     assert (problem_dir / "test_script").read_bytes() == b"gen_rand 1 > $\n"
     assert (problem_dir / "solutions" / "ok_cpp_main_author.cpp").read_bytes() == b"// ok\n"
     assert _statuses(result)["checker.cpp"] == ITEM_ABSENT
-    assert _statuses(result)["problem_lib.h (resource)"] == ITEM_SAME
+    assert (problem_dir / "problem_lib.h").read_bytes() == polygon.resource_files["problem_lib.h"]
     assert result.warnings == []
     assert result.backup_dir is None
 
@@ -409,12 +409,34 @@ def test_same_limits_in_constraints_pick_result_are_up_to_date(outputs_dir, poly
     assert "limits" in _synced(outputs_dir)
 
 
-def test_different_problem_lib_on_polygon_is_not_in_baseline(outputs_dir, polygon):
-    polygon.resource_files["problem_lib.h"] = b"// old\n"
+def test_problem_lib_from_polygon_is_downloaded_even_if_it_differs_from_template(
+    outputs_dir, polygon
+):
+    polygon.resource_files["problem_lib.h"] = b"// edited for this problem\n"
 
     result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
 
-    assert _statuses(result)["problem_lib.h (resource)"] == ITEM_KEPT
+    assert _statuses(result)["problem_lib.h"] == ITEM_DOWNLOADED
+    assert (outputs_dir / PROBLEM_ID / "problem_lib.h").read_bytes() == b"// edited for this problem\n"
+    assert _synced(outputs_dir)["problem_lib.h"] == pull_module.digest(b"// edited for this problem\n")
+
+
+def test_different_local_problem_lib_is_kept(outputs_dir, polygon):
+    _write(outputs_dir / PROBLEM_ID, "problem_lib.h", "// local edits\n")
+
+    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert _statuses(result)["problem_lib.h"] == ITEM_KEPT
+    assert (outputs_dir / PROBLEM_ID / "problem_lib.h").read_text() == "// local edits\n"
+    assert "problem_lib.h" not in _synced(outputs_dir)
+
+
+def test_problem_lib_missing_on_polygon(outputs_dir, polygon):
+    polygon.resource_files = {}
+
+    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert _statuses(result)["problem_lib.h"] == ITEM_ABSENT
     assert "problem_lib.h" not in _synced(outputs_dir)
 
 
