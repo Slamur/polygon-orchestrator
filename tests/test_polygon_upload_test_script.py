@@ -5,9 +5,11 @@ import pytest
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
+from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import STEP, STEP_NAME
 from orchestrator.spec import load_spec
+
+from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
@@ -53,8 +55,10 @@ def _write_script(outputs_dir: Path, content: str = SCRIPT, name: str = "test_sc
     return path
 
 
-def _run(spec, outputs_dir, client) -> str:
-    return run_step(STEP, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client)
+def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+    return run_and_record(
+        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+    ).message
 
 
 def test_step_is_a_polygon_step_with_expected_name():
@@ -72,7 +76,7 @@ def test_groups_style_rejected_before_network(outputs_dir, groups_spec):
         _run(groups_spec, outputs_dir, client)
 
     client.call.assert_not_called()
-    assert STEP_NAME not in load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).steps
+    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced == {}
 
 
 def test_missing_polygon_state_points_to_create_problem(outputs_dir, spec):
@@ -116,14 +120,22 @@ def test_status_not_run_before_upload(outputs_dir, spec):
     assert STEP.compute_status(PROBLEM_ID, outputs_dir) == ("not run", "")
 
 
+def test_incremental_run_skips_unchanged_script(outputs_dir, spec):
+    _link(outputs_dir)
+    _write_script(outputs_dir)
+    _run(spec, outputs_dir, MagicMock())
+    client = MagicMock()
+
+    assert _run(spec, outputs_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    client.call.assert_not_called()
+
+
 def test_status_done_then_stale_after_script_change(outputs_dir, spec):
     _link(outputs_dir)
     path = _write_script(outputs_dir)
     _run(spec, outputs_dir, MagicMock())
 
-    status, detail = STEP.compute_status(PROBLEM_ID, outputs_dir)
-    assert status == "done"
-    assert "test_script" in detail
+    assert STEP.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"
 
     path.write_text(SCRIPT + "gen_random 3 1000 > $\n", encoding="utf-8")
     status, detail = STEP.compute_status(PROBLEM_ID, outputs_dir)

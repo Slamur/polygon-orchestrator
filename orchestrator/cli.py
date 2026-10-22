@@ -124,15 +124,21 @@ def build_parser() -> argparse.ArgumentParser:
     polygon_commands = polygon_parser.add_subparsers(dest="command", required=True)
     problem_id_help = "matches specs/<problem_id>.yaml and outputs/<problem_id>/"
 
-    # Без --force: кэша у polygon-шагов нет, обходить нечего.
     polygon_push_parser = polygon_commands.add_parser(
-        "push", help="upload to Polygon: run polygon steps in order (no cache — steps are invoked every time)"
+        "push",
+        help="upload to Polygon: run polygon steps in order, uploading only what changed "
+        "since the last sync (stops if the problem was changed on Polygon)",
     )
     polygon_push_parser.add_argument(
         "problem_id", help=problem_id_help
     ).completer = _complete_spec_ids
     polygon_push_parser.add_argument(
         "--step", choices=POLYGON_STEP_ORDER, default=None, help="run only one polygon step"
+    )
+    polygon_push_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="upload everything, even if unchanged or if the problem was changed on Polygon",
     )
     polygon_push_parser.set_defaults(handler="cmd_polygon_push")
 
@@ -146,8 +152,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     polygon_pull_parser = polygon_commands.add_parser(
         "pull",
-        help="link to an existing Polygon problem and download the parts missing locally "
-        "(existing local files are never overwritten; no spec needed)",
+        help="link to an existing Polygon problem, compare local files with it and download "
+        "the missing ones (no spec needed)",
     )
     polygon_pull_parser.add_argument(
         "problem_id", help=problem_id_help
@@ -157,6 +163,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="numeric Polygon problem id (default: search Polygon by problem_id as the name)",
+    )
+    polygon_pull_parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace local files that differ from Polygon (old versions go to "
+        "outputs/<problem_id>/.pull_backup/)",
     )
     polygon_pull_parser.set_defaults(handler="cmd_polygon_pull")
 

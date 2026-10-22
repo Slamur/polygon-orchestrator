@@ -4,9 +4,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
+from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.set_constraints import STEP, STEP_NAME
 from orchestrator.spec import load_spec
+
+from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
@@ -36,8 +38,10 @@ def _write_constraints(outputs_dir: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8")
 
 
-def _run(spec, outputs_dir, client) -> str:
-    return run_step(STEP, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client)
+def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+    return run_and_record(
+        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+    ).message
 
 
 def _assert_update_info_called(client) -> None:
@@ -197,9 +201,23 @@ def test_successful_run_records_sent_params(tmp_path, spec):
 
     _run(spec, tmp_path, client)
 
-    record = load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path).steps[STEP_NAME]
-    assert record["sent"] == client.call.call_args.args[1]
-    assert record["sent_at"]
+    assert list(load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path).synced) == ["limits"]
+
+
+def test_incremental_run_skips_unchanged_limits_and_sends_changed(tmp_path, spec):
+    _link(tmp_path)
+    _write_constraints(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
+    _run(spec, tmp_path, MagicMock())
+    client = MagicMock()
+
+    # те же значения в другом месте файла — отправлять нечего
+    _write_constraints(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 256\ngroups: []\n")
+    assert _run(spec, tmp_path, client, incremental=True) == "no changes since the last sync, skipped"
+    client.call.assert_not_called()
+
+    _write_constraints(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 512\n")
+    _run(spec, tmp_path, client, incremental=True)
+    assert client.call.call_args.args[1]["memoryLimit"] == "512"
 
 
 def test_failed_api_call_records_nothing(tmp_path, spec):
@@ -211,12 +229,12 @@ def test_failed_api_call_records_nothing(tmp_path, spec):
     with pytest.raises(RuntimeError):
         _run(spec, tmp_path, client)
 
-    assert STEP_NAME not in load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path).steps
+    assert load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path).synced == {}
     assert _status(tmp_path)[0] == "not run"
 
 
 def test_status_not_run_without_state(tmp_path):
-    assert _status(tmp_path) == ("not run", "")
+    assert _status(tmp_path)[0] == "not run"
 
 
 def test_status_not_run_when_linked_but_never_sent(tmp_path):
@@ -231,10 +249,7 @@ def test_status_done_after_run(tmp_path, spec):
     _write_constraints(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
 
-    status, detail = _status(tmp_path)
-
-    assert status == "done"
-    assert "2000ms" in detail and "256MB" in detail
+    assert _status(tmp_path)[0] == "done"
 
 
 def test_status_done_when_limits_move_between_root_and_limits(tmp_path, spec):
@@ -253,10 +268,7 @@ def test_status_stale_when_limits_changed(tmp_path, spec):
     _run(spec, tmp_path, MagicMock())
     _write_constraints(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 512\n")
 
-    status, detail = _status(tmp_path)
-
-    assert status == "stale"
-    assert "256MB" in detail and "512MB" in detail
+    assert _status(tmp_path) == ("stale", "changed since the last sync: limits")
 
 
 def test_status_stale_when_constraints_yaml_removed(tmp_path, spec):

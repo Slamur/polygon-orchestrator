@@ -1,6 +1,11 @@
 """Polygon-шаг 1 — создание задачи в Polygon по `problem_id` из спека,
 CLAUDE.md, "Скоуп (текущий)" (создание задачи на Polygon).
 
+У созданной задачи база синхронизации известна — она пустая, — поэтому
+записывается её ревизия, и push сразу продолжает загрузку. Задача,
+найденная на Polygon по имени, привязывается без ревизии: что в ней,
+неизвестно, и push остановится до `polygon pull`.
+
 Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
@@ -11,11 +16,13 @@ from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.sync import fetch_revision
 from orchestrator.polygon.steps.base import (
     STATUS_DONE,
     STATUS_NOT_RUN,
     PolygonStep,
     StepContext,
+    StepResult,
 )
 
 STEP_NAME = "create_problem"
@@ -37,16 +44,19 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
     return STATUS_DONE, f"polygon_id={state.polygon_id}"
 
 
-def _execute(ctx: StepContext, client: PolygonClient) -> str:
+def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Переиспользует существующую на Polygon задачу с таким именем, иначе создаёт новую."""
     polygon_id = _find_polygon_id_by_name(client, ctx.problem_id)
     if polygon_id is not None:
-        _link(ctx, polygon_id)
-        return f"found existing Polygon problem by name (id={polygon_id}), reused"
+        _link(ctx, polygon_id, revision=None)
+        return StepResult(
+            f"found existing Polygon problem by name (id={polygon_id}), reused — run "
+            f"`orchestrator polygon pull {ctx.problem_id}` before pushing to it"
+        )
 
     polygon_id = _create_polygon_problem(client, ctx.problem_id)
-    _link(ctx, polygon_id)
-    return f"created new Polygon problem (id={polygon_id})"
+    _link(ctx, polygon_id, revision=fetch_revision(client, polygon_id).revision)
+    return StepResult(f"created new Polygon problem (id={polygon_id})")
 
 
 def _find_polygon_id_by_name(client: PolygonClient, name: str) -> int | None:
@@ -66,7 +76,7 @@ def _create_polygon_problem(client: PolygonClient, name: str) -> int:
     return client.call("problem.create", {"name": name})["id"]
 
 
-def _link(ctx: StepContext, polygon_id: int) -> None:
+def _link(ctx: StepContext, polygon_id: int, *, revision: int | None) -> None:
     """Сохраняет привязку `problem_id` -> Polygon problemId в `polygon_state.json`."""
     save_polygon_state(
         ctx.problem_id,
@@ -74,6 +84,7 @@ def _link(ctx: StepContext, polygon_id: int) -> None:
             problem_id=ctx.problem_id,
             polygon_id=polygon_id,
             created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            revision=revision,
         ),
         outputs_dir=ctx.outputs_dir,
     )

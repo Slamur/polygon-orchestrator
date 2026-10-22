@@ -5,9 +5,11 @@ import pytest
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
+from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.upload_checker import STEP, STEP_NAME
 from orchestrator.spec import load_spec
+
+from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
@@ -56,8 +58,10 @@ def _write_checker(outputs_dir: Path, content: bytes = CHECKER_CONTENT) -> Path:
     return path
 
 
-def _run(spec, outputs_dir, client) -> str:
-    return run_step(STEP, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client)
+def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+    return run_and_record(
+        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+    ).message
 
 
 def test_step_is_a_polygon_step_with_expected_name():
@@ -161,7 +165,7 @@ def test_custom_save_file_error_propagates_and_skips_set_checker(outputs_dir, cu
         _run(custom_spec, outputs_dir, client)
 
     assert [c.args[0] for c in client.call.call_args_list] == ["problem.saveFile"]
-    assert STEP_NAME not in load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).steps
+    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced == {}
 
 
 def test_custom_status_not_run_then_done_then_stale(outputs_dir, custom_spec):
@@ -185,6 +189,16 @@ def test_standard_status_done_with_checker_name(outputs_dir):
 
     _run(_spec(custom_needed=False, standard="ncmp"), outputs_dir, MagicMock())
 
-    status, detail = STEP.compute_status(PROBLEM_ID, outputs_dir)
-    assert status == "done"
-    assert "std::ncmp.cpp" in detail
+    assert STEP.compute_status(PROBLEM_ID, outputs_dir) == ("done", "standard checker")
+
+
+def test_incremental_run_skips_unchanged_and_resets_changed_standard_checker(outputs_dir):
+    _link(outputs_dir)
+    _run(_spec(custom_needed=False, standard="ncmp"), outputs_dir, MagicMock())
+    client = MagicMock()
+
+    _run(_spec(custom_needed=False, standard="ncmp"), outputs_dir, client, incremental=True)
+    client.call.assert_not_called()
+
+    _run(_spec(custom_needed=False, standard="wcmp"), outputs_dir, client, incremental=True)
+    assert client.call.call_args.args[1]["checker"] == "std::wcmp.cpp"

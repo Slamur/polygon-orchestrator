@@ -22,21 +22,21 @@ groups-шаблонов в `templates/` сейчас нет. Явная ошиб
 
 from __future__ import annotations
 
-import datetime
-import hashlib
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
-from orchestrator.polygon.state import load_polygon_state, record_polygon_step
 from orchestrator.polygon.steps.base import (
-    STATUS_DONE,
-    STATUS_NOT_RUN,
-    STATUS_STALE,
+    NO_CHANGES_MESSAGE,
     PolygonStep,
     PolygonStepError,
     StepContext,
+    StepResult,
+    changed_items,
+    never_done,
     require_polygon_state,
+    sync_status,
 )
+from orchestrator.polygon.sync import SCRIPT_KEY, digest
 from orchestrator.steps.generators_and_script import (
     primary_artifact_path as script_artifact_path,
 )
@@ -45,17 +45,12 @@ STEP_NAME = "upload_test_script"
 
 _TESTSET = "tests"
 
-
-def _check_done(ctx: StepContext) -> str | None:
-    """Шаг выполняется при каждом запуске: `problem.saveScript` перезаписывает
-    скрипт, а ручные правки в UI Polygon локально не видны — пропускать
-    загрузку по локальной записи нельзя."""
-    return None
+# Возможные имена файла скрипта — для `_compute_status`, где спека нет.
+SCRIPT_FILENAMES = ("test_script", "test_script_groups")
 
 
-def _execute(ctx: StepContext, client: PolygonClient) -> str:
-    """Загружает test-script и записывает имя файла и его sha256 в
-    `polygon_state.json` — для `status`.
+def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
+    """Загружает test-script, если он отличается от базы синхронизации.
 
     Все три проверки (`script_style != "groups"`, `create_problem`,
     наличие файла скрипта) — до первого сетевого вызова.
@@ -70,6 +65,9 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     polygon_id = require_polygon_state(ctx).polygon_id
     script_path = script_artifact_path(ctx.problem_id, ctx.spec, outputs_dir=ctx.outputs_dir)
     content = _read_script(ctx.problem_id, script_path)
+    items = {SCRIPT_KEY: digest(content)}
+    if not changed_items(ctx, items):
+        return StepResult(NO_CHANGES_MESSAGE)
 
     client.call(
         "problem.saveScript",
@@ -79,67 +77,40 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
             "source": content.decode("utf-8"),
         },
     )
-
-    record_polygon_step(
-        ctx.problem_id,
-        STEP_NAME,
-        {
-            "file": script_path.name,
-            "sha256": _sha256(content),
-            "sent_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        },
-        outputs_dir=ctx.outputs_dir,
+    return StepResult(
+        f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}", items
     )
-    return f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}"
 
 
 def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-    """"done", если sha256 последнего загруженного скрипта совпадает с
-    текущим содержимым того же файла; "stale", если файл изменился или
-    пропал; "not run", если шаг ещё ни разу не выполнялся успешно.
+    """По базе синхронизации (`sync_status`). Спек здесь недоступен,
+    поэтому сравнивается первый существующий из `SCRIPT_FILENAMES`."""
 
-    Спек здесь недоступен, поэтому имя файла берётся из записи в
-    `polygon_state.json`, а не из `primary_artifact_path`."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    record = state.steps.get(STEP_NAME) if state is not None else None
-    if not (
-        isinstance(record, dict)
-        and isinstance(record.get("file"), str)
-        and isinstance(record.get("sha256"), str)
-    ):
-        return STATUS_NOT_RUN, ""
+    def read_items() -> dict[str, str]:
+        problem_dir = Path(outputs_dir) / problem_id
+        existing = [name for name in SCRIPT_FILENAMES if (problem_dir / name).exists()]
+        script_path = problem_dir / (existing[0] if existing else SCRIPT_FILENAMES[0])
+        return {SCRIPT_KEY: digest(_read_script(problem_id, script_path))}
 
-    script_path = Path(outputs_dir) / problem_id / record["file"]
-    try:
-        content = _read_script(problem_id, script_path)
-    except PolygonStepError as exc:
-        return STATUS_STALE, f"current test-script is unreadable: {exc}"
-    current = _sha256(content)
-    if current != record["sha256"]:
-        return STATUS_STALE, f"{record['file']} changed since the last upload"
-    return STATUS_DONE, f"{record['file']} sha256={current[:12]}"
+    return sync_status(problem_id, outputs_dir, key_prefix=SCRIPT_KEY, read_items=read_items)
 
 
 def _read_script(problem_id: str, script_path: Path) -> bytes:
     """Содержимое test-script. Путь передаётся снаружи: в `_execute` он
     зависит от `script_style` спека (`primary_artifact_path`), а в
-    `_compute_status` спека нет и имя берётся из `polygon_state.json`."""
+    `_compute_status` спека нет."""
     if not script_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {script_path} not found — first run "
-            f"the generative step generators_and_script (orchestrator llm generate "
-            f"{problem_id} --step generators_and_script)"
+            f"the generative step generators_and_script (`orchestrator llm generate "
+            f"{problem_id} --step generators_and_script`)"
         )
     return script_path.read_bytes()
 
 
-def _sha256(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
-
-
 STEP = PolygonStep(
     name=STEP_NAME,
-    check_done=_check_done,
+    check_done=never_done,
     execute=_execute,
     compute_status=_compute_status,
 )

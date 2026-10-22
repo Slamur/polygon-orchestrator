@@ -64,7 +64,8 @@ _RUN_HEADER = "===== run started: orchestrator %s ====="
 
 # Сколько символов текста ошибки polygon-шага печатать в консоль: `comment`
 # от Polygon бывает многострочным (например, лог компиляции валидатора) —
-# целиком он пишется в `polygon.log`.
+# целиком он пишется в `polygon.log`. Собственные ошибки оркестратора
+# (`PolygonStepError`) не обрезаются: подсказка, что делать, у них в конце.
 _CONSOLE_ERROR_MAX_LEN = 200
 
 _console_handler: logging.Handler | None = None
@@ -330,7 +331,9 @@ def _print_polygon_outcome(outcome, log_path: Path) -> None:
     чтобы прогресс был виден и при выводе в pipe/файл). Ошибка — коротко,
     со ссылкой на `polygon.log`, где лежит полный текст."""
     line = f"  {outcome.step_name}: {outcome.status}"
-    if outcome.status == POLYGON_OUTCOME_ERROR:
+    if outcome.status == POLYGON_OUTCOME_ERROR and outcome.full_detail:
+        line += f" — {outcome.detail}"
+    elif outcome.status == POLYGON_OUTCOME_ERROR:
         line += f" — {_shorten_error(outcome.detail)} (details: {log_path})"
     elif outcome.detail:
         line += f" — {outcome.detail}"
@@ -347,6 +350,7 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
         result = run_polygon_pipeline(
             args.problem_id,
             only_step=args.step,
+            force=args.force,
             specs_dir=args.specs_dir,
             outputs_dir=args.outputs_dir,
             on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
@@ -365,8 +369,9 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 
 
 def cmd_polygon_pull(args: argparse.Namespace) -> int:
-    """Привязка к существующей на Polygon задаче и выгрузка недостающих
-    локально файлов (см. `orchestrator/polygon/pull.py`). Спек не нужен.
+    """Привязка к существующей на Polygon задаче, сравнение с ней локальных
+    файлов и выгрузка недостающих / с `--overwrite` — отличающихся (см.
+    `orchestrator/polygon/pull.py`). Спек не нужен.
     Лог — в тот же `polygon.log`, что и у `polygon push`."""
     logger = _configure_console_logging(warnings_only=True)
     log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
@@ -386,12 +391,19 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
             result = pull_problem(
                 args.problem_id,
                 polygon_id=args.polygon_id,
+                overwrite=args.overwrite,
                 outputs_dir=args.outputs_dir,
                 on_item=print_item,
             )
-        except (PolygonApiError, PolygonStepError) as exc:
+        except PolygonStepError as exc:
+            logger.error("[pull] %s", exc)
+            print(str(exc), file=sys.stderr)
+            return 1
+        except PolygonApiError as exc:
             logger.error("[pull] %s", exc)
             print(f"{_shorten_error(str(exc))} (details: {log_path})", file=sys.stderr)
             return 1
-    print(f"  {result.link_detail}")
+    print(f"  {result.link_detail}, revision {result.revision}")
+    if result.backup_dir is not None:
+        print(f"  overwritten local files are backed up in {result.backup_dir}")
     return 0 if result.ok else 1

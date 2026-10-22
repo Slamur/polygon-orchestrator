@@ -33,6 +33,13 @@
 Все имена файлов разбираются и Main correct выбирается до первого сетевого
 вызова: файл с неподходящим именем — `PolygonStepError`, а не тихий пропуск.
 
+Загружаются только решения, чьё содержимое отличается от базы
+синхронизации; тег в базу не входит и отправляется только вместе с
+загружаемым файлом. Поэтому тег, поправленный в UI Polygon (например, `TO`),
+следующий push не откатывает, но и смена тега без правки файла — в том
+числе переезд Main correct на другое решение — сама на Polygon не уходит:
+её нужно сделать в UI или через `polygon push --force`.
+
 Если решение удалено или переименовано с прошлой загрузки, старый файл на
 Polygon остаётся — шаг его не удаляет.
 
@@ -41,23 +48,23 @@ Polygon остаётся — шаг его не удаляет.
 
 from __future__ import annotations
 
-import datetime
-import hashlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
-from orchestrator.polygon.state import load_polygon_state, record_polygon_step
 from orchestrator.polygon.steps.base import (
-    STATUS_DONE,
-    STATUS_NOT_RUN,
-    STATUS_STALE,
+    NO_CHANGES_MESSAGE,
     PolygonStep,
     PolygonStepError,
     StepContext,
+    StepResult,
+    changed_items,
+    never_done,
     require_polygon_state,
+    sync_status,
 )
+from orchestrator.polygon.sync import digest, solution_key
 
 logger = logging.getLogger(__name__)
 
@@ -87,22 +94,12 @@ class _ParsedSolution:
     language: str
 
 
-def _check_done(ctx: StepContext) -> str | None:
-    """Шаг выполняется при каждом запуске: `problem.saveSolution`
-    перезаписывает решения, а ручные правки в UI Polygon (например, смена
-    тега) локально не видны — пропускать загрузку по локальной записи
-    нельзя."""
-    return None
-
-
-def _execute(ctx: StepContext, client: PolygonClient) -> str:
-    """Загружает каждое решение с тегом из `_tag_for` (`ctx.spec` не
-    используется); записывает sha256 загруженного набора и выданные теги в
-    `polygon_state.json` — для `status`.
+def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
+    """Загружает каждое решение, отличающееся от базы синхронизации, с тегом
+    из `_tag_for` (`ctx.spec` не используется).
 
     Обе зависимости (`create_problem`, `solutions_draft`), разбор имён и
-    выбор Main correct — до первого сетевого вызова. Запись делается только
-    после успеха всех вызовов.
+    выбор Main correct — по всему набору и до первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
     solutions = _read_solutions(ctx.problem_id, ctx.outputs_dir)
@@ -111,7 +108,14 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
     main_name = _choose_main(parsed)
     tags = {item.path.name: _tag_for(item, main_name) for item in parsed}
 
+    changed = changed_items(ctx, _items(solutions))
+    if not changed:
+        return StepResult(NO_CHANGES_MESSAGE)
+
+    sent = []
     for name, content in solutions:
+        if solution_key(name) not in changed:
+            continue
         client.call(
             "problem.saveSolution",
             {
@@ -121,42 +125,29 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
                 "file": content,
             },
         )
+        sent.append(f"{name}={tags[name]}")
 
-    record_polygon_step(
-        ctx.problem_id,
-        STEP_NAME,
-        {
-            "sha256": _content_hash(solutions),
-            "tags": tags,
-            "sent_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        },
-        outputs_dir=ctx.outputs_dir,
-    )
-    uploaded = ", ".join(f"{name}={tag}" for name, tag in tags.items())
-    return (
-        f"uploaded {len(solutions)} solution(s) to Polygon id={polygon_id}: "
-        f"{uploaded}"
+    return StepResult(
+        f"uploaded {len(sent)} of {len(solutions)} solution(s) to Polygon id={polygon_id}: "
+        f"{', '.join(sent)}",
+        changed,
     )
 
 
 def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-    """"done", если последний загруженный набор `solutions/` совпадает по
-    sha256 (имена + содержимое) с текущим; "stale", если набор с тех пор
-    изменился (или больше не читается); "not run", если шаг ещё ни разу не
-    выполнялся успешно."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    record = state.steps.get(STEP_NAME) if state is not None else None
-    if not isinstance(record, dict) or not isinstance(record.get("sha256"), str):
-        return STATUS_NOT_RUN, ""
+    """По базе синхронизации (`sync_status`): новое или изменённое решение
+    делает шаг "stale"."""
+    return sync_status(
+        problem_id,
+        outputs_dir,
+        key_prefix=solution_key(""),
+        read_items=lambda: _items(_read_solutions(problem_id, outputs_dir)),
+    )
 
-    try:
-        solutions = _read_solutions(problem_id, outputs_dir)
-    except PolygonStepError as exc:
-        return STATUS_STALE, f"current solutions are unreadable: {exc}"
-    current = _content_hash(solutions)
-    if current != record["sha256"]:
-        return STATUS_STALE, "solutions/ changed since the last upload"
-    return STATUS_DONE, f"{len(solutions)} solution(s), sha256={current[:12]}"
+
+def _items(solutions: list[tuple[str, bytes]]) -> dict[str, str]:
+    """Только содержимое, без тега — см. докстринг модуля."""
+    return {solution_key(name): digest(content) for name, content in solutions}
 
 
 def _read_solutions(problem_id: str, outputs_dir: Path) -> list[tuple[str, bytes]]:
@@ -166,8 +157,8 @@ def _read_solutions(problem_id: str, outputs_dir: Path) -> list[tuple[str, bytes
     if not solutions_dir.is_dir():
         raise PolygonStepError(
             f"'{problem_id}': directory {solutions_dir} not found — first "
-            f"run the generative step solutions_draft (orchestrator llm generate "
-            f"{problem_id} --step solutions_draft)"
+            f"run the generative step solutions_draft (`orchestrator llm generate "
+            f"{problem_id} --step solutions_draft`)"
         )
     paths = sorted((p for p in solutions_dir.iterdir() if p.is_file()), key=lambda p: p.name)
     if not paths:
@@ -240,19 +231,9 @@ def _tag_for(parsed: _ParsedSolution, main_name: str) -> str:
     return "RJ"  # re — "Incorrect"
 
 
-def _content_hash(solutions: list[tuple[str, bytes]]) -> str:
-    """sha256 по именам и содержимому — переименование решения (а значит,
-    возможно, и смена тега) тоже делает шаг "stale"."""
-    digest = hashlib.sha256()
-    for name, content in solutions:
-        digest.update(name.encode("utf-8") + b"\0")
-        digest.update(hashlib.sha256(content).digest())
-    return digest.hexdigest()
-
-
 STEP = PolygonStep(
     name=STEP_NAME,
-    check_done=_check_done,
+    check_done=never_done,
     execute=_execute,
     compute_status=_compute_status,
 )

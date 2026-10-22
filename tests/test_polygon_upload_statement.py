@@ -5,9 +5,11 @@ import pytest
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
+from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.upload_statement import STEP, STEP_NAME
 from orchestrator.spec import load_spec
+
+from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
@@ -61,8 +63,10 @@ def _write_examples(outputs_dir: Path, examples: dict[int, str]) -> None:
         (examples_dir / f"example_{index}.txt").write_text(content, encoding="utf-8")
 
 
-def _run(spec, outputs_dir, client) -> str:
-    return run_step(STEP, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=client)
+def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+    return run_and_record(
+        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+    ).message
 
 
 def test_step_is_a_polygon_step_with_expected_name():
@@ -186,7 +190,33 @@ def test_save_test_error_propagates_and_is_not_recorded(outputs_dir, spec):
     with pytest.raises(PolygonApiError):
         _run(spec, outputs_dir, client)
 
-    assert STEP_NAME not in load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).steps
+    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced == {}
+
+
+def test_incremental_run_uploads_only_changed_parts(outputs_dir, spec):
+    _link(outputs_dir)
+    _write_tex(outputs_dir)
+    _write_examples(outputs_dir, {1: "1\n", 2: "2\n"})
+    _run(spec, outputs_dir, MagicMock())
+    client = MagicMock()
+
+    assert _run(spec, outputs_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    client.call.assert_not_called()
+
+    _write_examples(outputs_dir, {2: "22\n"})
+    message = _run(spec, outputs_dir, client, incremental=True)
+    assert [(c.args[0], c.args[1].get("testIndex")) for c in client.call.call_args_list] == [
+        ("problem.saveTest", "2")
+    ]
+    assert "1 of 2 sample test(s)" in message
+
+    client.reset_mock()
+    (_statement_dir(outputs_dir) / "notes.tex").write_text("new notes", encoding="utf-8")
+    _run(spec, outputs_dir, client, incremental=True)
+    [statement_call] = client.call.call_args_list
+    assert statement_call.args[0] == "problem.saveStatement"
+    # saveStatement принимает разделы только вместе — уходят все четыре
+    assert {"legend", "input", "output", "notes"} <= set(statement_call.args[1])
 
 
 def test_status_not_run_then_done_then_stale(outputs_dir, spec):

@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -10,10 +11,25 @@ from orchestrator.polygon.pull import (
     ITEM_DOWNLOADED,
     ITEM_ERROR,
     ITEM_KEPT,
+    ITEM_LOCAL_ONLY,
+    ITEM_OVERWRITTEN,
+    ITEM_SAME,
     pull_problem,
 )
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps import (
+    set_constraints,
+    upload_generators,
+    upload_problem_lib,
+    upload_solutions,
+    upload_test_script,
+    upload_validator,
+)
+from orchestrator.polygon.steps.base import PolygonStepError, run_step
+from orchestrator.polygon.steps.upload_problem_lib import read_problem_lib
+from orchestrator.spec import load_spec
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 PROBLEM_ID = "example-problem"
 POLYGON_ID = 4242
@@ -23,7 +39,9 @@ class FakePolygon:
     """Задача на Polygon в памяти: отвечает на те методы, которые вызывает `pull`."""
 
     def __init__(self) -> None:
-        self.problems = [{"id": POLYGON_ID, "name": PROBLEM_ID, "owner": "author"}]
+        self.problems = [
+            {"id": POLYGON_ID, "name": PROBLEM_ID, "owner": "author", "revision": 5, "modified": False}
+        ]
         self.statements = {
             "russian": {"legend": "L", "input": "I", "output": "O", "notes": ""}
         }
@@ -31,6 +49,7 @@ class FakePolygon:
         self.validator = "val.cpp"
         self.checker = "std::ncmp.cpp"
         self.source_files = {"val.cpp": b"// validator\n", "gen_rand.cpp": b"// gen\n"}
+        self.resource_files = {"problem_lib.h": read_problem_lib()}
         self.script = b"gen_rand 1 > $\n"
         self.solutions = {"ok_cpp_main_author.cpp": ("MA", b"// ok\n")}
         self.tests = [
@@ -51,7 +70,7 @@ class FakePolygon:
             return [
                 p
                 for p in self.problems
-                if params["name"] in p["name"] and params.get("id") in (None, str(p["id"]))
+                if params.get("name", "") in p["name"] and params.get("id") in (None, str(p["id"]))
             ]
         assert params["problemId"] == str(POLYGON_ID)
         return {
@@ -60,7 +79,7 @@ class FakePolygon:
             "problem.validator": lambda: self.validator,
             "problem.checker": lambda: self.checker,
             "problem.files": lambda: {
-                "resourceFiles": [{"name": "problem_lib.h"}],
+                "resourceFiles": [{"name": name} for name in self.resource_files],
                 "sourceFiles": [{"name": name} for name in self.source_files],
                 "auxFiles": [],
             },
@@ -76,8 +95,8 @@ class FakePolygon:
             raise PolygonApiError(method_name, "boom")
         assert params["problemId"] == str(POLYGON_ID)
         if method_name == "problem.viewFile":
-            assert params["type"] == "source"
-            return self.source_files[params["name"]]
+            files = self.source_files if params["type"] == "source" else self.resource_files
+            return files[params["name"]]
         if method_name == "problem.viewSolution":
             return self.solutions[params["name"]][1]
         if method_name == "problem.script":
@@ -104,17 +123,29 @@ def _statuses(result) -> dict[str, str]:
     return {item.name: item.status for item in result.items}
 
 
-def _link(outputs_dir: Path, polygon_id: int = POLYGON_ID) -> None:
+def _link(outputs_dir: Path, polygon_id: int = POLYGON_ID, *, revision: int | None = None) -> None:
     save_polygon_state(
         PROBLEM_ID,
         PolygonState(
             problem_id=PROBLEM_ID,
             polygon_id=polygon_id,
             created_at="2026-09-19T12:00:00+00:00",
-            steps={"upload_validator": {"sha256": "abc"}},
+            revision=revision,
+            synced={"stale/key": "abc"},
         ),
         outputs_dir=outputs_dir,
     )
+
+
+def _synced(outputs_dir: Path) -> dict[str, str]:
+    return load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced
+
+
+def _write(problem_dir: Path, name: str, content: str) -> Path:
+    path = problem_dir / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content)
+    return path
 
 
 def test_pull_into_missing_directory_downloads_everything(outputs_dir, polygon):
@@ -139,17 +170,78 @@ def test_pull_into_missing_directory_downloads_everything(outputs_dir, polygon):
     assert (problem_dir / "test_script").read_bytes() == b"gen_rand 1 > $\n"
     assert (problem_dir / "solutions" / "ok_cpp_main_author.cpp").read_bytes() == b"// ok\n"
     assert _statuses(result)["checker.cpp"] == ITEM_ABSENT
+    assert _statuses(result)["problem_lib.h (resource)"] == ITEM_SAME
     assert result.warnings == []
+    assert result.backup_dir is None
+
+
+def test_pull_records_revision_and_baseline(outputs_dir, polygon):
+    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
+    assert state.revision == 5
+    assert sorted(state.synced) == [
+        "checker",
+        "generators/gen_rand.cpp",
+        "limits",
+        "problem_lib.h",
+        "solutions/ok_cpp_main_author.cpp",
+        "statement/examples/example_1.txt",
+        "statement/examples/example_2.txt",
+        "statement/input_format.tex",
+        "statement/legend.tex",
+        "statement/name",
+        "statement/notes.tex",
+        "statement/output_format.tex",
+        "test_script",
+        "validator",
+        "validator.cpp",
+    ]
+
+
+def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, outputs_dir, polygon):
+    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    # upload_test_script отклоняет groups — нужен flat
+    spec_path = tmp_path / "valid-spec.yaml"
+    spec_path.write_text(
+        (FIXTURES_DIR / "valid-spec.yaml")
+        .read_text(encoding="utf-8")
+        .replace('script_style: "groups"', 'script_style: "flat"'),
+        encoding="utf-8",
+    )
+    spec = load_spec(spec_path)
+    synced = _synced(outputs_dir)
+
+    def uploaded(step) -> dict:
+        return run_step(
+            step, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=MagicMock(), synced=synced
+        ).uploaded
+
+    for step in (
+        set_constraints.STEP,
+        upload_problem_lib.STEP,
+        upload_generators.STEP,
+        upload_test_script.STEP,
+        upload_solutions.STEP,
+    ):
+        assert uploaded(step) == {}, step.name
+    # на Polygon валидатор назначен под другим именем — push загрузит validator.cpp
+    assert set(uploaded(upload_validator.STEP)) == {"validator", "validator.cpp"}
+
+
+def test_uncommitted_changes_on_polygon_stop_pull_before_writing(outputs_dir, polygon):
+    polygon.problems[0]["modified"] = True
+
+    with pytest.raises(PolygonStepError, match="uncommitted changes"):
+        pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert not (outputs_dir / PROBLEM_ID / "validator.cpp").exists()
 
 
 def test_pulled_limits_are_readable_by_set_constraints(outputs_dir, polygon):
-    from orchestrator.polygon.steps.set_constraints import _build_update_params
-
     pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
 
-    params = _build_update_params(POLYGON_ID, PROBLEM_ID, outputs_dir)
-    assert params["timeLimit"] == "2000"
-    assert params["memoryLimit"] == "256"
+    assert set_constraints.read_limits(PROBLEM_ID, outputs_dir) == (2000, 256)
 
 
 def test_fractional_time_limit(outputs_dir, polygon):
@@ -161,47 +253,164 @@ def test_fractional_time_limit(outputs_dir, polygon):
     assert "time_limit_seconds: 1.5\n" in content
 
 
-def test_existing_files_are_kept_and_only_missing_are_downloaded(outputs_dir, polygon):
+def test_differing_files_are_kept_and_dropped_from_baseline(outputs_dir, polygon):
     problem_dir = outputs_dir / PROBLEM_ID
-    (problem_dir / "statement" / "examples").mkdir(parents=True)
-    (problem_dir / "statement" / "legend.tex").write_text("local legend")
-    (problem_dir / "statement" / "examples" / "example_1.txt").write_text("local\n")
-    (problem_dir / "validator.cpp").write_text("local validator")
-    (problem_dir / "constraints.yaml").write_text("local: true\n")
-    (problem_dir / "test_script_groups").write_text("local script")
-    (problem_dir / "solutions").mkdir()
-    (problem_dir / "solutions" / "ok_cpp_main_author.cpp").write_text("local solution")
+    _write(problem_dir, "statement/legend.tex", "local legend")
+    _write(problem_dir, "statement/examples/example_1.txt", "1 2\n")
+    _write(problem_dir, "validator.cpp", "local validator")
+    _write(problem_dir, "test_script_groups", "local script")
+    _write(problem_dir, "solutions/ok_cpp_main_author.cpp", "// ok\n")
 
     result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
 
     statuses = _statuses(result)
-    assert (problem_dir / "statement" / "legend.tex").read_text() == "local legend"
-    assert (problem_dir / "statement" / "input_format.tex").read_text() == "I"
     assert statuses["statement/legend.tex"] == ITEM_KEPT
+    assert "the next push will upload it" in next(
+        item.detail for item in result.items if item.name == "statement/legend.tex"
+    )
     assert statuses["statement/input_format.tex"] == ITEM_DOWNLOADED
-    assert (problem_dir / "statement" / "examples" / "example_1.txt").read_text() == "local\n"
-    assert statuses["statement/examples/example_2.txt"] == ITEM_DOWNLOADED
-    assert (problem_dir / "validator.cpp").read_text() == "local validator"
-    assert (problem_dir / "constraints.yaml").read_text() == "local: true\n"
+    assert statuses["statement/examples/example_1.txt"] == ITEM_SAME
+    assert statuses["validator.cpp"] == ITEM_KEPT
     assert statuses["test_script_groups"] == ITEM_KEPT
+    assert statuses["solutions/ok_cpp_main_author.cpp"] == ITEM_SAME
+    assert (problem_dir / "statement" / "legend.tex").read_text() == "local legend"
+    assert (problem_dir / "validator.cpp").read_text() == "local validator"
     assert not (problem_dir / "test_script").exists()
-    assert (problem_dir / "solutions" / "ok_cpp_main_author.cpp").read_text() == "local solution"
-    # Ничего не скачивается ради того, что и так есть локально.
-    assert "problem.info" not in polygon.methods()
-    assert "problem.script" not in polygon.methods()
-    assert "problem.viewSolution" not in polygon.methods()
+    synced = _synced(outputs_dir)
+    for key in ("statement/legend.tex", "validator.cpp", "validator", "test_script"):
+        assert key not in synced, key
+    for key in ("statement/input_format.tex", "statement/examples/example_1.txt"):
+        assert key in synced, key
+    assert result.backup_dir is None
 
 
-def test_existing_link_is_reused_without_search_and_steps_are_preserved(outputs_dir, polygon):
+def test_overwrite_replaces_differing_files_and_backs_them_up(outputs_dir, polygon):
+    problem_dir = outputs_dir / PROBLEM_ID
+    _write(problem_dir, "statement/legend.tex", "local legend")
+    _write(problem_dir, "validator.cpp", "local validator")
+    _write(problem_dir, "generators/gen_rand.cpp", "// gen\n")
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+
+    statuses = _statuses(result)
+    assert statuses["statement/legend.tex"] == ITEM_OVERWRITTEN
+    assert statuses["validator.cpp"] == ITEM_OVERWRITTEN
+    assert statuses["generators/gen_rand.cpp"] == ITEM_SAME
+    assert (problem_dir / "statement" / "legend.tex").read_text() == "L"
+    assert (problem_dir / "validator.cpp").read_bytes() == b"// validator\n"
+    assert result.backup_dir.parent == problem_dir / ".pull_backup"
+    assert (result.backup_dir / "statement" / "legend.tex").read_text() == "local legend"
+    assert (result.backup_dir / "validator.cpp").read_text() == "local validator"
+    assert not (result.backup_dir / "generators").exists()
+    assert {"statement/legend.tex", "validator.cpp", "validator"} <= set(_synced(outputs_dir))
+
+
+def test_line_endings_do_not_make_files_differ(outputs_dir, polygon):
+    _write(outputs_dir / PROBLEM_ID, "validator.cpp", "")
+    (outputs_dir / PROBLEM_ID / "validator.cpp").write_bytes(b"// validator\r\n")
+
+    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert _statuses(result)["validator.cpp"] == ITEM_SAME
+    assert "validator.cpp" in _synced(outputs_dir)
+
+
+def test_local_only_files_are_reported_and_kept(outputs_dir, polygon):
+    problem_dir = outputs_dir / PROBLEM_ID
+    _write(problem_dir, "generators/gen_local.cpp", "// local\n")
+    _write(problem_dir, "solutions/wa_cpp_local_author.cpp", "// wa\n")
+    _write(problem_dir, "statement/examples/example_3.txt", "5\n")
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+
+    statuses = _statuses(result)
+    for name in (
+        "generators/gen_local.cpp",
+        "solutions/wa_cpp_local_author.cpp",
+        "statement/examples/example_3.txt",
+    ):
+        assert statuses[name] == ITEM_LOCAL_ONLY, name
+        assert (problem_dir / name).exists()
+        assert name not in _synced(outputs_dir)
+    assert "not on Polygon" in next(
+        item.detail for item in result.items if item.name == "generators/gen_local.cpp"
+    )
+
+
+def test_constraints_pick_result_is_never_overwritten(outputs_dir, polygon):
+    path = _write(
+        outputs_dir / PROBLEM_ID,
+        "constraints.yaml",
+        "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\ngroups: []\n",
+    )
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "constraints.yaml")
+    assert item.status == ITEM_KEPT
+    assert "1000ms/256MB" in item.detail and "2000ms/256MB" in item.detail
+    assert "manually" in item.detail
+    assert "groups: []" in path.read_text()
+    assert "limits" not in _synced(outputs_dir)
+
+
+def test_pulled_constraints_file_is_overwritten(outputs_dir, polygon):
+    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+
+    assert _statuses(result)["constraints.yaml"] == ITEM_OVERWRITTEN
+    assert set_constraints.read_limits(PROBLEM_ID, outputs_dir) == (3000, 256)
+
+
+def test_same_limits_in_constraints_pick_result_are_up_to_date(outputs_dir, polygon):
+    _write(
+        outputs_dir / PROBLEM_ID,
+        "constraints.yaml",
+        "time_limit_seconds: 2\nmemory_limit_mb: 256\ngroups: []\n",
+    )
+
+    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert _statuses(result)["constraints.yaml"] == ITEM_SAME
+    assert "limits" in _synced(outputs_dir)
+
+
+def test_different_problem_lib_on_polygon_is_not_in_baseline(outputs_dir, polygon):
+    polygon.resource_files["problem_lib.h"] = b"// old\n"
+
+    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    assert _statuses(result)["problem_lib.h (resource)"] == ITEM_KEPT
+    assert "problem_lib.h" not in _synced(outputs_dir)
+
+
+def test_local_checker_with_standard_checker_on_polygon(outputs_dir, polygon):
+    _write(outputs_dir / PROBLEM_ID, "checker.cpp", "// local checker\n")
+
+    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "checker.cpp")
+    assert item.status == ITEM_LOCAL_ONLY
+    assert "std::ncmp.cpp" in item.detail and "custom_needed" in item.detail
+    synced = _synced(outputs_dir)
+    assert "checker" in synced and "checker.cpp" not in synced
+
+
+def test_existing_link_is_reused_without_search_and_baseline_is_replaced(outputs_dir, polygon):
     _link(outputs_dir)
 
     result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
 
-    assert "problems.list" not in polygon.methods()
+    assert polygon.calls[0] == ("problems.list", {"id": str(POLYGON_ID)})
+    assert [method for method in polygon.methods() if method == "problems.list"] == ["problems.list"]
     assert result.link_detail == f"already linked to Polygon id={POLYGON_ID}"
     state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
     assert state.created_at == "2026-09-19T12:00:00+00:00"
-    assert state.steps == {"upload_validator": {"sha256": "abc"}}
+    assert state.revision == 5
+    # чужие ключи pull не трогает — он переписывает только то, что сравнил
+    assert state.synced["stale/key"] == "abc"
 
 
 def test_conflicting_polygon_id_is_an_error(outputs_dir, polygon):
@@ -300,7 +509,8 @@ def test_custom_checker_is_downloaded_and_not_treated_as_generator(outputs_dir, 
     assert [p.name for p in (problem_dir / "generators").iterdir()] == ["gen_rand.cpp"]
 
 
-def test_failed_part_does_not_stop_the_others(outputs_dir, polygon):
+def test_failed_part_does_not_stop_the_others_but_keeps_old_revision(outputs_dir, polygon):
+    _link(outputs_dir, revision=3)
     polygon.failing = {"problem.statements", "problem.viewSolution"}
 
     result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
@@ -311,6 +521,10 @@ def test_failed_part_does_not_stop_the_others(outputs_dir, polygon):
     assert statuses["solutions/ok_cpp_main_author.cpp"] == ITEM_ERROR
     assert statuses["validator.cpp"] == ITEM_DOWNLOADED
     assert not (outputs_dir / PROBLEM_ID / "solutions" / "ok_cpp_main_author.cpp").exists()
+    state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
+    assert state.revision == 3
+    assert "validator.cpp" in state.synced
+    assert "solutions/ok_cpp_main_author.cpp" not in state.synced
 
 
 def test_missing_parts_on_polygon_are_reported_as_absent(outputs_dir, polygon):
@@ -327,6 +541,7 @@ def test_missing_parts_on_polygon_are_reported_as_absent(outputs_dir, polygon):
     assert result.ok
     for name in (
         "statement/legend.tex",
+        "statement/notes.tex",
         "statement/examples",
         "validator.cpp",
         "generators",
@@ -375,7 +590,7 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "  validator.cpp: downloaded — Polygon source file val.cpp" in out
-    assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked" in out
+    assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
     log = (outputs_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
     assert "run started: orchestrator --specs-dir" in log
     assert "[pull] validator.cpp: downloaded" in log
@@ -388,4 +603,21 @@ def test_cli_pull_unresolved_problem_exits_with_error(outputs_dir, polygon, caps
     exit_code = cli.main(["--outputs-dir", str(outputs_dir), "polygon", "pull", PROBLEM_ID])
 
     assert exit_code == 1
-    assert "no Polygon problem named" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "no Polygon problem named" in err
+    # собственная ошибка печатается целиком, без ссылки на лог
+    assert err.strip().endswith("is available to this API key")
+
+
+def test_cli_pull_overwrite_reports_backup_dir(outputs_dir, polygon, capsys, monkeypatch):
+    _write(outputs_dir / PROBLEM_ID, "validator.cpp", "local validator")
+    monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
+
+    exit_code = cli.main(
+        ["--outputs-dir", str(outputs_dir), "polygon", "pull", PROBLEM_ID, "--overwrite"]
+    )
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert "  validator.cpp: overwritten" in out
+    assert "overwritten local files are backed up in" in out

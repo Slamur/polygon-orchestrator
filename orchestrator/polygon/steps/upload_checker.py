@@ -22,21 +22,23 @@
 
 from __future__ import annotations
 
-import datetime
-import hashlib
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
-from orchestrator.polygon.state import load_polygon_state, record_polygon_step
+from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import (
+    NO_CHANGES_MESSAGE,
     STATUS_DONE,
-    STATUS_NOT_RUN,
-    STATUS_STALE,
     PolygonStep,
     PolygonStepError,
     StepContext,
+    StepResult,
+    changed_items,
+    never_done,
     require_polygon_state,
+    sync_status,
 )
+from orchestrator.polygon.sync import CHECKER_FILE_KEY, CHECKER_KEY, digest
 
 STEP_NAME = "upload_checker"
 
@@ -46,25 +48,17 @@ _STANDARD_PREFIX = "std::"
 _STANDARD_SUFFIX = ".cpp"
 
 
-def _check_done(ctx: StepContext) -> str | None:
-    """Шаг выполняется при каждом запуске: `problem.saveFile` перезаписывает
-    файл, `problem.setChecker` идемпотентен, а ручные правки в UI Polygon
-    локально не видны — пропускать по локальной записи нельзя."""
-    return None
-
-
-def _execute(ctx: StepContext, client: PolygonClient) -> str:
-    """Назначает чекер (custom или стандартный, по `ctx.spec.checker`) и
-    записывает в `polygon_state.json`, что было отправлено — для `status`.
-
-    Запись делается только после успеха всех вызовов: если `saveFile`
-    прошёл, а `setChecker` упал, шаг остаётся "not run"/"stale" и
-    повторится целиком при следующем запуске.
-    """
+def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
+    """Назначает чекер (custom или стандартный, по `ctx.spec.checker`), если
+    он отличается от базы синхронизации. Для custom отличие файла или
+    назначенного чекера — оба вызова, как в `upload_validator`."""
     polygon_id = require_polygon_state(ctx).polygon_id
 
     if ctx.spec.checker.custom_needed:
         content = _read_custom_checker(ctx.problem_id, ctx.outputs_dir)
+        items = _custom_items(content)
+        if not changed_items(ctx, items):
+            return StepResult(NO_CHANGES_MESSAGE)
         client.call(
             "problem.saveFile",
             {
@@ -78,40 +72,38 @@ def _execute(ctx: StepContext, client: PolygonClient) -> str:
             "problem.setChecker",
             {"problemId": str(polygon_id), "checker": _CHECKER_FILENAME},
         )
-        _record(ctx, {"custom": True, "sha256": _sha256(content)})
-        return f"uploaded and set custom {_CHECKER_FILENAME} as checker on Polygon id={polygon_id}"
+        return StepResult(
+            f"uploaded and set custom {_CHECKER_FILENAME} as checker on Polygon id={polygon_id}",
+            items,
+        )
 
     standard = _require_standard_name(ctx)
+    items = {CHECKER_KEY: digest(standard)}
+    if not changed_items(ctx, items):
+        return StepResult(NO_CHANGES_MESSAGE)
     client.call("problem.setChecker", {"problemId": str(polygon_id), "checker": standard})
-    _record(ctx, {"custom": False, "checker": standard})
-    return f"set standard checker {standard!r} on Polygon id={polygon_id}"
+    return StepResult(f"set standard checker {standard!r} on Polygon id={polygon_id}", items)
 
 
 def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-    """Для custom-чекера — как у `upload_validator`: "done", если sha256
-    последнего загруженного `checker.cpp` совпадает с текущим, иначе
-    "stale". Для стандартного — "done" с именем отправленного чекера: спек
-    здесь недоступен, поэтому смена `checker.standard` в спеке как "stale"
-    не видна. "not run" — шаг ещё ни разу не выполнялся успешно."""
+    """По базе синхронизации. Спек здесь недоступен, поэтому custom или
+    стандартный — по базе: есть в ней `checker.cpp` — сравнивается
+    локальный `checker.cpp`, иначе стандартный чекер считается "done"
+    (смена `checker.standard` в спеке отсюда не видна)."""
     state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    record = state.steps.get(STEP_NAME) if state is not None else None
-    if not isinstance(record, dict):
-        return STATUS_NOT_RUN, ""
+    synced = state.synced if state is not None else {}
+    if CHECKER_FILE_KEY not in synced and CHECKER_KEY in synced:
+        return STATUS_DONE, "standard checker"
+    return sync_status(
+        problem_id,
+        outputs_dir,
+        key_prefix=CHECKER_KEY,
+        read_items=lambda: _custom_items(_read_custom_checker(problem_id, outputs_dir)),
+    )
 
-    if record.get("custom") is False and isinstance(record.get("checker"), str):
-        return STATUS_DONE, f"standard {record['checker']}"
 
-    if record.get("custom") is True and isinstance(record.get("sha256"), str):
-        try:
-            content = _read_custom_checker(problem_id, outputs_dir)
-        except PolygonStepError as exc:
-            return STATUS_STALE, f"current {_CHECKER_FILENAME} is unreadable: {exc}"
-        current = _sha256(content)
-        if current != record["sha256"]:
-            return STATUS_STALE, f"{_CHECKER_FILENAME} changed since the last upload"
-        return STATUS_DONE, f"custom {_CHECKER_FILENAME} sha256={current[:12]}"
-
-    return STATUS_NOT_RUN, ""
+def _custom_items(content: bytes) -> dict[str, str]:
+    return {CHECKER_FILE_KEY: digest(content), CHECKER_KEY: digest(_CHECKER_FILENAME)}
 
 
 def _read_custom_checker(problem_id: str, outputs_dir: Path) -> bytes:
@@ -120,7 +112,7 @@ def _read_custom_checker(problem_id: str, outputs_dir: Path) -> bytes:
         raise PolygonStepError(
             f"'{problem_id}': checker.custom_needed=true, but "
             f"{checker_path} not found — first run the generative step checker_draft "
-            f"(orchestrator llm generate {problem_id} --step checker_draft)"
+            f"(`orchestrator llm generate {problem_id} --step checker_draft`)"
         )
     return checker_path.read_bytes()
 
@@ -144,22 +136,9 @@ def _polygon_standard_name(standard: str) -> str:
     return name if name.endswith(_STANDARD_SUFFIX) else name + _STANDARD_SUFFIX
 
 
-def _record(ctx: StepContext, data: dict) -> None:
-    record_polygon_step(
-        ctx.problem_id,
-        STEP_NAME,
-        {**data, "sent_at": datetime.datetime.now(datetime.timezone.utc).isoformat()},
-        outputs_dir=ctx.outputs_dir,
-    )
-
-
-def _sha256(content: bytes) -> str:
-    return hashlib.sha256(content).hexdigest()
-
-
 STEP = PolygonStep(
     name=STEP_NAME,
-    check_done=_check_done,
+    check_done=never_done,
     execute=_execute,
     compute_status=_compute_status,
 )

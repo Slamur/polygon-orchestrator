@@ -7,23 +7,24 @@
 
 from __future__ import annotations
 
-import datetime
 from numbers import Real
 from pathlib import Path
 
 import yaml
 
 from orchestrator.polygon.client import PolygonClient
-from orchestrator.polygon.state import load_polygon_state, record_polygon_step
 from orchestrator.polygon.steps.base import (
-    STATUS_DONE,
-    STATUS_NOT_RUN,
-    STATUS_STALE,
+    NO_CHANGES_MESSAGE,
     PolygonStep,
     PolygonStepError,
     StepContext,
+    StepResult,
+    changed_items,
+    never_done,
     require_polygon_state,
+    sync_status,
 )
+from orchestrator.polygon.sync import LIMITS_KEY, limits_digest
 
 STEP_NAME = "set_constraints"
 
@@ -31,70 +32,55 @@ _TIME_KEY = "time_limit_seconds"
 _MEMORY_KEY = "memory_limit_mb"
 
 
-def _check_done(ctx: StepContext) -> str | None:
-    """Шаг выполняется при каждом запуске: `problem.updateInfo` идемпотентен,
-    а локальная запись в `polygon_state.json` не знает о ручных правках в
-    UI Polygon — пропускать по ней вызов нельзя (у `polygon push` нет
-    `--force`, чтобы это обойти)."""
-    return None
-
-
-def _execute(ctx: StepContext, client: PolygonClient) -> str:
-    """Переносит TL/ML в Polygon (`ctx.spec` не используется) и записывает
-    отправленные параметры в `polygon_state.json` — для `status`."""
+def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
+    """Переносит TL/ML в Polygon (`ctx.spec` не используется), если они
+    отличаются от базы синхронизации."""
     polygon_id = require_polygon_state(ctx).polygon_id
-    params = _build_update_params(polygon_id, ctx.problem_id, ctx.outputs_dir)
+    time_limit_ms, memory_limit_mb = read_limits(ctx.problem_id, ctx.outputs_dir)
+    items = {LIMITS_KEY: limits_digest(time_limit_ms, memory_limit_mb)}
+    if not changed_items(ctx, items):
+        return StepResult(NO_CHANGES_MESSAGE)
+
+    params = {
+        "problemId": str(polygon_id),
+        "timeLimit": str(time_limit_ms),
+        "memoryLimit": str(memory_limit_mb),
+        "inputFile": "",
+        "outputFile": "",
+        "interactive": "false",
+    }
     client.call("problem.updateInfo", params)
-    record_polygon_step(
-        ctx.problem_id,
-        STEP_NAME,
-        {
-            "sent": params,
-            "sent_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        },
-        outputs_dir=ctx.outputs_dir,
+    return StepResult(
+        f"set {_describe(time_limit_ms, memory_limit_mb)} on Polygon id={polygon_id}", items
     )
-    return f"set {_describe(params)} on Polygon id={params['problemId']}"
 
 
 def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
-    """"done", если последние отправленные параметры совпадают с теми, что
-    получились бы из текущего `constraints.yaml`; "stale", если нет (или
-    текущий `constraints.yaml` больше не читается); "not run", если шаг ещё
-    ни разу не выполнялся успешно.
+    """По базе синхронизации (`sync_status`). Ручные правки TL/ML в UI
+    Polygon отсюда не видны."""
 
-    Ручные правки TL/ML в UI Polygon отсюда не видны — это только сравнение
-    с тем, что отправлял сам оркестратор.
-    """
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
-    record = state.steps.get(STEP_NAME) if state is not None else None
-    if not isinstance(record, dict) or not isinstance(record.get("sent"), dict):
-        return STATUS_NOT_RUN, ""
+    def read_items() -> dict[str, str]:
+        return {LIMITS_KEY: limits_digest(*read_limits(problem_id, outputs_dir))}
 
-    sent = record["sent"]
-    try:
-        current = _build_update_params(state.polygon_id, problem_id, outputs_dir)
-    except PolygonStepError as exc:
-        return STATUS_STALE, f"current limits are unreadable: {exc}"
-    if current != sent:
-        return STATUS_STALE, f"sent {_describe(sent)}, now {_describe(current)}"
-    return STATUS_DONE, _describe(sent)
+    return sync_status(problem_id, outputs_dir, key_prefix=LIMITS_KEY, read_items=read_items)
 
 
-def _describe(params: dict) -> str:
-    return f"timeLimit={params.get('timeLimit')}ms memoryLimit={params.get('memoryLimit')}MB"
+def _describe(time_limit_ms: int, memory_limit_mb: int) -> str:
+    return f"timeLimit={time_limit_ms}ms memoryLimit={memory_limit_mb}MB"
 
 
-def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) -> dict[str, str]:
-    """Параметры `problem.updateInfo` для `polygon_id` из `constraints.yaml`.
-    Без сети; если `constraints.yaml` нет или он некорректен —
-    `PolygonStepError` (при отсутствии — с указанием, какой шаг запустить
-    сначала).
+def read_limits(problem_id: str, outputs_dir: Path) -> tuple[int, int]:
+    """(timeLimit в миллисекундах, memoryLimit в мегабайтах) из
+    `constraints.yaml` — в единицах `problem.updateInfo`. Без сети; если
+    `constraints.yaml` нет или он некорректен — `PolygonStepError` (при
+    отсутствии — с указанием, какой шаг запустить сначала). Нужно и
+    `polygon pull` — сравнить локальные TL/ML с Polygon.
 
-    Жёстко хардкодит interactive=false, inputFile="", outputFile="": в формате
-    спека (docs/SPEC_FORMAT.md) нет полей для интерактивных задач и файлового
-    ввода/вывода, значения отражают только дефолт "обычная задача,
-    stdin/stdout". Если такие поля появятся — менять нужно здесь.
+    `problem.updateInfo` получает ещё interactive=false, inputFile="",
+    outputFile="" (см. `_execute`): в формате спека (docs/SPEC_FORMAT.md)
+    нет полей для интерактивных задач и файлового ввода/вывода, значения
+    отражают только дефолт "обычная задача, stdin/stdout". Если такие поля
+    появятся — менять нужно там.
 
     Единицы: `time_limit_seconds` x 1000 -> `timeLimit` в миллисекундах;
     `memory_limit_mb` -> `memoryLimit` как есть, в мегабайтах (конвенция
@@ -106,8 +92,8 @@ def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) ->
     if not constraints_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {constraints_path} not found — first run "
-            f"the generative step constraints_pick (orchestrator llm generate {problem_id} "
-            "--step constraints_pick)"
+            f"the generative step constraints_pick (`orchestrator llm generate {problem_id} "
+            "--step constraints_pick`)"
         )
 
     try:
@@ -135,14 +121,7 @@ def _build_update_params(polygon_id: int, problem_id: str, outputs_dir: Path) ->
                 f"a positive number, got {value!r}"
             )
 
-    return {
-        "problemId": str(polygon_id),
-        "timeLimit": str(round(time_limit_seconds * 1000)),
-        "memoryLimit": str(round(memory_limit_mb)),
-        "inputFile": "",
-        "outputFile": "",
-        "interactive": "false",
-    }
+    return round(time_limit_seconds * 1000), round(memory_limit_mb)
 
 
 def _extract_limits(constraints_data: dict) -> tuple[object, object]:
@@ -185,7 +164,7 @@ def _extract_limits(constraints_data: dict) -> tuple[object, object]:
 
 STEP = PolygonStep(
     name=STEP_NAME,
-    check_done=_check_done,
+    check_done=never_done,
     execute=_execute,
     compute_status=_compute_status,
 )
