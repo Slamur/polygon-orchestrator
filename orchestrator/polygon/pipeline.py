@@ -9,9 +9,11 @@
 
 - ревизия равна записанной и в рабочей копии нет незакоммиченных правок —
   базе можно доверять, шаги загружают только изменённое;
-- ревизия неизвестна (задача привязана до появления этого поля) или задан
-  `force` — база не используется, шаги загружают всё (как `git push
+- задан `force` — база не используется, шаги загружают всё (как `git push
   --force`);
+- ревизия неизвестна (задача привязана к уже существующей на Polygon или
+  до появления этого поля) — что на Polygon, неизвестно, push
+  останавливается до `polygon pull` (или `--force`);
 - иначе Polygon меняли в обход оркестратора — push останавливается с
   предложением сделать `polygon pull` или `polygon push --force`.
 
@@ -204,10 +206,12 @@ def _sync_baseline(
         logger.info("--force: uploading everything, the sync baseline is ignored")
         return None
     if state.revision is None:
-        logger.info(
-            "the Polygon revision of the last sync is unknown — uploading everything"
+        raise PolygonStepError(
+            f"'{problem_id}': the Polygon revision of the last sync is unknown (the problem "
+            "was linked to an existing Polygon problem or before revisions were recorded) — "
+            f"run orchestrator polygon pull {problem_id} [--overwrite] first, or overwrite "
+            f"Polygon with orchestrator polygon push {problem_id} --force"
         )
-        return None
 
     current = fetch_revision(client, state.polygon_id)
     if current.modified:

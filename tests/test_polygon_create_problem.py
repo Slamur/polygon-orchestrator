@@ -42,10 +42,11 @@ def test_step_is_a_polygon_step_with_expected_name():
 
 def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
     client = MagicMock()
-    client.call.side_effect = lambda method, params: {
-        "problems.list": [],
-        "problem.create": {"id": 555},
-    }[method]
+    client.call.side_effect = lambda method, params: (
+        ([{"id": 555, "revision": 1}] if "id" in params else [])
+        if method == "problems.list"
+        else {"id": 555}
+    )
 
     message = _run(spec, tmp_path, client)
 
@@ -57,6 +58,8 @@ def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
     state = load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path)
     assert state is not None
     assert (state.problem_id, state.polygon_id) == (PROBLEM_ID, 555)
+    # новая задача пуста — база известна, push не требует pull
+    assert state.revision == 1
     assert state.created_at
 
 
@@ -67,10 +70,13 @@ def test_reuses_existing_polygon_problem_found_by_name(tmp_path, spec):
     message = _run(spec, tmp_path, client)
 
     assert "reused" in message
+    assert "polygon pull" in message
     client.call.assert_called_once_with("problems.list", {"name": PROBLEM_ID})
     state = load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path)
     assert state is not None
     assert state.polygon_id == 123
+    # что в найденной задаче, неизвестно — push потребует pull
+    assert state.revision is None
 
 
 def test_existing_local_state_makes_no_network_calls(tmp_path, spec):
