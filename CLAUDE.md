@@ -35,7 +35,7 @@ Python-оркестратор, который берёт структуриро�
   (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
   хранится в `outputs/<problem_id>/polygon_state.json`) и перенос TL/ML из
   `outputs/<problem_id>/constraints.yaml` через `problem.updateInfo`
-  (`set_constraints`), загрузка `templates/common/problem_lib.h` как
+  (`set_constraints`), загрузка `outputs/<problem_id>/problem_lib.h` как
   resource-файла (`upload_problem_lib`), загрузка
   `outputs/<problem_id>/validator.cpp` и назначение его валидатором
   (`upload_validator`), назначение чекера (`upload_checker`: для
@@ -74,7 +74,7 @@ Python-оркестратор, который берёт структуриро�
 ├── templates/                    # существующие шаблоны автора — НЕ трогать структуру,
 │   │                             # использовать как основу для генерации
 │   ├── common/                   # общее для всех задач; include-каталог compile-check
-│   │   ├── problem_lib.h         # загружается в Polygon шагом upload_problem_lib
+│   │   ├── problem_lib.h         # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
 │   │   ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
 │   │   ├── testlib.h
 │   │   └── tutorials/
@@ -154,6 +154,7 @@ Python-оркестратор, который берёт структуриро�
         ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull --overwrite`
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
+        ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
         ├── generators/*.cpp
@@ -465,7 +466,12 @@ CLI, расход из лимитов подписки, а не с API-бала�
   — это основа, которую нужно расширять, а не переизобретать. Если шаг
   генерации создаёт новый генератор — он должен `#include "problem_lib.h"` и
   следовать тем же соглашениям об именовании (`register...`, `opt<T>(...)`,
-  стиль `gen_test` из `generators/*.cpp`).
+  стиль `gen_test` из `generators/*.cpp`). У каждой задачи своя копия
+  `problem_lib.h` (`outputs/<problem_id>/problem_lib.h`, см.
+  `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`): шаблон — только её
+  начальное содержимое, правка шаблона в уже существующие копии не
+  попадает. Compile-check ищет `problem_lib.h` сначала в каталоге задачи,
+  потом в `templates/common/`; модели прикладывается шаблон.
 - `templates/common/` — общее для всех задач и прикладывается к шагам
   всегда (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`); там же
   `constraints_format.yaml` — формат результата `constraints_pick`, который

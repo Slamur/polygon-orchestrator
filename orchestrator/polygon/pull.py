@@ -51,9 +51,9 @@ Pull отказывается работать, если в рабочей ко�
 - решения (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   Тег решения на Polygon локально не сохраняется: `upload_solutions` выводит
   тег из имени файла, поэтому про имена не по его схеме — предупреждение;
-- resource `problem_lib.h` — только сравнивается с
-  `templates/common/problem_lib.h` (общий шаблон, а не артефакт задачи —
-  не скачивается и не перезаписывается).
+- resource `problem_lib.h` -> `problem_lib.h` (копия задачи, см.
+  `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`; если её нет на
+  Polygon, push загрузит локальную, а без неё — шаблон).
 
 Текст сравнивается с точностью до переводов строк (`\\r\\n` = `\\n`).
 NOTE: не проверено на реальном API, не нормализует ли Polygon содержимое
@@ -82,7 +82,6 @@ from orchestrator.polygon.state import (
 )
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.set_constraints import read_limits
-from orchestrator.polygon.steps.upload_problem_lib import read_problem_lib
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.polygon.sync import (
@@ -98,7 +97,7 @@ from orchestrator.polygon.sync import (
     fetch_revision,
     limits_digest,
 )
-from orchestrator.steps.base import TEMPLATES_DIR
+from orchestrator.steps.base import PROBLEM_LIB_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +125,6 @@ _STATEMENT_FILES = {
 _VALIDATOR_FILENAME = "validator.cpp"
 _CHECKER_FILENAME = "checker.cpp"
 _CONSTRAINTS_FILENAME = "constraints.yaml"
-_PROBLEM_LIB_FILENAME = "problem_lib.h"
 _STANDARD_CHECKER_PREFIX = "std::"
 _BACKUP_DIRNAME = ".pull_backup"
 
@@ -171,7 +169,6 @@ def pull_problem(
     polygon_id: int | None = None,
     overwrite: bool = False,
     outputs_dir: Path = OUTPUTS_DIR,
-    templates_dir: Path = TEMPLATES_DIR,
     client: PolygonClient | None = None,
     on_item: Callable[[PullItem], None] | None = None,
 ) -> PullResult:
@@ -213,7 +210,6 @@ def pull_problem(
         client=client,
         polygon_id=resolved_id,
         problem_dir=problem_dir,
-        templates_dir=Path(templates_dir),
         overwrite=overwrite,
         backup_dir=problem_dir
         / _BACKUP_DIRNAME
@@ -225,7 +221,7 @@ def pull_problem(
         ("statement", puller.pull_statement),
         ("statement/examples", puller.pull_examples),
         (_CONSTRAINTS_FILENAME, puller.pull_limits),
-        (_PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
+        (PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
         (_VALIDATOR_FILENAME, puller.pull_validator),
         (_CHECKER_FILENAME, puller.pull_checker),
         ("generators", puller.pull_generators),
@@ -319,7 +315,6 @@ class _Puller:
     client: PolygonClient
     polygon_id: int
     problem_dir: Path
-    templates_dir: Path
     overwrite: bool
     backup_dir: Path
     result: PullResult
@@ -440,32 +435,21 @@ class _Puller:
         self.synced[LIMITS_KEY] = None
 
     def pull_problem_lib(self) -> None:
-        name = f"{_PROBLEM_LIB_FILENAME} (resource)"
         resources = {file["name"] for file in self._polygon_files().get("resourceFiles") or []}
-        if _PROBLEM_LIB_FILENAME not in resources:
-            self.add(name, ITEM_ABSENT, "not on Polygon — the next push will upload it")
-            self.synced[PROBLEM_LIB_KEY] = None
-            return
-        remote = self._call_raw(
-            "problem.viewFile", {"type": "resource", "name": _PROBLEM_LIB_FILENAME}
-        )
-        try:
-            template = read_problem_lib(self.templates_dir)
-        except PolygonStepError as exc:
-            self.add(name, ITEM_ERROR, str(exc))
-            self.synced[PROBLEM_LIB_KEY] = None
-            return
-        if _same(template, remote):
-            self.add(name, ITEM_SAME)
-            self.synced[PROBLEM_LIB_KEY] = digest(template)
-        else:
-            self.add(
-                name,
-                ITEM_KEPT,
-                "differs from templates/common/problem_lib.h — the next push will upload "
-                "the template (it is shared by all problems and is never overwritten)",
+        if PROBLEM_LIB_FILENAME not in resources:
+            self._missing_on_polygon(
+                PROBLEM_LIB_FILENAME,
+                "no resource file on Polygon",
+                key=PROBLEM_LIB_KEY,
             )
-            self.synced[PROBLEM_LIB_KEY] = None
+            return
+        self._sync_file(
+            PROBLEM_LIB_FILENAME,
+            lambda: self._call_raw(
+                "problem.viewFile", {"type": "resource", "name": PROBLEM_LIB_FILENAME}
+            ),
+            key=PROBLEM_LIB_KEY,
+        )
 
     def pull_validator(self) -> None:
         polygon_name = self._call("problem.validator")

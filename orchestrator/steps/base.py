@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import datetime
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -46,6 +47,15 @@ TEMPLATES_DIR = Path("templates")
 # спека (`orchestrator/references.py`).
 COMMON_SUBDIR = "common"
 EXAMPLES_SUBDIR = "examples"
+
+# У каждой задачи своя копия `problem_lib.h` — `outputs/<problem_id>/problem_lib.h`:
+# шаблон `common/problem_lib.h` — только её начальное содержимое, и правки
+# автора под конкретную задачу не перезаписывают ни шаблон, ни
+# `llm generate`, ни `polygon push`. Копию создаёт `ensure_problem_lib` —
+# перед compile-check сгенерированных `.cpp` и в polygon-шаге
+# `upload_problem_lib`; `polygon pull` скачивает в неё resource-файл с
+# Polygon. К вызову модели прикладывается шаблон (`STEP_CONTEXT_DOCUMENTS`).
+PROBLEM_LIB_FILENAME = "problem_lib.h"
 
 # Обязательные документы контекста на шаг (пути относительно templates_dir),
 # см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
@@ -295,6 +305,29 @@ def load_context_documents(
     return documents
 
 
+def template_problem_lib_path(templates_dir: Path = TEMPLATES_DIR) -> Path:
+    return Path(templates_dir) / COMMON_SUBDIR / PROBLEM_LIB_FILENAME
+
+
+def problem_lib_path(problem_id: str, outputs_dir: Path = OUTPUTS_DIR) -> Path:
+    return Path(outputs_dir) / problem_id / PROBLEM_LIB_FILENAME
+
+
+def ensure_problem_lib(
+    problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR, templates_dir: Path = TEMPLATES_DIR
+) -> Path:
+    """Путь к `problem_lib.h` задачи; если его нет — сначала копирует туда
+    шаблон. Нет и шаблона — `FileNotFoundError`."""
+    path = problem_lib_path(problem_id, outputs_dir)
+    if not path.exists():
+        template = template_problem_lib_path(templates_dir)
+        if not template.exists():
+            raise FileNotFoundError(f"template {template} not found — check templates_dir")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(template, path)
+    return path
+
+
 def _write_artifacts(
     artifacts: dict[str, str],
     resolve_path: Callable[[str], Path],
@@ -385,8 +418,13 @@ def run_generative_step(
 
     artifact_paths = _write_artifacts(response.artifacts, resolve_artifact_path)
 
+    if any(path.suffix == ".cpp" for path in artifact_paths.values()):
+        ensure_problem_lib(problem_id, outputs_dir=outputs_dir, templates_dir=templates_dir)
     compile_results: dict[str, CompileResult] = {
-        filename: compile_check(path, Path(templates_dir) / COMMON_SUBDIR)
+        # `problem_lib.h` задачи — раньше шаблонного.
+        filename: compile_check(
+            path, [Path(outputs_dir) / problem_id, Path(templates_dir) / COMMON_SUBDIR]
+        )
         for filename, path in artifact_paths.items()
         if path.suffix == ".cpp"
     }

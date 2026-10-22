@@ -41,8 +41,9 @@
 `templates/` делится на две части:
 
 - `templates/common/` — общее для всех задач: правила `tutorials/*.md`,
-  `problem_lib.h` (он же загружается в Polygon шагом `upload_problem_lib`),
-  `testlib.h`. Этот же каталог — include-путь compile-check.
+  `problem_lib.h` (шаблон — копируется в `outputs/<problem_id>/problem_lib.h`,
+  оттуда загружается в Polygon шагом `upload_problem_lib`), `testlib.h`.
+  Этот же каталог — include-путь compile-check (после каталога задачи).
 - `templates/examples/<problem_id>/` — учебные задачи-образцы. Каждая лежит
   в той же раскладке, что и результат оркестратора `outputs/<problem_id>/`
   (`constraints.yaml`, `validator.cpp`, `checker.cpp`, `generators/`,
