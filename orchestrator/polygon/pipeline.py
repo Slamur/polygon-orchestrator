@@ -229,7 +229,7 @@ def _sync_baseline(
             f"'{problem_id}': Polygon problem id={state.polygon_id} has uncommitted changes "
             "in its working copy — commit or discard them on Polygon first (push refuses "
             "to commit them, even with --force), then run "
-            f"orchestrator polygon pull {problem_id} [--overwrite]"
+            f"`orchestrator polygon pull {problem_id} [--overwrite]`"
         )
     if force:
         logger.info("--force: uploading everything, the sync baseline is ignored")
@@ -238,15 +238,15 @@ def _sync_baseline(
         raise PolygonStepError(
             f"'{problem_id}': the Polygon revision of the last sync is unknown (the problem "
             "was linked to an existing Polygon problem or before revisions were recorded) — "
-            f"run orchestrator polygon pull {problem_id} [--overwrite] first, or overwrite "
-            f"Polygon with orchestrator polygon push {problem_id} --force"
+            f"run `orchestrator polygon pull {problem_id} [--overwrite]` first, or overwrite "
+            f"Polygon with `orchestrator polygon push {problem_id} --force`"
         )
     if current.revision != state.revision:
         raise PolygonStepError(
             f"'{problem_id}': Polygon problem id={state.polygon_id} changed since the last "
             f"sync (revision {current.revision} on Polygon, {state.revision} recorded) — "
-            f"run orchestrator polygon pull {problem_id} [--overwrite], or overwrite "
-            f"Polygon with orchestrator polygon push {problem_id} --force"
+            f"run `orchestrator polygon pull {problem_id} [--overwrite]`, or overwrite "
+            f"Polygon with `orchestrator polygon push {problem_id} --force`"
         )
     logger.info("Polygon revision %s matches the last sync", current.revision)
     return dict(state.synced)

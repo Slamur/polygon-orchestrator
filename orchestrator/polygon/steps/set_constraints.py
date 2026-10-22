@@ -92,8 +92,8 @@ def read_limits(problem_id: str, outputs_dir: Path) -> tuple[int, int]:
     if not constraints_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {constraints_path} not found — first run "
-            f"the generative step constraints_pick (orchestrator llm generate {problem_id} "
-            "--step constraints_pick)"
+            f"the generative step constraints_pick (`orchestrator llm generate {problem_id} "
+            "--step constraints_pick`)"
         )
 
     try:

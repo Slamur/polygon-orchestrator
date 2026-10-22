@@ -105,8 +105,8 @@ def require_polygon_state(ctx: StepContext) -> PolygonState:
     if state is None:
         raise PolygonStepError(
             f"'{ctx.problem_id}': the problem is not created on Polygon yet — first "
-            f"run the create_problem step (orchestrator polygon push {ctx.problem_id} "
-            "--step create_problem)"
+            f"run the create_problem step (`orchestrator polygon push {ctx.problem_id} "
+            "--step create_problem`)"
         )
     return state
 

@@ -84,8 +84,8 @@ def _read_validator(problem_id: str, outputs_dir: Path) -> bytes:
     if not validator_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {validator_path} not found — first run "
-            f"the generative step constraints_pick (orchestrator llm generate {problem_id} "
-            "--step constraints_pick)"
+            f"the generative step constraints_pick (`orchestrator llm generate {problem_id} "
+            "--step constraints_pick`)"
         )
 
     return validator_path.read_bytes()
