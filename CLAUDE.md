@@ -41,9 +41,12 @@ Python-оркестратор, который берёт структуриро�
   (`upload_validator`), назначение чекера (`upload_checker`: для
   `checker.custom_needed: true` — загрузка `outputs/<problem_id>/checker.cpp`,
   иначе — стандартный чекер из `checker.standard` без загрузки файла).
-  После каждого успешного polygon-шага (кроме `create_problem`) рабочая
-  копия задачи коммитится (`problem.commitChanges`, `minorChanges=true`) —
-  при падении на очередном шаге всё сделанное предыдущими уже в ревизии.
+  Шаги загружают только то, что изменилось с последней синхронизации с
+  Polygon (база — `revision`/`synced` в `polygon_state.json`, см.
+  `orchestrator/polygon/sync.py`). После каждого polygon-шага, который
+  что-то загрузил (кроме `create_problem`), рабочая копия задачи
+  коммитится (`problem.commitChanges`, `minorChanges=true`) — при падении
+  на очередном шаге всё сделанное предыдущими уже в ревизии.
   Остальные шаги интеграции (прочие файлы, packages) — позже, по мере
   проработки.
 
@@ -128,9 +131,10 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
 │   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
-│   │   ├── pull.py                 # pull_problem — привязка к существующей задаче и выгрузка недостающих локально файлов (обратное направление к steps/)
+│   │   ├── sync.py                 # база синхронизации: ключи элементов задачи, sha256, fetch_revision (ревизия задачи на Polygon)
+│   │   ├── pull.py                 # pull_problem — привязка к существующей задаче, сравнение с ней и выгрузка (обратное направление к steps/)
 │   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions
-│   │   └── pipeline.py             # run_polygon_pipeline (commitChanges после каждого шага) / compute_polygon_step_statuses — без кэша
+│   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
@@ -146,7 +150,8 @@ Python-оркестратор, который берёт структуриро�
         │   └── checker_draft.json
         ├── llm_generation.log      # лог `orchestrator llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
         ├── polygon.log             # лог `orchestrator polygon push <id>` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
-        ├── polygon_state.json      # problem_id -> Polygon problemId + что каждый polygon-шаг последним отправил (steps); не в .cache/ — это факт состояния на Polygon, не кэш шага
+        ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256); не в .cache/ — это факт состояния на Polygon, не кэш шага
+        ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull --overwrite`
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
@@ -260,30 +265,44 @@ Python-оркестратор, который берёт структуриро�
   `problem_id` (или по одному, если указан) печатает таблицу "шаг → cache
   hit / stale / not run", используя те же хеши, что и `llm generate`. Полезно, чтобы
   до реального запуска увидеть, что вообще изменилось после правки спеков.
-- `orchestrator polygon push <problem_id> [--step NAME]` — прогон
-  polygon-шагов по порядку `POLYGON_STEP_ORDER`, без кэша (каждый шаг
-  вызывается всегда, идемпотентность — через `check_done` самого шага),
-  поэтому `--force` там нет. Реально обращается к Polygon API — те же
-  ограничения на запуск без явной команды, что и для `llm generate`.
+- `orchestrator polygon push <problem_id> [--step NAME] [--force]` — прогон
+  polygon-шагов по порядку `POLYGON_STEP_ORDER`; каждый шаг загружает
+  только элементы задачи, изменившиеся с последней синхронизации (как
+  `git push` с проверкой fast-forward). Перед первой загрузкой один запрос
+  сверяет ревизию задачи на Polygon с записанной: если Polygon меняли в
+  обход оркестратора (другая ревизия или незакоммиченные правки в рабочей
+  копии) — push останавливается и предлагает `polygon pull` или
+  `--force`. Ревизия неизвестна (задача привязана до появления этой
+  проверки) — загружается всё. `--force` загружает всё без проверки и
+  затирает правки, сделанные на Polygon. Реально обращается к Polygon
+  API — те же ограничения на запуск без явной команды, что и для
+  `llm generate`.
 - `orchestrator polygon status <problem_id>` — что из polygon-шагов уже
   сделано, без обращения к сети: `done / stale / not run` по
-  `PolygonStep.compute_status` (сравнение того, что шаг последним отправил в
-  Polygon, с тем, что он отправил бы сейчас из локальных файлов). На `polygon push`
-  это не влияет — ручные правки в UI Polygon локально не видны, поэтому
-  шаги по этой записи не пропускаются.
+  `PolygonStep.compute_status` (сравнение локальных файлов с базой
+  синхронизации — тем, что последний push загрузил или pull увидел на
+  Polygon). Правки на Polygon после последней синхронизации отсюда не
+  видны — их замечает только `polygon push`/`pull`.
 
-- `orchestrator polygon pull <problem_id> [--polygon-id N]` — обратное
-  направление: привязывает `problem_id` к уже существующей на Polygon
-  задаче (по `polygon_state.json`, иначе поиском неудалённой задачи с
-  именем `problem_id`; `--polygon-id` дополнительно сужает поиск, если задач
-  с таким именем несколько) и скачивает в `outputs/<problem_id>/` те части задачи, которых
-  локально НЕТ: условие и примеры, TL/ML (`constraints.yaml` только с
-  секцией `limits` — это не результат `constraints_pick`), валидатор,
-  нестандартный чекер, генераторы, test-script, решения. Существующие
-  локальные файлы не перезаписываются; каталог задачи создаётся, если его
-  нет; спек не нужен. На Polygon ничего не меняет (только чтение), но в
-  сеть ходит — те же ограничения на запуск без явной команды. Детали — в
-  докстринге `orchestrator/polygon/pull.py`.
+- `orchestrator polygon pull <problem_id> [--polygon-id N] [--overwrite]` —
+  обратное направление: привязывает `problem_id` к уже существующей на
+  Polygon задаче (по `polygon_state.json`, иначе поиском неудалённой задачи
+  с именем `problem_id`; `--polygon-id` дополнительно сужает поиск, если
+  задач с таким именем несколько), сравнивает с ней части задачи, которыми
+  пользуется оркестратор (условие и примеры, TL/ML, валидатор,
+  нестандартный чекер, генераторы, test-script, решения), скачивает в
+  `outputs/<problem_id>/` недостающие локально и переписывает базу
+  синхронизации по текущей ревизии Polygon. Отличающиеся от Polygon файлы
+  без `--overwrite` остаются локальными (следующий push их загрузит), с
+  `--overwrite` заменяются версией с Polygon, а старые переносятся в
+  `.pull_backup/` (как `git fetch` / `git reset --hard`). Файлы, которых
+  нет на Polygon, явно перечисляются и никогда не удаляются;
+  `constraints.yaml` — результат `constraints_pick` — не перезаписывается
+  и с `--overwrite` (TL/ML — только сообщение о расхождении). Отказывается
+  работать, если на Polygon есть незакоммиченные правки. Каталог задачи
+  создаётся, если его нет; спек не нужен. На Polygon ничего не меняет
+  (только чтение), но в сеть ходит — те же ограничения на запуск без явной
+  команды. Детали — в докстринге `orchestrator/polygon/pull.py`.
 
 `problem_id` во всех командах дополняется по Tab (`argcomplete`; разовая
 настройка shell — в `docs/SETUP.md`): кандидаты читаются из `specs/*.yaml`
