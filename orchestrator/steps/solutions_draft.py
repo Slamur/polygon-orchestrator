@@ -16,6 +16,7 @@ from orchestrator.steps.base import (
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
+    artifact_filename,
     run_generative_step,
     statement_io_section,
     with_default_lists,
@@ -187,7 +188,16 @@ def run_step(
     input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
-        return Path(outputs_dir) / problem_id / "solutions" / filename
+        return (
+            Path(outputs_dir)
+            / problem_id
+            / SOLUTIONS_SUBDIR
+            / artifact_filename(filename, SOLUTIONS_SUBDIR)
+        )
+
+    def validate_artifacts(artifacts: dict[str, str]) -> None:
+        for filename in artifacts:
+            resolve_artifact_path(filename)
 
     return run_generative_step(
         step_name=STEP_NAME,
@@ -196,6 +206,7 @@ def run_step(
         input_hash=input_hash,
         input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
+        validate_artifacts=validate_artifacts,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,

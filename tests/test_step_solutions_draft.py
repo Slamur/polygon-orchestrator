@@ -298,3 +298,42 @@ def test_compute_input_hash_changes_when_alternative_approaches_change(spec):
     )
 
     assert compute_input_hash("valid-spec", spec_alt, upstream) != h1
+
+
+def test_solution_name_with_solutions_prefix_is_not_nested(spec, tmp_path):
+    response = ModelResponse(
+        status="confirmed", artifacts={"solutions/ok_py_main_draft.py": "print(1)\n"}, notes=[]
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        run_step(
+            "valid-spec",
+            spec,
+            {"constraints.yaml": "n_max: 1"},
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    solutions_dir = tmp_path / "valid-spec" / "solutions"
+    assert (solutions_dir / "ok_py_main_draft.py").exists()
+    assert not (solutions_dir / "solutions").exists()
+
+
+def test_solution_name_with_foreign_path_raises_and_writes_nothing(spec, tmp_path):
+    response = ModelResponse(
+        status="confirmed",
+        artifacts={"ok_py_main_draft.py": "print(1)\n", "generators/ok_cpp_x_draft.cpp": ""},
+        notes=[],
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        with pytest.raises(ValueError, match="not a plain file name"):
+            run_step(
+                "valid-spec",
+                spec,
+                {"constraints.yaml": "n_max: 1"},
+                prompts_dir=PROMPTS_DIR,
+                outputs_dir=tmp_path,
+                templates_dir=TEMPLATES_DIR,
+            )
+
+    assert not (tmp_path / "valid-spec").exists()

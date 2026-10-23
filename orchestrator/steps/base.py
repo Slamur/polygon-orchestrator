@@ -26,7 +26,7 @@ from __future__ import annotations
 import datetime
 import shutil
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable
 
 import jinja2
@@ -335,6 +335,26 @@ def ensure_problem_lib(
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(template, path)
     return path
+
+
+def artifact_filename(filename: str, subdir: str | None = None) -> str:
+    """Имя файла артефакта без каталога, для шагов, которые сами решают, в
+    какой каталог `outputs/<problem_id>/` его положить. Заголовки образцов,
+    которые видит модель, — пути вида `.../generators/gen_rand.cpp`, и
+    модель может вернуть ключ `generators/gen_rand.cpp` вместо
+    `gen_rand.cpp`: префикс `subdir` (каталог, куда шаг и так кладёт файл)
+    снимается. Любой другой путь — `ValueError`: иначе файл лёг бы во
+    вложенный каталог (`generators/generators/`) или за пределы задачи."""
+    parts = PurePosixPath(filename).parts
+    if subdir is not None and len(parts) == 2 and parts[0] == subdir:
+        parts = parts[1:]
+    if len(parts) != 1 or parts[0] in (".", ".."):
+        expected = f"'<name>' or '{subdir}/<name>'" if subdir else "'<name>'"
+        raise ValueError(
+            f"artifact name '{filename}' from the model is not a plain file name "
+            f"(expected {expected})"
+        )
+    return parts[0]
 
 
 def _write_artifacts(

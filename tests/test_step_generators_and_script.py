@@ -470,3 +470,42 @@ def test_run_step_restores_dropped_script_functions_with_note(spec, tmp_path):
         assert f"<#function {name} " in script
     assert [note["field"] for note in result.notes] == ["test_script_groups"]
     assert result.notes[0]["kind"] == "restored"
+
+
+def _run_with_artifacts(spec, tmp_path, artifacts):
+    response = ModelResponse(status="confirmed", artifacts=artifacts, notes=[])
+    upstream = {"constraints.yaml": "n_max: 100000\ntime_limit_seconds: 2"}
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        return run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            outputs_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+
+def test_generator_name_with_generators_prefix_is_not_nested(spec, tmp_path):
+    valid_cpp = (CPP_FIXTURES_DIR / "valid_generator.cpp").read_text(encoding="utf-8")
+
+    result = _run_with_artifacts(
+        spec, tmp_path, {"generators/gen_rand.cpp": valid_cpp, "test_script_groups": SCRIPT_FUNCTIONS}
+    )
+
+    generators_dir = tmp_path / "valid-spec" / "generators"
+    assert (generators_dir / "gen_rand.cpp").exists()
+    assert not (generators_dir / "generators").exists()
+    binary_path = result.compile_results["generators/gen_rand.cpp"].binary_path
+    if binary_path:
+        binary_path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize(
+    "bad_name", ["other/gen_rand.cpp", "../gen_rand.cpp", "generators/sub/gen_rand.cpp", "dir/test_script"]
+)
+def test_artifact_name_with_foreign_path_raises_and_writes_nothing(spec, tmp_path, bad_name):
+    with pytest.raises(ValueError, match="not a plain file name"):
+        _run_with_artifacts(spec, tmp_path, {"test_script_groups": SCRIPT_FUNCTIONS, bad_name: "x"})
+
+    assert not (tmp_path / "valid-spec").exists()
