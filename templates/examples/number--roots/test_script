@@ -41,21 +41,25 @@
 
 <#assign desc = "Constraints"/>
 <#assign minN = 1/>
-<#assign maxN = pow(10, 18)/>
+<#assign maxNExp = 18/>
+<#assign maxN = pow(10, maxNExp)/>
 
-<#-- наибольшие B, для которых B^2/B^3/B^6 <= maxN; значения близки к 10^9 / 10^6 / 1000,
-     как явно указано автором в specific_test_ideas -->
-<#assign maxB_sq = pow(10, 9)/>
-<#assign maxB_cube = pow(10, 6)/>
-<#assign maxB_six = pow(10, 3)/>
-
-<#assign ks = [2, 3, 4, 5, 6, 12]/>
-<#assign deltas = [-1, 0, 1]/>
+<#assign desc = "Script functions"/>
+<#-- наибольшее p, для которого base^p <= limit -->
+<#function max_exp base limit>
+    <#list 1..64 as p>
+        <#if pow(base, p) gt limit>
+            <#return p - 1/>
+        </#if>
+    </#list>
+</#function>
 
 <#assign desc = "Generation"/>
+<#assign deltas = [-1, 0, 1]/>
 
 <#assign desc = "Small tests"/>
-<#list minN..30 as n>
+<#assign tinyMaxN = 30/>
+<#list minN..tinyMaxN as n>
     ${randGen} -minN=${n} -maxN=${n} > $
 </#list>
 
@@ -63,45 +67,43 @@
 ${randGen} -minN=${minN} -maxN=${smallMaxN} > $
 ${randGen} -minN=${smallMaxN} -maxN=${smallMaxN * smallMaxN} > $
 
-<#assign desc = "Edge cases: exact powers near their boundaries"/>
-
-<#-- степени двойки 2^p и 2^p - 1, p от 1 до 59 (2^60 уже превышает maxN) -->
-<#list 1..59 as p>
-    ${baseGen} -b=2 -p=${p} -delta=0 -minN=${minN} -maxN=${maxN} > $
-    ${baseGen} -b=2 -p=${p} -delta=-1 -minN=${minN} -maxN=${maxN} > $
-</#list>
-
-<#-- степени десятки 10^p и 10^p - 1, p от 1 до 17; p = 18 выделен отдельно в разделе максимальных тестов -->
-<#list 1..17 as p>
-    ${baseGen} -b=10 -p=${p} -delta=0 -minN=${minN} -maxN=${maxN} > $
-    ${baseGen} -b=10 -p=${p} -delta=-1 -minN=${minN} -maxN=${maxN} > $
-</#list>
-
-<#-- обязательное использование gen_n_power: k = 2, 3, 6 (основное требование) и k = 4, 5, 12 (дополнительное),
-     delta из {-1, 0, +1}, B случайный по всему допустимому диапазону (maxB по умолчанию из генератора) -->
-<#list ks as k>
-    <#list deltas as delta>
-        ${powerGen} -k=${k} -minB=${minN} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
+<#assign desc = "Edge cases: powers of 2 and 10"/>
+<#-- b^p + delta; N <= tinyMaxN уже есть среди мелких тестов,
+     N = maxN - 1 и maxN = 10^18 — в максимальных тестах ниже -->
+<#list [2, 10] as b>
+    <#list 1..max_exp(b, maxN) as p>
+        <#list deltas as delta>
+            <#assign n = pow(b, p) + delta/>
+            <#if n gt tinyMaxN && n lt maxN - 1>
+                ${baseGen} -b=${b} -p=${p} -delta=${delta} > $
+            </#if>
+        </#list>
     </#list>
 </#list>
 
-<#-- точные квадраты/кубы/шестые степени для B на верхней границе своего диапазона
-     (близких к 10^9 / 10^6, включая максимальное B = 1000 для k = 6), delta из {-1, 0, +1} -->
-<#list deltas as delta>
-    ${powerGen} -k=2 -minB=${maxB_sq} -maxB=${maxB_sq} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
+<#assign desc = "Edge cases: random B^k + delta"/>
+<#-- B случайно до наибольшего допустимого; при delta = -1 B >= 2, иначе N = 0 -->
+<#list [2, 3, 4, 5, 6, 12] as k>
+    <#list deltas as delta>
+        ${powerGen} -k=${k} -maxN=${maxN} -minB=${max(1, 1 - delta)} -delta=${delta} > $
+    </#list>
 </#list>
-<#list deltas as delta>
-    ${powerGen} -k=3 -minB=${maxB_cube} -maxB=${maxB_cube} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
-</#list>
-<#list deltas as delta>
-    ${powerGen} -k=6 -minB=${maxB_six} -maxB=${maxB_six} -delta=${delta} -minN=${minN} -maxN=${maxN} > $
+
+<#assign desc = "Edge cases: B^k + delta for the largest B"/>
+<#-- maxN = 10^maxNExp — точная k-я степень topB = 10^(maxNExp / k) для k = 2, 3, 6
+     (10^9, 10^6, 10^3); topB^k + delta (N = maxN - 1 и maxN) — в максимальных тестах ниже,
+     здесь B = topB - 1: наибольшее B, для которого допустимы все delta -->
+<#list [2, 3, 6] as k>
+    <#assign topB = pow(10, div(maxNExp, k))/>
+    <#list deltas as delta>
+        ${baseGen} -b=${topB - 1} -p=${k} -delta=${delta} > $
+    </#list>
 </#list>
 
 <#assign desc = "Maximal tests"/>
-
 <#-- N = 10^18 (одновременно 10^6 в кубе и 10^9 в квадрате) и N = 10^18 - 1 -->
-${baseGen} -b=10 -p=18 -delta=0 -minN=${minN} -maxN=${maxN} > $
-${baseGen} -b=10 -p=18 -delta=-1 -minN=${minN} -maxN=${maxN} > $
+${randGen} -minN=${maxN} -maxN=${maxN} > $
+${randGen} -minN=${maxN - 1} -maxN=${maxN - 1} > $
 
 <#assign desc = "Specific: random N across the whole range"/>
 ${randGen} -minN=${minN} -maxN=${maxN} > $
