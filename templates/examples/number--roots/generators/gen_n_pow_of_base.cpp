@@ -5,7 +5,6 @@ int main(int argc, char **argv) {
 
 	const ll b = opt<ll>("b");
 	const int p = opt<int>("p");
-	const ll delta = opt<ll>("delta");
 
 	auto gen_test = [&]() {
 		ll n = 1;
@@ -14,6 +13,7 @@ int main(int argc, char **argv) {
 			n *= b;
 		}
 
+		ll delta = rnd.next(-1, 1);
 		println(n + delta);
 	};
 
