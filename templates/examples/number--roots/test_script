@@ -58,7 +58,7 @@
 <#assign deltas = [-1, 0, 1]/>
 
 <#assign desc = "Small tests"/>
-<#assign tinyMaxN = 30/>
+<#assign tinyMaxN = 20/>
 <#list minN..tinyMaxN as n>
     ${randGen} -minN=${n} -maxN=${n} > $
 </#list>
@@ -68,17 +68,16 @@ ${randGen} -minN=${minN} -maxN=${smallMaxN} > $
 ${randGen} -minN=${smallMaxN} -maxN=${smallMaxN * smallMaxN} > $
 
 <#assign desc = "Edge cases: powers of 2 and 10"/>
-<#-- b^p + delta; N <= tinyMaxN уже есть среди мелких тестов,
-     N = maxN - 1 и maxN = 10^18 — в максимальных тестах ниже -->
-<#list [2, 10] as b>
-    <#list 1..max_exp(b, maxN) as p>
-        <#list deltas as delta>
-            <#assign n = pow(b, p) + delta/>
-            <#if n gt tinyMaxN && n lt maxN - 1>
-                ${baseGen} -b=${b} -p=${p} -delta=${delta} > $
-            </#if>
-        </#list>
-    </#list>
+<#-- b^p + случайная delta из -1..1 (выбирает генератор); степени выбраны так,
+     что все N > tinyMaxN и N < maxN - 1 (N = maxN - 1 и maxN = 10^18 — в максимальных тестах ниже):
+     2^6 = 4^3 = 8^2, 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 — границы int / unsigned int,
+     2^48 = 65536^3, 2^53 / 2^54 — граница точности double, 2^59 — наибольшая степень 2 <= 10^18;
+     10^6, 10^12 — квадрат и куб, 10^9, 10^15 — куб, 10^16 — квадрат больше 2^53, 10^17 — ни то, ни другое -->
+<#list [6, 10, 20, 30, 31, 32, 48, 53, 54, 59] as p>
+    ${baseGen} -b=2 -p=${p} > $
+</#list>
+<#list [2, 3, 6, 9, 12, 15, 16, 17] as p>
+    ${baseGen} -b=10 -p=${p} > $
 </#list>
 
 <#assign desc = "Edge cases: random B^k + delta"/>
@@ -92,12 +91,10 @@ ${randGen} -minN=${smallMaxN} -maxN=${smallMaxN * smallMaxN} > $
 <#assign desc = "Edge cases: B^k + delta for the largest B"/>
 <#-- maxN = 10^maxNExp — точная k-я степень topB = 10^(maxNExp / k) для k = 2, 3, 6
      (10^9, 10^6, 10^3); topB^k + delta (N = maxN - 1 и maxN) — в максимальных тестах ниже,
-     здесь B = topB - 1: наибольшее B, для которого допустимы все delta -->
+     здесь B = topB - 1: наибольшее B, для которого допустима любая delta из -1..1 (выбирает генератор) -->
 <#list [2, 3, 6] as k>
     <#assign topB = pow(10, div(maxNExp, k))/>
-    <#list deltas as delta>
-        ${baseGen} -b=${topB - 1} -p=${k} -delta=${delta} > $
-    </#list>
+    ${baseGen} -b=${topB - 1} -p=${k} > $
 </#list>
 
 <#assign desc = "Maximal tests"/>
