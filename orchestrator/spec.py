@@ -174,7 +174,19 @@ class Generation(BaseModel):
     references: Optional[list[str]] = None
 
 
-_ALLOWED_VERDICTS = {"ok", "wa", "tl", "tle", "ml", "mle", "re"}
+# `tl_ok` — "TL или OK": пограничное по времени решение или решение без
+# ускорения ввода-вывода (`templates/common/tutorials/solutions.md`).
+_ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re"}
+
+
+def split_solution_stem(stem: str) -> list[str]:
+    """Токены имени решения `<verdict>_<language>_<description>_<author>`
+    (`stem` — без расширения). Вердикт сам может содержать `_` (`tl_ok`) —
+    такой склеивается обратно в один первый токен."""
+    parts = stem.split("_")
+    if len(parts) >= 2 and f"{parts[0]}_{parts[1]}".lower() in _ALLOWED_VERDICTS:
+        return [f"{parts[0]}_{parts[1]}", *parts[2:]]
+    return parts
 
 
 class Solutions(BaseModel):
@@ -183,6 +195,7 @@ class Solutions(BaseModel):
     wanted_verdicts: list[str] = Field(min_length=1)
     languages: list[str] = Field(min_length=1)
     algorithm_hint: str
+    alternative_approaches: Optional[list[str]] = None
     known_wrong_approaches: Optional[list[str]] = None
     references: Optional[list[str]] = None
 

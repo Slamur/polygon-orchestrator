@@ -38,6 +38,11 @@ Output: автор не указал — не вычисляй сам.
 wanted_verdicts: {{ solutions.wanted_verdicts }}
 languages: {{ solutions.languages }}
 
+## Альтернативные верные подходы (если есть)
+{% for a in solutions.alternative_approaches %}
+- {{ a }}
+{% endfor %}
+
 ## Известные неверные подходы (если есть)
 {% for w in solutions.known_wrong_approaches %}
 - {{ w }}

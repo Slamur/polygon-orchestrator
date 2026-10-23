@@ -300,3 +300,15 @@ def test_status_stale_after_rename_or_removal(outputs_dir, spec):
     for path in solutions_dir.iterdir():
         path.unlink()
     assert STEP.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
+
+
+def test_tl_ok_is_tagged_to(outputs_dir, spec):
+    _link(outputs_dir)
+    _write_solutions(
+        outputs_dir, {"ok_cpp_main_draft.cpp": b"", "tl_ok_java_slowio_draft.java": b""}
+    )
+    client = MagicMock()
+
+    _run(spec, outputs_dir, client)
+
+    assert _tags(client)["tl_ok_java_slowio_draft.java"] == "TO"

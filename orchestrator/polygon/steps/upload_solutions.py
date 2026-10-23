@@ -10,7 +10,8 @@
   ответов на тесты, `templates/common/tutorials/solutions.md`, "Решения в Polygon"),
   выбор — по приоритету языков `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по
   алфавиту имён;
-- остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `wa` -> `WA`, `ml`/`mle` -> `ML`;
+- остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL или OK"),
+  `wa` -> `WA`, `ml`/`mle` -> `ML`;
 - всё прочее допустимое (`re`) -> `RJ` ("Incorrect").
 
 Риск 1: `Solutions.languages` в спеке — `list[str]` без ограничения
@@ -24,11 +25,6 @@
 ожидает Polygon для каждого языка; предполагается, что он определит язык по
 расширению, как в `upload_validator`/`upload_generators`. Первый реальный
 вызов обязательно сверить в UI.
-
-Различение `TL` / "TL или OK" (`TO`, например, для решения без оптимизации
-ввода/вывода) сознательно не автоматизировано: в контракте `solutions_draft`
-нет машиночитаемого признака такого решения — правится автором вручную
-после загрузки.
 
 Все имена файлов разбираются и Main correct выбирается до первого сетевого
 вызова: файл с неподходящим именем — `PolygonStepError`, а не тихий пропуск.
@@ -65,6 +61,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import digest, solution_key
+from orchestrator.spec import split_solution_stem
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +81,7 @@ _LANGUAGE_ALIASES = {
 
 # Совпадает с `orchestrator.spec._ALLOWED_VERDICTS` (допустимые
 # `solutions.wanted_verdicts`).
-_VALID_VERDICTS = {"ok", "wa", "tl", "tle", "ml", "mle", "re"}
+_VALID_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re"}
 
 
 @dataclass(frozen=True)
@@ -170,8 +167,9 @@ def _parse_solution_filename(path: Path) -> _ParsedSolution:
     """Разбирает `<verdict>_<language>_<description>_<author>.<ext>`.
     `description` может содержать подчёркивания — берутся только первые два
     токена как verdict/language, остальное не разбирается (author для тега
-    не нужен). Минимум 3 токена в stem."""
-    parts = path.stem.split("_")
+    не нужен); составной вердикт (`tl_ok`) — один токен
+    (`split_solution_stem`). Минимум 3 токена в stem."""
+    parts = split_solution_stem(path.stem)
     if len(parts) < 3:
         raise PolygonStepError(
             f"'{path.name}': file name does not match the pattern "
@@ -223,7 +221,9 @@ def _tag_for(parsed: _ParsedSolution, main_name: str) -> str:
     if parsed.verdict == "ok":
         return "OK"
     if parsed.verdict in ("tl", "tle"):
-        return "TL"  # не TO — см. докстринг модуля
+        return "TL"
+    if parsed.verdict == "tl_ok":
+        return "TO"
     if parsed.verdict == "wa":
         return "WA"
     if parsed.verdict in ("ml", "mle"):

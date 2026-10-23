@@ -1,0 +1,35 @@
+{
+  "accepted": false,
+  "input_hash": "63908acafcebc69ac6e8d61be61bab531de2d17ce95611e5f6926ff424fc63fb",
+  "input_parts": {
+    "spec: constraints.intended_complexity": "18715a84a24c00f86beb39f12f4a25346b383e35cd4a937dfcb7586800becf46",
+    "spec: solutions.algorithm_hint": "94d0765917807107d143a324b5f907a722326f4cd9126f30b71a08e02393f8c9",
+    "spec: solutions.known_wrong_approaches": "5b0b4ac9110824f8aa171a004d55e11690766cb65700733ce8f7cac987410a0c",
+    "spec: solutions.languages": "a5db965a63d984f52b0ab5e5d8d10a4f4c7aea975fe57b73b0652a0014a0a477",
+    "spec: solutions.wanted_verdicts": "3de05fd5481fd05a4522654ad226a636c3450db61c11f5b90c6b1ac35bffebee",
+    "spec: statement.formal_input_sketch": "12fc1fde7c2e273495e21470e94699409e4f467e78ba2af672f225f0020e8e48",
+    "spec: statement.formal_output_sketch": "f4519eefa6e26db55eeefb561d07d037a1218161d455bc4590e569f7adf1adce",
+    "spec: statement.indexing": "0c098d025884445a1116ec6fffa574f32d50c0b6fe4a43c3d68f3c41f2048d20",
+    "spec: statement.legend_sketch": "2f7a30f1e04ffd3aac1e60200f8a157927d6f7018a6c577f12c2dbb41336b95e",
+    "spec: statement.sample_examples": "841ac50589ad6412d3cd6b3083d52edcb9c53bf4a01d9d500d81826d866fa540",
+    "upstream: constraints.yaml": "88db3d90c4baea8d11e00717e1d60e213187a8c24b0663774080714285c02ba6"
+  },
+  "model": "strong-model",
+  "prompt_hash": "535c2858268420db2622c238a104a7cd50de123103f05d45bf3f70ffec900d9a",
+  "prompt_parts": {
+    "document: common/tutorials/limits.md": "b91ca33f72e01bf13545b48dcca9a845afa1fc55c86cd1875e95f839196cdd27",
+    "document: common/tutorials/solutions.md": "9f037e92fd053943cc3a2e043bcc47d98b2bbe51061f75d5ff687349176dc68c",
+    "document: examples/array--prefix-sums/solutions/ok_cpp_prefs_draft.cpp": "2510059ca203d4eccd0c975ca0035e8abe5e6db68480c59add632b9d9e8a3ac9",
+    "document: examples/array--prefix-sums/solutions/ok_java_prefs_draft.java": "bd09598aee3df306e81a3c2c54b6f9ff7236884438ba09588c24532d6bdc1a5f",
+    "document: examples/array--prefix-sums/solutions/ok_py_prefs_draft.py": "f4a117aa5268cb1a0ab93c9ecbff2f71e91851eaeb99746978b604a840279b23",
+    "document: examples/array--prefix-sums/solutions/tl_cpp_n2_draft.cpp": "efb8cef6d137c0d9b3f3c992453ed4c70fdb109b9eef1a6c1440fc585f60ef90",
+    "document: examples/array--prefix-sums/solutions/tl_java_slowio_draft.java": "f58ab237ae80dc3b3052e73c8948da35161f9d73af90afba77afb391426166f3",
+    "document: examples/array--prefix-sums/solutions/wa_cpp_overflow_draft.cpp": "75cff18460609e8bf020cf95da61d747fa076684ac8424740e4a97f580061753",
+    "document: examples/array--prefix-sums/solutions/wa_py_ge_draft.py": "80f973915c77f62b6e0566f239c883318ffe9fa13222da63471427e49ab6bc11",
+    "document: examples/array--prefix-sums/spec.yaml": "f446d873742b382ef614b915f15a10e8eb1236e816f34d5346bcf04e7731f98b",
+    "prompt: solutions_draft/system.md": "ee3f393699c1d63e0057b1510a051d2ebf637cb2b8ed0477917c9cdab3354556",
+    "prompt: solutions_draft/user.md.j2": "b0e7892eaee1beba33af8233c5a3a5192b72ac3c5a54dadfdc6a8db62b37f63b"
+  },
+  "status": "proposed",
+  "timestamp": "2026-10-22T17:31:57.691990+00:00"
+}

@@ -1,0 +1,35 @@
+{
+  "accepted": false,
+  "input_hash": "1b34b71bb72c6edda6dbf1062b45411104ecee888f892baf806c7c08b82c6a66",
+  "input_parts": {
+    "spec: generation.generator_ideas": "2021b8617c4c30d8088244db30002449d101038d2212d1bfd85d929fb1f13533",
+    "spec: generation.script_style": "df55e4df1c0bd28149cf57530c42b1fb21d390757dc7365b780d18220b384eae",
+    "spec: generation.specific_test_ideas": "b9849b7f998711206607a42f46812403419ea9d7556890c338de23f1be91f02b",
+    "spec: solutions.known_wrong_approaches": "5b0b4ac9110824f8aa171a004d55e11690766cb65700733ce8f7cac987410a0c",
+    "spec: statement.formal_input_sketch": "12fc1fde7c2e273495e21470e94699409e4f467e78ba2af672f225f0020e8e48",
+    "spec: statement.indexing": "0c098d025884445a1116ec6fffa574f32d50c0b6fe4a43c3d68f3c41f2048d20",
+    "spec: statement.sample_examples": "07349a8399dec67b7db399405f665f515684d1505fd46d4cc6ff6e7888d72d5c",
+    "upstream: constraints.yaml": "88db3d90c4baea8d11e00717e1d60e213187a8c24b0663774080714285c02ba6"
+  },
+  "model": "medium-model",
+  "prompt_hash": "b74d98d2fd76fc089e5939e0ae6abcc2e8ba8286e3bb5260e975e452c4115f69",
+  "prompt_parts": {
+    "document: common/problem_lib.h": "b198f16d8e139404f3678ce9a5ca39decf108ab8684d90decc151ddced9f434c",
+    "document: common/test_script_functions.ftl": "d2b640a5367dc6d8cfaa82c0b7d96ca75ffce08f38a7664ef52d0f7818e6d682",
+    "document: common/tutorials/freemarker.md": "c880b0b76f08eea3f15b06fde7b9722ae85d565033d3dbcedee879e06c7d0b70",
+    "document: common/tutorials/tests.md": "e6d383551ad41064702ed9e873b9acee24dae70737640621c5406081c3937825",
+    "document: examples/array--prefix-sums/constraints.yaml": "98f12d0d85a0a76aafc2270fdb79b139e3c214ee7d1dff665c5b88ad26532c81",
+    "document: examples/array--prefix-sums/generators/gen_array_distinct.cpp": "a9921e48f748ff39145304e9042057d5f7a331b8011234dd42c4ea1b6b3c86e6",
+    "document: examples/array--prefix-sums/generators/gen_array_rand.cpp": "de5276be5fbbb42909417addc80eaf5185cddb341ca372223afaf3edff632264",
+    "document: examples/array--prefix-sums/generators/gen_k_eq_pref.cpp": "4952daab87f20a3bef6d1ed550e6ebc193f0a303bd4e6dcc5b2d1e7bb8c98941",
+    "document: examples/array--prefix-sums/generators/gen_k_rand.cpp": "aa47c61f48548399229b57e51930df824bfa917f4e37a9c3daaf63e0f5cc2d5a",
+    "document: examples/array--prefix-sums/generators/gen_k_too_large.cpp": "59621bcddd5579ac5ca05ede33600449e4eabf45afa177b96a1f3ff9c90f76a8",
+    "document: examples/array--prefix-sums/generators/upd_array_sort.cpp": "4f724d7a3569e63eb81b3107ae8bb9febfd53c78103bc0a49ae12bba28286391",
+    "document: examples/array--prefix-sums/spec.yaml": "f446d873742b382ef614b915f15a10e8eb1236e816f34d5346bcf04e7731f98b",
+    "document: examples/array--prefix-sums/test_script": "6b7e57104e52717176421bc4fef13f63f0b16682a59a381cadb85db2a0ca143f",
+    "prompt: generators_and_script/system.md": "23fdd613b8af58ae9e394a37299f42c668089179c393b37ddd7c22c1459ba8d5",
+    "prompt: generators_and_script/user.md.j2": "ba3094a52e1296acfb107aa4d8dd9ccdea31052971e7ddb7522fd6f4b629033f"
+  },
+  "status": "proposed",
+  "timestamp": "2026-10-22T17:30:12.952913+00:00"
+}

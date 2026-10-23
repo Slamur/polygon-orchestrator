@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.spec import ProblemSpec, SpecValidationError, load_spec
+from orchestrator.spec import ProblemSpec, SpecValidationError, load_spec, split_solution_stem
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -243,3 +243,9 @@ def test_sample_example_input_still_required(tmp_path):
 
     assert "sample_examples[].input" in "\n".join(exc_info.value.errors)
 
+
+
+def test_split_solution_stem_keeps_combined_verdict_whole():
+    assert split_solution_stem("tl_ok_cpp_linear_draft") == ["tl_ok", "cpp", "linear", "draft"]
+    assert split_solution_stem("tl_cpp_linear_draft") == ["tl", "cpp", "linear", "draft"]
+    assert split_solution_stem("ok_py_main_draft") == ["ok", "py", "main", "draft"]
