@@ -57,16 +57,20 @@ generation:
       params: ["minN", "maxN"]
       purpose: "случайное N из диапазона [minN, maxN]"
     - name: "gen_n_power"
-      params: ["k", "minB", "maxB", "delta"]
+      params: ["k", "maxN", "minB", "delta"]
       purpose: |
-        N = B^k + delta для случайного B из [minB, maxB]; maxB по умолчанию —
-        наибольшее B, для которого B^k <= 10^18. Результат должен лежать в
-        [1, 10^18] (иначе генератор выбирает другое B или падает с ошибкой).
+        N = B^k + delta для случайного B из [minB, maxB], где maxB —
+        наибольшее B, для которого B^k + delta <= maxN (ищется бинпоиском
+        по ответу). Если minB > maxB — генератор падает с ошибкой.
         Обязательно используется с k = 2, 3, 6; также с k = 4, 5, 12 и
         delta из {-1, 0, +1}.
     - name: "gen_n_pow_of_base"
       params: ["b", "p", "delta"]
-      purpose: "N = b^p + delta для фиксированного основания (степени двойки, десятки и т.п.)"
+      purpose: |
+        N = b^p + delta для фиксированного основания (степени двойки,
+        десятки, наибольшие B для k = 2, 3, 6); падает, если b^p не
+        помещается в 64-битный тип. Диапазон N не проверяет — скрипт
+        вызывает генератор только для допустимых N.
   specific_test_ideas:
     - "все N от 1 до 30"
     - "N = 10^18 (это одновременно 10^6 в кубе и 10^9 в квадрате)"
@@ -74,8 +78,8 @@ generation:
     - "точные квадраты B^2 и B^2 - 1, B^2 + 1 для больших B (близких к 10^9)"
     - "точные кубы B^3 и B^3 - 1, B^3 + 1 для больших B (близких к 10^6)"
     - "шестые степени B^6 (оба корня целые) и B^6 +- 1, включая максимальное B = 1000"
-    - "степени двойки 2^p и 2^p - 1 для p до 59"
-    - "степени десятки 10^p и 10^p - 1"
+    - "степени двойки 2^p и 2^p +- 1 для p до 59"
+    - "степени десятки 10^p и 10^p +- 1"
     - "случайные N во всём диапазоне"
   script_style: "flat"
 
@@ -107,7 +111,10 @@ checker:
 
 meta:
   requirements_docs:
-    - "templates/common/tutorials/requirements.md"
-    - "templates/common/tutorials/polygon.md"
+    - "templates/common/tutorials/statement.md"
+    - "templates/common/tutorials/limits.md"
+    - "templates/common/tutorials/validator.md"
+    - "templates/common/tutorials/tests.md"
     - "templates/common/tutorials/freemarker.md"
-  status: "ready_for_generation"
+    - "templates/common/tutorials/solutions.md"
+  status: "reviewed"

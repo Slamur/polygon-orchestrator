@@ -18,6 +18,7 @@ from orchestrator.steps.base import (
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
+    artifact_filename,
     run_generative_step,
     statement_io_section,
     with_default_lists,
@@ -29,6 +30,9 @@ STEP_NAME = "generators_and_script"
 # (CLAUDE.md, "Кэширование по хешу спека": вход шага 3 — секция generation +
 # содержимое outputs/<id>/constraints.yaml, полученное на шаге 2).
 CONSTRAINTS_ARTIFACT = "constraints.yaml"
+
+# Каталог генераторов внутри outputs/<problem_id>/ — туда шаг кладёт `.cpp`.
+GENERATORS_SUBDIR = "generators"
 
 # Стандартные функции test-script'а (div, pow, fact, ...) — шаблон автора в
 # templates/common/. Модель обязана копировать блок целиком (prompts/
@@ -288,8 +292,12 @@ def run_step(
     def resolve_artifact_path(filename: str) -> Path:
         base = Path(outputs_dir) / problem_id
         if filename.endswith(".cpp"):
-            return base / "generators" / filename
-        return base / filename
+            return base / GENERATORS_SUBDIR / artifact_filename(filename, GENERATORS_SUBDIR)
+        return base / artifact_filename(filename)
+
+    def validate_artifacts(artifacts: dict[str, str]) -> None:
+        for filename in artifacts:
+            resolve_artifact_path(filename)
 
     return run_generative_step(
         step_name=STEP_NAME,
@@ -298,6 +306,7 @@ def run_step(
         input_hash=input_hash,
         input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
+        validate_artifacts=validate_artifacts,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
