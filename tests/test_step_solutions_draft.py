@@ -52,6 +52,18 @@ def test_extra_context_documents_filters_solutions_by_language(spec, tmp_path):
     ]
 
 
+def test_extra_context_documents_reads_language_after_combined_verdict(spec, tmp_path):
+    reference_dir = _write_reference(tmp_path)
+    (reference_dir / "solutions" / "tl_ok_java_slowio_draft.java").write_text("//", encoding="utf-8")
+
+    documents = extra_context_documents(_with_solutions(spec, ["java"], [str(reference_dir)]))
+
+    assert documents == [
+        str(reference_dir / "solutions" / "ok_java_a_draft.java"),
+        str(reference_dir / "solutions" / "tl_ok_java_slowio_draft.java"),
+    ]
+
+
 def test_extra_context_documents_accepts_language_aliases(spec, tmp_path):
     reference_dir = _write_reference(tmp_path)
 
@@ -265,3 +277,24 @@ def test_compute_input_hash_changes_when_sample_output_changes(spec):
     h2 = compute_input_hash("valid-spec", spec_changed, upstream)
 
     assert h1 != h2
+
+
+def test_user_prompt_includes_alternative_approaches(spec, tmp_path):
+    approach = "ok (cpp): вещественный корень с целочисленной корректировкой"
+    spec_alt = spec.model_copy(
+        update={"solutions": spec.solutions.model_copy(update={"alternative_approaches": [approach]})}
+    )
+    user_prompt = _run_and_get_user_prompt(spec_alt, tmp_path, {"constraints.yaml": "n_max: 1"})
+
+    assert approach in user_prompt
+
+
+def test_compute_input_hash_changes_when_alternative_approaches_change(spec):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    spec_alt = spec.model_copy(
+        update={"solutions": spec.solutions.model_copy(update={"alternative_approaches": ["ok: другой подход"]})}
+    )
+
+    assert compute_input_hash("valid-spec", spec_alt, upstream) != h1

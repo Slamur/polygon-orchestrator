@@ -60,7 +60,7 @@
 
 - Шаблон названий: <verdict><language><description>_<author>.<extension>:
 
-  - verdict - ok / tl / wa / re или комбинации;
+  - verdict - ok / tl / wa / re или комбинации (tl_ok - "TL или OK");
 
   - language - обычно дублирует extension;
 

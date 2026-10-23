@@ -10,7 +10,7 @@ from typing import Any, Optional
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
-from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
+from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, split_solution_stem
 from orchestrator.steps.base import (
     OUTPUTS_DIR,
     PROMPTS_DIR,
@@ -27,9 +27,9 @@ from orchestrator.steps.generators_and_script import (
 
 STEP_NAME = "solutions_draft"
 
-# Optional[list[...]]-поле секции solutions, по которому user.md.j2 делает
+# Optional[list[...]]-поля секции solutions, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
-_LIST_FIELDS = ["known_wrong_approaches"]
+_LIST_FIELDS = ["alternative_approaches", "known_wrong_approaches"]
 
 # Каталог решений внутри каталога-референса, см. `extra_context_documents`.
 SOLUTIONS_SUBDIR = "solutions"
@@ -132,7 +132,7 @@ def extra_context_documents(
 
 
 def _template_language(path: Path) -> Optional[str]:
-    parts = path.stem.split("_")
+    parts = split_solution_stem(path.stem)
     return parts[1] if len(parts) >= 2 else None
 
 
@@ -148,7 +148,7 @@ def run_step(
     """Прогоняет шаг `solutions_draft` для `problem_id`.
 
     Вход: секция `solutions` спека (`algorithm_hint`, `wanted_verdicts`,
-    `languages`, `known_wrong_approaches`) плюс зафиксированная асимптотика
+    `languages`, `alternative_approaches`, `known_wrong_approaches`) плюс зафиксированная асимптотика
     из `constraints.intended_complexity` — она уже провалидирована как
     непустая (`orchestrator.spec.Constraints`) и не пересчитывается заново,
     только передаётся в промпт как заданный факт. Плюс условие из
@@ -163,7 +163,8 @@ def run_step(
     (`spec.solutions is not None`) — без неё черновики решений не
     заказывались автором, и шаг не имеет смысла запускать.
 
-    Модель обязана взять алгоритм ТОЛЬКО из `solutions.algorithm_hint` и не
+    Модель обязана взять алгоритм ТОЛЬКО из `solutions.algorithm_hint` (и
+    `solutions.alternative_approaches` для дополнительных `ok`-решений) и не
     имеет права изобретать другой алгоритм или менять заявленную
     асимптотику (CLAUDE.md, "Роль каждого генеративного шага", п.4: "черновики
     решений с заявленными вердиктами... это не финальные решения", и
