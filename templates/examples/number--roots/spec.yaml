@@ -111,7 +111,10 @@ checker:
 
 meta:
   requirements_docs:
-    - "templates/common/tutorials/requirements.md"
-    - "templates/common/tutorials/polygon.md"
+    - "templates/common/tutorials/statement.md"
+    - "templates/common/tutorials/limits.md"
+    - "templates/common/tutorials/validator.md"
+    - "templates/common/tutorials/tests.md"
     - "templates/common/tutorials/freemarker.md"
-  status: "ready_for_generation"
+    - "templates/common/tutorials/solutions.md"
+  status: "reviewed"

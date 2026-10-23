@@ -58,6 +58,14 @@ def test_example_spec_is_a_valid_spec(example_dir):
 
 
 @examples
+def test_example_requirements_docs_exist(example_dir):
+    spec = _example_spec(example_dir)
+    repo_root = TEMPLATES_DIR.parent
+    missing = [doc for doc in spec.meta.requirements_docs if not (repo_root / doc).is_file()]
+    assert not missing, missing
+
+
+@examples
 def test_example_constraints_match_example_spec(example_dir):
     spec = _example_spec(example_dir)
     constraints = _example_constraints(example_dir)
