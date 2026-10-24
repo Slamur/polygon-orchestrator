@@ -175,7 +175,7 @@ class Generation(BaseModel):
 
 
 # `tl_ok` — "TL или OK": пограничное по времени решение или решение без
-# ускорения ввода-вывода (`templates/common/tutorials/solutions.md`).
+# ускорения ввода-вывода (`templates/tutorials/solutions.md`).
 _ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re"}
 
 
@@ -325,7 +325,7 @@ SPEC_FILENAME = "spec.yaml"
 
 # Шаблон черновика спека для `orchestrator <problem_id> init` (путь
 # относительно templates_dir). Шагам не прикладывается.
-SPEC_TEMPLATE = "common/spec_template.yaml"
+SPEC_TEMPLATE = "spec_template.yaml"
 
 # Значение `""` вместе с пробелами вокруг него — до комментария или конца строки.
 _TEMPLATE_PROBLEM_ID = re.compile(r'^problem_id:( *"" *)(?=#|$)', re.MULTILINE)

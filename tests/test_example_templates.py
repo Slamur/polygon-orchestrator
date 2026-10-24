@@ -22,7 +22,7 @@ from orchestrator.checks.compile_check import compile_check
 from orchestrator.polygon.steps.set_constraints import _extract_limits
 from orchestrator.spec import load_spec
 from orchestrator.references import SPEC_FILENAME
-from orchestrator.steps.base import COMMON_SUBDIR, EXAMPLES_DIR
+from orchestrator.steps.base import EXAMPLES_DIR
 from orchestrator.steps.generators_and_script import SCRIPT_FUNCTIONS_FILENAME, SCRIPT_NAMES
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -77,7 +77,7 @@ def test_example_constraints_follow_constraints_format(example_dir):
     # constraints_format.yaml прикладывается к constraints_pick как формат
     # результата — образцы не должны ему противоречить.
     format_keys = set(
-        yaml.safe_load((TEMPLATES_DIR / COMMON_SUBDIR / "constraints_format.yaml").read_text(encoding="utf-8"))
+        yaml.safe_load((TEMPLATES_DIR / "constraints_format.yaml").read_text(encoding="utf-8"))
     )
     constraints_keys = set(_example_constraints(example_dir))
     assert constraints_keys <= format_keys
@@ -114,7 +114,7 @@ def test_example_test_scripts_contain_standard_functions(example_dir):
     # Шаблон стандартных функций приложен к generators_and_script всегда, а
     # скрипт-образец — через референсы: если в образце окажется другой набор,
     # модель получит два противоречащих друг другу образца.
-    functions = (TEMPLATES_DIR / COMMON_SUBDIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
+    functions = (TEMPLATES_DIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
     for name in SCRIPT_NAMES:
         script_path = example_dir / name
         if script_path.exists():
@@ -126,9 +126,9 @@ def _compile(cpp_path: Path) -> str | None:
 
     `problem_lib.h` ищется, как в compile-check пайплайна, сначала в каталоге
     задачи (у образца может быть своя копия с функциями задачи), потом в
-    `templates/common/`."""
+    `templates/`."""
     example_dir = EXAMPLES_ROOT / _id(cpp_path).split("/")[0]
-    result = compile_check(cpp_path, [example_dir, TEMPLATES_DIR / COMMON_SUBDIR])
+    result = compile_check(cpp_path, [example_dir, TEMPLATES_DIR])
     if result.binary_path:
         result.binary_path.unlink(missing_ok=True)
     return None if result.success else result.stderr

@@ -29,7 +29,7 @@ def spec():
 # Путь от корня репозитория — так референс записывается в спеке.
 EXAMPLE_REF = "examples/array--prefix-sums"
 EXAMPLE_DIR = REPO_ROOT / EXAMPLE_REF
-SCRIPT_FUNCTIONS = (TEMPLATES_DIR / "common" / "test_script_functions.ftl").read_text(encoding="utf-8")
+SCRIPT_FUNCTIONS = (TEMPLATES_DIR / "test_script_functions.ftl").read_text(encoding="utf-8")
 
 
 def test_extra_context_documents_returns_generation_file_references(spec):

@@ -3,7 +3,7 @@ from pathlib import Path
 from orchestrator.checks.compile_check import CompileResult, compile_check
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "cpp"
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates" / "common"
+TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
 
 
 def test_compile_check_valid_cpp_succeeds():

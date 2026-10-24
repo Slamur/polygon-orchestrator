@@ -13,7 +13,6 @@ from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
-    COMMON_SUBDIR,
     OUTPUTS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -35,7 +34,7 @@ CONSTRAINTS_ARTIFACT = "constraints.yaml"
 GENERATORS_SUBDIR = "generators"
 
 # Стандартные функции test-script'а (div, pow, fact, ...) — шаблон автора в
-# templates/common/. Модель обязана копировать блок целиком (prompts/
+# templates/. Модель обязана копировать блок целиком (prompts/
 # generators_and_script/system.md), но на практике выкидывает неиспользуемые
 # функции, а автору они нужны под рукой при ручной правке скрипта, —
 # поэтому выкинутые дописываются механически (`restore_script_functions`).
@@ -312,7 +311,7 @@ def run_step(
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
         postprocess_artifacts=_restore_functions_in_artifacts(
-            (Path(templates_dir) / COMMON_SUBDIR / SCRIPT_FUNCTIONS_FILENAME).read_text(
+            (Path(templates_dir) / SCRIPT_FUNCTIONS_FILENAME).read_text(
                 encoding="utf-8"
             )
         ),

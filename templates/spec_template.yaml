@@ -1,5 +1,5 @@
 # Черновик спека задачи. Создан командой `orchestrator <problem_id> init`
-# из templates/common/spec_template.yaml.
+# из templates/spec_template.yaml.
 #
 # Полный формат с примерами и пояснениями — docs/SPEC_FORMAT.md.
 # [required] — без поля спек не пройдёт валидацию; [optional] — можно оставить

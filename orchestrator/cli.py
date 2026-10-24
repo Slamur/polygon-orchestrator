@@ -78,7 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser = pipelines.add_parser(
         "init",
         help="create outputs/<problem_id>/ with a draft spec.yaml from "
-        "templates/common/spec_template.yaml (never overwrites an existing spec)",
+        "templates/spec_template.yaml (never overwrites an existing spec)",
     )
     init_parser.set_defaults(handler="cmd_init")
 

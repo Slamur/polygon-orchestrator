@@ -9,7 +9,7 @@
 по главному решению, когда оно будет загружено отдельным (ещё не
 написанным) шагом — это осознанный порядок, не ошибка.
 
-`testIndex` примеров всегда 1..N без сдвига: templates/common/tutorials/statement.md
+`testIndex` примеров всегда 1..N без сдвига: templates/tutorials/statement.md
 требует, чтобы тестовые примеры были первыми тестами.
 
 Параметры `problem.saveTest` — по docs/POLYGON_API.md. Флаг "использовать

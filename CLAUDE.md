@@ -69,23 +69,22 @@ Python-оркестратор, который берёт структуриро�
 ├── docs/
 │   ├── SPEC_FORMAT.md            # формат входного спека, см. отдельный файл
 │   └── POLYGON_API.md            # документация Polygon API (методы, параметры, return objects)
-├── templates/                    # существующие шаблоны автора — НЕ трогать структуру,
-│   │                             # использовать как основу для генерации
-│   └── common/                   # общее для всех задач; include-каталог compile-check
-│       ├── problem_lib.h         # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
-│       ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
-│       ├── spec_template.yaml    # черновик спека для `orchestrator <problem_id> init`; шагам не прикладывается
-│       ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
-│       ├── testlib.h
-│       └── tutorials/
-│           ├── statement.md      # правила по условию (statement_draft)
-│           ├── limits.md         # правила по TL/ML (constraints_pick, solutions_draft)
-│           ├── validator.md      # правила по валидатору (constraints_pick)
-│           ├── tests.md          # правила по тестам, генераторам и test-script (generators_and_script)
-│           ├── freemarker.md     # правила по FreeMarker-скриптам (generators_and_script)
-│           ├── solutions.md      # правила по решениям (solutions_draft)
-│           ├── checker.md        # правила по чекеру (checker_draft)
-│           └── polygon.md        # справка по интерфейсу Polygon — шагам не прикладывается
+├── templates/                    # общее для всех задач; include-каталог compile-check.
+│   │                             # Шаблоны автора — НЕ трогать структуру, использовать как основу для генерации
+│   ├── problem_lib.h             # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
+│   ├── constraints_format.yaml   # формат constraints.yaml (результат constraints_pick)
+│   ├── spec_template.yaml        # черновик спека для `orchestrator <problem_id> init`; шагам не прикладывается
+│   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
+│   ├── testlib.h
+│   └── tutorials/
+│       ├── statement.md          # правила по условию (statement_draft)
+│       ├── limits.md             # правила по TL/ML (constraints_pick, solutions_draft)
+│       ├── validator.md          # правила по валидатору (constraints_pick)
+│       ├── tests.md              # правила по тестам, генераторам и test-script (generators_and_script)
+│       ├── freemarker.md         # правила по FreeMarker-скриптам (generators_and_script)
+│       ├── solutions.md          # правила по решениям (solutions_draft)
+│       ├── checker.md            # правила по чекеру (checker_draft)
+│       └── polygon.md            # справка по интерфейсу Polygon — шагам не прикладывается
 ├── examples/                     # учебные задачи-образцы, по каталогу на задачу
 │   └── <вид-входа>--<суть>/      # например array--prefix-sums; раскладка как у outputs/<problem_id>/
 │       ├── spec.yaml             # спек учебной задачи (problem_id = имя каталога) — пара "спек -> результат"
@@ -147,7 +146,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 └── outputs/
     └── <problem_id>/
-        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <problem_id> init` из templates/common/spec_template.yaml
+        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <problem_id> init` из templates/spec_template.yaml
         ├── .cache/
         │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
         │   ├── constraints_pick.json
@@ -177,7 +176,7 @@ Python-оркестратор, который берёт структуриро�
    легенду/ввод/вывод/примечание + input каждого примера в
    `examples/example_<N>.txt` (набор имён проверяется до записи на диск),
    следующий структуре и стилистическим правилам из
-   `templates/common/tutorials/statement.md`.
+   `templates/tutorials/statement.md`.
 2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
    очередь `intended_complexity` и `complexity_reasoning`, + формат ввода из
    `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
@@ -185,7 +184,7 @@ Python-оркестратор, который берёт структуриро�
    зафиксированные диапазоны переменных, TL/ML, разбиение на тестовые
    группы (в `constraints.yaml`, включая секцию `validator` —
    `constants`/`checks`, описывающую, что именно должен проверять
-   валидатор, по формату `templates/common/constraints_format.yaml`) +
+   валидатор, по формату `templates/constraints_format.yaml`) +
    `validator.cpp` (по образцу `validator.cpp` из референсов, если есть),
    реализующий 1-в-1 `validator.constants`/`validator.checks`, которые шаг
    сам же и зафиксировал в `constraints.yaml` — никаких проверок сверх или
@@ -268,7 +267,7 @@ Python-оркестратор, который берёт структуриро�
 
 - `orchestrator <problem_id> init` — создаёт каталог `outputs/<problem_id>/`
   (если его нет) с черновиком `spec.yaml` из
-  `templates/common/spec_template.yaml`: `problem_id` подставлен, остальные
+  `templates/spec_template.yaml`: `problem_id` подставлен, остальные
   поля пустые, с комментариями-подсказками. Существующий `spec.yaml` не
   перезаписывается. Ни модель, ни Polygon не вызывает.
 - `orchestrator <problem_id> llm generate [--step NAME] [--force]` — прогон
@@ -379,7 +378,7 @@ Python-оркестратор, который берёт структуриро�
   `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
   трёх шагов;
 - хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +
-  `user.md.j2`) и приложенных к нему документов (`templates/common/` и
+  `user.md.j2`) и приложенных к нему документов (`templates/` и
   файлы референсов спека) — если промпт или образец поправили, кэш должен
   инвалидироваться, даже если спек не менялся;
 - имя/версия модели из `model_router.py` для этого шага (смена модели тоже
@@ -486,7 +485,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
 
 ## Как использовать приложенные материалы
 
-- `templates/common/tutorials/*.md` (кроме `polygon.md`) — это **правила**, а не справочный
+- `templates/tutorials/*.md` (кроме `polygon.md`) — это **правила**, а не справочный
   материал "для общего развития". Промпты должны явно инструктировать
   модель следовать им как обязательным ограничениям, а не как совету.
   Правила разбиты по темам, и шаг получает только нужные ему
@@ -494,7 +493,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   только читающих её шагов. Файлы пишутся для модели: каждый
   самодостаточен, без ссылок на другие файлы правил. `polygon.md` — справка
   по интерфейсу Polygon, ни одному шагу не прикладывается.
-- `templates/common/problem_lib.h` и файлы учебных задач
+- `templates/problem_lib.h` и файлы учебных задач
   `examples/<problem_id>/` (`validator.cpp`, `checker.cpp`,
   `generators/*.cpp`, `test_script`, `solutions/*`)
   — это основа, которую нужно расширять, а не переизобретать. Если шаг
@@ -505,8 +504,8 @@ CLI, расход из лимитов подписки, а не с API-бала�
   `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`): шаблон — только её
   начальное содержимое, правка шаблона в уже существующие копии не
   попадает. Compile-check ищет `problem_lib.h` сначала в каталоге задачи,
-  потом в `templates/common/`; модели прикладывается шаблон.
-- `templates/common/` — общее для всех задач и прикладывается к шагам
+  потом в `templates/`; модели прикладывается шаблон.
+- `templates/` — общее для всех задач и прикладывается к шагам
   всегда (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`); там же
   `constraints_format.yaml` — формат результата `constraints_pick`, который
   читают следующие шаги и `polygon push`. `examples/` — учебные
@@ -525,7 +524,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   `examples/`, прошлая задача автора в `outputs/`); каждый шаг
   берёт из каталога только свою часть (`REFERENCE_DOCUMENTS`), решения —
   только на языках из `solutions.languages`. Без референсов шаг получает
-  только `templates/common/`. Содержимое референсов входит в хеш промпта
+  только `templates/`. Содержимое референсов входит в хеш промпта
   шага (см. "Кэширование по хешу спека"), сами пути `references` в
   `input_hash` не входят. Промпты обязаны явно
   разделять, что из образца переносить (каркас файла, ввод-вывод, функции

@@ -48,13 +48,8 @@ TEMPLATES_DIR = Path("templates")
 # прикладываются — только как референсы спека (`orchestrator/references.py`).
 EXAMPLES_DIR = Path("examples")
 
-# Раскладка templates_dir: `common/` — общее для всех задач (правила
-# `tutorials/*.md`, `problem_lib.h`, `testlib.h`; `common/` же — include-каталог
-# для compile-check).
-COMMON_SUBDIR = "common"
-
 # У каждой задачи своя копия `problem_lib.h` — `outputs/<problem_id>/problem_lib.h`:
-# шаблон `common/problem_lib.h` — только её начальное содержимое, и правки
+# шаблон `templates/problem_lib.h` — только её начальное содержимое, и правки
 # автора под конкретную задачу не перезаписывают ни шаблон, ни
 # `llm generate`, ни `polygon push`. Копию создаёт `ensure_problem_lib` —
 # перед compile-check сгенерированных `.cpp` и в polygon-шаге
@@ -81,27 +76,27 @@ PROBLEM_LIB_FILENAME = "problem_lib.h"
 # `extra_context_documents` шагов и `orchestrator/references.py`.
 STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [
-        f"{COMMON_SUBDIR}/tutorials/statement.md",
+        "tutorials/statement.md",
     ],
     "constraints_pick": [
-        f"{COMMON_SUBDIR}/tutorials/limits.md",
-        f"{COMMON_SUBDIR}/tutorials/validator.md",
-        f"{COMMON_SUBDIR}/constraints_format.yaml",
-        f"{COMMON_SUBDIR}/problem_lib.h",
+        "tutorials/limits.md",
+        "tutorials/validator.md",
+        "constraints_format.yaml",
+        "problem_lib.h",
     ],
     "generators_and_script": [
-        f"{COMMON_SUBDIR}/tutorials/tests.md",
-        f"{COMMON_SUBDIR}/tutorials/freemarker.md",
-        f"{COMMON_SUBDIR}/problem_lib.h",
-        f"{COMMON_SUBDIR}/test_script_functions.ftl",
+        "tutorials/tests.md",
+        "tutorials/freemarker.md",
+        "problem_lib.h",
+        "test_script_functions.ftl",
     ],
     "solutions_draft": [
-        f"{COMMON_SUBDIR}/tutorials/solutions.md",
-        f"{COMMON_SUBDIR}/tutorials/limits.md",
+        "tutorials/solutions.md",
+        "tutorials/limits.md",
     ],
     "checker_draft": [
-        f"{COMMON_SUBDIR}/tutorials/checker.md",
-        f"{COMMON_SUBDIR}/problem_lib.h",
+        "tutorials/checker.md",
+        "problem_lib.h",
     ],
 }
 
@@ -260,7 +255,7 @@ def _context_document_key(path: Path, templates_dir: Path) -> str:
 
     Файл внутри `templates_dir` получает тот же вид ключа, что и документы
     фиксированного списка, — путь относительно `templates_dir`
-    (`common/problem_lib.h`). Так он не прикладывается второй
+    (`problem_lib.h`). Так он не прикладывается второй
     раз, если на него ведут два референса (общий каталог и шаговый файл из
     него), а ключ (он входит в `compute_prompt_hash`) не зависит от того,
     как записан сам `templates_dir` — относительно или абсолютно. Файл вне
@@ -315,7 +310,7 @@ def load_context_documents(
 
 
 def template_problem_lib_path(templates_dir: Path = TEMPLATES_DIR) -> Path:
-    return Path(templates_dir) / COMMON_SUBDIR / PROBLEM_LIB_FILENAME
+    return Path(templates_dir) / PROBLEM_LIB_FILENAME
 
 
 def problem_lib_path(problem_id: str, outputs_dir: Path = OUTPUTS_DIR) -> Path:
@@ -469,7 +464,7 @@ def run_generative_step(
     compile_results: dict[str, CompileResult] = {
         # `problem_lib.h` задачи — раньше шаблонного.
         filename: compile_check(
-            path, [Path(outputs_dir) / problem_id, Path(templates_dir) / COMMON_SUBDIR]
+            path, [Path(outputs_dir) / problem_id, Path(templates_dir)]
         )
         for filename, path in artifact_paths.items()
         if path.suffix == ".cpp"

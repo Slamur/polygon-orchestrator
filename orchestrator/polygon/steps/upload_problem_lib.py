@@ -3,7 +3,7 @@
 
 У каждой задачи своя копия `problem_lib.h` (см. `PROBLEM_LIB_FILENAME` в
 `orchestrator/steps/base.py`): если её ещё нет, шаг сначала копирует туда
-`templates/common/problem_lib.h`.
+`templates/problem_lib.h`.
 Генеративного шага-зависимости нет — только `create_problem`.
 
 Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
