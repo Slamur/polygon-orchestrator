@@ -1,4 +1,4 @@
-"""Загрузка и валидация specs/<problem_id>.yaml по формату из docs/SPEC_FORMAT.md.
+"""Загрузка и валидация спека задачи (`outputs/<problem_id>/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
 
 Модуль только парсит и проверяет спек — никаких вызовов модели и никакой
 генерации артефактов здесь нет (см. CLAUDE.md).
@@ -282,9 +282,9 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
     должен показать эти ошибки автору спека и остановиться, а не гадать.
 
     `problem_id` спека должен совпадать с `expected_id` — по умолчанию это
-    имя файла (`specs/<problem_id>.yaml`); у учебной задачи спек лежит в
-    `templates/examples/<problem_id>/spec.yaml`, и `problem_id` сверяется с
-    именем каталога.
+    имя файла без `.yaml`; спек задачи лежит в её каталоге
+    (`<каталог задачи>/spec.yaml`, см. `load_problem_spec`), и `problem_id`
+    сверяется с именем каталога.
     """
     path = Path(path)
     if not path.exists():
@@ -325,3 +325,72 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
         )
 
     return spec
+
+
+# Спек задачи в её каталоге: `outputs/<problem_id>/spec.yaml` (как у учебных
+# задач `templates/examples/<problem_id>/spec.yaml`).
+SPEC_FILENAME = "spec.yaml"
+
+# Шаблон черновика спека для `orchestrator <problem_id> init` (путь
+# относительно templates_dir). Шагам не прикладывается.
+SPEC_TEMPLATE = "common/spec_template.yaml"
+
+# Значение `""` вместе с пробелами вокруг него — до комментария или конца строки.
+_TEMPLATE_PROBLEM_ID = re.compile(r'^problem_id:( *"" *)(?=#|$)', re.MULTILINE)
+
+
+class SpecInitError(Exception):
+    """Черновик спека не создан: неверный `problem_id`, спек уже есть и т.п."""
+
+
+def create_spec_draft(problem_id: str, *, outputs_dir: Path, templates_dir: Path) -> Path:
+    """Создаёт каталог задачи `outputs_dir/<problem_id>/` (если его нет) и
+    кладёт в него черновик `spec.yaml` из `SPEC_TEMPLATE` с подставленным
+    `problem_id`; остальные поля остаются пустыми — их заполняет автор.
+
+    Существующий `spec.yaml` не перезаписывается. Каталог задачи может уже
+    существовать (например, после `polygon pull`) — тогда в нём просто
+    появляется спек. Возвращает путь к созданному файлу.
+    """
+    if not PROBLEM_ID_PATTERN.match(problem_id):
+        raise SpecInitError(
+            f"problem_id '{problem_id}' must be ASCII "
+            "(letters/digits/'-'/'_', starting with a letter), see SPEC_FORMAT.md"
+        )
+
+    template_path = Path(templates_dir) / SPEC_TEMPLATE
+    try:
+        template = template_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SpecInitError(f"failed to read spec template {template_path}: {exc}") from exc
+
+    # Подставляем значение в строку шаблона, а не через yaml.dump: так в
+    # черновике остаются комментарии шаблона. Колонка комментария после
+    # значения сохраняется, если `problem_id` в неё помещается.
+    def substitute(match: re.Match) -> str:
+        value = f" {problem_id} "
+        return "problem_id:" + value.ljust(len(match.group(1)))
+
+    draft, count = _TEMPLATE_PROBLEM_ID.subn(substitute, template, count=1)
+    if count != 1:
+        raise SpecInitError(
+            f"spec template {template_path} has no 'problem_id: \"\"' line to fill in"
+        )
+
+    path = spec_path(problem_id, outputs_dir=outputs_dir)
+    if path.exists():
+        raise SpecInitError(f"{path} already exists, not overwriting it")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(draft, encoding="utf-8")
+    return path
+
+
+def spec_path(problem_id: str, *, outputs_dir: Path) -> Path:
+    """Путь к спеку задачи: `outputs_dir/<problem_id>/spec.yaml`."""
+    return Path(outputs_dir) / problem_id / SPEC_FILENAME
+
+
+def load_problem_spec(problem_id: str, *, outputs_dir: Path) -> ProblemSpec:
+    """Загружает спек задачи из её каталога (`spec_path`); `problem_id` в
+    спеке должен совпадать с именем каталога. Ошибки — как у `load_spec`."""
+    return load_spec(spec_path(problem_id, outputs_dir=outputs_dir), expected_id=problem_id)

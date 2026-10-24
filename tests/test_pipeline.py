@@ -43,19 +43,19 @@ def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
 
 
 @pytest.fixture
-def specs_dir(tmp_path):
-    specs = tmp_path / "specs"
-    specs.mkdir()
+def spec_file(tmp_path):
+    """Спек задачи `p1` в её каталоге: `<tmp>/outputs/p1/spec.yaml`."""
+    path = tmp_path / "outputs" / "p1" / "spec.yaml"
+    path.parent.mkdir(parents=True)
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     content = content.replace("problem_id: valid-spec", "problem_id: p1")
-    (specs / "p1.yaml").write_text(content, encoding="utf-8")
-    return specs
+    path.write_text(content, encoding="utf-8")
+    return path
 
 
-def _run(specs_dir, outputs_dir, **kwargs):
+def _run(outputs_dir, **kwargs):
     return pipeline.run_pipeline(
         "p1",
-        specs_dir=specs_dir,
         prompts_dir=PROMPTS_DIR,
         outputs_dir=outputs_dir,
         templates_dir=TEMPLATES_DIR,
@@ -63,13 +63,13 @@ def _run(specs_dir, outputs_dir, **kwargs):
     )
 
 
-def test_first_run_calls_model_for_every_step_in_order(specs_dir, tmp_path):
+def test_first_run_calls_model_for_every_step_in_order(spec_file, tmp_path):
     # Спек-фикстура заказывает стандартный чекер (checker.custom_needed:
     # false), поэтому checker_draft пропускается — он не менее часть
     # STEP_ORDER, но не вызывает модель.
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
-        result = _run(specs_dir, outputs_dir)
+        result = _run(outputs_dir)
 
     assert result.ok
     assert [o.step_name for o in result.outcomes] == pipeline.STEP_ORDER
@@ -82,13 +82,13 @@ def test_first_run_calls_model_for_every_step_in_order(specs_dir, tmp_path):
     assert [c.args[0] for c in mock_call.call_args_list] == called_steps
 
 
-def test_second_run_is_all_cache_hits_and_does_not_call_model(specs_dir, tmp_path):
+def test_second_run_is_all_cache_hits_and_does_not_call_model(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
-        result = _run(specs_dir, outputs_dir)
+        result = _run(outputs_dir)
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
@@ -102,13 +102,13 @@ def test_second_run_is_all_cache_hits_and_does_not_call_model(specs_dir, tmp_pat
     mock_call.assert_not_called()
 
 
-def test_force_recalls_model_even_when_cached(specs_dir, tmp_path):
+def test_force_recalls_model_even_when_cached(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
-        result = _run(specs_dir, outputs_dir, force=True)
+        result = _run(outputs_dir, force=True)
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
@@ -120,7 +120,7 @@ def test_force_recalls_model_even_when_cached(specs_dir, tmp_path):
     assert mock_call.call_count == len(forced_steps)
 
 
-def test_uncertain_step_stops_pipeline_before_later_steps(specs_dir, tmp_path):
+def test_uncertain_step_stops_pipeline_before_later_steps(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     uncertain_response = ModelResponse(
         status="uncertain",
@@ -128,7 +128,7 @@ def test_uncertain_step_stops_pipeline_before_later_steps(specs_dir, tmp_path):
         notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
     )
     with patch("orchestrator.model_router.call_model", return_value=uncertain_response) as mock_call:
-        result = _run(specs_dir, outputs_dir)
+        result = _run(outputs_dir)
 
     assert not result.ok
     assert result.stopped_uncertain is True
@@ -137,14 +137,14 @@ def test_uncertain_step_stops_pipeline_before_later_steps(specs_dir, tmp_path):
     assert result.outcomes[0].step_name == "statement_draft"
     assert result.outcomes[0].status == pipeline.OUTCOME_UNCERTAIN
     assert result.outcomes[0].notes == uncertain_response.notes
-    assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
+    # кроме самого спека в каталоге задачи на диск ничего не записано
+    assert set(outputs_dir.rglob("*")) == {spec_file.parent, spec_file}
 
 
-def test_missing_spec_yields_spec_error_without_raising(specs_dir, tmp_path):
+def test_missing_spec_yields_spec_error_without_raising(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     result = pipeline.run_pipeline(
         "does-not-exist",
-        specs_dir=specs_dir,
         prompts_dir=PROMPTS_DIR,
         outputs_dir=outputs_dir,
         templates_dir=TEMPLATES_DIR,
@@ -154,17 +154,17 @@ def test_missing_spec_yields_spec_error_without_raising(specs_dir, tmp_path):
     assert result.outcomes == []
 
 
-def test_solutions_draft_skipped_when_spec_has_no_solutions_section(specs_dir, tmp_path):
+def test_solutions_draft_skipped_when_spec_has_no_solutions_section(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
-    content = (specs_dir / "p1.yaml").read_text(encoding="utf-8")
+    content = (spec_file).read_text(encoding="utf-8")
     lines = content.splitlines(keepends=True)
     # вырезаем секцию solutions целиком (от "solutions:" до "checker:")
     start = next(i for i, line in enumerate(lines) if line.startswith("solutions:"))
     end = next(i for i, line in enumerate(lines) if line.startswith("checker:"))
-    (specs_dir / "p1.yaml").write_text("".join(lines[:start] + lines[end:]), encoding="utf-8")
+    (spec_file).write_text("".join(lines[:start] + lines[end:]), encoding="utf-8")
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        result = _run(specs_dir, outputs_dir)
+        result = _run(outputs_dir)
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
@@ -172,13 +172,13 @@ def test_solutions_draft_skipped_when_spec_has_no_solutions_section(specs_dir, t
     assert not (outputs_dir / "p1" / "solutions").exists()
 
 
-def test_checker_draft_skipped_when_custom_needed_is_false(specs_dir, tmp_path):
+def test_checker_draft_skipped_when_custom_needed_is_false(spec_file, tmp_path):
     # Фикстура valid-spec.yaml заказывает стандартный чекер (ncmp) —
     # checker.custom_needed: false, черновик не заказан.
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        result = _run(specs_dir, outputs_dir)
+        result = _run(outputs_dir)
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
@@ -186,17 +186,17 @@ def test_checker_draft_skipped_when_custom_needed_is_false(specs_dir, tmp_path):
     assert not (outputs_dir / "p1" / "checker.cpp").exists()
 
 
-def test_checker_draft_runs_when_custom_needed_is_true(specs_dir, tmp_path):
+def test_checker_draft_runs_when_custom_needed_is_true(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
-    content = (specs_dir / "p1.yaml").read_text(encoding="utf-8")
+    content = (spec_file).read_text(encoding="utf-8")
     content = content.replace("custom_needed: false", "custom_needed: true").replace(
         "custom_comparison_notes: null",
         'custom_comparison_notes: "Сравнивать числа с точностью 1e-6"',
     )
-    (specs_dir / "p1.yaml").write_text(content, encoding="utf-8")
+    (spec_file).write_text(content, encoding="utf-8")
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        result = _run(specs_dir, outputs_dir)
+        result = _run(outputs_dir)
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
@@ -204,13 +204,12 @@ def test_checker_draft_runs_when_custom_needed_is_true(specs_dir, tmp_path):
     assert (outputs_dir / "p1" / "checker.cpp").exists()
 
 
-def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(specs_dir, tmp_path):
+def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
         result = pipeline.run_pipeline(
             "p1",
             only_step="generators_and_script",
-            specs_dir=specs_dir,
             prompts_dir=PROMPTS_DIR,
             outputs_dir=outputs_dir,
             templates_dir=TEMPLATES_DIR,
@@ -224,13 +223,12 @@ def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(specs_
     mock_call.assert_not_called()
 
 
-def test_only_step_picks_up_constraints_yaml_written_by_earlier_run(specs_dir, tmp_path):
+def test_only_step_picks_up_constraints_yaml_written_by_earlier_run(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         pipeline.run_pipeline(
             "p1",
             only_step="constraints_pick",
-            specs_dir=specs_dir,
             prompts_dir=PROMPTS_DIR,
             outputs_dir=outputs_dir,
             templates_dir=TEMPLATES_DIR,
@@ -240,7 +238,6 @@ def test_only_step_picks_up_constraints_yaml_written_by_earlier_run(specs_dir, t
         result = pipeline.run_pipeline(
             "p1",
             only_step="generators_and_script",
-            specs_dir=specs_dir,
             prompts_dir=PROMPTS_DIR,
             outputs_dir=outputs_dir,
             templates_dir=TEMPLATES_DIR,
@@ -255,13 +252,13 @@ def test_only_step_picks_up_constraints_yaml_written_by_earlier_run(specs_dir, t
 # --- compute_step_statuses ----------------------------------------------------
 
 
-def test_compute_step_statuses_matches_cache_hits_after_full_run(specs_dir, tmp_path):
+def test_compute_step_statuses_matches_cache_hits_after_full_run(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
 
     statuses, spec_error = pipeline.compute_step_statuses(
-        "p1", specs_dir=specs_dir, prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
+        "p1", prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
     )
     assert spec_error is None
     by_name = {s.step_name: s.state for s in statuses}
@@ -272,26 +269,26 @@ def test_compute_step_statuses_matches_cache_hits_after_full_run(specs_dir, tmp_
     }
 
 
-def test_compute_step_statuses_not_run_when_no_cache(specs_dir, tmp_path):
+def test_compute_step_statuses_not_run_when_no_cache(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     statuses, spec_error = pipeline.compute_step_statuses(
-        "p1", specs_dir=specs_dir, prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
+        "p1", prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
     )
     assert spec_error is None
     assert statuses[0].state == pipeline.STATUS_NOT_RUN
 
 
-def test_compute_step_statuses_stale_after_spec_edit(specs_dir, tmp_path):
+def test_compute_step_statuses_stale_after_spec_edit(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
 
-    content = (specs_dir / "p1.yaml").read_text(encoding="utf-8")
+    content = (spec_file).read_text(encoding="utf-8")
     content = content.replace("Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)")
-    (specs_dir / "p1.yaml").write_text(content, encoding="utf-8")
+    (spec_file).write_text(content, encoding="utf-8")
 
     statuses, _ = pipeline.compute_step_statuses(
-        "p1", specs_dir=specs_dir, prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
+        "p1", prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
     )
     by_name = {s.step_name: s for s in statuses}
     assert by_name["statement_draft"].state == pipeline.STATUS_STALE
@@ -313,7 +310,7 @@ def test_compute_step_statuses_uncertain_entry_never_reported_as_cache_hit():
     assert is_cache_valid(entry, "h", "p") is False
 
 
-def test_compute_step_statuses_not_run_after_uncertain_run(specs_dir, tmp_path):
+def test_compute_step_statuses_not_run_after_uncertain_run(spec_file, tmp_path):
     # run_generative_step не пишет CacheEntry при status: uncertain (см.
     # test_run_generative_step_uncertain_raises_and_writes_nothing в
     # tests/test_steps_base.py) — поэтому status для такого шага "not run",
@@ -327,26 +324,26 @@ def test_compute_step_statuses_not_run_after_uncertain_run(specs_dir, tmp_path):
         notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
     )
     with patch("orchestrator.model_router.call_model", return_value=uncertain_response):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
 
     statuses, _ = pipeline.compute_step_statuses(
-        "p1", specs_dir=specs_dir, prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
+        "p1", prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
     )
     assert statuses[0].state == pipeline.STATUS_NOT_RUN
 
 
-def test_compute_step_statuses_reports_spec_error(specs_dir, tmp_path):
+def test_compute_step_statuses_reports_spec_error(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     statuses, spec_error = pipeline.compute_step_statuses(
-        "does-not-exist", specs_dir=specs_dir, prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
+        "does-not-exist", prompts_dir=PROMPTS_DIR, outputs_dir=outputs_dir
     )
     assert statuses == []
     assert spec_error is not None
 
 
-def _break_reference(specs_dir):
+def _break_reference(spec_file):
     # Общий референс — его получает каждый шаг, начиная с первого.
-    path = specs_dir / "p1.yaml"
+    path = spec_file
     content = path.read_text(encoding="utf-8")
     content = content.replace(
         "problem_id: p1\n", "problem_id: p1\nreferences:\n  - templates/examples/no-such-task\n", 1
@@ -354,11 +351,11 @@ def _break_reference(specs_dir):
     path.write_text(content, encoding="utf-8")
 
 
-def test_missing_reference_stops_pipeline_before_calling_model(specs_dir, tmp_path):
-    _break_reference(specs_dir)
+def test_missing_reference_stops_pipeline_before_calling_model(spec_file, tmp_path):
+    _break_reference(spec_file)
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
-        result = _run(specs_dir, outputs_dir)
+        result = _run(outputs_dir)
 
     assert not result.ok
     assert [(o.step_name, o.status) for o in result.outcomes] == [("statement_draft", "error")]
@@ -366,12 +363,11 @@ def test_missing_reference_stops_pipeline_before_calling_model(specs_dir, tmp_pa
     mock_call.assert_not_called()
 
 
-def test_compute_step_statuses_blocked_by_missing_reference(specs_dir, tmp_path):
-    _break_reference(specs_dir)
+def test_compute_step_statuses_blocked_by_missing_reference(spec_file, tmp_path):
+    _break_reference(spec_file)
 
     statuses, error = pipeline.compute_step_statuses(
         "p1",
-        specs_dir=specs_dir,
         prompts_dir=PROMPTS_DIR,
         outputs_dir=tmp_path / "outputs",
         templates_dir=TEMPLATES_DIR,
@@ -386,10 +382,9 @@ def test_compute_step_statuses_blocked_by_missing_reference(specs_dir, tmp_path)
 # --- что именно изменилось, смена модели, llm accept ---------------------
 
 
-def _statuses(specs_dir, outputs_dir, prompts_dir=PROMPTS_DIR):
+def _statuses(outputs_dir, prompts_dir=PROMPTS_DIR):
     statuses, spec_error = pipeline.compute_step_statuses(
         "p1",
-        specs_dir=specs_dir,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=TEMPLATES_DIR,
@@ -398,10 +393,9 @@ def _statuses(specs_dir, outputs_dir, prompts_dir=PROMPTS_DIR):
     return {s.step_name: s for s in statuses}
 
 
-def _accept(specs_dir, outputs_dir, **kwargs):
+def _accept(outputs_dir, **kwargs):
     statuses, spec_error = pipeline.accept_steps(
         "p1",
-        specs_dir=specs_dir,
         prompts_dir=PROMPTS_DIR,
         outputs_dir=outputs_dir,
         templates_dir=TEMPLATES_DIR,
@@ -411,23 +405,23 @@ def _accept(specs_dir, outputs_dir, **kwargs):
     return {s.step_name: s for s in statuses}
 
 
-def _edit_legend(specs_dir):
-    content = (specs_dir / "p1.yaml").read_text(encoding="utf-8")
+def _edit_legend(spec_file):
+    content = (spec_file).read_text(encoding="utf-8")
     content = content.replace("Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)")
-    (specs_dir / "p1.yaml").write_text(content, encoding="utf-8")
+    (spec_file).write_text(content, encoding="utf-8")
 
 
-def test_stale_detail_names_changed_spec_field(specs_dir, tmp_path):
+def test_stale_detail_names_changed_spec_field(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
-    _edit_legend(specs_dir)
+        _run(outputs_dir)
+    _edit_legend(spec_file)
 
-    detail = _statuses(specs_dir, outputs_dir)["statement_draft"].detail
+    detail = _statuses(outputs_dir)["statement_draft"].detail
     assert detail == "spec (or upstream artifact) changed: spec: legend_sketch"
 
 
-def test_stale_detail_names_changed_prompt_file(specs_dir, tmp_path):
+def test_stale_detail_names_changed_prompt_file(spec_file, tmp_path):
     import shutil
 
     outputs_dir = tmp_path / "outputs"
@@ -436,7 +430,6 @@ def test_stale_detail_names_changed_prompt_file(specs_dir, tmp_path):
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         pipeline.run_pipeline(
             "p1",
-            specs_dir=specs_dir,
             prompts_dir=prompts_dir,
             outputs_dir=outputs_dir,
             templates_dir=TEMPLATES_DIR,
@@ -444,57 +437,57 @@ def test_stale_detail_names_changed_prompt_file(specs_dir, tmp_path):
     system_md = prompts_dir / "statement_draft" / "system.md"
     system_md.write_text(system_md.read_text(encoding="utf-8") + "\nedit\n", encoding="utf-8")
 
-    detail = _statuses(specs_dir, outputs_dir, prompts_dir)["statement_draft"].detail
+    detail = _statuses(outputs_dir, prompts_dir)["statement_draft"].detail
     assert detail == "prompt template changed: prompt: statement_draft/system.md"
 
 
-def test_stale_detail_for_cache_entry_without_parts(specs_dir, tmp_path):
+def test_stale_detail_for_cache_entry_without_parts(spec_file, tmp_path):
     import json
 
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
     cache_file = outputs_dir / "p1" / ".cache" / "statement_draft.json"
     raw = json.loads(cache_file.read_text(encoding="utf-8"))
     del raw["input_parts"], raw["prompt_parts"], raw["accepted"]
     cache_file.write_text(json.dumps(raw), encoding="utf-8")
-    _edit_legend(specs_dir)
+    _edit_legend(spec_file)
 
-    detail = _statuses(specs_dir, outputs_dir)["statement_draft"].detail
+    detail = _statuses(outputs_dir)["statement_draft"].detail
     assert "spec (or upstream artifact) changed" in detail
     assert "predates per-part hashes" in detail
 
 
-def test_model_change_invalidates_cache(specs_dir, tmp_path):
+def test_model_change_invalidates_cache(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
 
     with patch.dict(
         "orchestrator.model_router.STEP_TO_MODEL", {"statement_draft": "strong-model"}
     ):
-        assert _statuses(specs_dir, outputs_dir)["statement_draft"].detail == (
+        assert _statuses(outputs_dir)["statement_draft"].detail == (
             "model changed (medium-model -> strong-model)"
         )
         with patch(
             "orchestrator.model_router.call_model", side_effect=_fake_call_model
         ) as mock_call:
-            result = _run(specs_dir, outputs_dir)
+            result = _run(outputs_dir)
 
     assert [c.args[0] for c in mock_call.call_args_list] == ["statement_draft"]
     outcome = result.outcomes[0]
     assert outcome.detail == "regenerated: model changed (medium-model -> strong-model)"
 
 
-def test_accept_makes_stale_step_a_cache_hit_without_calling_model(specs_dir, tmp_path):
+def test_accept_makes_stale_step_a_cache_hit_without_calling_model(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
-    _edit_legend(specs_dir)
+        _run(outputs_dir)
+    _edit_legend(spec_file)
 
     with patch("orchestrator.model_router.call_model") as mock_call:
-        accepted = _accept(specs_dir, outputs_dir)
-        result = _run(specs_dir, outputs_dir)
+        accepted = _accept(outputs_dir)
+        result = _run(outputs_dir)
 
     mock_call.assert_not_called()
     assert accepted["statement_draft"].state == pipeline.STATUS_ACCEPTED
@@ -509,64 +502,64 @@ def test_accept_makes_stale_step_a_cache_hit_without_calling_model(specs_dir, tm
     assert entry.status == "confirmed"
 
 
-def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(specs_dir, tmp_path):
+def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
     (outputs_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
 
-    before = _statuses(specs_dir, outputs_dir)
+    before = _statuses(outputs_dir)
     assert before["generators_and_script"].detail == (
         "spec (or upstream artifact) changed: upstream: constraints.yaml"
     )
 
-    accepted = _accept(specs_dir, outputs_dir)
+    accepted = _accept(outputs_dir)
     assert accepted["generators_and_script"].state == pipeline.STATUS_ACCEPTED
     assert accepted["solutions_draft"].state == pipeline.STATUS_ACCEPTED
-    after = _statuses(specs_dir, outputs_dir)
+    after = _statuses(outputs_dir)
     assert after["generators_and_script"].state == pipeline.STATUS_CACHE_HIT
     assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
 
 
-def test_accept_only_step_leaves_other_steps_stale(specs_dir, tmp_path):
+def test_accept_only_step_leaves_other_steps_stale(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
     (outputs_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
 
-    accepted = _accept(specs_dir, outputs_dir, only_step="solutions_draft")
+    accepted = _accept(outputs_dir, only_step="solutions_draft")
     assert list(accepted) == ["solutions_draft"]
-    after = _statuses(specs_dir, outputs_dir)
+    after = _statuses(outputs_dir)
     assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
     assert after["generators_and_script"].state == pipeline.STATUS_STALE
 
 
-def test_accept_refuses_steps_never_generated(specs_dir, tmp_path):
+def test_accept_refuses_steps_never_generated(spec_file, tmp_path):
     outputs_dir = tmp_path / "outputs"
-    accepted = _accept(specs_dir, outputs_dir)
+    accepted = _accept(outputs_dir)
     assert accepted["statement_draft"].state == pipeline.STATUS_NOT_ACCEPTED
     assert not (outputs_dir / "p1" / ".cache").exists()
 
 
-def test_accept_refuses_step_with_missing_artifact(specs_dir, tmp_path):
+def test_accept_refuses_step_with_missing_artifact(spec_file, tmp_path):
     import shutil
 
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
     shutil.rmtree(outputs_dir / "p1" / "statement")
 
-    accepted = _accept(specs_dir, outputs_dir)
+    accepted = _accept(outputs_dir)
     assert accepted["statement_draft"].state == pipeline.STATUS_NOT_ACCEPTED
     assert "artifact is missing" in accepted["statement_draft"].detail
 
 
-def test_accept_refuses_uncertain_step(specs_dir, tmp_path):
+def test_accept_refuses_uncertain_step(spec_file, tmp_path):
     from orchestrator.cache import CacheEntry, UNCERTAIN_STATUS, load_cache_entry, save_cache_entry
 
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        _run(specs_dir, outputs_dir)
+        _run(outputs_dir)
     save_cache_entry(
         "p1",
         "statement_draft",
@@ -574,7 +567,7 @@ def test_accept_refuses_uncertain_step(specs_dir, tmp_path):
         outputs_dir=outputs_dir,
     )
 
-    accepted = _accept(specs_dir, outputs_dir)
+    accepted = _accept(outputs_dir)
     assert accepted["statement_draft"].state == pipeline.STATUS_NOT_ACCEPTED
     assert load_cache_entry("p1", "statement_draft", outputs_dir=outputs_dir).status == (
         UNCERTAIN_STATUS

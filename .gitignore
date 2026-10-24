@@ -8,7 +8,7 @@ venv/
 outputs/*
 !outputs/.gitkeep
 
-specs/*.yaml
-!specs/.gitkeep
+# прежнее место спеков (теперь outputs/<problem_id>/spec.yaml) — на случай оставшихся локальных копий
+specs/
 
 *.egg-info

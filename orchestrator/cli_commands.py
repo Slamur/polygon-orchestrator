@@ -1,4 +1,4 @@
-"""Реализация команд CLI: `llm generate|status|accept`, `polygon push|status|pull`.
+"""Реализация команд CLI: `init`, `llm generate|status|accept`, `polygon push|status|pull`.
 
 Парсер аргументов и входная точка — в `cli.py`; этот модуль он импортирует
 только после разбора аргументов, потому что отсюда тянутся оба пайплайна (а
@@ -35,6 +35,7 @@ from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pull import ITEM_ERROR as PULL_ITEM_ERROR
 from orchestrator.polygon.pull import pull_problem
 from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.spec import SpecInitError, create_spec_draft
 from orchestrator.step_order import STEP_ORDER
 
 _OUTCOME_LABELS = {
@@ -212,7 +213,6 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
                 args.problem_id,
                 force=args.force,
                 only_step=args.step,
-                specs_dir=args.specs_dir,
                 prompts_dir=args.prompts_dir,
                 outputs_dir=args.outputs_dir,
                 templates_dir=args.templates_dir,
@@ -245,7 +245,6 @@ def _print_step_statuses(problem_id: str, statuses, spec_error: str | None) -> b
 def cmd_llm_status(args: argparse.Namespace) -> int:
     statuses, spec_error = compute_step_statuses(
         args.problem_id,
-        specs_dir=args.specs_dir,
         prompts_dir=args.prompts_dir,
         outputs_dir=args.outputs_dir,
         templates_dir=args.templates_dir,
@@ -261,7 +260,6 @@ def cmd_llm_accept(args: argparse.Namespace) -> int:
     statuses, spec_error = accept_steps(
         args.problem_id,
         only_step=args.step,
-        specs_dir=args.specs_dir,
         prompts_dir=args.prompts_dir,
         outputs_dir=args.outputs_dir,
         templates_dir=args.templates_dir,
@@ -314,7 +312,6 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
             args.problem_id,
             only_step=args.step,
             force=args.force,
-            specs_dir=args.specs_dir,
             outputs_dir=args.outputs_dir,
             on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
         )
@@ -370,3 +367,17 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
     if result.backup_dir is not None:
         print(f"  overwritten local files are backed up in {result.backup_dir}")
     return 0 if result.ok else 1
+
+
+def cmd_init(args: argparse.Namespace) -> int:
+    """Создаёт каталог задачи с черновиком `spec.yaml` (см.
+    `spec.create_spec_draft`). Ни модель, ни Polygon не вызываются."""
+    try:
+        spec_path = create_spec_draft(
+            args.problem_id, outputs_dir=args.outputs_dir, templates_dir=args.templates_dir
+        )
+    except SpecInitError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"created {spec_path} — fill it in (format: docs/SPEC_FORMAT.md)")
+    return 0

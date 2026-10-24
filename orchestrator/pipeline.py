@@ -23,7 +23,6 @@ from typing import Any, Optional
 
 from orchestrator import model_router
 from orchestrator.cache import (
-    SPECS_DIR,
     UNCERTAIN_STATUS,
     CacheEntry,
     compute_input_parts,
@@ -35,7 +34,7 @@ from orchestrator.cache import (
     save_cache_entry,
 )
 from orchestrator.references import SpecReferenceError
-from orchestrator.spec import SpecValidationError, load_spec
+from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import STEP_ORDER
 from orchestrator.steps import (
     checker_draft,
@@ -228,7 +227,6 @@ def run_pipeline(
     *,
     force: bool = False,
     only_step: Optional[str] = None,
-    specs_dir: Path = SPECS_DIR,
     prompts_dir: Path = PROMPTS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -253,7 +251,7 @@ def run_pipeline(
     её вместо результатов шагов.
     """
     try:
-        spec = load_spec(Path(specs_dir) / f"{problem_id}.yaml")
+        spec = load_problem_spec(problem_id, outputs_dir=outputs_dir)
     except SpecValidationError as exc:
         return PipelineResult(problem_id=problem_id, spec_error=str(exc))
 
@@ -376,7 +374,6 @@ class StepStatus:
 def compute_step_statuses(
     problem_id: str,
     *,
-    specs_dir: Path = SPECS_DIR,
     prompts_dir: Path = PROMPTS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -397,7 +394,6 @@ def compute_step_statuses(
         problem_id,
         _status_of_step,
         only_step=None,
-        specs_dir=specs_dir,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
@@ -408,7 +404,6 @@ def accept_steps(
     problem_id: str,
     *,
     only_step: Optional[str] = None,
-    specs_dir: Path = SPECS_DIR,
     prompts_dir: Path = PROMPTS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -435,7 +430,6 @@ def accept_steps(
         problem_id,
         _accept_step,
         only_step=only_step,
-        specs_dir=specs_dir,
         prompts_dir=prompts_dir,
         outputs_dir=outputs_dir,
         templates_dir=templates_dir,
@@ -447,7 +441,6 @@ def _walk_steps(
     visit,
     *,
     only_step: Optional[str],
-    specs_dir: Path,
     prompts_dir: Path,
     outputs_dir: Path,
     templates_dir: Path,
@@ -457,7 +450,7 @@ def _walk_steps(
     `visit(problem_id, step_name, entry, hashes, artifact_present, outputs_dir)`
     решает, что сказать (и сделать) про шаг."""
     try:
-        spec = load_spec(Path(specs_dir) / f"{problem_id}.yaml")
+        spec = load_problem_spec(problem_id, outputs_dir=outputs_dir)
     except SpecValidationError as exc:
         return [], str(exc)
 

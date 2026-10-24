@@ -3,7 +3,7 @@
 ## Что это за репозиторий
 
 Python-оркестратор, который берёт структурированный спек задачи
-(`specs/<problem_id>.yaml`, формат — см. `docs/SPEC_FORMAT.md`) и прогоняет
+(`outputs/<problem_id>/spec.yaml`, формат — см. `docs/SPEC_FORMAT.md`) и прогоняет
 его через последовательность **генеративных шагов**. Каждый шаг — отдельный
 вызов LLM по API (не через Claude Code) плюс минимальная механическая
 проверка результата. Результат — черновики артефактов Polygon-задачи
@@ -69,13 +69,12 @@ Python-оркестратор, который берёт структуриро�
 ├── docs/
 │   ├── SPEC_FORMAT.md            # формат входного спека, см. отдельный файл
 │   └── POLYGON_API.md            # документация Polygon API (методы, параметры, return objects)
-├── specs/
-│   └── <problem_id>.yaml         # спеки задач автора
 ├── templates/                    # существующие шаблоны автора — НЕ трогать структуру,
 │   │                             # использовать как основу для генерации
 │   ├── common/                   # общее для всех задач; include-каталог compile-check
 │   │   ├── problem_lib.h         # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
 │   │   ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
+│   │   ├── spec_template.yaml    # черновик спека для `orchestrator <problem_id> init`; шагам не прикладывается
 │   │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
 │   │   ├── testlib.h
 │   │   └── tutorials/
@@ -114,9 +113,9 @@ Python-оркестратор, который берёт структуриро�
 │       └── user.md.j2
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд llm generate|status|accept, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|status|accept, polygon push|status|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
-│   ├── spec.py                    # парсинг и валидация specs/*.yaml против SPEC_FORMAT.md
+│   ├── spec.py                    # парсинг и валидация outputs/<problem_id>/spec.yaml против SPEC_FORMAT.md; черновик спека для init
 │   ├── references.py              # референсы спека (`references`): какие файлы каких каталогов получает каждый шаг
 │   ├── steps/
 │   │   ├── statement_draft.py
@@ -148,6 +147,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 └── outputs/
     └── <problem_id>/
+        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <problem_id> init` из templates/common/spec_template.yaml
         ├── .cache/
         │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
         │   ├── constraints_pick.json
@@ -257,14 +257,20 @@ Python-оркестратор, который берёт структуриро�
 ## Запуск
 
 Задачи в этом проекте независимы друг от друга и адресуются по
-`problem_id` (`specs/<problem_id>.yaml` → `outputs/<problem_id>/...`).
+`problem_id`: всё, что относится к задаче, — спек и результаты шагов —
+лежит в её каталоге `outputs/<problem_id>/` (спек — `spec.yaml`).
 Обычно работа идёт над одной задачей, поэтому `problem_id` в CLI стоит
-первым, а команда к нему — после: `orchestrator [--specs-dir ...]
-<problem_id> <llm|polygon> <команда> [флаги]`. Пакетного прогона по всем
+первым, а команда к нему — после: `orchestrator [--outputs-dir ...]
+<problem_id> <init|llm|polygon> [команда] [флаги]`. Пакетного прогона по всем
 спекам (`--all`) сейчас нет — убран как ненужный, вернуть при
 необходимости. То, что должно обеспечить CLI (`orchestrator/cli.py` —
 парсер, `orchestrator/cli_commands.py` — сами команды):
 
+- `orchestrator <problem_id> init` — создаёт каталог `outputs/<problem_id>/`
+  (если его нет) с черновиком `spec.yaml` из
+  `templates/common/spec_template.yaml`: `problem_id` подставлен, остальные
+  поля пустые, с комментариями-подсказками. Существующий `spec.yaml` не
+  перезаписывается. Ни модель, ни Polygon не вызывает.
 - `orchestrator <problem_id> llm generate [--step NAME] [--force]` — прогон
   задачи (всех шагов или одного конкретного); шаги, для которых кэш
   валиден, пропускаются автоматически (см. ниже). `--force` игнорирует кэш
@@ -327,9 +333,9 @@ Python-оркестратор, который берёт структуриро�
   команды. Детали — в докстринге `orchestrator/polygon/pull.py`.
 
 `problem_id` дополняется по Tab (`argcomplete`; разовая настройка shell — в
-`docs/SETUP.md`): кандидаты читаются из `specs/*.yaml` и каталогов
-`outputs/` (`polygon status|pull` спек не нужен, а команда на момент
-дополнения `problem_id` ещё не набрана) при каждом нажатии, ничего не
+`docs/SETUP.md`): кандидаты — каталоги задач в `outputs/`, со спеком или
+без (`polygon status|pull` спек не нужен, а команда на момент дополнения
+`problem_id` ещё не набрана); читаются при каждом нажатии, ничего не
 кэшируется. На каждый Tab shell запускает `cli.py`
 целиком, поэтому на верхнем уровне `cli.py` нельзя импортировать пайплайны
 (pydantic, requests) — они подгружаются лениво через `cli_commands.py`.
@@ -553,7 +559,7 @@ Claude Code — весь код оркестратора (парсер спек�
    в духе того, как это описано в `docs/PROMPTS.md`-контракте (явно,
    по делу, без домысливания). Ни в названии ветки, ни в коммитах, ни в
    PR не должно быть `problem_id` и деталей спеков — см. "Конфиденциальность
-   specs/ и outputs/" ниже.
+   outputs/" ниже.
 5. **Claude Code не мержит PR сам**, если это явно не попросили. Дефолт —
    PR остаётся открытым и ждёт ревью автора; merge/squash — руками через
    GitHub (или по явной команде "смержи PR").
@@ -567,12 +573,13 @@ Claude Code — весь код оркестратора (парсер спек�
 
 Также предполагается, что в клоне выполнено `git config core.hooksPath
 githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует push, если
-имя ветки или сообщения коммитов содержат `problem_id` из `specs/*.yaml`.
+имя ветки или сообщения коммитов содержат `problem_id` — имя любого каталога в `outputs/`.
 Хук — страховка, а не замена правилам из раздела ниже.
 
-## Конфиденциальность specs/ и outputs/
+## Конфиденциальность outputs/
 
-`specs/*.yaml` и `outputs/` — в `.gitignore` намеренно: репозиторий
+`outputs/` (вместе со спеками задач `outputs/<problem_id>/spec.yaml`) — в
+`.gitignore` намеренно: репозиторий
 оркестратора публичный, а сами задачи — нет, пока не опубликованы на
 контесте. Это единственный барьер между "черновик задачи" и "виден кому
 угодно с доступом к репозиторию".
@@ -593,7 +600,7 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 Это же касается тестов и их фикстур (`tests/`): в них используются только
 синтетические `problem_id` (`example-problem`, `my-task`) и синтетические
-спеки, а не копии или выжимки реальных файлов из `specs/`/`outputs/`.
+спеки, а не копии или выжимки реальных файлов из `outputs/`.
 
 Названия веток и сообщения коммитов — только про то, ЧТО меняется в коде
 оркестратора, а не про то, НАД КАКОЙ задачей ты его при этом тестировал.

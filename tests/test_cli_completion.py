@@ -15,29 +15,24 @@ REPO_ROOT = Path(__file__).parent.parent
 
 
 @pytest.fixture
-def dirs(tmp_path):
-    specs = tmp_path / "specs"
-    specs.mkdir()
-    (specs / "my-task.yaml").write_text("", encoding="utf-8")
-    (specs / "example-problem.yaml").write_text("", encoding="utf-8")
-    (specs / "notes.txt").write_text("", encoding="utf-8")
+def outputs(tmp_path):
     outputs = tmp_path / "outputs"
-    (outputs / "example-problem").mkdir(parents=True)
+    (outputs / "my-task").mkdir(parents=True)
+    (outputs / "my-task" / "spec.yaml").write_text("", encoding="utf-8")
+    (outputs / "example-problem").mkdir()
+    (outputs / "example-problem" / "spec.yaml").write_text("", encoding="utf-8")
     (outputs / "only-output").mkdir()
     (outputs / ".hidden").mkdir()
     (outputs / "stray-file").write_text("", encoding="utf-8")
-    return specs, outputs
+    return outputs
 
 
-def _parse(specs: Path, outputs: Path, *command: str):
-    return cli.build_parser().parse_args(
-        ["--specs-dir", str(specs), "--outputs-dir", str(outputs), *command]
-    )
+def _parse(outputs: Path, *command: str):
+    return cli.build_parser().parse_args(["--outputs-dir", str(outputs), *command])
 
 
-def test_completer_lists_specs_and_output_directories(dirs):
-    specs, outputs = dirs
-    args = _parse(specs, outputs, "x", "polygon", "status")
+def test_completer_lists_problem_directories_with_or_without_spec(outputs):
+    args = _parse(outputs, "x", "polygon", "status")
 
     assert cli._complete_problem_ids("", args) == [
         "example-problem",
@@ -47,7 +42,7 @@ def test_completer_lists_specs_and_output_directories(dirs):
 
 
 def test_completers_tolerate_missing_directories(tmp_path):
-    args = _parse(tmp_path / "no-specs", tmp_path / "no-outputs", "x", "polygon", "status")
+    args = _parse(tmp_path / "no-outputs", "x", "polygon", "status")
 
     assert cli._complete_problem_ids("", args) == []
 
@@ -74,10 +69,9 @@ def _complete(line: str) -> list[str]:
     return [candidate.strip() for candidate in result.stdout.split("\n") if candidate.strip()]
 
 
-def test_tab_completes_problem_id_by_prefix(dirs):
+def test_tab_completes_problem_id_by_prefix(outputs):
     pytest.importorskip("argcomplete")
-    specs, outputs = dirs
-    base = f"orchestrator --specs-dir {specs} --outputs-dir {outputs}"
+    base = f"orchestrator --outputs-dir {outputs}"
 
     assert _complete(f"{base} ") == ["example-problem", "my-task", "only-output"]
     assert _complete(f"{base} my") == ["my-task"]

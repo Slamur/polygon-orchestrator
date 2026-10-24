@@ -131,7 +131,7 @@ class StepUncertainError(Exception):
         ) or "the model did not provide notes with the missing fields"
         super().__init__(
             f"Step '{step_name}' for '{problem_id}' stopped (status: uncertain): "
-            f"{details}. Fix specs/{problem_id}.yaml and run the step again."
+            f"{details}. Fix outputs/{problem_id}/spec.yaml and run the step again."
         )
 
 

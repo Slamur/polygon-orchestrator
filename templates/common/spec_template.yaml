@@ -1,0 +1,98 @@
+# Черновик спека задачи. Создан командой `orchestrator <problem_id> init`
+# из templates/common/spec_template.yaml.
+#
+# Полный формат с примерами и пояснениями — docs/SPEC_FORMAT.md.
+# [required] — без поля спек не пройдёт валидацию; [optional] — можно оставить
+# пустым ([] / null / "").
+#
+# Многострочный текст удобнее писать блоком:
+#   legend_sketch: |
+#     первая строка
+#     вторая строка
+#
+# Перед `llm generate` поменяйте meta.status на "ready_for_generation".
+
+problem_id: ""                       # [required] заполняется командой init, совпадает с именем каталога задачи
+title:
+  ru: ""                             # [required] начальное название задачи на Polygon
+  en: null                           # [optional]
+references: []                       # [optional] образцы для всех шагов: каталоги задач или файлы, например
+                                     #   - "templates/examples/array--prefix-sums"
+
+# ---------------------------------------------------------------------------
+# 1. ЧЕРНОВИК УСЛОВИЯ — шаг statement_draft
+# ---------------------------------------------------------------------------
+statement_draft:
+  legend_sketch: ""                  # [required] сюжет и модель задачи своими словами: процесс, правила, вопрос
+  formal_input_sketch: ""            # [required] что дано и в каком порядке (форма данных, не ограничения на числа)
+  formal_output_sketch: ""           # [required] что вывести; гарантирован ли ответ, нужен ли "-1"/"NO" и т.п.
+  indexing: ""                       # [required] "0-indexed" | "1-indexed" | "irrelevant"
+  sample_examples:                   # [required] минимум один пример; input переносится в тесты Polygon
+    - input: ""
+      output: ""                     # [optional] ответ к примеру
+      note_hint: ""                  # [optional] что объяснить в пояснении к примеру (не сам текст)
+  known_ambiguities: []              # [optional] что в постановке пока не решено
+  preserve_legend_verbatim: false    # [optional] true — сохранять фактуру легенды почти дословно
+  references: []                     # [optional] образцы только для этого шага
+
+# ---------------------------------------------------------------------------
+# 2. ОГРАНИЧЕНИЯ — шаг constraints_pick (+ валидатор)
+# ---------------------------------------------------------------------------
+constraints:
+  intended_complexity: ""            # [required] асимптотика авторского решения, например "O(N log N)"
+  complexity_reasoning: ""           # [required] какой алгоритм имеется в виду и почему такая асимптотика
+  variables:                         # [required] минимум одна переменная; по элементу на каждую
+    - name: ""                       # например "N"
+      min: ""                        # число или выражение через другие переменные
+      max: null                      # null — модель предложит значение и пометит его как proposed
+      description: ""
+  special_guarantees: []             # [optional] гарантии, не сводящиеся к min/max одной переменной
+  test_groups_hint: []               # [optional] группы тестов, если они уже придуманы:
+                                     #   - name: "small"
+                                     #     subset_of: null
+                                     #     max_n: 10
+                                     #     special_property: null
+  test_groups_needed: false          # [optional] true — модель сама предложит группы, если hint пуст
+  time_limit_seconds: null           # [optional] null — модель предложит TL
+  memory_limit_mb: 256               # [optional] желательно кратно 256
+  uncertain_points: []               # [optional] в чём сомневаетесь сами — акцент для шага
+  references: []                     # [optional] образцы только для этого шага
+
+# ---------------------------------------------------------------------------
+# 3. ГЕНЕРАТОРЫ И TEST-SCRIPT — шаг generators_and_script
+# ---------------------------------------------------------------------------
+generation:
+  generator_ideas: []                # [optional] уже придуманные генераторы:
+                                     #   - name: "gen_rand"
+                                     #     params: ["n", "maxA"]
+                                     #     purpose: "случайный массив"
+  specific_test_ideas: []            # [optional] конкретные сценарии, которые обязательно протестировать
+  script_style: ""                   # [required] "flat" | "groups"
+  references: []                     # [optional] образцы только для этого шага
+
+# ---------------------------------------------------------------------------
+# 4. ЧЕРНОВИКИ РЕШЕНИЙ — шаг solutions_draft
+# Секция необязательная: если решения генерировать не нужно, удалите её целиком.
+# ---------------------------------------------------------------------------
+solutions:
+  wanted_verdicts: []                # [required] из: ok, wa, tl, tl_ok, ml, re
+  languages: []                      # [required] например ["cpp", "java", "python"]
+  algorithm_hint: ""                 # [required] идея основного алгоритма
+  alternative_approaches: []         # [optional] другие верные идеи — по ok-решению на каждую
+  known_wrong_approaches: []         # [optional] "<вердикт> (<языки через />): <ошибка>", например
+                                     #   - "wa: off-by-one в правой границе"
+                                     #   - "tl (cpp): O(N^2) перебор"
+  references: []                     # [optional] образцы только для этого шага
+
+# ---------------------------------------------------------------------------
+# 5. ЧЕКЕР — шаг checker_draft (только при custom_needed: true)
+# ---------------------------------------------------------------------------
+checker:
+  standard: ""                       # имя стандартного чекера (ncmp, wcmp, yesno, ...); нужно при custom_needed: false
+  custom_needed: false               # [required] true — нужен свой чекер
+  custom_comparison_notes: null      # [required при custom_needed: true] формат ответа и правило сравнения
+  references: []                     # [optional] образцы только для checker_draft
+
+meta:
+  requirements_docs: []
+  status: "draft"                    # "draft" | "ready_for_generation" | "reviewed"
