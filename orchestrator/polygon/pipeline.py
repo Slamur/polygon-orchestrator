@@ -229,7 +229,7 @@ def _sync_baseline(
             f"'{problem_id}': Polygon problem id={state.polygon_id} has uncommitted changes "
             "in its working copy — commit or discard them on Polygon first (push refuses "
             "to commit them, even with --force), then run "
-            f"`orchestrator polygon pull {problem_id} [--overwrite]`"
+            f"`orchestrator {problem_id} polygon pull [--overwrite]`"
         )
     if force:
         logger.info("--force: uploading everything, the sync baseline is ignored")
@@ -238,15 +238,15 @@ def _sync_baseline(
         raise PolygonStepError(
             f"'{problem_id}': the Polygon revision of the last sync is unknown (the problem "
             "was linked to an existing Polygon problem or before revisions were recorded) — "
-            f"run `orchestrator polygon pull {problem_id} [--overwrite]` first, or overwrite "
-            f"Polygon with `orchestrator polygon push {problem_id} --force`"
+            f"run `orchestrator {problem_id} polygon pull [--overwrite]` first, or overwrite "
+            f"Polygon with `orchestrator {problem_id} polygon push --force`"
         )
     if current.revision != state.revision:
         raise PolygonStepError(
             f"'{problem_id}': Polygon problem id={state.polygon_id} changed since the last "
             f"sync (revision {current.revision} on Polygon, {state.revision} recorded) — "
-            f"run `orchestrator polygon pull {problem_id} [--overwrite]`, or overwrite "
-            f"Polygon with `orchestrator polygon push {problem_id} --force`"
+            f"run `orchestrator {problem_id} polygon pull [--overwrite]`, or overwrite "
+            f"Polygon with `orchestrator {problem_id} polygon push --force`"
         )
     logger.info("Polygon revision %s matches the last sync", current.revision)
     return dict(state.synced)
@@ -292,7 +292,7 @@ def _commit_and_record(
 def compute_polygon_step_statuses(
     problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR
 ) -> list[PolygonStepOutcome]:
-    """Состояние polygon-шагов для `orchestrator polygon status <id>`, без сети:
+    """Состояние polygon-шагов для `orchestrator <id> polygon status`, без сети:
     по `compute_status` каждого шага, в порядке `POLYGON_STEP_ORDER`.
 
     Состояние — только по локальным данным (база синхронизации в

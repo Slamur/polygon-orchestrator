@@ -635,9 +635,9 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
             str(tmp_path / "no-specs"),
             "--outputs-dir",
             str(outputs_dir),
+            PROBLEM_ID,
             "polygon",
             "pull",
-            PROBLEM_ID,
         ]
     )
 
@@ -654,7 +654,7 @@ def test_cli_pull_unresolved_problem_exits_with_error(outputs_dir, polygon, caps
     polygon.problems = []
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
-    exit_code = cli.main(["--outputs-dir", str(outputs_dir), "polygon", "pull", PROBLEM_ID])
+    exit_code = cli.main(["--outputs-dir", str(outputs_dir), PROBLEM_ID, "polygon", "pull"])
 
     assert exit_code == 1
     err = capsys.readouterr().err
@@ -668,7 +668,7 @@ def test_cli_pull_overwrite_reports_backup_dir(outputs_dir, polygon, capsys, mon
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
     exit_code = cli.main(
-        ["--outputs-dir", str(outputs_dir), "polygon", "pull", PROBLEM_ID, "--overwrite"]
+        ["--outputs-dir", str(outputs_dir), PROBLEM_ID, "polygon", "pull", "--overwrite"]
     )
 
     out = capsys.readouterr().out

@@ -90,8 +90,8 @@ def _read_generators(problem_id: str, outputs_dir: Path) -> list[tuple[str, byte
     if not generators_dir.is_dir():
         raise PolygonStepError(
             f"'{problem_id}': directory {generators_dir} not found — first "
-            f"run the generative step generators_and_script (`orchestrator llm generate "
-            f"{problem_id} --step generators_and_script`)"
+            f"run the generative step generators_and_script (`orchestrator {problem_id} llm generate "
+            f"--step generators_and_script`)"
         )
     paths = sorted(generators_dir.glob("*.cpp"), key=lambda p: p.name)
     if not paths:

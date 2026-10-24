@@ -39,9 +39,9 @@ git config core.hooksPath   # должно вывести: githooks
 
 `orchestrator` умеет дополнять по Tab имена пайплайнов и команд, значения
 `--step` и `problem_id`. Имена задач нигде не хранятся: при каждом нажатии
-Tab они читаются из `specs/*.yaml` (а для `polygon status` и `polygon pull`,
-которым спек не нужен, — ещё и из каталогов в `outputs/`), поэтому новая
-задача дополняется сразу, без какой-либо перегенерации.
+Tab они читаются из `specs/*.yaml` и каталогов в `outputs/` (`polygon status`
+и `polygon pull` спек не нужен), поэтому новая задача дополняется сразу, без
+какой-либо перегенерации.
 
 Настройка — **один раз** на машину, из активированного окружения, где
 установлен оркестратор (`pip install -e .` — подтянет `argcomplete`):
@@ -63,7 +63,8 @@ register-python-argcomplete orchestrator \
 eval "$(register-python-argcomplete orchestrator)"
 ```
 
-Проверить: `orchestrator polygon pu<Tab>` должно дополниться до `push`/`pull`.
+Проверить: `orchestrator <problem_id> polygon pu<Tab>` должно дополниться до
+`push`/`pull`.
 
 Ограничения:
 
@@ -78,7 +79,7 @@ eval "$(register-python-argcomplete orchestrator)"
 ## Генерация: подписка Claude (Claude Code CLI) или Anthropic API
 
 По умолчанию (`ORCHESTRATOR_LLM_BACKEND=claude-code` или переменная не
-задана) `orchestrator llm generate` прогоняет шаги через Claude Code CLI —
+задана) `orchestrator <problem_id> llm generate` прогоняет шаги через Claude Code CLI —
 расход идёт из лимитов подписки Pro/Max (тех же, что у интерактивного
 Claude Code и claude.ai: 5-часовое окно + недельный лимит, текущее
 заполнение — `/usage` в Claude Code). Настройка:
@@ -98,7 +99,7 @@ API-биллинг.
 Альтернатива — `ORCHESTRATOR_LLM_BACKEND=anthropic-api`: те же модели через
 Anthropic API по `ANTHROPIC_API_KEY`, расход — деньги с API-баланса.
 Модели по классам у бэкендов одинаковые, поэтому переключение кэш шагов не
-инвалидирует. Если лимит подписки исчерпан, `llm generate --all`
-останавливается на текущей задаче — после сброса лимита можно просто
-запустить его снова (готовые шаги пропустятся по кэшу) или временно
-переключиться на `anthropic-api`.
+инвалидирует. Если лимит подписки исчерпан, `llm generate` останавливается
+на текущем шаге — после сброса лимита можно просто запустить его снова
+(готовые шаги пропустятся по кэшу) или временно переключиться на
+`anthropic-api`.

@@ -797,7 +797,7 @@ def test_cli_polygon_run_prints_outcomes(specs_dir, outputs_dir, capsys):
     client.call.side_effect = _new_problem_polygon
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID])
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -820,7 +820,7 @@ def test_cli_polygon_run_with_step(specs_dir, outputs_dir, capsys):
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         rc = cli.main(
             _cli_args(specs_dir, outputs_dir)
-            + ["polygon", "push", PROBLEM_ID, "--step", "create_problem"]
+            + [PROBLEM_ID, "polygon", "push", "--step", "create_problem"]
         )
 
     assert rc == 0
@@ -833,7 +833,7 @@ def test_cli_polygon_run_api_error_exits_nonzero(specs_dir, outputs_dir, capsys)
     client.call.side_effect = PolygonApiError("problems.list", "boom")
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID])
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     assert "create_problem: error" in capsys.readouterr().out
@@ -842,7 +842,7 @@ def test_cli_polygon_run_api_error_exits_nonzero(specs_dir, outputs_dir, capsys)
 def test_cli_polygon_run_invalid_spec_exits_nonzero(specs_dir, outputs_dir, capsys):
     _write_spec(specs_dir, "other-problem", file_stem=PROBLEM_ID)
 
-    rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID])
+    rc = cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     assert capsys.readouterr().err
@@ -851,7 +851,7 @@ def test_cli_polygon_run_invalid_spec_exits_nonzero(specs_dir, outputs_dir, caps
 def test_cli_polygon_run_rejects_unknown_step(specs_dir, outputs_dir):
     with pytest.raises(SystemExit) as exc_info:
         cli.main(
-            _cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID, "--step", "nope"]
+            _cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push", "--step", "nope"]
         )
     assert exc_info.value.code == 2
 
@@ -859,19 +859,19 @@ def test_cli_polygon_run_rejects_unknown_step(specs_dir, outputs_dir):
 def test_cli_polygon_push_force_flag_is_passed_to_pipeline(specs_dir, outputs_dir):
     with patch.object(cli_commands, "run_polygon_pipeline") as run:
         run.return_value = MagicMock(spec_error=None, ok=True)
-        cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID, "--force"])
+        cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push", "--force"])
 
     assert run.call_args.kwargs["force"] is True
 
 
 def test_cli_polygon_requires_subcommand(specs_dir, outputs_dir):
     with pytest.raises(SystemExit):
-        cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", PROBLEM_ID])
+        cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon"])
 
 
 def test_cli_polygon_status_without_network(specs_dir, outputs_dir, capsys):
     with patch.object(polygon_pipeline, "PolygonClient") as client_cls:
-        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "status", PROBLEM_ID])
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "status"])
 
     assert rc == 0
     assert "create_problem: not run" in capsys.readouterr().out
@@ -887,7 +887,7 @@ def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(
     client.call.side_effect = PolygonApiError("problems.list", long_comment)
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID])
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     out = capsys.readouterr().out
@@ -905,12 +905,12 @@ def test_cli_polygon_run_own_step_error_is_printed_in_full(specs_dir, outputs_di
     _link(outputs_dir, revision=None)
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=RevisionClient(10)):
-        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID])
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     out = capsys.readouterr().out
     assert len(out.splitlines()[1]) > cli_commands._CONSOLE_ERROR_MAX_LEN
-    assert f"orchestrator polygon push {PROBLEM_ID} --force" in out
+    assert f"orchestrator {PROBLEM_ID} polygon push --force" in out
     assert "…" not in out
 
 
@@ -922,7 +922,7 @@ def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(
     client.call.side_effect = RuntimeError("POLYGON_API_KEY is not set")
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID])
+        rc = cli.main(_cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     captured = capsys.readouterr()
@@ -940,7 +940,7 @@ def test_cli_polygon_run_writes_step_progress_to_log(specs_dir, outputs_dir, cap
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         cli.main(
             _cli_args(specs_dir, outputs_dir)
-            + ["polygon", "push", PROBLEM_ID, "--step", "create_problem"]
+            + [PROBLEM_ID, "polygon", "push", "--step", "create_problem"]
         )
 
     log = (outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
@@ -952,7 +952,7 @@ def test_cli_polygon_run_appends_to_log_with_run_header(specs_dir, outputs_dir, 
     _write_spec(specs_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]
-    argv = _cli_args(specs_dir, outputs_dir) + ["polygon", "push", PROBLEM_ID, "--step", "create_problem"]
+    argv = _cli_args(specs_dir, outputs_dir) + [PROBLEM_ID, "polygon", "push", "--step", "create_problem"]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         cli.main(argv)

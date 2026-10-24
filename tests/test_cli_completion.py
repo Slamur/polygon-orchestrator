@@ -35,18 +35,11 @@ def _parse(specs: Path, outputs: Path, *command: str):
     )
 
 
-def test_spec_completer_lists_spec_file_stems(dirs):
+def test_completer_lists_specs_and_output_directories(dirs):
     specs, outputs = dirs
-    args = _parse(specs, outputs, "llm", "status")
+    args = _parse(specs, outputs, "x", "polygon", "status")
 
-    assert cli._complete_spec_ids("", args) == ["example-problem", "my-task"]
-
-
-def test_spec_and_output_completer_adds_output_directories(dirs):
-    specs, outputs = dirs
-    args = _parse(specs, outputs, "polygon", "status", "x")
-
-    assert cli._complete_spec_and_output_ids("", args) == [
+    assert cli._complete_problem_ids("", args) == [
         "example-problem",
         "my-task",
         "only-output",
@@ -54,9 +47,9 @@ def test_spec_and_output_completer_adds_output_directories(dirs):
 
 
 def test_completers_tolerate_missing_directories(tmp_path):
-    args = _parse(tmp_path / "no-specs", tmp_path / "no-outputs", "polygon", "status", "x")
+    args = _parse(tmp_path / "no-specs", tmp_path / "no-outputs", "x", "polygon", "status")
 
-    assert cli._complete_spec_and_output_ids("", args) == []
+    assert cli._complete_problem_ids("", args) == []
 
 
 def _complete(line: str) -> list[str]:
@@ -86,16 +79,16 @@ def test_tab_completes_problem_id_by_prefix(dirs):
     specs, outputs = dirs
     base = f"orchestrator --specs-dir {specs} --outputs-dir {outputs}"
 
-    assert _complete(f"{base} llm generate ") == ["example-problem", "my-task"]
-    assert _complete(f"{base} polygon push my") == ["my-task"]
-    assert _complete(f"{base} polygon pull o") == ["only-output"]
+    assert _complete(f"{base} ") == ["example-problem", "my-task", "only-output"]
+    assert _complete(f"{base} my") == ["my-task"]
+    assert _complete(f"{base} o") == ["only-output"]
 
 
 def test_tab_completes_commands_and_step_names():
     pytest.importorskip("argcomplete")
 
-    assert _complete("orchestrator polygon pu") == ["push", "pull"]
-    assert _complete("orchestrator llm generate --step statement") == ["statement_draft"]
+    assert _complete("orchestrator my-task polygon pu") == ["push", "pull"]
+    assert _complete("orchestrator my-task llm generate --step statement") == ["statement_draft"]
 
 
 def test_importing_cli_does_not_import_pipelines():

@@ -1,5 +1,5 @@
 """Прогон 5 шагов для одного `problem_id`, с учётом кэша (CLAUDE.md,
-"Пакетный запуск", "Кэширование по хешу спека"), статус кэша шагов
+"Запуск", "Кэширование по хешу спека"), статус кэша шагов
 (`compute_step_statuses`) и принятие текущих файлов без вызова модели
 (`accept_steps`).
 
@@ -8,9 +8,8 @@
 `cache.is_cache_valid(...)` — модель вызывается только если кэш невалиден
 или `force=True`. Если шаг возвращает `status: uncertain`
 (`StepUncertainError`), пайплайн останавливается для этого `problem_id`
-(последующие шаги не запускаются), но не бросает исключение наружу — это
-нужно, чтобы `llm generate --all` (см. `cli.py`) продолжал прогонять остальные задачи,
-даже если одна из них упёрлась в нехватку данных в спеке.
+(последующие шаги не запускаются), но не бросает исключение наружу: это
+ожидаемый исход, а не сбой, и CLI печатает его как результат шага.
 """
 
 from __future__ import annotations
@@ -250,8 +249,8 @@ def run_pipeline(
     Останавливается (не бросая исключение) на первом `StepUncertainError` —
     `result.stopped_uncertain=True`, `result.outcomes` содержит всё, что
     успело отработать. Ошибка валидации спека (`SpecValidationError`) тоже не
-    прокидывается наружу — записывается в `result.spec_error`, чтобы вызывающий
-    `llm generate --all` мог продолжить с другими `problem_id`.
+    прокидывается наружу — записывается в `result.spec_error`, и CLI печатает
+    её вместо результатов шагов.
     """
     try:
         spec = load_spec(Path(specs_dir) / f"{problem_id}.yaml")
@@ -287,8 +286,7 @@ def run_pipeline(
             # ValueError — нет constraints.yaml (constraints_pick ещё не
             # запускался успешно), SpecReferenceError — референс спека не
             # найден: спек или запуск нужно поправить. Это не uncertain, но
-            # пайплайн останавливается так же — без падения всего процесса
-            # llm generate --all.
+            # пайплайн останавливается так же — с сообщением, а не traceback.
             result.outcomes.append(StepOutcome(step_name, "error", str(exc)))
             result.stopped_uncertain = True
             return result
@@ -350,8 +348,8 @@ def run_pipeline(
     return result
 
 
-# Состояния StepStatus.state для `orchestrator llm status` (CLAUDE.md, "Пакетный
-# запуск": "печатает таблицу 'шаг -> cache hit / stale / not run'").
+# Состояния StepStatus.state для `orchestrator <id> llm status` (CLAUDE.md, "Запуск":
+# "печатает таблицу 'шаг -> cache hit / stale / not run'").
 STATUS_CACHE_HIT = "cache hit"
 STATUS_STALE = "stale"
 STATUS_NOT_RUN = "not run"
@@ -359,14 +357,14 @@ STATUS_UNCERTAIN = "uncertain"
 STATUS_SKIPPED_OPTIONAL = "skipped (optional)"
 STATUS_BLOCKED = "blocked"
 
-# Дополнительные состояния StepStatus.state для `orchestrator llm accept`.
+# Дополнительные состояния StepStatus.state для `orchestrator <id> llm accept`.
 STATUS_ACCEPTED = "accepted"
 STATUS_NOT_ACCEPTED = "not accepted"
 
 
 @dataclass
 class StepStatus:
-    """Состояние одного шага для `orchestrator llm status`/`llm accept` —
+    """Состояние одного шага для `orchestrator <id> llm status`/`llm accept` —
     считается только по `.cache/*.json`, файлам и текущим хешам, без вызова
     модели."""
 
@@ -388,7 +386,7 @@ def compute_step_statuses(
 
     Использует те же хеши (`_compute_step_hashes`) и `is_cache_valid`, что и
     `run_pipeline`, поэтому "cache hit" здесь и реальный пропуск шага в
-    `run_pipeline` всегда согласованы (CLAUDE.md, "Пакетный запуск":
+    `run_pipeline` всегда согласованы (CLAUDE.md, "Запуск":
     "используя те же хеши, что и run"). У `stale` в `detail` — что именно
     изменилось (`_stale_reason`).
 
@@ -415,7 +413,7 @@ def accept_steps(
     outputs_dir: Path = OUTPUTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> tuple[list[StepStatus], Optional[str]]:
-    """`orchestrator llm accept`: принимает текущие артефакты шагов как
+    """`orchestrator <id> llm accept`: принимает текущие артефакты шагов как
     актуальные — перезаписывает кэш устаревших (`stale`) шагов текущими
     хешами, без вызова модели. Нужно, когда изменилось то, что не должно
     менять результат (рефакторинг промптов/шаблонов, смена раскладки
@@ -548,7 +546,7 @@ def _accept_step(
         return StepStatus(
             step_name,
             STATUS_NOT_ACCEPTED,
-            f"{current.state}: {detail} — run 'orchestrator llm generate'",
+            f"{current.state}: {detail} — run 'orchestrator {problem_id} llm generate'",
         )
 
     assert cache_entry is not None
