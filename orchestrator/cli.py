@@ -1,7 +1,9 @@
 """Входная точка оркестратора. Все команды имеют вид
-`orchestrator <pipeline> <command> <problem_id> [аргументы]` (CLAUDE.md,
-"Пакетный запуск"): `llm generate|status|accept` — генеративные шаги,
+`orchestrator <problem_id> <pipeline> <command> [аргументы]` (CLAUDE.md,
+"Запуск"): `llm generate|status|accept` — генеративные шаги,
 `polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
+`problem_id` идёт первым: обычно работа идёт над одной задачей, и разные
+команды к ней удобнее менять в конце строки.
 
 Здесь только парсер аргументов и диспетчеризация; сами команды — в
 `cli_commands.py`, и импортируется он лениво, уже после разбора аргументов.
@@ -44,21 +46,16 @@ def _output_ids(parsed_args: argparse.Namespace) -> set[str]:
     }
 
 
-def _complete_spec_ids(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
-    """Кандидаты Tab-дополнения `problem_id` для команд, которым нужен спек.
+def _complete_problem_ids(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
+    """Кандидаты Tab-дополнения `problem_id`: спеки и каталоги `outputs/`.
+    Команда набирается после `problem_id` и на момент дополнения ещё
+    неизвестна, а `polygon status|pull` работают и с задачей, у которой есть
+    только каталог в `outputs/`.
 
-    Список не хранится нигде, а читается из каталога при каждом нажатии Tab —
-    с учётом `--specs-dir`, если он уже набран в командной строке. Фильтрацию
-    по набранному префиксу делает сам `argcomplete`.
+    Список не хранится нигде, а читается из каталогов при каждом нажатии Tab —
+    с учётом `--specs-dir`/`--outputs-dir`, если они уже набраны в командной
+    строке. Фильтрацию по набранному префиксу делает сам `argcomplete`.
     """
-    return sorted(_spec_ids(parsed_args))
-
-
-def _complete_spec_and_output_ids(
-    prefix: str, parsed_args: argparse.Namespace, **kwargs
-) -> list[str]:
-    """То же для команд, работающих и без спека (`polygon status|pull`):
-    задача может существовать только как каталог в `outputs/`."""
     return sorted(_spec_ids(parsed_args) | _output_ids(parsed_args))
 
 
@@ -83,24 +80,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="templates/ directory (default: templates/)",
     )
 
+    parser.add_argument(
+        "problem_id", help="matches specs/<problem_id>.yaml and outputs/<problem_id>/"
+    ).completer = _complete_problem_ids
+
     pipelines = parser.add_subparsers(dest="pipeline", required=True)
 
     llm_parser = pipelines.add_parser("llm", help="generative steps (calls the model via API)")
     llm_commands = llm_parser.add_subparsers(dest="command", required=True)
 
-    generate_parser = llm_commands.add_parser(
-        "generate", help="run generative steps for one problem or for all specs/*.yaml"
-    )
-    generate_group = generate_parser.add_mutually_exclusive_group(required=True)
-    generate_group.add_argument(
-        "problem_id", nargs="?", help="problem_id (matches specs/<problem_id>.yaml)"
-    ).completer = _complete_spec_ids
-    generate_group.add_argument("--all", action="store_true", help="run all specs/*.yaml")
+    generate_parser = llm_commands.add_parser("generate", help="run generative steps")
     generate_parser.add_argument(
-        "--step",
-        choices=STEP_ORDER,
-        default=None,
-        help="run only one step (incompatible with --all)",
+        "--step", choices=STEP_ORDER, default=None, help="run only one step"
     )
     generate_parser.add_argument(
         "--force", action="store_true", help="ignore the cache and call the model again"
@@ -110,12 +101,6 @@ def build_parser() -> argparse.ArgumentParser:
     llm_status_parser = llm_commands.add_parser(
         "status", help="table step -> cache hit / stale / not run / uncertain, without calling the model"
     )
-    llm_status_parser.add_argument(
-        "problem_id",
-        nargs="?",
-        default=None,
-        help="limit to one problem_id (default: all specs/*.yaml)",
-    ).completer = _complete_spec_ids
     llm_status_parser.set_defaults(handler="cmd_llm_status")
 
     accept_parser = llm_commands.add_parser(
@@ -123,16 +108,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="mark current outputs of stale steps as up to date (rewrite their cache with current "
         "hashes) without calling the model",
     )
-    accept_group = accept_parser.add_mutually_exclusive_group(required=True)
-    accept_group.add_argument(
-        "problem_id", nargs="?", help="problem_id (matches specs/<problem_id>.yaml)"
-    ).completer = _complete_spec_ids
-    accept_group.add_argument("--all", action="store_true", help="accept for all specs/*.yaml")
     accept_parser.add_argument(
-        "--step",
-        choices=STEP_ORDER,
-        default=None,
-        help="accept only one step (incompatible with --all)",
+        "--step", choices=STEP_ORDER, default=None, help="accept only one step"
     )
     accept_parser.set_defaults(handler="cmd_llm_accept")
 
@@ -140,16 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
         "polygon", help="upload the problem to Polygon / download it (API polygon.codeforces.com)"
     )
     polygon_commands = polygon_parser.add_subparsers(dest="command", required=True)
-    problem_id_help = "matches specs/<problem_id>.yaml and outputs/<problem_id>/"
 
     polygon_push_parser = polygon_commands.add_parser(
         "push",
         help="upload to Polygon: run polygon steps in order, uploading only what changed "
         "since the last sync (stops if the problem was changed on Polygon)",
     )
-    polygon_push_parser.add_argument(
-        "problem_id", help=problem_id_help
-    ).completer = _complete_spec_ids
     polygon_push_parser.add_argument(
         "--step", choices=POLYGON_STEP_ORDER, default=None, help="run only one polygon step"
     )
@@ -163,9 +136,6 @@ def build_parser() -> argparse.ArgumentParser:
     polygon_status_parser = polygon_commands.add_parser(
         "status", help="which polygon steps are already done, without network access"
     )
-    polygon_status_parser.add_argument(
-        "problem_id", help=problem_id_help
-    ).completer = _complete_spec_and_output_ids
     polygon_status_parser.set_defaults(handler="cmd_polygon_status")
 
     polygon_pull_parser = polygon_commands.add_parser(
@@ -173,9 +143,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="link to an existing Polygon problem, compare local files with it and download "
         "the missing ones (no spec needed)",
     )
-    polygon_pull_parser.add_argument(
-        "problem_id", help=problem_id_help
-    ).completer = _complete_spec_and_output_ids
     polygon_pull_parser.add_argument(
         "--polygon-id",
         type=int,
@@ -219,9 +186,6 @@ def main(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
     args = parser.parse_args(argv)
     args.command_line = " ".join(argv)
-
-    if args.handler in ("cmd_llm_generate", "cmd_llm_accept") and args.all and args.step is not None:
-        parser.error("--step is incompatible with --all")
 
     from orchestrator import cli_commands
 

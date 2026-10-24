@@ -51,7 +51,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
         _link(ctx, polygon_id, revision=None)
         return StepResult(
             f"found existing Polygon problem by name (id={polygon_id}), reused — run "
-            f"`orchestrator polygon pull {ctx.problem_id}` before pushing to it"
+            f"`orchestrator {ctx.problem_id} polygon pull` before pushing to it"
         )
 
     polygon_id = _create_polygon_problem(client, ctx.problem_id)

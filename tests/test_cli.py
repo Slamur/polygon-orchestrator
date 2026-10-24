@@ -4,7 +4,6 @@ from unittest.mock import patch
 import pytest
 
 from orchestrator import cli, cli_commands
-from orchestrator.llm_client import UsageLimitReachedError
 from orchestrator.model_router import ModelResponse
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -74,7 +73,7 @@ def test_run_single_problem_prints_step_outcomes_and_exits_zero(specs_dir, tmp_p
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "generate"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -88,7 +87,7 @@ def test_run_writes_llm_generation_log(specs_dir, tmp_path, capsys):
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
+        cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "generate"])
 
     log = (outputs_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     assert "statement_draft" in log
@@ -98,7 +97,7 @@ def test_run_writes_llm_generation_log(specs_dir, tmp_path, capsys):
 def test_run_log_accumulates_runs_with_header_and_step_starts(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"
-    argv = _base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1", "--step", "statement_draft"]
+    argv = _base_args(specs_dir, outputs_dir) + ["p1", "llm", "generate", "--step", "statement_draft"]
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(argv)
@@ -121,7 +120,7 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(specs_dir, tmp_path, capsy
         notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
     )
     with patch("orchestrator.model_router.call_model", return_value=uncertain_response):
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "generate"])
 
     assert rc == 1
     out = capsys.readouterr().out
@@ -130,57 +129,11 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(specs_dir, tmp_path, capsy
     assert "нет точности" in out
 
 
-def test_run_all_continues_past_invalid_spec_and_reports_exit_code(specs_dir, tmp_path, capsys):
-    _write_spec(specs_dir, "good")
-    # problem_id внутри файла не совпадает с именем файла -> SpecValidationError
-    bad_content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
-    (specs_dir / "bad.yaml").write_text(bad_content, encoding="utf-8")  # problem_id остаётся "valid-spec"
-    outputs_dir = tmp_path / "outputs"
-
-    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all"])
-
-    assert rc == 1  # хотя бы одна задача провалилась
-    out = capsys.readouterr().out
-    assert "=== bad ===" in out
-    assert "failed validation" in out
-    assert "=== good ===" in out
-    assert "statement_draft: confirmed" in out
-
-
-def test_run_all_stops_on_usage_limit(specs_dir, tmp_path, capsys):
-    for problem_id in ("p1", "p2", "p3"):
-        _write_spec(specs_dir, problem_id)
-    outputs_dir = tmp_path / "outputs"
-    calls = []
-
-    def limited_call_model(step, system_prompt, user_prompt, context_documents=None):
-        calls.append(step)
-        raise UsageLimitReachedError("usage limit reached")
-
-    with patch("orchestrator.model_router.call_model", side_effect=limited_call_model):
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all"])
-
-    assert rc == 1
-    assert len(calls) == 1  # p2/p3 не тронуты — лимит общий
-    out = capsys.readouterr().out
-    assert "=== p1 ===" in out
-    assert "usage limit reached" in out
-    assert "not processed: p2, p3" in out
-
-
-def test_run_all_with_no_specs_reports_and_exits_zero(specs_dir, tmp_path, capsys):
-    outputs_dir = tmp_path / "outputs"
-    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all"])
-    assert rc == 0
-    assert "no specs/*.yaml found" in capsys.readouterr().out
-
-
 def test_status_reports_not_run_before_any_run(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"
 
-    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "status"])
+    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "status"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -192,10 +145,10 @@ def test_status_reports_cache_hit_after_run(specs_dir, tmp_path, capsys):
     outputs_dir = tmp_path / "outputs"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
+        cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "generate"])
     capsys.readouterr()  # discard run's own output
 
-    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "status", "p1"])
+    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "status"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -206,12 +159,12 @@ def test_accept_marks_stale_step_and_reports_it(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
+        cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "generate"])
     (outputs_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
     capsys.readouterr()
 
     with patch("orchestrator.model_router.call_model") as mock_call:
-        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "accept", "p1"])
+        rc = cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "accept"])
 
     mock_call.assert_not_called()
     assert rc == 0
@@ -219,7 +172,7 @@ def test_accept_marks_stale_step_and_reports_it(specs_dir, tmp_path, capsys):
     assert "generators_and_script: accepted — was stale: " in out
     assert "upstream: constraints.yaml" in out
 
-    cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "status", "p1"])
+    cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "status"])
     assert capsys.readouterr().out.count("cache hit") == 4
 
 
@@ -227,27 +180,26 @@ def test_accept_before_any_run_exits_nonzero(specs_dir, tmp_path, capsys):
     _write_spec(specs_dir, "p1")
     outputs_dir = tmp_path / "outputs"
 
-    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "accept", "p1"])
+    rc = cli.main(_base_args(specs_dir, outputs_dir) + ["p1", "llm", "accept"])
 
     assert rc == 1
     assert "statement_draft: not accepted" in capsys.readouterr().out
 
 
-def test_accept_all_and_step_are_mutually_incompatible(specs_dir, tmp_path):
-    outputs_dir = tmp_path / "outputs"
-    with pytest.raises(SystemExit) as exc_info:
-        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "accept", "--all", "--step", "statement_draft"])
-    assert exc_info.value.code == 2
-
-
-def test_run_all_and_step_are_mutually_incompatible(specs_dir, tmp_path):
-    outputs_dir = tmp_path / "outputs"
-    with pytest.raises(SystemExit) as exc_info:
-        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "--all", "--step", "statement_draft"])
-    assert exc_info.value.code == 2
-
-
-def test_run_requires_problem_id_or_all(specs_dir, tmp_path):
+def test_problem_id_is_required(specs_dir, tmp_path):
     outputs_dir = tmp_path / "outputs"
     with pytest.raises(SystemExit):
         cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate"])
+
+
+def test_problem_id_goes_before_command(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with pytest.raises(SystemExit):
+        cli.main(_base_args(specs_dir, outputs_dir) + ["llm", "generate", "p1"])
+
+
+def test_all_is_not_supported(specs_dir, tmp_path):
+    outputs_dir = tmp_path / "outputs"
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(_base_args(specs_dir, outputs_dir) + ["--all", "llm", "generate"])
+    assert exc_info.value.code == 2

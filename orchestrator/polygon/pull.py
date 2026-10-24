@@ -1,5 +1,5 @@
 """Выгрузка задачи из Polygon в `outputs/<problem_id>/` —
-`orchestrator polygon pull <problem_id> [--overwrite]`.
+`orchestrator <problem_id> polygon pull [--overwrite]`.
 
 Обратное направление к polygon-шагам (`steps/`): привязывает `problem_id` к
 уже существующей на Polygon задаче (`polygon_state.json`), сравнивает с
@@ -135,7 +135,7 @@ _KEPT_DETAIL = "differs from Polygon, local version kept — the next push will 
 _LOCAL_ONLY_DETAIL = "not on Polygon — the next push will upload it"
 
 _CONSTRAINTS_HEADER = (
-    "# Pulled from Polygon (orchestrator polygon pull ...): TL/ML only.\n"
+    "# Pulled from Polygon (orchestrator <problem_id> polygon pull): TL/ML only.\n"
     "# This is NOT a constraints_pick result — there are no variable ranges,\n"
     "# test groups or validator section here. Steps that take constraints.yaml\n"
     "# as input (generators_and_script, solutions_draft) will see only this.\n"

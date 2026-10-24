@@ -25,7 +25,7 @@ from orchestrator.spec import ProblemSpec
 logger = logging.getLogger(__name__)
 
 
-# Состояния polygon-шага для `orchestrator polygon status <id>` (без сети).
+# Состояния polygon-шага для `orchestrator <id> polygon status` (без сети).
 STATUS_DONE = "done"
 STATUS_STALE = "stale"
 STATUS_NOT_RUN = "not run"
@@ -105,7 +105,7 @@ def require_polygon_state(ctx: StepContext) -> PolygonState:
     if state is None:
         raise PolygonStepError(
             f"'{ctx.problem_id}': the problem is not created on Polygon yet — first "
-            f"run the create_problem step (`orchestrator polygon push {ctx.problem_id} "
+            f"run the create_problem step (`orchestrator {ctx.problem_id} polygon push "
             "--step create_problem`)"
         )
     return state

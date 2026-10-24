@@ -225,7 +225,7 @@ meta:
 **Каталог-референс** устроен как `outputs/<problem_id>/` — результат
 оркестратора: учебная задача `templates/examples/<problem_id>/`, прошлая
 задача автора в `outputs/<problem_id>/` (в том числе выгруженная
-`orchestrator polygon pull`) и т.п. Каждый шаг берёт из каталога только свою
+`polygon pull`) и т.п. Каждый шаг берёт из каталога только свою
 часть (`REFERENCE_DOCUMENTS` в `orchestrator/references.py`):
 
 | Шаг | Файлы из каталога |

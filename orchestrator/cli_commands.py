@@ -14,7 +14,6 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
-from orchestrator.llm_client import UsageLimitReachedError
 from orchestrator.pipeline import (
     OUTCOME_CACHE_HIT,
     OUTCOME_CONFIRMED,
@@ -120,8 +119,7 @@ def _problem_log_handler(
     `_RUN_HEADER`) — по нему удобно искать нужный запуск, а время в каждой
     строке показывает длительность шагов. Handler добавляется к логгеру
     перед прогоном шагов и снимается сразу после, через try/finally — чтобы
-    в `llm generate --all` лог одной задачи не утёк в файл следующей, и чтобы
-    необработанное исключение всё равно не оставило handler висящим.
+    необработанное исключение не оставило handler висящим.
 
     Отдаёт сам handler — вызывающий код использует его напрямую в
     `_log_traceback_to_file` для необработанных исключений (см. там же,
@@ -161,8 +159,7 @@ def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
     """Пишет текущий traceback (`sys.exc_info()`) в конкретный `handler`,
     минуя остальные handler'ы логгера — чтобы вывод в консоль при
     необработанном исключении остался ровно таким же, как раньше (traceback
-    туда и так печатает сам Python при завершении процесса / его печатал
-    старый `except Exception` в `llm generate --all`, без traceback вообще), а
+    туда и так печатает сам Python при завершении процесса), а
     `outputs/<id>/llm_generation.log` при этом не терял traceback (CLAUDE.md, задача
     "лог выполнения", пункт 4).
     """
@@ -176,10 +173,6 @@ def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
         exc_info=sys.exc_info(),
     )
     handler.handle(record)
-
-
-def _discover_problem_ids(specs_dir: Path) -> list[str]:
-    return sorted(path.stem for path in Path(specs_dir).glob("*.yaml"))
 
 
 def _print_pipeline_result(logger: logging.Logger, result) -> None:
@@ -207,52 +200,6 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
 def cmd_llm_generate(args: argparse.Namespace) -> int:
     logger = _configure_console_logging()
 
-    if args.all:
-        problem_ids = _discover_problem_ids(args.specs_dir)
-        if not problem_ids:
-            logger.info(f"no specs/*.yaml found in {args.specs_dir}")
-            return 0
-
-        any_failed = False
-        for problem_id in problem_ids:
-            with _problem_log_handler(
-                logger, args.outputs_dir, problem_id, LLM_GENERATION_LOG, args.command_line
-            ) as file_handler:
-                try:
-                    result = run_pipeline(
-                        problem_id,
-                        force=args.force,
-                        specs_dir=args.specs_dir,
-                        prompts_dir=args.prompts_dir,
-                        outputs_dir=args.outputs_dir,
-                        templates_dir=args.templates_dir,
-                    )
-                except UsageLimitReachedError as exc:
-                    # Лимит общий для всех задач — следующие упадут так же,
-                    # поэтому --all останавливается, а не идёт дальше.
-                    logger.info(f"=== {problem_id} ===")
-                    logger.info(f"  ! {exc}")
-                    remaining = problem_ids[problem_ids.index(problem_id) + 1 :]
-                    if remaining:
-                        logger.info(f"--all stopped, not processed: {', '.join(remaining)}")
-                    _log_traceback_to_file(
-                        file_handler, f"usage limit reached while processing '{problem_id}'"
-                    )
-                    return 1
-                except Exception as exc:  # noqa: BLE001 — один problem_id не должен ронять весь --all
-                    logger.info(f"=== {problem_id} ===")
-                    logger.info(f"  ! unexpected error: {exc}")
-                    _log_traceback_to_file(
-                        file_handler, f"unhandled error while processing '{problem_id}'"
-                    )
-                    any_failed = True
-                    continue
-
-                _print_pipeline_result(logger, result)
-                if not result.ok:
-                    any_failed = True
-        return 1 if any_failed else 0
-
     if args.step is not None and args.step not in STEP_ORDER:
         print(f"unknown step '{args.step}', allowed: {', '.join(STEP_ORDER)}", file=sys.stderr)
         return 2
@@ -279,47 +226,31 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
-def _print_step_statuses(problem_ids: list[str], compute) -> bool:
-    """Печатает `шаг: состояние — подробности` по каждому `problem_id`;
-    `compute(problem_id)` — `(статусы, spec_error)`. Возвращает, была ли
-    ошибка спека."""
-    any_error = False
-    for problem_id in problem_ids:
-        print(f"=== {problem_id} ===")
-        statuses, spec_error = compute(problem_id)
-        if spec_error is not None:
-            print(spec_error)
-            any_error = True
-            continue
+def _print_step_statuses(problem_id: str, statuses, spec_error: str | None) -> bool:
+    """Печатает `шаг: состояние — подробности` (или ошибку спека).
+    Возвращает, была ли ошибка спека."""
+    print(f"=== {problem_id} ===")
+    if spec_error is not None:
+        print(spec_error)
+        return True
 
-        for step_status in statuses:
-            line = f"  {step_status.step_name}: {step_status.state}"
-            if step_status.detail:
-                line += f" — {step_status.detail}"
-            print(line)
-    return any_error
+    for step_status in statuses:
+        line = f"  {step_status.step_name}: {step_status.state}"
+        if step_status.detail:
+            line += f" — {step_status.detail}"
+        print(line)
+    return False
 
 
 def cmd_llm_status(args: argparse.Namespace) -> int:
-    problem_ids = (
-        [args.problem_id]
-        if args.problem_id is not None
-        else _discover_problem_ids(args.specs_dir)
+    statuses, spec_error = compute_step_statuses(
+        args.problem_id,
+        specs_dir=args.specs_dir,
+        prompts_dir=args.prompts_dir,
+        outputs_dir=args.outputs_dir,
+        templates_dir=args.templates_dir,
     )
-    if not problem_ids:
-        print(f"no specs/*.yaml found in {args.specs_dir}")
-        return 0
-
-    any_error = _print_step_statuses(
-        problem_ids,
-        lambda problem_id: compute_step_statuses(
-            problem_id,
-            specs_dir=args.specs_dir,
-            prompts_dir=args.prompts_dir,
-            outputs_dir=args.outputs_dir,
-            templates_dir=args.templates_dir,
-        ),
-    )
+    any_error = _print_step_statuses(args.problem_id, statuses, spec_error)
     return 1 if any_error else 0
 
 
@@ -327,28 +258,18 @@ def cmd_llm_accept(args: argparse.Namespace) -> int:
     """Принимает текущие артефакты устаревших шагов без вызова модели (см.
     `pipeline.accept_steps`). Код возврата 1 — ошибка спека или хотя бы один
     шаг не принят (или заблокирован)."""
-    problem_ids = [args.problem_id] if not args.all else _discover_problem_ids(args.specs_dir)
-    if not problem_ids:
-        print(f"no specs/*.yaml found in {args.specs_dir}")
-        return 0
-
-    any_not_accepted = False
-
-    def accept(problem_id: str):
-        nonlocal any_not_accepted
-        statuses, spec_error = accept_steps(
-            problem_id,
-            only_step=args.step,
-            specs_dir=args.specs_dir,
-            prompts_dir=args.prompts_dir,
-            outputs_dir=args.outputs_dir,
-            templates_dir=args.templates_dir,
-        )
-        if any(status.state in (STATUS_NOT_ACCEPTED, STATUS_BLOCKED) for status in statuses):
-            any_not_accepted = True
-        return statuses, spec_error
-
-    any_error = _print_step_statuses(problem_ids, accept)
+    statuses, spec_error = accept_steps(
+        args.problem_id,
+        only_step=args.step,
+        specs_dir=args.specs_dir,
+        prompts_dir=args.prompts_dir,
+        outputs_dir=args.outputs_dir,
+        templates_dir=args.templates_dir,
+    )
+    any_not_accepted = any(
+        status.state in (STATUS_NOT_ACCEPTED, STATUS_BLOCKED) for status in statuses
+    )
+    any_error = _print_step_statuses(args.problem_id, statuses, spec_error)
     return 1 if any_error or any_not_accepted else 0
 
 
