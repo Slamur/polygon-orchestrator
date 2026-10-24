@@ -63,6 +63,23 @@ def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
     assert state.created_at
 
 
+def test_nested_example_is_created_under_joined_problem_id(tmp_path, spec):
+    examples = tmp_path / "examples"
+    client = MagicMock()
+    client.call.side_effect = lambda method, params: (
+        ([{"id": 555, "revision": 1}] if "id" in params else [])
+        if method == "problems.list"
+        else {"id": 555}
+    )
+
+    run_and_record(STEP, "array/prefix-sums", spec, examples, client)
+
+    create_calls = [c for c in client.call.call_args_list if c.args[0] == "problem.create"]
+    assert create_calls[0].args[1] == {"name": "array--prefix-sums"}
+    state = load_polygon_state("array/prefix-sums", problems_dir=examples)
+    assert state.problem_id == "array--prefix-sums"
+
+
 def test_reuses_existing_polygon_problem_found_by_name(tmp_path, spec):
     client = MagicMock()
     client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]

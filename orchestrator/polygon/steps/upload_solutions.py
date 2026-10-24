@@ -61,6 +61,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import digest, solution_key
+from orchestrator.problem_paths import problem_address
 from orchestrator.spec import split_solution_stem
 
 logger = logging.getLogger(__name__)
@@ -152,9 +153,10 @@ def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, byte
     имён. Нет каталога или он пуст — `PolygonStepError`."""
     solutions_dir = Path(problems_dir) / problem_id / "solutions"
     if not solutions_dir.is_dir():
+        address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': directory {solutions_dir} not found — first "
-            f"run the generative step solutions_draft (`orchestrator {problem_id} llm generate "
+            f"run the generative step solutions_draft (`orchestrator {address} llm generate "
             f"--step solutions_draft`)"
         )
     paths = sorted((p for p in solutions_dir.iterdir() if p.is_file()), key=lambda p: p.name)

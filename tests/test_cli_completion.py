@@ -1,4 +1,4 @@
-"""Tab-дополнение `problem_id` и условие, на котором оно держится: модуль
+"""Tab-дополнение адреса задачи и условие, на котором оно держится: модуль
 `cli` не тянет пайплайны при импорте (см. докстринг `orchestrator/cli.py`)."""
 
 import os
@@ -14,37 +14,42 @@ from orchestrator.polygon import pipeline as polygon_pipeline
 REPO_ROOT = Path(__file__).parent.parent
 
 
+def _touch(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("", encoding="utf-8")
+
+
 @pytest.fixture
-def problems(tmp_path):
-    problems = tmp_path / "problems"
-    (problems / "my-task").mkdir(parents=True)
-    (problems / "my-task" / "spec.yaml").write_text("", encoding="utf-8")
-    (problems / "example-problem").mkdir()
-    (problems / "example-problem" / "spec.yaml").write_text("", encoding="utf-8")
-    (problems / "only-output").mkdir()
-    (problems / ".hidden").mkdir()
-    (problems / "stray-file").write_text("", encoding="utf-8")
-    return problems
+def base(tmp_path):
+    _touch(tmp_path / "problems" / "my-task" / "spec.yaml")
+    _touch(tmp_path / "problems" / "contest" / "2026" / "example-problem" / "spec.yaml")
+    _touch(tmp_path / "problems" / "contest" / "pulled-only" / "polygon_state.json")
+    (tmp_path / "problems" / "contest" / "empty-group").mkdir()
+    _touch(tmp_path / "problems" / ".hidden" / "spec.yaml")
+    _touch(tmp_path / "problems" / "stray-file")
+    _touch(tmp_path / "examples" / "array" / "prefix-sums" / "spec.yaml")
+    return tmp_path
 
 
-def _parse(problems: Path, *command: str):
-    return cli.build_parser().parse_args(["--problems-dir", str(problems), *command])
+def _parse(base: Path, *command: str):
+    return cli.build_parser().parse_args(["--base-dir", str(base), *command])
 
 
-def test_completer_lists_problem_directories_with_or_without_spec(problems):
-    args = _parse(problems, "x", "polygon", "status")
+def test_completer_lists_problem_addresses_in_both_roots(base):
+    args = _parse(base, "problems/x", "polygon", "status")
 
-    assert cli._complete_problem_ids("", args) == [
-        "example-problem",
-        "my-task",
-        "only-output",
+    assert cli._complete_problem_addresses("", args) == [
+        "problems/contest/2026/example-problem",
+        "problems/contest/pulled-only",
+        "problems/my-task",
+        "examples/array/prefix-sums",
     ]
 
 
 def test_completers_tolerate_missing_directories(tmp_path):
-    args = _parse(tmp_path / "no-problems", "x", "polygon", "status")
+    args = _parse(tmp_path / "nothing", "problems/x", "polygon", "status")
 
-    assert cli._complete_problem_ids("", args) == []
+    assert cli._complete_problem_addresses("", args) == []
 
 
 def _complete(line: str) -> list[str]:
@@ -69,20 +74,25 @@ def _complete(line: str) -> list[str]:
     return [candidate.strip() for candidate in result.stdout.split("\n") if candidate.strip()]
 
 
-def test_tab_completes_problem_id_by_prefix(problems):
+def test_tab_completes_problem_address_by_prefix(base):
     pytest.importorskip("argcomplete")
-    base = f"orchestrator --problems-dir {problems}"
+    line = f"orchestrator --base-dir {base}"
 
-    assert _complete(f"{base} ") == ["example-problem", "my-task", "only-output"]
-    assert _complete(f"{base} my") == ["my-task"]
-    assert _complete(f"{base} o") == ["only-output"]
+    assert _complete(f"{line} problems/m") == ["problems/my-task"]
+    assert _complete(f"{line} problems/contest/") == [
+        "problems/contest/2026/example-problem",
+        "problems/contest/pulled-only",
+    ]
+    assert _complete(f"{line} ex") == ["examples/array/prefix-sums"]
 
 
 def test_tab_completes_commands_and_step_names():
     pytest.importorskip("argcomplete")
 
-    assert _complete("orchestrator my-task polygon pu") == ["push", "pull"]
-    assert _complete("orchestrator my-task llm generate --step statement") == ["statement_draft"]
+    assert _complete("orchestrator problems/my-task polygon pu") == ["push", "pull"]
+    assert _complete("orchestrator problems/my-task llm generate --step statement") == [
+        "statement_draft"
+    ]
 
 
 def test_importing_cli_does_not_import_pipelines():

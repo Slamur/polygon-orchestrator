@@ -497,6 +497,32 @@ def test_unknown_name_is_an_error_and_writes_nothing(problems_dir, polygon):
     assert not (problems_dir / PROBLEM_ID).exists()
 
 
+def test_nested_example_is_searched_by_joined_problem_id(tmp_path, polygon):
+    examples = tmp_path / "examples"
+    polygon.problems[0]["name"] = "array--prefix-sums"
+
+    result = pull_problem("array/prefix-sums", problems_dir=examples, client=polygon)
+
+    assert result.polygon_id == POLYGON_ID
+    assert ("problems.list", {"name": "array--prefix-sums", "showDeleted": "false"}) in polygon.calls
+    state = load_polygon_state("array/prefix-sums", problems_dir=examples)
+    assert state.problem_id == "array--prefix-sums"
+    assert (examples / "array" / "prefix-sums" / "validator.cpp").exists()
+
+
+def test_unlinked_problem_with_taken_problem_id_is_an_error_and_writes_nothing(
+    problems_dir, polygon
+):
+    (problems_dir / "2025" / PROBLEM_ID).mkdir(parents=True)
+    (problems_dir / "2025" / PROBLEM_ID / "spec.yaml").write_text("", encoding="utf-8")
+
+    with pytest.raises(PolygonStepError, match="already used by"):
+        pull_problem(f"2026/{PROBLEM_ID}", problems_dir=problems_dir, client=polygon)
+
+    assert polygon.calls == []
+    assert not (problems_dir / "2026").exists()
+
+
 def test_ambiguous_name_is_an_error(problems_dir, polygon):
     polygon.problems = [
         {"id": 1, "name": PROBLEM_ID, "owner": "a"},
@@ -631,9 +657,9 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
 
     exit_code = cli.main(
         [
-            "--problems-dir",
-            str(problems_dir),
-            PROBLEM_ID,
+            "--base-dir",
+            str(problems_dir.parent),
+            f"problems/{PROBLEM_ID}",
             "polygon",
             "pull",
         ]
@@ -644,7 +670,7 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
     assert "  validator.cpp: downloaded — Polygon source file val.cpp" in out
     assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
     log = (problems_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
-    assert "run started: orchestrator --problems-dir" in log
+    assert "run started: orchestrator --base-dir" in log
     assert "[pull] validator.cpp: downloaded" in log
 
 
@@ -652,7 +678,9 @@ def test_cli_pull_unresolved_problem_exits_with_error(problems_dir, polygon, cap
     polygon.problems = []
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
-    exit_code = cli.main(["--problems-dir", str(problems_dir), PROBLEM_ID, "polygon", "pull"])
+    exit_code = cli.main(
+        ["--base-dir", str(problems_dir.parent), f"problems/{PROBLEM_ID}", "polygon", "pull"]
+    )
 
     assert exit_code == 1
     err = capsys.readouterr().err
@@ -666,7 +694,14 @@ def test_cli_pull_overwrite_reports_backup_dir(problems_dir, polygon, capsys, mo
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
     exit_code = cli.main(
-        ["--problems-dir", str(problems_dir), PROBLEM_ID, "polygon", "pull", "--overwrite"]
+        [
+            "--base-dir",
+            str(problems_dir.parent),
+            f"problems/{PROBLEM_ID}",
+            "polygon",
+            "pull",
+            "--overwrite",
+        ]
     )
 
     out = capsys.readouterr().out

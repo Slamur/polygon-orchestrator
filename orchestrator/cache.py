@@ -18,8 +18,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+from orchestrator.problem_paths import PROBLEMS_DIR
+
 PROMPTS_DIR = Path("prompts")
-PROBLEMS_DIR = Path("problems")
 TEMPLATES_DIR = Path("templates")
 
 # Статус, который никогда не считается валидным кэшем (см. CLAUDE.md,

@@ -29,6 +29,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import VALIDATOR_FILE_KEY, VALIDATOR_KEY, digest
+from orchestrator.problem_paths import problem_address
 
 STEP_NAME = "upload_validator"
 
@@ -82,9 +83,10 @@ def _items(content: bytes) -> dict[str, str]:
 def _read_validator(problem_id: str, problems_dir: Path) -> bytes:
     validator_path = Path(problems_dir) / problem_id / _VALIDATOR_FILENAME
     if not validator_path.exists():
+        address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': {validator_path} not found — first run "
-            f"the generative step constraints_pick (`orchestrator {problem_id} llm generate "
+            f"the generative step constraints_pick (`orchestrator {address} llm generate "
             "--step constraints_pick`)"
         )
 

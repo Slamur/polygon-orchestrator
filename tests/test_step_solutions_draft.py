@@ -25,7 +25,7 @@ def spec():
 
 
 # Путь от корня репозитория — так референс записывается в спеке.
-EXAMPLE_REF = "examples/array--prefix-sums"
+EXAMPLE_REF = "examples/array/prefix-sums"
 EXAMPLE_DIR = REPO_ROOT / EXAMPLE_REF
 
 
@@ -109,14 +109,14 @@ def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_
 
     # Фикстура заказывает только cpp — решения на других языках не прикладываются.
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    attached = [d for d in context_documents if d.startswith("examples/array--prefix-sums/solutions/")]
+    attached = [d for d in context_documents if d.startswith("examples/array/prefix-sums/solutions/")]
     expected = sorted(
-        f"examples/array--prefix-sums/solutions/{p.name}"
+        f"examples/array/prefix-sums/solutions/{p.name}"
         for p in (EXAMPLE_DIR / "solutions").glob("*_cpp_*")
     )
     assert expected
     assert attached == expected
-    assert "examples/array--prefix-sums/spec.yaml" in context_documents
+    assert "examples/array/prefix-sums/spec.yaml" in context_documents
 
 
 def test_missing_solutions_section_raises(spec, tmp_path):

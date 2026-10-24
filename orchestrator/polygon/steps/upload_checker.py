@@ -39,6 +39,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import CHECKER_FILE_KEY, CHECKER_KEY, digest
+from orchestrator.problem_paths import problem_address
 
 STEP_NAME = "upload_checker"
 
@@ -109,10 +110,11 @@ def _custom_items(content: bytes) -> dict[str, str]:
 def _read_custom_checker(problem_id: str, problems_dir: Path) -> bytes:
     checker_path = Path(problems_dir) / problem_id / _CHECKER_FILENAME
     if not checker_path.exists():
+        address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': checker.custom_needed=true, but "
             f"{checker_path} not found — first run the generative step checker_draft "
-            f"(`orchestrator {problem_id} llm generate --step checker_draft`)"
+            f"(`orchestrator {address} llm generate --step checker_draft`)"
         )
     return checker_path.read_bytes()
 

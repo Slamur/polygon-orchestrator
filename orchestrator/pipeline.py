@@ -33,6 +33,7 @@ from orchestrator.cache import (
     load_cache_entry,
     save_cache_entry,
 )
+from orchestrator.problem_paths import problem_address
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import STEP_ORDER
@@ -346,7 +347,7 @@ def run_pipeline(
     return result
 
 
-# Состояния StepStatus.state для `orchestrator <id> llm status` (CLAUDE.md, "Запуск":
+# Состояния StepStatus.state для `orchestrator <задача> llm status` (CLAUDE.md, "Запуск":
 # "печатает таблицу 'шаг -> cache hit / stale / not run'").
 STATUS_CACHE_HIT = "cache hit"
 STATUS_STALE = "stale"
@@ -355,14 +356,14 @@ STATUS_UNCERTAIN = "uncertain"
 STATUS_SKIPPED_OPTIONAL = "skipped (optional)"
 STATUS_BLOCKED = "blocked"
 
-# Дополнительные состояния StepStatus.state для `orchestrator <id> llm accept`.
+# Дополнительные состояния StepStatus.state для `orchestrator <задача> llm accept`.
 STATUS_ACCEPTED = "accepted"
 STATUS_NOT_ACCEPTED = "not accepted"
 
 
 @dataclass
 class StepStatus:
-    """Состояние одного шага для `orchestrator <id> llm status`/`llm accept` —
+    """Состояние одного шага для `orchestrator <задача> llm status`/`llm accept` —
     считается только по `.cache/*.json`, файлам и текущим хешам, без вызова
     модели."""
 
@@ -408,7 +409,7 @@ def accept_steps(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> tuple[list[StepStatus], Optional[str]]:
-    """`orchestrator <id> llm accept`: принимает текущие артефакты шагов как
+    """`orchestrator <задача> llm accept`: принимает текущие артефакты шагов как
     актуальные — перезаписывает кэш устаревших (`stale`) шагов текущими
     хешами, без вызова модели. Нужно, когда изменилось то, что не должно
     менять результат (рефакторинг промптов/шаблонов, смена раскладки
@@ -539,7 +540,8 @@ def _accept_step(
         return StepStatus(
             step_name,
             STATUS_NOT_ACCEPTED,
-            f"{current.state}: {detail} — run 'orchestrator {problem_id} llm generate'",
+            f"{current.state}: {detail} — run "
+            f"'orchestrator {problem_address(problems_dir, problem_id)} llm generate'",
         )
 
     assert cache_entry is not None

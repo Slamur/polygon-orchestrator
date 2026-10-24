@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Блокирует push, если имя ветки или сообщения коммитов (относительно
-# origin/main) содержат problem_id любой задачи — имя любого каталога в problems/
-# (и в outputs/ — прежнее имя каталога задач, на случай оставшейся локальной копии).
-# См. "Конфиденциальность problems/" в CLAUDE.md.
+# origin/main) содержат problem_id любой задачи в problems/ — имя каталога
+# задачи на любой глубине (каталог со spec.yaml или polygon_state.json, см.
+# orchestrator/problem_paths.py; группирующие каталоги вроде года или раунда не
+# проверяются — иначе короткие имена давали бы ложные срабатывания), — и имя
+# любого каталога в outputs/ (прежнее имя каталога задач, на случай оставшейся
+# локальной копии). См. "Конфиденциальность problems/" в CLAUDE.md.
 #
 # Подключение (один раз после клонирования): git config core.hooksPath githooks
 
@@ -12,11 +15,22 @@ shopt -s nocasematch
 
 repo_root="$(git rev-parse --show-toplevel)" || exit 0
 
+problem_ids=()
+if [ -d "$repo_root/problems" ]; then
+    while IFS= read -r -d '' marker; do
+        problem_id="$(basename "$(dirname "$marker")")"
+        # spec.yaml и polygon_state.json одной задачи — один problem_id
+        [[ " ${problem_ids[*]} " == *" $problem_id "* ]] || problem_ids+=("$problem_id")
+    done < <(find "$repo_root/problems" -mindepth 1 -name '.*' -prune -o \
+        -type f \( -name spec.yaml -o -name polygon_state.json \) -print0)
+fi
 shopt -s nullglob
-problem_dirs=("$repo_root"/problems/*/ "$repo_root"/outputs/*/)
+for legacy_dir in "$repo_root"/outputs/*/; do
+    problem_ids+=("$(basename "$legacy_dir")")
+done
 shopt -u nullglob
 
-if [ ${#problem_dirs[@]} -eq 0 ]; then
+if [ ${#problem_ids[@]} -eq 0 ]; then
     exit 0
 fi
 
@@ -30,8 +44,7 @@ if git rev-parse --verify --quiet origin/main >/dev/null; then
 fi
 
 leaked=0
-for problem_dir in "${problem_dirs[@]}"; do
-    problem_id="$(basename "$problem_dir")"
+for problem_id in "${problem_ids[@]}"; do
     [ -n "$problem_id" ] || continue
 
     if [[ "$branch" == *"$problem_id"* ]]; then

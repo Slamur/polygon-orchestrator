@@ -39,14 +39,14 @@ from orchestrator.cache import (
     save_cache_entry,
 )
 from orchestrator.checks.compile_check import CompileResult, compile_check
+from orchestrator.problem_paths import EXAMPLES_DIR, PROBLEMS_DIR
 
 PROMPTS_DIR = Path("prompts")
-PROBLEMS_DIR = Path("problems")
 TEMPLATES_DIR = Path("templates")
-# Учебные задачи-образцы `examples/<problem_id>/`, каждая в раскладке
-# `problems/<problem_id>/` плюс свой спек `spec.yaml`. Сами по себе к вызову не
-# прикладываются — только как референсы спека (`orchestrator/references.py`).
-EXAMPLES_DIR = Path("examples")
+# Учебные задачи-образцы `examples/` (`EXAMPLES_DIR`), каждая в раскладке
+# `problems/<problem_id>/` плюс свой спек `spec.yaml` (как задачи раскладываются
+# по вложенным каталогам — см. `orchestrator/problem_paths.py`). Сами по себе к
+# вызову не прикладываются — только как референсы спека (`orchestrator/references.py`).
 
 # У каждой задачи своя копия `problem_lib.h` — `problems/<problem_id>/problem_lib.h`:
 # шаблон `templates/problem_lib.h` — только её начальное содержимое, и правки
