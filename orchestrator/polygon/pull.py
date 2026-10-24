@@ -1,4 +1,4 @@
-"""Выгрузка задачи из Polygon в `outputs/<problem_id>/` —
+"""Выгрузка задачи из Polygon в `problems/<problem_id>/` —
 `orchestrator <problem_id> polygon pull [--overwrite]`.
 
 Обратное направление к polygon-шагам (`steps/`): привязывает `problem_id` к
@@ -16,7 +16,7 @@ Polygon каждую часть задачи, которой пользуетс�
 - совпадает с Polygon — не трогается (`up to date`);
 - отличается — без `--overwrite` остаётся локальная версия (`kept`), и
   следующий `polygon push` загрузит её на Polygon; с `--overwrite`
-  локальный файл переносится в `.pull_backup/<время>/` (`outputs/` вне git,
+  локальный файл переносится в `.pull_backup/<время>/` (`problems/` вне git,
   другой копии у него нет) и заменяется версией с Polygon (`overwritten`);
 - есть только локально — не трогается (`local only`), и следующий push
   загрузит его; локальные файлы pull никогда не удаляет.
@@ -24,7 +24,7 @@ Polygon каждую часть задачи, которой пользуетс�
 Pull отказывается работать, если в рабочей копии задачи на Polygon есть
 незакоммиченные правки: база синхронизации — всегда закоммиченная ревизия.
 
-Спек (`outputs/<problem_id>/spec.yaml`) не нужен и не читается: команда рассчитана
+Спек (`problems/<problem_id>/spec.yaml`) не нужен и не читается: команда рассчитана
 в том числе на задачи, у которых локально нет вообще ничего.
 
 Что с чем сравнивается (имена — те же, что читают polygon-шаги):
@@ -74,7 +74,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from orchestrator.cache import OUTPUTS_DIR
+from orchestrator.cache import PROBLEMS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import (
     PolygonState,
@@ -146,7 +146,7 @@ _CONSTRAINTS_HEADER = (
 class PullItem:
     """Что произошло с одной частью задачи (обычно — с одним файлом)."""
 
-    name: str  # путь относительно `outputs/<problem_id>/`
+    name: str  # путь относительно `problems/<problem_id>/`
     status: str
     detail: str = ""
 
@@ -171,7 +171,7 @@ def pull_problem(
     *,
     polygon_id: int | None = None,
     overwrite: bool = False,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     client: PolygonClient | None = None,
     on_item: Callable[[PullItem], None] | None = None,
 ) -> PullResult:
@@ -191,7 +191,7 @@ def pull_problem(
     """
     client = client or PolygonClient()
     resolved_id, link_detail = _resolve_and_link(
-        problem_id, polygon_id, Path(outputs_dir), client
+        problem_id, polygon_id, Path(problems_dir), client
     )
     logger.info("[pull] %s", link_detail)
 
@@ -208,7 +208,7 @@ def pull_problem(
         link_detail=link_detail,
         revision=current.revision,
     )
-    problem_dir = Path(outputs_dir) / problem_id
+    problem_dir = Path(problems_dir) / problem_id
     puller = _Puller(
         client=client,
         polygon_id=resolved_id,
@@ -238,12 +238,12 @@ def pull_problem(
 
     # Базу по успешно сравненным частям записываем всегда, ревизию — только
     # если сравнились все: иначе push не должен считать базу полной.
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     update_sync(
         problem_id,
         synced=puller.synced,
         revision=current.revision if result.ok else state.revision,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
     if puller.backed_up:
         result.backup_dir = puller.backup_dir
@@ -251,11 +251,11 @@ def pull_problem(
 
 
 def _resolve_and_link(
-    problem_id: str, polygon_id: int | None, outputs_dir: Path, client: PolygonClient
+    problem_id: str, polygon_id: int | None, problems_dir: Path, client: PolygonClient
 ) -> tuple[int, str]:
     """(Polygon problemId, сообщение о привязке). Если привязки ещё не было —
     создаёт `polygon_state.json`."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is not None:
         if polygon_id is not None and polygon_id != state.polygon_id:
             raise PolygonStepError(
@@ -301,7 +301,7 @@ def _resolve_and_link(
             polygon_id=polygon_id,
             created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         ),
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
     return polygon_id, detail
 

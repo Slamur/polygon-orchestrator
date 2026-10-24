@@ -31,7 +31,7 @@ def test_confirmed_writes_constraints_yaml(spec, tmp_path):
             spec,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -56,7 +56,7 @@ def test_confirmed_writes_validator_cpp_and_compiles(spec, tmp_path):
             spec,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -81,7 +81,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
                 spec,
                 None,
                 prompts_dir=PROMPTS_DIR,
-                outputs_dir=tmp_path,
+                problems_dir=tmp_path,
                 templates_dir=TEMPLATES_DIR,
             )
 
@@ -97,7 +97,7 @@ def test_user_prompt_includes_test_groups_needed_false_by_default(spec, tmp_path
             spec,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -120,7 +120,7 @@ def test_test_groups_needed_false_no_hint_yields_no_test_groups_in_artifact(spec
             spec_no_groups,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -161,7 +161,7 @@ def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
             spec_needed,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -189,7 +189,7 @@ def test_test_groups_hint_wins_over_needed_false(spec, tmp_path):
             spec,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -217,7 +217,7 @@ def test_renders_without_crashing_when_optional_lists_are_null(spec, tmp_path):
             spec_bare,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -231,7 +231,7 @@ def test_user_prompt_includes_input_format_but_not_legend(spec, tmp_path):
             "valid-spec",
             spec,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 

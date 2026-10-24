@@ -172,9 +172,9 @@ def test_save_and_load_cache_entry_roundtrip(tmp_path):
         status="ok",
         timestamp="2026-09-13T00:00:00Z",
     )
-    save_cache_entry("problem1", "constraints_pick", entry, outputs_dir=tmp_path)
+    save_cache_entry("problem1", "constraints_pick", entry, problems_dir=tmp_path)
 
-    loaded = load_cache_entry("problem1", "constraints_pick", outputs_dir=tmp_path)
+    loaded = load_cache_entry("problem1", "constraints_pick", problems_dir=tmp_path)
     assert loaded == entry
 
     cache_file = tmp_path / "problem1" / ".cache" / "constraints_pick.json"
@@ -193,7 +193,7 @@ def test_save_and_load_cache_entry_roundtrip(tmp_path):
 
 
 def test_load_cache_entry_missing_file_returns_none(tmp_path):
-    assert load_cache_entry("no-such-problem", "constraints_pick", outputs_dir=tmp_path) is None
+    assert load_cache_entry("no-such-problem", "constraints_pick", problems_dir=tmp_path) is None
 
 
 def test_load_cache_entry_malformed_json_returns_none(tmp_path):
@@ -201,7 +201,7 @@ def test_load_cache_entry_malformed_json_returns_none(tmp_path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{not valid json", encoding="utf-8")
 
-    assert load_cache_entry("problem1", "constraints_pick", outputs_dir=tmp_path) is None
+    assert load_cache_entry("problem1", "constraints_pick", problems_dir=tmp_path) is None
 
 
 # --- is_cache_valid -----------------------------------------------------
@@ -282,7 +282,7 @@ def test_load_cache_entry_without_parts_fields_is_still_valid(tmp_path):
         ),
         encoding="utf-8",
     )
-    entry = load_cache_entry("p1", "statement_draft", outputs_dir=tmp_path)
+    entry = load_cache_entry("p1", "statement_draft", problems_dir=tmp_path)
     assert entry is not None
     assert entry.input_parts is None and entry.prompt_parts is None
     assert entry.accepted is False

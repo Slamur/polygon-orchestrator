@@ -25,13 +25,13 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-def _state_path(outputs_dir: Path) -> Path:
-    return outputs_dir / PROBLEM_ID / "polygon_state.json"
+def _state_path(problems_dir: Path) -> Path:
+    return problems_dir / PROBLEM_ID / "polygon_state.json"
 
 
-def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     return run_and_record(
-        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+        STEP, PROBLEM_ID, spec, problems_dir, client, incremental=incremental
     ).message
 
 
@@ -55,7 +55,7 @@ def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
     create_calls = [c for c in client.call.call_args_list if c.args[0] == "problem.create"]
     assert len(create_calls) == 1
     assert create_calls[0].args[1] == {"name": PROBLEM_ID}
-    state = load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path)
+    state = load_polygon_state(PROBLEM_ID, problems_dir=tmp_path)
     assert state is not None
     assert (state.problem_id, state.polygon_id) == (PROBLEM_ID, 555)
     # новая задача пуста — база известна, push не требует pull
@@ -72,7 +72,7 @@ def test_reuses_existing_polygon_problem_found_by_name(tmp_path, spec):
     assert "reused" in message
     assert "polygon pull" in message
     client.call.assert_called_once_with("problems.list", {"name": PROBLEM_ID})
-    state = load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path)
+    state = load_polygon_state(PROBLEM_ID, problems_dir=tmp_path)
     assert state is not None
     assert state.polygon_id == 123
     # что в найденной задаче, неизвестно — push потребует pull
@@ -87,7 +87,7 @@ def test_existing_local_state_makes_no_network_calls(tmp_path, spec):
             polygon_id=777,
             created_at="2026-09-19T12:00:00+00:00",
         ),
-        outputs_dir=tmp_path,
+        problems_dir=tmp_path,
     )
     client = MagicMock()
 

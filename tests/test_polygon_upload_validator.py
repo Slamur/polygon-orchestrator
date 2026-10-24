@@ -28,11 +28,11 @@ def spec():
 
 
 @pytest.fixture
-def outputs_dir(tmp_path):
-    return tmp_path / "outputs"
+def problems_dir(tmp_path):
+    return tmp_path / "problems"
 
 
-def _link(outputs_dir: Path) -> None:
+def _link(problems_dir: Path) -> None:
     save_polygon_state(
         PROBLEM_ID,
         PolygonState(
@@ -40,20 +40,20 @@ def _link(outputs_dir: Path) -> None:
             polygon_id=POLYGON_ID,
             created_at="2026-09-19T12:00:00+00:00",
         ),
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
 
 
-def _write_validator(outputs_dir: Path, content: bytes = VALIDATOR_CONTENT) -> Path:
-    path = outputs_dir / PROBLEM_ID / "validator.cpp"
+def _write_validator(problems_dir: Path, content: bytes = VALIDATOR_CONTENT) -> Path:
+    path = problems_dir / PROBLEM_ID / "validator.cpp"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
     return path
 
 
-def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     return run_and_record(
-        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+        STEP, PROBLEM_ID, spec, problems_dir, client, incremental=incremental
     ).message
 
 
@@ -62,32 +62,32 @@ def test_step_is_a_polygon_step_with_expected_name():
     assert STEP.name == STEP_NAME == "upload_validator"
 
 
-def test_missing_polygon_state_points_to_create_problem(outputs_dir, spec):
-    _write_validator(outputs_dir)
+def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
+    _write_validator(problems_dir)
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="create_problem"):
-        _run(spec, outputs_dir, client)
+        _run(spec, problems_dir, client)
 
     client.call.assert_not_called()
 
 
-def test_missing_validator_points_to_constraints_pick(outputs_dir, spec):
-    _link(outputs_dir)
+def test_missing_validator_points_to_constraints_pick(problems_dir, spec):
+    _link(problems_dir)
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="constraints_pick"):
-        _run(spec, outputs_dir, client)
+        _run(spec, problems_dir, client)
 
     client.call.assert_not_called()
 
 
-def test_uploads_then_sets_validator(outputs_dir, spec):
-    _link(outputs_dir)
-    _write_validator(outputs_dir)
+def test_uploads_then_sets_validator(problems_dir, spec):
+    _link(problems_dir)
+    _write_validator(problems_dir)
     client = MagicMock()
 
-    message = _run(spec, outputs_dir, client)
+    message = _run(spec, problems_dir, client)
 
     assert client.call.call_count == 2
     save_call, set_call = client.call.call_args_list
@@ -107,50 +107,50 @@ def test_uploads_then_sets_validator(outputs_dir, spec):
     assert str(POLYGON_ID) in message
 
 
-def test_save_file_error_propagates_and_skips_set_validator(outputs_dir, spec):
-    _link(outputs_dir)
-    _write_validator(outputs_dir)
+def test_save_file_error_propagates_and_skips_set_validator(problems_dir, spec):
+    _link(problems_dir)
+    _write_validator(problems_dir)
     client = MagicMock()
     client.call.side_effect = [PolygonApiError("problem.saveFile", "boom")]
 
     with pytest.raises(PolygonApiError):
-        _run(spec, outputs_dir, client)
+        _run(spec, problems_dir, client)
 
     assert [c.args[0] for c in client.call.call_args_list] == ["problem.saveFile"]
-    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced == {}
+    assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced == {}
 
 
-def test_upload_is_recorded_in_polygon_state(outputs_dir, spec):
-    _link(outputs_dir)
-    _write_validator(outputs_dir)
+def test_upload_is_recorded_in_polygon_state(problems_dir, spec):
+    _link(problems_dir)
+    _write_validator(problems_dir)
 
-    _run(spec, outputs_dir, MagicMock())
+    _run(spec, problems_dir, MagicMock())
 
-    assert sorted(load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced) == [
+    assert sorted(load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced) == [
         "validator",
         "validator.cpp",
     ]
 
 
-def test_incremental_run_skips_unchanged_validator(outputs_dir, spec):
-    _link(outputs_dir)
-    _write_validator(outputs_dir)
-    _run(spec, outputs_dir, MagicMock())
+def test_incremental_run_skips_unchanged_validator(problems_dir, spec):
+    _link(problems_dir)
+    _write_validator(problems_dir)
+    _run(spec, problems_dir, MagicMock())
     client = MagicMock()
 
-    assert _run(spec, outputs_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    assert _run(spec, problems_dir, client, incremental=True) == "no changes since the last sync, skipped"
     client.call.assert_not_called()
 
 
-def test_other_assigned_validator_is_reuploaded_and_set(outputs_dir, spec):
+def test_other_assigned_validator_is_reuploaded_and_set(problems_dir, spec):
     # после pull назначенным может быть файл с другим именем
-    _link(outputs_dir)
-    _write_validator(outputs_dir)
-    _run(spec, outputs_dir, MagicMock())
-    update_sync(PROBLEM_ID, synced={"validator": "other"}, revision=1, outputs_dir=outputs_dir)
+    _link(problems_dir)
+    _write_validator(problems_dir)
+    _run(spec, problems_dir, MagicMock())
+    update_sync(PROBLEM_ID, synced={"validator": "other"}, revision=1, problems_dir=problems_dir)
     client = MagicMock()
 
-    _run(spec, outputs_dir, client, incremental=True)
+    _run(spec, problems_dir, client, incremental=True)
 
     assert [c.args[0] for c in client.call.call_args_list] == [
         "problem.saveFile",
@@ -158,16 +158,16 @@ def test_other_assigned_validator_is_reuploaded_and_set(outputs_dir, spec):
     ]
 
 
-def test_status_not_run_then_done_then_stale(outputs_dir, spec):
-    _link(outputs_dir)
-    validator_path = _write_validator(outputs_dir)
-    assert STEP.compute_status(PROBLEM_ID, outputs_dir)[0] == "not run"
+def test_status_not_run_then_done_then_stale(problems_dir, spec):
+    _link(problems_dir)
+    validator_path = _write_validator(problems_dir)
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"
 
-    _run(spec, outputs_dir, MagicMock())
-    assert STEP.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"
+    _run(spec, problems_dir, MagicMock())
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
     validator_path.write_bytes(VALIDATOR_CONTENT + b"// changed\n")
-    assert STEP.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
 
     validator_path.unlink()
-    assert STEP.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"

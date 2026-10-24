@@ -50,20 +50,20 @@ def _step(check_done_result, execute_result="did it") -> tuple[PolygonStep, Magi
 def test_already_done_skips_execute_and_never_builds_client(tmp_path, spec, no_default_client):
     step, check_done, execute = _step("already done")
 
-    result = run_step(step, "p1", spec, outputs_dir=tmp_path)
+    result = run_step(step, "p1", spec, problems_dir=tmp_path)
 
     assert result == StepResult("already done")
     execute.assert_not_called()
     no_default_client.assert_not_called()
     ctx = check_done.call_args.args[0]
-    assert ctx == StepContext(problem_id="p1", spec=spec, outputs_dir=tmp_path)
+    assert ctx == StepContext(problem_id="p1", spec=spec, problems_dir=tmp_path)
 
 
 def test_not_done_executes_with_given_client(tmp_path, spec):
     step, _, execute = _step(None, "did it")
     client = MagicMock()
 
-    result = run_step(step, "p1", spec, outputs_dir=tmp_path, client=client)
+    result = run_step(step, "p1", spec, problems_dir=tmp_path, client=client)
 
     assert result == StepResult("did it", {"k": "v"})
     ctx, passed_client = execute.call_args.args
@@ -77,7 +77,7 @@ def test_not_done_builds_default_client_lazily(tmp_path, spec, monkeypatch):
     monkeypatch.setattr(base, "PolygonClient", MagicMock(return_value=default_client))
     step, _, execute = _step(None)
 
-    run_step(step, "p1", spec, outputs_dir=tmp_path)
+    run_step(step, "p1", spec, problems_dir=tmp_path)
 
     assert execute.call_args.args[1] is default_client
 
@@ -87,7 +87,7 @@ def test_execute_error_propagates(tmp_path, spec):
     execute.side_effect = PolygonApiError("problem.create", "boom")
 
     with pytest.raises(PolygonApiError, match="boom"):
-        run_step(step, "p1", spec, outputs_dir=tmp_path, client=MagicMock())
+        run_step(step, "p1", spec, problems_dir=tmp_path, client=MagicMock())
 
 
 @pytest.mark.parametrize("check_done_result, expected", [("already done", "already done"), (None, "did it")])
@@ -95,21 +95,21 @@ def test_message_is_logged_with_step_name(tmp_path, spec, caplog, check_done_res
     step, _, _ = _step(check_done_result)
 
     with caplog.at_level(logging.INFO, logger="orchestrator.polygon.steps.base"):
-        run_step(step, "p1", spec, outputs_dir=tmp_path, client=MagicMock())
+        run_step(step, "p1", spec, problems_dir=tmp_path, client=MagicMock())
 
     assert f"[fake] {expected}" in caplog.messages
 
 
 def test_require_polygon_state_returns_saved_state(tmp_path, spec):
     saved = PolygonState(problem_id="p1", polygon_id=123, created_at="2026-09-19T12:00:00+00:00")
-    save_polygon_state("p1", saved, outputs_dir=tmp_path)
-    ctx = StepContext(problem_id="p1", spec=spec, outputs_dir=tmp_path)
+    save_polygon_state("p1", saved, problems_dir=tmp_path)
+    ctx = StepContext(problem_id="p1", spec=spec, problems_dir=tmp_path)
 
     assert require_polygon_state(ctx) == saved
 
 
 def test_require_polygon_state_points_to_create_problem(tmp_path, spec):
-    ctx = StepContext(problem_id="p1", spec=spec, outputs_dir=tmp_path)
+    ctx = StepContext(problem_id="p1", spec=spec, problems_dir=tmp_path)
 
     with pytest.raises(PolygonStepError, match="create_problem"):
         require_polygon_state(ctx)
@@ -118,13 +118,13 @@ def test_require_polygon_state_points_to_create_problem(tmp_path, spec):
 def test_synced_baseline_is_passed_to_execute(tmp_path, spec):
     step, _, execute = _step(None)
 
-    run_step(step, "p1", spec, outputs_dir=tmp_path, client=MagicMock(), synced={"a": "1"})
+    run_step(step, "p1", spec, problems_dir=tmp_path, client=MagicMock(), synced={"a": "1"})
 
     assert execute.call_args.args[0].synced == {"a": "1"}
 
 
 def _ctx(spec, synced):
-    return StepContext(problem_id="p1", spec=spec, outputs_dir=Path("."), synced=synced)
+    return StepContext(problem_id="p1", spec=spec, problems_dir=Path("."), synced=synced)
 
 
 def test_changed_items_without_baseline_returns_everything(spec):
@@ -145,7 +145,7 @@ def _save_synced(tmp_path, synced):
         PolygonState(
             problem_id="p1", polygon_id=1, created_at="x", revision=3, synced=synced
         ),
-        outputs_dir=tmp_path,
+        problems_dir=tmp_path,
     )
 
 

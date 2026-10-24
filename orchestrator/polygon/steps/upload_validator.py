@@ -1,4 +1,4 @@
-"""Polygon-шаг 4 — загрузка `outputs/<problem_id>/validator.cpp` (результат
+"""Polygon-шаг 4 — загрузка `problems/<problem_id>/validator.cpp` (результат
 генеративного шага `constraints_pick`) в Polygon как source-файла
 (`problem.saveFile`, `type=source`) и назначение его валидатором задачи
 (`problem.setValidator`).
@@ -42,7 +42,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     назначенным может оказаться файл с другим именем, и на Polygon может не
     быть `validator.cpp` вовсе."""
     polygon_id = require_polygon_state(ctx).polygon_id
-    content = _read_validator(ctx.problem_id, ctx.outputs_dir)
+    content = _read_validator(ctx.problem_id, ctx.problems_dir)
     items = _items(content)
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
@@ -65,13 +65,13 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     )
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`)."""
     return sync_status(
         problem_id,
-        outputs_dir,
+        problems_dir,
         key_prefix=VALIDATOR_KEY,
-        read_items=lambda: _items(_read_validator(problem_id, outputs_dir)),
+        read_items=lambda: _items(_read_validator(problem_id, problems_dir)),
     )
 
 
@@ -79,8 +79,8 @@ def _items(content: bytes) -> dict[str, str]:
     return {VALIDATOR_FILE_KEY: digest(content), VALIDATOR_KEY: digest(_VALIDATOR_FILENAME)}
 
 
-def _read_validator(problem_id: str, outputs_dir: Path) -> bytes:
-    validator_path = Path(outputs_dir) / problem_id / _VALIDATOR_FILENAME
+def _read_validator(problem_id: str, problems_dir: Path) -> bytes:
+    validator_path = Path(problems_dir) / problem_id / _VALIDATOR_FILENAME
     if not validator_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {validator_path} not found — first run "

@@ -12,7 +12,7 @@ from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
-    OUTPUTS_DIR,
+    PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
@@ -90,14 +90,14 @@ def hash_inputs(
 
 
 def primary_artifact_path(
-    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
     """Как у `solutions_draft` — каталог, а не файл: `pipeline.py` считает
     кэш валидным, если каталог существует и не пуст. Раньше здесь был путь к
     единственному `statement.tex` — теперь у шага несколько файлов в
     подпапке `statement/`.
     """
-    return Path(outputs_dir) / problem_id / STATEMENT_SUBDIR
+    return Path(problems_dir) / problem_id / STATEMENT_SUBDIR
 
 
 def extra_context_documents(
@@ -117,7 +117,7 @@ def run_step(
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
     """Прогоняет шаг `statement_draft` для `problem_id`.
@@ -139,7 +139,7 @@ def run_step(
     `StepUncertainError`, не записав ни одного файла (см. "Правило эскалации
     при неуверенности").
 
-    При успехе пишет в `outputs/<problem_id>/statement/` 4 фиксированных
+    При успехе пишет в `problems/<problem_id>/statement/` 4 фиксированных
     файла (`legend.tex`, `input_format.tex`, `output_format.tex`,
     `notes.tex`) и по одному `examples/example_<N>.txt` на каждый элемент
     `sample_examples` (только input примера). Набор имён файлов из ответа
@@ -163,7 +163,7 @@ def run_step(
     def resolve_artifact_path(filename: str) -> Path:
         # filename приходит как "legend.tex" или "examples/example_1.txt" —
         # вложенный каталог создаст _write_artifacts (parent.mkdir).
-        return Path(outputs_dir) / problem_id / STATEMENT_SUBDIR / filename
+        return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / filename
 
     expected = _expected_artifact_names(spec)
 
@@ -175,7 +175,7 @@ def run_step(
         input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
         validate_artifacts=_validate_statement_artifacts(expected),

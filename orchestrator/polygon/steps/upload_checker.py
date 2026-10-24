@@ -1,6 +1,6 @@
 """Polygon-шаг 5 — назначение чекера задачи (`problem.setChecker`).
 
-- `checker.custom_needed: true` — `outputs/<problem_id>/checker.cpp`
+- `checker.custom_needed: true` — `problems/<problem_id>/checker.cpp`
   (результат генеративного шага `checker_draft`) загружается как
   source-файл (`problem.saveFile`, `type=source`) и назначается чекером.
 - `checker.custom_needed: false` — `problem.setChecker` вызывается с именем
@@ -55,7 +55,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     polygon_id = require_polygon_state(ctx).polygon_id
 
     if ctx.spec.checker.custom_needed:
-        content = _read_custom_checker(ctx.problem_id, ctx.outputs_dir)
+        content = _read_custom_checker(ctx.problem_id, ctx.problems_dir)
         items = _custom_items(content)
         if not changed_items(ctx, items):
             return StepResult(NO_CHANGES_MESSAGE)
@@ -85,20 +85,20 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     return StepResult(f"set standard checker {standard!r} on Polygon id={polygon_id}", items)
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации. Спек здесь недоступен, поэтому custom или
     стандартный — по базе: есть в ней `checker.cpp` — сравнивается
     локальный `checker.cpp`, иначе стандартный чекер считается "done"
     (смена `checker.standard` в спеке отсюда не видна)."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     synced = state.synced if state is not None else {}
     if CHECKER_FILE_KEY not in synced and CHECKER_KEY in synced:
         return STATUS_DONE, "standard checker"
     return sync_status(
         problem_id,
-        outputs_dir,
+        problems_dir,
         key_prefix=CHECKER_KEY,
-        read_items=lambda: _custom_items(_read_custom_checker(problem_id, outputs_dir)),
+        read_items=lambda: _custom_items(_read_custom_checker(problem_id, problems_dir)),
     )
 
 
@@ -106,8 +106,8 @@ def _custom_items(content: bytes) -> dict[str, str]:
     return {CHECKER_FILE_KEY: digest(content), CHECKER_KEY: digest(_CHECKER_FILENAME)}
 
 
-def _read_custom_checker(problem_id: str, outputs_dir: Path) -> bytes:
-    checker_path = Path(outputs_dir) / problem_id / _CHECKER_FILENAME
+def _read_custom_checker(problem_id: str, problems_dir: Path) -> bytes:
+    checker_path = Path(problems_dir) / problem_id / _CHECKER_FILENAME
     if not checker_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': checker.custom_needed=true, but "

@@ -49,7 +49,7 @@ _OUTCOME_LABELS = {
 
 # Логгер пакета — на него вешается и консольный вывод (см.
 # `_configure_console_logging`), и по-задачные лог-файлы
-# `outputs/<id>/llm_generation.log` / `outputs/<id>/polygon.log` (см.
+# `problems/<id>/llm_generation.log` / `problems/<id>/polygon.log` (см.
 # `_problem_log_handler`), см. CLAUDE.md, задача "лог выполнения". Дочерние
 # логгеры (например, `orchestrator.llm_clients.anthropic_client`, откуда
 # идёт `_log_usage`) пишут через propagate в этот же логгер — отдельно
@@ -109,12 +109,12 @@ def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger
 @contextmanager
 def _problem_log_handler(
     logger: logging.Logger,
-    outputs_dir: Path,
+    problems_dir: Path,
     problem_id: str,
     log_name: str,
     command_line: str,
 ) -> Iterator[logging.Handler]:
-    """Заводит `outputs/<problem_id>/<log_name>` на время обработки одного
+    """Заводит `problems/<problem_id>/<log_name>` на время обработки одного
     `problem_id` — открывается на дозапись: лог накапливает историю
     прогонов, каждый прогон начинается с заголовка с командой (см.
     `_RUN_HEADER`) — по нему удобно искать нужный запуск, а время в каждой
@@ -126,7 +126,7 @@ def _problem_log_handler(
     `_log_traceback_to_file` для необработанных исключений (см. там же,
     почему это не идёт через обычный `logger.exception`).
     """
-    problem_dir = Path(outputs_dir) / problem_id
+    problem_dir = Path(problems_dir) / problem_id
     problem_dir.mkdir(parents=True, exist_ok=True)
     log_path = problem_dir / log_name
     needs_separator = log_path.exists() and log_path.stat().st_size > 0
@@ -161,7 +161,7 @@ def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
     минуя остальные handler'ы логгера — чтобы вывод в консоль при
     необработанном исключении остался ровно таким же, как раньше (traceback
     туда и так печатает сам Python при завершении процесса), а
-    `outputs/<id>/llm_generation.log` при этом не терял traceback (CLAUDE.md, задача
+    `problems/<id>/llm_generation.log` при этом не терял traceback (CLAUDE.md, задача
     "лог выполнения", пункт 4).
     """
     record = logging.LogRecord(
@@ -206,7 +206,7 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
         return 2
 
     with _problem_log_handler(
-        logger, args.outputs_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
+        logger, args.problems_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
     ) as file_handler:
         try:
             result = run_pipeline(
@@ -214,7 +214,7 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
                 force=args.force,
                 only_step=args.step,
                 prompts_dir=args.prompts_dir,
-                outputs_dir=args.outputs_dir,
+                problems_dir=args.problems_dir,
                 templates_dir=args.templates_dir,
             )
         except Exception:
@@ -246,7 +246,7 @@ def cmd_llm_status(args: argparse.Namespace) -> int:
     statuses, spec_error = compute_step_statuses(
         args.problem_id,
         prompts_dir=args.prompts_dir,
-        outputs_dir=args.outputs_dir,
+        problems_dir=args.problems_dir,
         templates_dir=args.templates_dir,
     )
     any_error = _print_step_statuses(args.problem_id, statuses, spec_error)
@@ -261,7 +261,7 @@ def cmd_llm_accept(args: argparse.Namespace) -> int:
         args.problem_id,
         only_step=args.step,
         prompts_dir=args.prompts_dir,
-        outputs_dir=args.outputs_dir,
+        problems_dir=args.problems_dir,
         templates_dir=args.templates_dir,
     )
     any_not_accepted = any(
@@ -303,16 +303,16 @@ def _print_polygon_outcome(outcome, log_path: Path) -> None:
 
 def cmd_polygon_push(args: argparse.Namespace) -> int:
     logger = _configure_console_logging(warnings_only=True)
-    log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
+    log_path = Path(args.problems_dir) / args.problem_id / POLYGON_LOG
 
     with _problem_log_handler(
-        logger, args.outputs_dir, args.problem_id, POLYGON_LOG, args.command_line
+        logger, args.problems_dir, args.problem_id, POLYGON_LOG, args.command_line
     ):
         result = run_polygon_pipeline(
             args.problem_id,
             only_step=args.step,
             force=args.force,
-            outputs_dir=args.outputs_dir,
+            problems_dir=args.problems_dir,
             on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
         )
     if result.spec_error is not None:
@@ -323,7 +323,7 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
 
 def cmd_polygon_status(args: argparse.Namespace) -> int:
     _print_polygon_outcomes(
-        compute_polygon_step_statuses(args.problem_id, outputs_dir=args.outputs_dir)
+        compute_polygon_step_statuses(args.problem_id, problems_dir=args.problems_dir)
     )
     return 0
 
@@ -334,7 +334,7 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
     `orchestrator/polygon/pull.py`). Спек не нужен.
     Лог — в тот же `polygon.log`, что и у `polygon push`."""
     logger = _configure_console_logging(warnings_only=True)
-    log_path = Path(args.outputs_dir) / args.problem_id / POLYGON_LOG
+    log_path = Path(args.problems_dir) / args.problem_id / POLYGON_LOG
 
     def print_item(item) -> None:
         line = f"  {item.name}: {item.status}"
@@ -345,14 +345,14 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
         print(line, flush=True)
 
     with _problem_log_handler(
-        logger, args.outputs_dir, args.problem_id, POLYGON_LOG, args.command_line
+        logger, args.problems_dir, args.problem_id, POLYGON_LOG, args.command_line
     ):
         try:
             result = pull_problem(
                 args.problem_id,
                 polygon_id=args.polygon_id,
                 overwrite=args.overwrite,
-                outputs_dir=args.outputs_dir,
+                problems_dir=args.problems_dir,
                 on_item=print_item,
             )
         except PolygonStepError as exc:
@@ -374,7 +374,7 @@ def cmd_init(args: argparse.Namespace) -> int:
     `spec.create_spec_draft`). Ни модель, ни Polygon не вызываются."""
     try:
         spec_path = create_spec_draft(
-            args.problem_id, outputs_dir=args.outputs_dir, templates_dir=args.templates_dir
+            args.problem_id, problems_dir=args.problems_dir, templates_dir=args.templates_dir
         )
     except SpecInitError as exc:
         print(str(exc), file=sys.stderr)

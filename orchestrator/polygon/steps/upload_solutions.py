@@ -1,4 +1,4 @@
-"""Polygon-шаг 9 — загрузка всех файлов из `outputs/<problem_id>/solutions/`
+"""Polygon-шаг 9 — загрузка всех файлов из `problems/<problem_id>/solutions/`
 (результат генеративного шага `solutions_draft`) в Polygon
 (`problem.saveSolution`) с тегом вердикта для каждого.
 
@@ -99,7 +99,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     выбор Main correct — по всему набору и до первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
-    solutions = _read_solutions(ctx.problem_id, ctx.outputs_dir)
+    solutions = _read_solutions(ctx.problem_id, ctx.problems_dir)
 
     parsed = [_parse_solution_filename(Path(name)) for name, _ in solutions]
     main_name = _choose_main(parsed)
@@ -131,14 +131,14 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     )
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`): новое или изменённое решение
     делает шаг "stale"."""
     return sync_status(
         problem_id,
-        outputs_dir,
+        problems_dir,
         key_prefix=solution_key(""),
-        read_items=lambda: _items(_read_solutions(problem_id, outputs_dir)),
+        read_items=lambda: _items(_read_solutions(problem_id, problems_dir)),
     )
 
 
@@ -147,10 +147,10 @@ def _items(solutions: list[tuple[str, bytes]]) -> dict[str, str]:
     return {solution_key(name): digest(content) for name, content in solutions}
 
 
-def _read_solutions(problem_id: str, outputs_dir: Path) -> list[tuple[str, bytes]]:
+def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
     """[(имя, содержимое), ...] для всех файлов `solutions/` по алфавиту
     имён. Нет каталога или он пуст — `PolygonStepError`."""
-    solutions_dir = Path(outputs_dir) / problem_id / "solutions"
+    solutions_dir = Path(problems_dir) / problem_id / "solutions"
     if not solutions_dir.is_dir():
         raise PolygonStepError(
             f"'{problem_id}': directory {solutions_dir} not found — first "

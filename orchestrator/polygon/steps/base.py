@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from orchestrator.cache import OUTPUTS_DIR
+from orchestrator.cache import PROBLEMS_DIR
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.state import PolygonState, load_polygon_state
 from orchestrator.spec import ProblemSpec
@@ -49,7 +49,7 @@ class StepContext:
 
     problem_id: str
     spec: ProblemSpec
-    outputs_dir: Path
+    problems_dir: Path
     synced: dict[str, str] | None = None
 
 
@@ -66,14 +66,14 @@ class StepResult:
 class PolygonStep:
     """Описание одного polygon-шага.
 
-    `check_done` — только локальная проверка (файлы в `outputs/<id>/`), без
+    `check_done` — только локальная проверка (файлы в `problems/<id>/`), без
     сетевых вызовов: возвращает человекочитаемое сообщение, если шаг уже
     выполнен, иначе `None`.
 
     `execute` — реальная работа через Polygon API; возвращает `StepResult`.
     `PolygonApiError` и `PolygonStepError` не перехватывает.
 
-    `compute_status(problem_id, outputs_dir)` — только локальная проверка
+    `compute_status(problem_id, problems_dir)` — только локальная проверка
     для `status`: пара (одно из `STATUS_*`, пояснение). В отличие от
     `check_done` не требует спека и может сообщить "stale" — локальные
     файлы изменились с последней синхронизации.
@@ -101,7 +101,7 @@ def require_polygon_state(ctx: StepContext) -> PolygonState:
     `create_problem` (оттуда берётся `polygon_id`). Без сети; если задача
     ещё не создана на Polygon — `PolygonStepError` с указанием, какой шаг
     запустить сначала."""
-    state = load_polygon_state(ctx.problem_id, outputs_dir=ctx.outputs_dir)
+    state = load_polygon_state(ctx.problem_id, problems_dir=ctx.problems_dir)
     if state is None:
         raise PolygonStepError(
             f"'{ctx.problem_id}': the problem is not created on Polygon yet — first "
@@ -121,7 +121,7 @@ def changed_items(ctx: StepContext, items: dict[str, str]) -> dict[str, str]:
 
 def sync_status(
     problem_id: str,
-    outputs_dir: Path,
+    problems_dir: Path,
     *,
     key_prefix: str,
     read_items: Callable[[], dict[str, str]],
@@ -136,7 +136,7 @@ def sync_status(
     отличается от базы (или файлы больше не читаются); "done" — все
     совпадают.
     """
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     synced = {
         key: value
         for key, value in (state.synced if state is not None else {}).items()
@@ -159,7 +159,7 @@ def run_step(
     problem_id: str,
     spec: ProblemSpec,
     *,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     client: PolygonClient | None = None,
     synced: dict[str, str] | None = None,
 ) -> StepResult:
@@ -168,7 +168,7 @@ def run_step(
     Если `step.check_done` сообщает, что шаг уже выполнен, — возвращает это
     сообщение, не создавая клиент и не делая сетевых вызовов. Иначе
     вызывает `step.execute`. Сообщение пишется в лог: лог уходит в
-    `outputs/<id>/polygon.log`, а возвращаемое значение видит только вывод
+    `problems/<id>/polygon.log`, а возвращаемое значение видит только вывод
     CLI текущего запуска.
 
     `synced` — база синхронизации (см. `StepContext`); `None` — загружать
@@ -178,7 +178,7 @@ def run_step(
     наружу — остановка пайплайна на стороне `orchestrator/polygon/pipeline.py`.
     """
     ctx = StepContext(
-        problem_id=problem_id, spec=spec, outputs_dir=Path(outputs_dir), synced=synced
+        problem_id=problem_id, spec=spec, problems_dir=Path(problems_dir), synced=synced
     )
 
     message = step.check_done(ctx)

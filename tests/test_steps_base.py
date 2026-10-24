@@ -161,7 +161,7 @@ def test_load_context_documents_missing_extra_path_raises(tmp_path):
 
 def test_run_generative_step_confirmed_writes_artifacts_and_cache(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "context: {{ problem_id }}")
 
     response = ModelResponse(status="confirmed", artifacts={"out.txt": "hello"}, notes=[])
@@ -171,20 +171,20 @@ def test_run_generative_step_confirmed_writes_artifacts_and_cache(tmp_path):
             problem_id="p1",
             context={"problem_id": "p1"},
             input_hash="hash123",
-            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
             prompts_dir=prompts_dir,
-            outputs_dir=outputs_dir,
+            problems_dir=problems_dir,
             templates_dir=TEMPLATES_DIR,
         )
 
     mock_call.assert_called_once()
     assert mock_call.call_args.args[0] == "statement_draft"
     assert result.status == "confirmed"
-    written = outputs_dir / "p1" / "out.txt"
+    written = problems_dir / "p1" / "out.txt"
     assert written.read_text(encoding="utf-8") == "hello"
     assert result.artifact_paths == {"out.txt": written}
 
-    cache_entry = load_cache_entry("p1", "statement_draft", outputs_dir=outputs_dir)
+    cache_entry = load_cache_entry("p1", "statement_draft", problems_dir=problems_dir)
     assert cache_entry is not None
     assert cache_entry.input_hash == "hash123"
     assert cache_entry.status == "confirmed"
@@ -192,7 +192,7 @@ def test_run_generative_step_confirmed_writes_artifacts_and_cache(tmp_path):
 
 def test_run_generative_step_proposed_also_writes_artifacts(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     response = ModelResponse(
@@ -206,19 +206,19 @@ def test_run_generative_step_proposed_also_writes_artifacts(tmp_path):
             problem_id="p1",
             context={},
             input_hash="h",
-            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
             prompts_dir=prompts_dir,
-            outputs_dir=outputs_dir,
+            problems_dir=problems_dir,
         )
 
     assert result.status == "proposed"
-    assert (outputs_dir / "p1" / "out.txt").exists()
+    assert (problems_dir / "p1" / "out.txt").exists()
     assert result.notes == response.notes
 
 
 def test_run_generative_step_uncertain_raises_and_writes_nothing(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     response = ModelResponse(
@@ -233,21 +233,21 @@ def test_run_generative_step_uncertain_raises_and_writes_nothing(tmp_path):
                 problem_id="p1",
                 context={},
                 input_hash="h",
-                resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
                 prompts_dir=prompts_dir,
-                outputs_dir=outputs_dir,
+                problems_dir=problems_dir,
             )
 
     assert exc_info.value.step_name == "statement_draft"
     assert exc_info.value.problem_id == "p1"
     assert "constraints.intended_complexity" in str(exc_info.value)
-    assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
-    assert load_cache_entry("p1", "statement_draft", outputs_dir=outputs_dir) is None
+    assert not problems_dir.exists() or list(problems_dir.rglob("*")) == []
+    assert load_cache_entry("p1", "statement_draft", problems_dir=problems_dir) is None
 
 
 def test_run_generative_step_unknown_status_raises_value_error(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     response = ModelResponse(status="something-else", artifacts={}, notes=[])
@@ -258,16 +258,16 @@ def test_run_generative_step_unknown_status_raises_value_error(tmp_path):
                 problem_id="p1",
                 context={},
                 input_hash="h",
-                resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
                 prompts_dir=prompts_dir,
-                outputs_dir=outputs_dir,
+                problems_dir=problems_dir,
             )
-    assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
+    assert not problems_dir.exists() or list(problems_dir.rglob("*")) == []
 
 
 def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     response = ModelResponse(
@@ -278,7 +278,7 @@ def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path
     def validate(artifacts):
         seen.append(dict(artifacts))
         # к моменту валидации на диске ещё ничего нет
-        assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
+        assert not problems_dir.exists() or list(problems_dir.rglob("*")) == []
         raise ValueError("набор файлов не совпадает")
 
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -288,20 +288,20 @@ def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path
                 problem_id="p1",
                 context={},
                 input_hash="h",
-                resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
                 prompts_dir=prompts_dir,
-                outputs_dir=outputs_dir,
+                problems_dir=problems_dir,
                 validate_artifacts=validate,
             )
 
     assert seen == [{"a.tex": "a", "sub/b.txt": "b"}]
-    assert not outputs_dir.exists() or list(outputs_dir.rglob("*")) == []
-    assert load_cache_entry("p1", "statement_draft", outputs_dir=outputs_dir) is None
+    assert not problems_dir.exists() or list(problems_dir.rglob("*")) == []
+    assert load_cache_entry("p1", "statement_draft", problems_dir=problems_dir) is None
 
 
 def test_run_generative_step_validate_artifacts_pass_writes_files(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     response = ModelResponse(status="proposed", artifacts={"a.tex": "a"}, notes=[])
@@ -311,19 +311,19 @@ def test_run_generative_step_validate_artifacts_pass_writes_files(tmp_path):
             problem_id="p1",
             context={},
             input_hash="h",
-            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
             prompts_dir=prompts_dir,
-            outputs_dir=outputs_dir,
+            problems_dir=problems_dir,
             validate_artifacts=lambda artifacts: None,
         )
 
-    assert result.artifact_paths == {"a.tex": outputs_dir / "p1" / "a.tex"}
-    assert (outputs_dir / "p1" / "a.tex").read_text(encoding="utf-8") == "a"
+    assert result.artifact_paths == {"a.tex": problems_dir / "p1" / "a.tex"}
+    assert (problems_dir / "p1" / "a.tex").read_text(encoding="utf-8") == "a"
 
 
 def test_run_generative_step_validate_artifacts_not_called_on_uncertain(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     response = ModelResponse(status="uncertain", artifacts={}, notes=[])
@@ -338,16 +338,16 @@ def test_run_generative_step_validate_artifacts_not_called_on_uncertain(tmp_path
                 problem_id="p1",
                 context={},
                 input_hash="h",
-                resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
                 prompts_dir=prompts_dir,
-                outputs_dir=outputs_dir,
+                problems_dir=problems_dir,
                 validate_artifacts=validate,
             )
 
 
 def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     valid_cpp = (FIXTURES_DIR / "valid_generator.cpp").read_text(encoding="utf-8")
@@ -363,15 +363,15 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
             problem_id="p1",
             context={},
             input_hash="h",
-            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
             prompts_dir=prompts_dir,
-            outputs_dir=outputs_dir,
+            problems_dir=problems_dir,
             templates_dir=TEMPLATES_DIR,
         )
 
     assert set(result.compile_results) == {"gen_ok.cpp", "gen_bad.cpp"}
     # перед compile-check у задачи появилась своя копия problem_lib.h
-    assert (outputs_dir / "p1" / "problem_lib.h").read_bytes() == (
+    assert (problems_dir / "p1" / "problem_lib.h").read_bytes() == (
         TEMPLATES_DIR / "problem_lib.h"
     ).read_bytes()
     assert result.compile_results["gen_ok.cpp"].success is True
@@ -382,7 +382,7 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
 
 def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "constraints_pick", "x")
 
     response = ModelResponse(status="confirmed", artifacts={"constraints.yaml": "n: 1"}, notes=[])
@@ -392,9 +392,9 @@ def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
             problem_id="p1",
             context={},
             input_hash="h",
-            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
             prompts_dir=prompts_dir,
-            outputs_dir=outputs_dir,
+            problems_dir=problems_dir,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -404,7 +404,7 @@ def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
 
 def test_run_generative_step_extra_context_documents_none_is_backward_compatible(tmp_path):
     prompts_dir = tmp_path / "prompts"
-    outputs_dir = tmp_path / "outputs"
+    problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
 
     response = ModelResponse(status="confirmed", artifacts={"out.txt": "hello"}, notes=[])
@@ -414,9 +414,9 @@ def test_run_generative_step_extra_context_documents_none_is_backward_compatible
             problem_id="p1",
             context={},
             input_hash="h",
-            resolve_artifact_path=lambda name: outputs_dir / "p1" / name,
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
             prompts_dir=prompts_dir,
-            outputs_dir=outputs_dir,
+            problems_dir=problems_dir,
             templates_dir=TEMPLATES_DIR,
             extra_context_documents=None,
         )
@@ -425,19 +425,19 @@ def test_run_generative_step_extra_context_documents_none_is_backward_compatible
     context_documents = mock_call.call_args.kwargs["context_documents"]
     assert set(context_documents) == set(STEP_CONTEXT_DOCUMENTS["statement_draft"])
     # без .cpp-артефактов копия problem_lib.h не нужна
-    assert not (outputs_dir / "p1" / "problem_lib.h").exists()
+    assert not (problems_dir / "p1" / "problem_lib.h").exists()
 
 
 def test_ensure_problem_lib_does_not_overwrite_existing_copy(tmp_path):
-    outputs_dir = tmp_path / "outputs"
-    copy = outputs_dir / "p1" / "problem_lib.h"
+    problems_dir = tmp_path / "problems"
+    copy = problems_dir / "p1" / "problem_lib.h"
     copy.parent.mkdir(parents=True)
     copy.write_text("// edited for this problem\n")
 
-    assert ensure_problem_lib("p1", outputs_dir=outputs_dir, templates_dir=TEMPLATES_DIR) == copy
+    assert ensure_problem_lib("p1", problems_dir=problems_dir, templates_dir=TEMPLATES_DIR) == copy
     assert copy.read_text() == "// edited for this problem\n"
 
 
 def test_ensure_problem_lib_without_template(tmp_path):
     with pytest.raises(FileNotFoundError, match="problem_lib.h"):
-        ensure_problem_lib("p1", outputs_dir=tmp_path / "outputs", templates_dir=tmp_path)
+        ensure_problem_lib("p1", problems_dir=tmp_path / "problems", templates_dir=tmp_path)

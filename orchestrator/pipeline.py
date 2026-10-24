@@ -44,7 +44,7 @@ from orchestrator.steps import (
     statement_draft,
 )
 from orchestrator.steps.base import (
-    OUTPUTS_DIR,
+    PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepUncertainError,
@@ -138,7 +138,7 @@ def _load_constraints_upstream(
     problem_id: str,
     spec: Any,
     upstream_artifacts: dict[str, Any],
-    outputs_dir: Path,
+    problems_dir: Path,
 ) -> None:
     """generators_and_script и solutions_draft зависят от constraints.yaml с
     диска. Если constraints_pick в этом прогоне не запускался (только --step
@@ -148,7 +148,7 @@ def _load_constraints_upstream(
     if CONSTRAINTS_ARTIFACT in upstream_artifacts:
         return
     constraints_path = constraints_pick.primary_artifact_path(
-        problem_id, spec, outputs_dir=outputs_dir
+        problem_id, spec, problems_dir=problems_dir
     )
     if constraints_path.exists():
         upstream_artifacts[CONSTRAINTS_ARTIFACT] = constraints_path.read_text(encoding="utf-8")
@@ -228,7 +228,7 @@ def run_pipeline(
     force: bool = False,
     only_step: Optional[str] = None,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> PipelineResult:
     """Прогоняет шаги `problem_id` по порядку `STEP_ORDER`.
@@ -251,7 +251,7 @@ def run_pipeline(
     её вместо результатов шагов.
     """
     try:
-        spec = load_problem_spec(problem_id, outputs_dir=outputs_dir)
+        spec = load_problem_spec(problem_id, problems_dir=problems_dir)
     except SpecValidationError as exc:
         return PipelineResult(problem_id=problem_id, spec_error=str(exc))
 
@@ -269,7 +269,7 @@ def run_pipeline(
             result.outcomes.append(StepOutcome(step_name, OUTCOME_SKIPPED_OPTIONAL, skip_detail))
             continue
 
-        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, outputs_dir)
+        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
 
         try:
             hashes = _compute_step_hashes(
@@ -289,8 +289,8 @@ def run_pipeline(
             result.stopped_uncertain = True
             return result
 
-        cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
-        primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
+        cache_entry = load_cache_entry(problem_id, step_name, problems_dir=problems_dir)
+        primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
         artifact_present = _artifact_present(primary_path)
 
         cache_hit = (
@@ -326,7 +326,7 @@ def run_pipeline(
                     spec,
                     dict(upstream_artifacts) or None,
                     prompts_dir=prompts_dir,
-                    outputs_dir=outputs_dir,
+                    problems_dir=problems_dir,
                     templates_dir=templates_dir,
                 )
             except StepUncertainError as exc:
@@ -375,7 +375,7 @@ def compute_step_statuses(
     problem_id: str,
     *,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> tuple[list[StepStatus], Optional[str]]:
     """Статус каждого шага для `problem_id`: cache hit / stale / not run /
@@ -395,7 +395,7 @@ def compute_step_statuses(
         _status_of_step,
         only_step=None,
         prompts_dir=prompts_dir,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         templates_dir=templates_dir,
     )
 
@@ -405,7 +405,7 @@ def accept_steps(
     *,
     only_step: Optional[str] = None,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> tuple[list[StepStatus], Optional[str]]:
     """`orchestrator <id> llm accept`: принимает текущие артефакты шагов как
@@ -431,7 +431,7 @@ def accept_steps(
         _accept_step,
         only_step=only_step,
         prompts_dir=prompts_dir,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         templates_dir=templates_dir,
     )
 
@@ -442,15 +442,15 @@ def _walk_steps(
     *,
     only_step: Optional[str],
     prompts_dir: Path,
-    outputs_dir: Path,
+    problems_dir: Path,
     templates_dir: Path,
 ) -> tuple[list[StepStatus], Optional[str]]:
     """Общий обход шагов для `llm status`/`llm accept`: опциональные шаги,
     подхват `constraints.yaml`, хеши — как в `run_pipeline`;
-    `visit(problem_id, step_name, entry, hashes, artifact_present, outputs_dir)`
+    `visit(problem_id, step_name, entry, hashes, artifact_present, problems_dir)`
     решает, что сказать (и сделать) про шаг."""
     try:
-        spec = load_problem_spec(problem_id, outputs_dir=outputs_dir)
+        spec = load_problem_spec(problem_id, problems_dir=problems_dir)
     except SpecValidationError as exc:
         return [], str(exc)
 
@@ -465,8 +465,8 @@ def _walk_steps(
             statuses.append(StepStatus(step_name, STATUS_SKIPPED_OPTIONAL, skip_detail))
             continue
 
-        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, outputs_dir)
-        primary_path = module.primary_artifact_path(problem_id, spec, outputs_dir=outputs_dir)
+        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
+        primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
 
         try:
             hashes = _compute_step_hashes(
@@ -480,7 +480,7 @@ def _walk_steps(
         except (ValueError, SpecReferenceError) as exc:
             statuses.append(StepStatus(step_name, STATUS_BLOCKED, str(exc)))
         else:
-            cache_entry = load_cache_entry(problem_id, step_name, outputs_dir=outputs_dir)
+            cache_entry = load_cache_entry(problem_id, step_name, problems_dir=problems_dir)
             statuses.append(
                 visit(
                     problem_id,
@@ -488,7 +488,7 @@ def _walk_steps(
                     cache_entry,
                     hashes,
                     _artifact_present(primary_path),
-                    outputs_dir,
+                    problems_dir,
                 )
             )
 
@@ -504,7 +504,7 @@ def _status_of_step(
     cache_entry: Optional[CacheEntry],
     hashes: _StepHashes,
     artifact_present: bool,
-    outputs_dir: Path,
+    problems_dir: Path,
 ) -> StepStatus:
     if cache_entry is None:
         return StepStatus(step_name, STATUS_NOT_RUN)
@@ -527,10 +527,10 @@ def _accept_step(
     cache_entry: Optional[CacheEntry],
     hashes: _StepHashes,
     artifact_present: bool,
-    outputs_dir: Path,
+    problems_dir: Path,
 ) -> StepStatus:
     current = _status_of_step(
-        problem_id, step_name, cache_entry, hashes, artifact_present, outputs_dir
+        problem_id, step_name, cache_entry, hashes, artifact_present, problems_dir
     )
     if current.state == STATUS_CACHE_HIT:
         return current
@@ -556,6 +556,6 @@ def _accept_step(
             prompt_parts=hashes.prompt_parts,
             accepted=True,
         ),
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
     return StepStatus(step_name, STATUS_ACCEPTED, f"was stale: {current.detail}")

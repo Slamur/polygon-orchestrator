@@ -27,26 +27,26 @@ import os
 import sys
 from pathlib import Path
 
-from orchestrator.cache import OUTPUTS_DIR, PROMPTS_DIR, TEMPLATES_DIR
+from orchestrator.cache import PROBLEMS_DIR, PROMPTS_DIR, TEMPLATES_DIR
 from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
 
 
 def _complete_problem_ids(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
-    """Кандидаты Tab-дополнения `problem_id`: каталоги задач в `outputs/` —
+    """Кандидаты Tab-дополнения `problem_id`: каталоги задач в `problems/` —
     со спеком (`spec.yaml`) или без него (`polygon status|pull` спек не
     нужен, а команда набирается после `problem_id` и на момент дополнения
     ещё неизвестна).
 
     Список не хранится нигде, а читается из каталога при каждом нажатии Tab —
-    с учётом `--outputs-dir`, если он уже набран в командной строке.
+    с учётом `--problems-dir`, если он уже набран в командной строке.
     Фильтрацию по набранному префиксу делает сам `argcomplete`.
     """
-    outputs_dir = Path(getattr(parsed_args, "outputs_dir", None) or OUTPUTS_DIR)
-    if not outputs_dir.is_dir():
+    problems_dir = Path(getattr(parsed_args, "problems_dir", None) or PROBLEMS_DIR)
+    if not problems_dir.is_dir():
         return []
     return sorted(
         path.name
-        for path in outputs_dir.iterdir()
+        for path in problems_dir.iterdir()
         if path.is_dir() and not path.name.startswith(".")
     )
 
@@ -60,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--prompts-dir", type=Path, default=PROMPTS_DIR, help="prompts/ directory (default: prompts/)"
     )
     parser.add_argument(
-        "--outputs-dir", type=Path, default=OUTPUTS_DIR, help="outputs/ directory (default: outputs/)"
+        "--problems-dir", type=Path, default=PROBLEMS_DIR, help="problems/ directory (default: problems/)"
     )
     parser.add_argument(
         "--templates-dir",
@@ -70,14 +70,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "problem_id", help="problem directory outputs/<problem_id>/ (spec: outputs/<problem_id>/spec.yaml)"
+        "problem_id", help="problem directory problems/<problem_id>/ (spec: problems/<problem_id>/spec.yaml)"
     ).completer = _complete_problem_ids
 
     pipelines = parser.add_subparsers(dest="pipeline", required=True)
 
     init_parser = pipelines.add_parser(
         "init",
-        help="create outputs/<problem_id>/ with a draft spec.yaml from "
+        help="create problems/<problem_id>/ with a draft spec.yaml from "
         "templates/spec_template.yaml (never overwrites an existing spec)",
     )
     init_parser.set_defaults(handler="cmd_init")
@@ -149,7 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--overwrite",
         action="store_true",
         help="replace local files that differ from Polygon (old versions go to "
-        "outputs/<problem_id>/.pull_backup/)",
+        "problems/<problem_id>/.pull_backup/)",
     )
     polygon_pull_parser.set_defaults(handler="cmd_polygon_pull")
 

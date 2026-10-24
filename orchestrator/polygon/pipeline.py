@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from orchestrator.cache import OUTPUTS_DIR
+from orchestrator.cache import PROBLEMS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.steps import (
     create_problem,
@@ -107,7 +107,7 @@ def run_polygon_pipeline(
     *,
     only_step: Optional[str] = None,
     force: bool = False,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     client: PolygonClient | None = None,
     on_outcome: Callable[[PolygonStepOutcome], None] | None = None,
 ) -> PolygonPipelineResult:
@@ -144,7 +144,7 @@ def run_polygon_pipeline(
     записывается в `result.spec_error`, клиент при этом не создаётся.
     """
     try:
-        spec = load_problem_spec(problem_id, outputs_dir=outputs_dir)
+        spec = load_problem_spec(problem_id, problems_dir=problems_dir)
     except SpecValidationError as exc:
         return PolygonPipelineResult(problem_id=problem_id, spec_error=str(exc))
 
@@ -166,11 +166,11 @@ def run_polygon_pipeline(
         try:
             if step.commits_changes and not baseline_checked:
                 synced = _sync_baseline(
-                    problem_id, force=force, outputs_dir=outputs_dir, client=client
+                    problem_id, force=force, problems_dir=problems_dir, client=client
                 )
                 baseline_checked = True
             step_result = run_step(
-                step, problem_id, spec, outputs_dir=outputs_dir, client=client, synced=synced
+                step, problem_id, spec, problems_dir=problems_dir, client=client, synced=synced
             )
             detail = step_result.message
             if step.commits_changes and step_result.uploaded:
@@ -178,7 +178,7 @@ def run_polygon_pipeline(
                     problem_id,
                     step_name,
                     step_result.uploaded,
-                    outputs_dir=outputs_dir,
+                    problems_dir=problems_dir,
                     client=client,
                 )
         except (PolygonApiError, PolygonStepError) as exc:
@@ -204,7 +204,7 @@ def run_polygon_pipeline(
 
 
 def _sync_baseline(
-    problem_id: str, *, force: bool, outputs_dir: Path, client: PolygonClient
+    problem_id: str, *, force: bool, problems_dir: Path, client: PolygonClient
 ) -> dict[str, str] | None:
     """База синхронизации для шагов этого прогона (см. докстринг модуля);
     `None` — загружать всё.
@@ -218,7 +218,7 @@ def _sync_baseline(
     целиком и унёс бы чужие правки в ревизию оркестратора (а правки в
     перезаписанных файлах потерялись бы без следа в истории).
     """
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
         return None
 
@@ -256,7 +256,7 @@ def _commit_and_record(
     step_name: str,
     uploaded: dict[str, str],
     *,
-    outputs_dir: Path,
+    problems_dir: Path,
     client: PolygonClient,
 ) -> str:
     """Коммитит рабочую копию задачи на Polygon после шага `step_name` и
@@ -269,7 +269,7 @@ def _commit_and_record(
     вычисляется как "+1" — так база не зависит от того, как Polygon
     нумерует ревизии.
     """
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
         raise PolygonStepError(
             f"'{problem_id}': nothing to commit after {step_name} — the problem is not "
@@ -284,12 +284,12 @@ def _commit_and_record(
         },
     )
     revision = fetch_revision(client, state.polygon_id).revision
-    update_sync(problem_id, synced=uploaded, revision=revision, outputs_dir=outputs_dir)
+    update_sync(problem_id, synced=uploaded, revision=revision, problems_dir=problems_dir)
     return f"committed on Polygon id={state.polygon_id} (revision {revision})"
 
 
 def compute_polygon_step_statuses(
-    problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> list[PolygonStepOutcome]:
     """Состояние polygon-шагов для `orchestrator <id> polygon status`, без сети:
     по `compute_status` каждого шага, в порядке `POLYGON_STEP_ORDER`.
@@ -300,6 +300,6 @@ def compute_polygon_step_statuses(
     """
     outcomes = []
     for step_name in POLYGON_STEP_ORDER:
-        status, detail = _POLYGON_STEPS[step_name].compute_status(problem_id, Path(outputs_dir))
+        status, detail = _POLYGON_STEPS[step_name].compute_status(problem_id, Path(problems_dir))
         outcomes.append(PolygonStepOutcome(step_name, status, detail))
     return outcomes

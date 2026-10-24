@@ -30,15 +30,15 @@ STEP_NAME = "create_problem"
 
 def _check_done(ctx: StepContext) -> str | None:
     """Локальное состояние уже есть — задача привязана, сети не нужно."""
-    existing = load_polygon_state(ctx.problem_id, outputs_dir=ctx.outputs_dir)
+    existing = load_polygon_state(ctx.problem_id, problems_dir=ctx.problems_dir)
     if existing is None:
         return None
     return f"already linked to Polygon id={existing.polygon_id}, skipped"
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """Выполнен, если есть привязка к Polygon (`polygon_state.json`)."""
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
         return STATUS_NOT_RUN, ""
     return STATUS_DONE, f"polygon_id={state.polygon_id}"
@@ -86,7 +86,7 @@ def _link(ctx: StepContext, polygon_id: int, *, revision: int | None) -> None:
             created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             revision=revision,
         ),
-        outputs_dir=ctx.outputs_dir,
+        problems_dir=ctx.problems_dir,
     )
 
 

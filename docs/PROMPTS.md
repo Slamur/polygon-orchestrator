@@ -44,11 +44,11 @@
 Приложенные к шагам материалы лежат в двух каталогах:
 
 - `templates/` — общее для всех задач: правила `tutorials/*.md`,
-  `problem_lib.h` (шаблон — копируется в `outputs/<problem_id>/problem_lib.h`,
+  `problem_lib.h` (шаблон — копируется в `problems/<problem_id>/problem_lib.h`,
   оттуда загружается в Polygon шагом `upload_problem_lib`), `testlib.h`.
   Этот же каталог — include-путь compile-check (после каталога задачи).
 - `examples/<problem_id>/` — учебные задачи-образцы. Каждая лежит
-  в той же раскладке, что и результат оркестратора `outputs/<problem_id>/`
+  в той же раскладке, что и результат оркестратора `problems/<problem_id>/`
   (`constraints.yaml`, `validator.cpp`, `checker.cpp`, `generators/`,
   `test_script`, `solutions/`, ...), плюс свой спек в обычном формате
   (`docs/SPEC_FORMAT.md`) — `spec.yaml`, `problem_id` в нём совпадает с
@@ -58,8 +58,8 @@
 Образцы прикладываются к вызову только как **референсы спека** (`references`
 в корне спека — для всех шагов, в секции шага — для него; см.
 `docs/SPEC_FORMAT.md`, "Референсы"). Каталог-референс — любой каталог в
-раскладке `outputs/<problem_id>/`: учебная задача из `examples/`
-или прошлая задача автора в `outputs/`. Каждый шаг берёт из него только
+раскладке `problems/<problem_id>/`: учебная задача из `examples/`
+или прошлая задача автора в `problems/`. Каждый шаг берёт из него только
 свою часть (`REFERENCE_DOCUMENTS` в `orchestrator/references.py`); правила
 из `templates/` (`STEP_CONTEXT_DOCUMENTS` в
 `orchestrator/steps/base.py`) прикладываются всегда:
@@ -75,7 +75,7 @@
 `spec.yaml` из каталога прикладывается, только если каталог дал шагу хотя
 бы один другой файл; тогда модель получает пару "спек → ожидаемый
 результат" и видит, из какого поля спека получился каждый образец. У
-`outputs/<problem_id>/` своего `spec.yaml` нет — модель видит только
+`problems/<problem_id>/` своего `spec.yaml` нет — модель видит только
 результат. Образцов может не быть вовсе, поэтому всё, что шаг обязан
 соблюдать (формат `constraints.yaml`, каркас валидатора/генератора/чекера,
 структура решений), сформулировано в самих `system.md` как правила, а
@@ -98,7 +98,7 @@ testlib, композицию генераторов, устройство `wa`/
 Заголовок приложенного документа — путь к файлу: относительно `templates/`
 для файлов внутри него (`tutorials/limits.md`), иначе путь как записан в
 спеке (`examples/array--prefix-sums/validator.cpp`,
-`outputs/old-task/validator.cpp`). По нему модель
+`problems/old-task/validator.cpp`). По нему модель
 группирует образцы по задачам; в промптах файлы называются коротко, именем
 внутри каталога (`generators/*.cpp`, `validator.cpp`, `statement.md`).
 

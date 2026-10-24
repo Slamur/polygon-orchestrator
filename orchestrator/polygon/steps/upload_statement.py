@@ -1,4 +1,4 @@
-"""Polygon-шаг 6 — загрузка условия из `outputs/<problem_id>/statement/`
+"""Polygon-шаг 6 — загрузка условия из `problems/<problem_id>/statement/`
 (результат генеративного шага `statement_draft`): legend/input/output/notes
 через `problem.saveStatement` и тестовые примеры как первые тесты
 (`problem.saveTest`, `testIndex` 1..N, `testUseInStatements=true`).
@@ -86,7 +86,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
-    statement_dir = _statement_dir(ctx.problem_id, ctx.outputs_dir)
+    statement_dir = _statement_dir(ctx.problem_id, ctx.problems_dir)
     tex_files = _read_statement_dir(statement_dir)
     examples = _read_examples(statement_dir)
     name_path = statement_dir / NAME_FILENAME
@@ -140,12 +140,12 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     return StepResult(f"{' and '.join(done)} on Polygon id={polygon_id}", uploaded)
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`). Пока `name.txt` нет (его
     создаст push из `title.ru` спека), название не сравнивается."""
 
     def read_items() -> dict[str, str]:
-        statement_dir = _statement_dir(problem_id, outputs_dir)
+        statement_dir = _statement_dir(problem_id, problems_dir)
         items = {
             **_tex_items(_read_statement_dir(statement_dir)),
             **_example_items(_read_examples(statement_dir)),
@@ -155,7 +155,7 @@ def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
             items[STATEMENT_NAME_KEY] = digest(read_name(name_path))
         return items
 
-    return sync_status(problem_id, outputs_dir, key_prefix="statement/", read_items=read_items)
+    return sync_status(problem_id, problems_dir, key_prefix="statement/", read_items=read_items)
 
 
 def read_name(path: Path) -> str:
@@ -175,8 +175,8 @@ def _example_items(examples: list[tuple[int, bytes]]) -> dict[str, str]:
     return {example_key(index): digest(content) for index, content in examples}
 
 
-def _statement_dir(problem_id: str, outputs_dir: Path) -> Path:
-    return Path(outputs_dir) / problem_id / "statement"
+def _statement_dir(problem_id: str, problems_dir: Path) -> Path:
+    return Path(problems_dir) / problem_id / "statement"
 
 
 def _read_statement_dir(statement_dir: Path) -> dict[str, bytes]:

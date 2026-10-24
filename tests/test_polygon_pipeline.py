@@ -19,23 +19,23 @@ PROBLEM_ID = "example-problem"
 
 
 def _write_spec(
-    outputs_dir: Path, problem_id: str, *, dir_name: str | None = None, flat_script: bool = False
+    problems_dir: Path, problem_id: str, *, dir_name: str | None = None, flat_script: bool = False
 ) -> None:
-    """Спек с `problem_id` в каталоге задачи `outputs_dir/<dir_name>/spec.yaml`
+    """Спек с `problem_id` в каталоге задачи `problems_dir/<dir_name>/spec.yaml`
     (`dir_name` по умолчанию — сам `problem_id`)."""
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     content = content.replace("problem_id: valid-spec", f"problem_id: {problem_id}")
     if flat_script:
         # upload_test_script отклоняет groups — для полного прогона нужен flat
         content = content.replace('script_style: "groups"', 'script_style: "flat"')
-    spec_path = outputs_dir / (dir_name or problem_id) / "spec.yaml"
+    spec_path = problems_dir / (dir_name or problem_id) / "spec.yaml"
     spec_path.parent.mkdir(parents=True, exist_ok=True)
     spec_path.write_text(content, encoding="utf-8")
 
 
 @pytest.fixture
-def outputs_dir(tmp_path):
-    return tmp_path / "outputs"
+def problems_dir(tmp_path):
+    return tmp_path / "problems"
 
 
 def _fake_step(
@@ -64,7 +64,7 @@ def _fake_step(
         name=name,
         check_done=lambda ctx: None,
         execute=execute,
-        compute_status=lambda problem_id, outputs_dir: ("not run", ""),
+        compute_status=lambda problem_id, problems_dir: ("not run", ""),
         commits_changes=commits_changes,
     )
 
@@ -105,12 +105,12 @@ def test_step_order_starts_with_create_problem():
     assert POLYGON_STEP_ORDER[0] == "create_problem"
 
 
-def test_runs_all_steps_in_order(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_runs_all_steps_in_order(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
     calls = fake_steps()
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=MagicMock()
+        PROBLEM_ID, problems_dir=problems_dir, client=MagicMock()
     )
 
     assert calls == ["step_a", "step_b", "step_c"]
@@ -123,14 +123,14 @@ def test_runs_all_steps_in_order(outputs_dir, fake_steps):
     assert result.ok
 
 
-def test_only_step_runs_just_that_step(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_only_step_runs_just_that_step(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
     calls = fake_steps()
 
     result = run_polygon_pipeline(
         PROBLEM_ID,
         only_step="step_b",
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         client=MagicMock(),
     )
 
@@ -139,12 +139,12 @@ def test_only_step_runs_just_that_step(outputs_dir, fake_steps):
     assert result.ok
 
 
-def test_polygon_api_error_stops_pipeline(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_polygon_api_error_stops_pipeline(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
     calls = fake_steps(failing="step_b")
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=MagicMock()
+        PROBLEM_ID, problems_dir=problems_dir, client=MagicMock()
     )
 
     assert calls == ["step_a", "step_b"]
@@ -156,8 +156,8 @@ def test_polygon_api_error_stops_pipeline(outputs_dir, fake_steps):
     assert result.ok is False
 
 
-def test_on_outcome_called_after_each_step_including_failed(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_on_outcome_called_after_each_step_including_failed(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
     calls = fake_steps(failing="step_b")
     seen = []
 
@@ -167,7 +167,7 @@ def test_on_outcome_called_after_each_step_including_failed(outputs_dir, fake_st
 
     run_polygon_pipeline(
         PROBLEM_ID,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         client=MagicMock(),
         on_outcome=on_outcome,
     )
@@ -178,8 +178,8 @@ def test_on_outcome_called_after_each_step_including_failed(outputs_dir, fake_st
     ]
 
 
-def test_unexpected_exception_is_step_error_with_traceback_in_log(outputs_dir, fake_steps, monkeypatch, caplog):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_unexpected_exception_is_step_error_with_traceback_in_log(problems_dir, fake_steps, monkeypatch, caplog):
+    _write_spec(problems_dir, PROBLEM_ID)
     calls = fake_steps()
 
     def explode(ctx, client):
@@ -191,14 +191,14 @@ def test_unexpected_exception_is_step_error_with_traceback_in_log(outputs_dir, f
         name="step_b",
         check_done=lambda ctx: None,
         execute=explode,
-        compute_status=lambda problem_id, outputs_dir: ("not run", ""),
+        compute_status=lambda problem_id, problems_dir: ("not run", ""),
         commits_changes=False,
     )
     monkeypatch.setattr(polygon_pipeline, "_POLYGON_STEPS", steps)
 
     with caplog.at_level("ERROR", logger="orchestrator.polygon.pipeline"):
         result = run_polygon_pipeline(
-            PROBLEM_ID, outputs_dir=outputs_dir, client=MagicMock()
+            PROBLEM_ID, problems_dir=problems_dir, client=MagicMock()
         )
 
     assert calls == ["step_a", "step_b"]
@@ -210,15 +210,15 @@ def test_unexpected_exception_is_step_error_with_traceback_in_log(outputs_dir, f
     assert any(r.exc_info is not None for r in caplog.records)
 
 
-def test_real_create_problem_step_with_mocked_client(outputs_dir):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_real_create_problem_step_with_mocked_client(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.side_effect = _new_problem_polygon
 
     result = run_polygon_pipeline(
         PROBLEM_ID,
         only_step="create_problem",
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         client=client,
     )
 
@@ -227,13 +227,13 @@ def test_real_create_problem_step_with_mocked_client(outputs_dir):
     assert "555" in result.outcomes[0].detail
 
 
-def test_real_create_problem_api_error_is_reported_not_raised(outputs_dir):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_real_create_problem_api_error_is_reported_not_raised(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.side_effect = PolygonApiError("problems.list", "boom")
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert result.ok is False
@@ -241,7 +241,7 @@ def test_real_create_problem_api_error_is_reported_not_raised(outputs_dir):
 
 
 def _link(
-    outputs_dir: Path,
+    problems_dir: Path,
     polygon_id: int = 777,
     *,
     revision: int | None = 10,
@@ -256,7 +256,7 @@ def _link(
             revision=revision,
             synced=synced or {},
         ),
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
 
 
@@ -308,14 +308,14 @@ def _new_problem_polygon(method, params, **kwargs):
     return None
 
 
-def test_commits_after_each_successful_step(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir)
+def test_commits_after_each_successful_step(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
     fake_steps(commits_changes=True)
     client = RevisionClient(revision=10)
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert result.ok
@@ -323,59 +323,59 @@ def test_commits_after_each_successful_step(outputs_dir, fake_steps):
     assert result.outcomes[0].detail == "step_a done; committed on Polygon id=777 (revision 11)"
 
 
-def test_commit_records_uploaded_items_and_new_revision(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, synced={"other": "x"})
+def test_commit_records_uploaded_items_and_new_revision(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, synced={"other": "x"})
     fake_steps(commits_changes=True)
 
     run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=RevisionClient(10)
+        PROBLEM_ID, problems_dir=problems_dir, client=RevisionClient(10)
     )
 
-    state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert state.revision == 13
     assert state.synced == {"other": "x", "step_a/item": "h", "step_b/item": "h", "step_c/item": "h"}
 
 
-def test_failed_step_is_not_committed_but_previous_are(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir)
+def test_failed_step_is_not_committed_but_previous_are(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
     fake_steps(failing="step_b", commits_changes=True)
     client = RevisionClient()
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert not result.ok
     assert client.commits() == ["orchestrator: step_a"]
-    assert list(load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced) == ["step_a/item"]
+    assert list(load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced) == ["step_a/item"]
 
 
-def test_commit_error_marks_step_as_error_stops_and_records_nothing(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir)
+def test_commit_error_marks_step_as_error_stops_and_records_nothing(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
     calls = fake_steps(commits_changes=True)
     client = RevisionClient(failing="problem.commitChanges")
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert calls == ["step_a"]
     assert [(o.step_name, o.status) for o in result.outcomes] == [("step_a", "error")]
     assert "commit boom" in result.outcomes[0].detail
-    state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert (state.revision, state.synced) == (10, {})
 
 
-def test_commit_without_polygon_state_is_step_error(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_commit_without_polygon_state_is_step_error(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
     fake_steps(commits_changes=True)
     client = RevisionClient()
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert [(o.step_name, o.status) for o in result.outcomes] == [("step_a", "error")]
@@ -385,14 +385,14 @@ def test_commit_without_polygon_state_is_step_error(outputs_dir, fake_steps):
 # --- база синхронизации ---
 
 
-def test_unknown_revision_stops_push_until_pull(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, revision=None)
+def test_unknown_revision_stops_push_until_pull(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, revision=None)
     calls = fake_steps(commits_changes=True)
     client = RevisionClient()
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert calls == []
@@ -402,15 +402,15 @@ def test_unknown_revision_stops_push_until_pull(outputs_dir, fake_steps):
     assert client.methods() == ["problems.list"]
 
 
-def test_force_uploads_everything_with_unknown_revision(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, revision=None, synced={"step_a/item": "h"})
+def test_force_uploads_everything_with_unknown_revision(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, revision=None, synced={"step_a/item": "h"})
     baselines: list = []
     fake_steps(commits_changes=True, baselines=baselines)
     client = RevisionClient()
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, force=True, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, force=True, problems_dir=problems_dir, client=client
     )
 
     assert result.ok
@@ -418,16 +418,16 @@ def test_force_uploads_everything_with_unknown_revision(outputs_dir, fake_steps)
     assert client.methods()[:2] == ["problems.list", "problem.commitChanges"]
 
 
-def test_reused_polygon_problem_needs_pull_before_push(outputs_dir):
-    _write_spec(outputs_dir, PROBLEM_ID, flat_script=True)
-    _write_generated_outputs(outputs_dir)
+def test_reused_polygon_problem_needs_pull_before_push(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID, flat_script=True)
+    _write_generated_outputs(problems_dir)
     client = MagicMock()
     client.call.side_effect = lambda method, params: (
         [{"id": 555, "name": PROBLEM_ID}] if method == "problems.list" else None
     )
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert [(o.step_name, o.status) for o in result.outcomes] == [
@@ -440,15 +440,15 @@ def test_reused_polygon_problem_needs_pull_before_push(outputs_dir):
     assert [c.args[0] for c in client.call.call_args_list] == ["problems.list", "problems.list"]
 
 
-def test_matching_revision_passes_baseline_and_skips_commit_without_changes(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, revision=10, synced={"step_a/item": "h"})
+def test_matching_revision_passes_baseline_and_skips_commit_without_changes(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, revision=10, synced={"step_a/item": "h"})
     baselines: list = []
     fake_steps(commits_changes=True, baselines=baselines)
     client = RevisionClient(revision=10)
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert result.ok
@@ -459,15 +459,15 @@ def test_matching_revision_passes_baseline_and_skips_commit_without_changes(outp
     assert client.commits() == ["orchestrator: step_b", "orchestrator: step_c"]
 
 
-def test_nothing_changed_makes_no_commits(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_nothing_changed_makes_no_commits(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
     synced = {f"step_{x}/item": "h" for x in "abc"}
-    _link(outputs_dir, revision=10, synced=synced)
+    _link(problems_dir, revision=10, synced=synced)
     fake_steps(commits_changes=True)
     client = RevisionClient(revision=10)
 
     assert run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     ).ok
 
     assert client.methods() == ["problems.list"]
@@ -477,14 +477,14 @@ def test_nothing_changed_makes_no_commits(outputs_dir, fake_steps):
     "polygon_revision, modified, expected",
     [(12, False, "changed since the last sync"), (10, True, "uncommitted changes")],
 )
-def test_changed_polygon_stops_before_first_upload(outputs_dir, fake_steps, polygon_revision, modified, expected):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, revision=10)
+def test_changed_polygon_stops_before_first_upload(problems_dir, fake_steps, polygon_revision, modified, expected):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, revision=10)
     calls = fake_steps(commits_changes=True)
     client = RevisionClient(revision=polygon_revision, modified=modified)
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert calls == []
@@ -494,15 +494,15 @@ def test_changed_polygon_stops_before_first_upload(outputs_dir, fake_steps, poly
     assert client.methods() == ["problems.list"]
 
 
-def test_force_ignores_changed_polygon_and_uploads_everything(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, revision=10, synced={f"step_{x}/item": "h" for x in "abc"})
+def test_force_ignores_changed_polygon_and_uploads_everything(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, revision=10, synced={f"step_{x}/item": "h" for x in "abc"})
     baselines: list = []
     fake_steps(commits_changes=True, baselines=baselines)
     client = RevisionClient(revision=12)
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, force=True, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, force=True, problems_dir=problems_dir, client=client
     )
 
     assert result.ok
@@ -511,14 +511,14 @@ def test_force_ignores_changed_polygon_and_uploads_everything(outputs_dir, fake_
 
 
 @pytest.mark.parametrize("revision", [10, None])
-def test_uncommitted_changes_on_polygon_stop_push_even_with_force(outputs_dir, fake_steps, revision):
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, revision=revision)
+def test_uncommitted_changes_on_polygon_stop_push_even_with_force(problems_dir, fake_steps, revision):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, revision=revision)
     calls = fake_steps(commits_changes=True)
     client = RevisionClient(revision=10, modified=True)
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, force=True, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, force=True, problems_dir=problems_dir, client=client
     )
 
     assert calls == []
@@ -527,15 +527,15 @@ def test_uncommitted_changes_on_polygon_stop_push_even_with_force(outputs_dir, f
     assert client.methods() == ["problems.list"]
 
 
-def test_create_problem_does_not_commit(outputs_dir):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_create_problem_does_not_commit(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.side_effect = _new_problem_polygon
 
     result = run_polygon_pipeline(
         PROBLEM_ID,
         only_step="create_problem",
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         client=client,
     )
 
@@ -546,17 +546,17 @@ def test_create_problem_does_not_commit(outputs_dir):
         "problem.create",
         "problems.list",
     ]
-    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).revision == 1
+    assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).revision == 1
 
 
-def test_full_run_commits_after_every_step_but_create_problem(outputs_dir):
-    _write_spec(outputs_dir, PROBLEM_ID, flat_script=True)
-    _write_generated_outputs(outputs_dir)
+def test_full_run_commits_after_every_step_but_create_problem(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID, flat_script=True)
+    _write_generated_outputs(problems_dir)
     client = MagicMock()
     client.call.side_effect = _new_problem_polygon
 
     assert run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     ).ok
 
     commits = [
@@ -632,14 +632,14 @@ def test_step_order_ends_with_upload_solutions():
     ]
 
 
-def test_polygon_step_error_stops_pipeline_before_network(outputs_dir):
+def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
     # задача привязана, но constraints.yaml нет -> PolygonStepError в set_constraints
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir)
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
     client = RevisionClient(revision=10)
 
     result = run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     )
 
     assert result.ok is False
@@ -652,12 +652,12 @@ def test_polygon_step_error_stops_pipeline_before_network(outputs_dir):
     assert client.methods() == ["problems.list"]
 
 
-def test_invalid_spec_sets_spec_error_and_never_creates_client(outputs_dir):
+def test_invalid_spec_sets_spec_error_and_never_creates_client(problems_dir):
     # problem_id внутри файла не совпадает с именем файла -> SpecValidationError
-    _write_spec(outputs_dir, "other-problem", dir_name=PROBLEM_ID)
+    _write_spec(problems_dir, "other-problem", dir_name=PROBLEM_ID)
 
     with patch.object(polygon_pipeline, "PolygonClient") as client_cls:
-        result = run_polygon_pipeline(PROBLEM_ID, outputs_dir=outputs_dir)
+        result = run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir)
 
     assert result.spec_error
     assert result.outcomes == []
@@ -665,19 +665,19 @@ def test_invalid_spec_sets_spec_error_and_never_creates_client(outputs_dir):
     client_cls.assert_not_called()
 
 
-def test_client_created_once_when_not_passed(outputs_dir, fake_steps):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_client_created_once_when_not_passed(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
     fake_steps()
 
     with patch.object(polygon_pipeline, "PolygonClient") as client_cls:
-        result = run_polygon_pipeline(PROBLEM_ID, outputs_dir=outputs_dir)
+        result = run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir)
 
     assert result.ok
     client_cls.assert_called_once_with()
 
 
 def test_status_not_run_without_state(tmp_path):
-    statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=tmp_path)
+    statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=tmp_path)
 
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "not run"),
@@ -696,10 +696,10 @@ def test_status_done_with_state(tmp_path):
     save_polygon_state(
         PROBLEM_ID,
         PolygonState(problem_id=PROBLEM_ID, polygon_id=777, created_at="2026-09-19T12:00:00+00:00"),
-        outputs_dir=tmp_path,
+        problems_dir=tmp_path,
     )
 
-    statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=tmp_path)
+    statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=tmp_path)
 
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
@@ -715,16 +715,16 @@ def test_status_done_with_state(tmp_path):
     assert statuses[0].detail == "polygon_id=777"
 
 
-def test_status_after_full_run_then_constraints_change(outputs_dir):
-    _write_spec(outputs_dir, PROBLEM_ID, flat_script=True)
-    _write_generated_outputs(outputs_dir)
+def test_status_after_full_run_then_constraints_change(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID, flat_script=True)
+    _write_generated_outputs(problems_dir)
     client = MagicMock()
     client.call.side_effect = _new_problem_polygon
     assert run_polygon_pipeline(
-        PROBLEM_ID, outputs_dir=outputs_dir, client=client
+        PROBLEM_ID, problems_dir=problems_dir, client=client
     ).ok
 
-    statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=outputs_dir)
+    statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=problems_dir)
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
         ("set_constraints", "done"),
@@ -737,10 +737,10 @@ def test_status_after_full_run_then_constraints_change(outputs_dir):
         ("upload_solutions", "done"),
     ]
 
-    (outputs_dir / PROBLEM_ID / "constraints.yaml").write_text(
+    (problems_dir / PROBLEM_ID / "constraints.yaml").write_text(
         "limits:\n  time_limit_seconds: 3\n  memory_limit_mb: 256\n", encoding="utf-8"
     )
-    statuses = compute_polygon_step_statuses(PROBLEM_ID, outputs_dir=outputs_dir)
+    statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=problems_dir)
     assert (statuses[1].status, statuses[1].detail) == (
         "stale",
         "changed since the last sync: limits",
@@ -750,12 +750,12 @@ def test_status_after_full_run_then_constraints_change(outputs_dir):
 # --- CLI ---
 
 
-def _cli_args(outputs_dir: Path) -> list[str]:
-    return ["--outputs-dir", str(outputs_dir)]
+def _cli_args(problems_dir: Path) -> list[str]:
+    return ["--problems-dir", str(problems_dir)]
 
 
-def _write_generated_outputs(outputs_dir: Path) -> None:
-    path = outputs_dir / PROBLEM_ID / "constraints.yaml"
+def _write_generated_outputs(problems_dir: Path) -> None:
+    path = problems_dir / PROBLEM_ID / "constraints.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n", encoding="utf-8")
     (path.parent / "validator.cpp").write_text("int main() {}\n", encoding="utf-8")
@@ -773,14 +773,14 @@ def _write_generated_outputs(outputs_dir: Path) -> None:
     (solutions_dir / "ok_cpp_main_draft.cpp").write_text("int main() {}\n", encoding="utf-8")
 
 
-def test_cli_polygon_run_prints_outcomes(outputs_dir, capsys):
-    _write_spec(outputs_dir, PROBLEM_ID, flat_script=True)
-    _write_generated_outputs(outputs_dir)
+def test_cli_polygon_run_prints_outcomes(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID, flat_script=True)
+    _write_generated_outputs(problems_dir)
     client = MagicMock()
     client.call.side_effect = _new_problem_polygon
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push"])
+        rc = cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -795,14 +795,14 @@ def test_cli_polygon_run_prints_outcomes(outputs_dir, capsys):
     assert "upload_solutions: ok" in out
 
 
-def test_cli_polygon_run_with_step(outputs_dir, capsys):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_cli_polygon_run_with_step(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         rc = cli.main(
-            _cli_args(outputs_dir)
+            _cli_args(problems_dir)
             + [PROBLEM_ID, "polygon", "push", "--step", "create_problem"]
         )
 
@@ -810,83 +810,83 @@ def test_cli_polygon_run_with_step(outputs_dir, capsys):
     assert "create_problem: ok" in capsys.readouterr().out
 
 
-def test_cli_polygon_run_api_error_exits_nonzero(outputs_dir, capsys):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_cli_polygon_run_api_error_exits_nonzero(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.side_effect = PolygonApiError("problems.list", "boom")
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push"])
+        rc = cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     assert "create_problem: error" in capsys.readouterr().out
 
 
-def test_cli_polygon_run_invalid_spec_exits_nonzero(outputs_dir, capsys):
-    _write_spec(outputs_dir, "other-problem", dir_name=PROBLEM_ID)
+def test_cli_polygon_run_invalid_spec_exits_nonzero(problems_dir, capsys):
+    _write_spec(problems_dir, "other-problem", dir_name=PROBLEM_ID)
 
-    rc = cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push"])
+    rc = cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     assert capsys.readouterr().err
 
 
-def test_cli_polygon_run_rejects_unknown_step(outputs_dir):
+def test_cli_polygon_run_rejects_unknown_step(problems_dir):
     with pytest.raises(SystemExit) as exc_info:
         cli.main(
-            _cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push", "--step", "nope"]
+            _cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push", "--step", "nope"]
         )
     assert exc_info.value.code == 2
 
 
-def test_cli_polygon_push_force_flag_is_passed_to_pipeline(outputs_dir):
+def test_cli_polygon_push_force_flag_is_passed_to_pipeline(problems_dir):
     with patch.object(cli_commands, "run_polygon_pipeline") as run:
         run.return_value = MagicMock(spec_error=None, ok=True)
-        cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push", "--force"])
+        cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push", "--force"])
 
     assert run.call_args.kwargs["force"] is True
 
 
-def test_cli_polygon_requires_subcommand(outputs_dir):
+def test_cli_polygon_requires_subcommand(problems_dir):
     with pytest.raises(SystemExit):
-        cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon"])
+        cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon"])
 
 
-def test_cli_polygon_status_without_network(outputs_dir, capsys):
+def test_cli_polygon_status_without_network(problems_dir, capsys):
     with patch.object(polygon_pipeline, "PolygonClient") as client_cls:
-        rc = cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "status"])
+        rc = cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "status"])
 
     assert rc == 0
     assert "create_problem: not run" in capsys.readouterr().out
     client_cls.assert_not_called()
 
 
-def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(outputs_dir, capsys):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID)
     long_comment = "compilation failed\n" + "\n".join(f"error line {i}" for i in range(50))
     client = MagicMock()
     client.call.side_effect = PolygonApiError("problems.list", long_comment)
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push"])
+        rc = cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     out = capsys.readouterr().out
     assert "create_problem: error — Polygon API problems.list: compilation failed" in out
     assert "error line 1" not in out
-    log_path = outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG
+    log_path = problems_dir / PROBLEM_ID / cli_commands.POLYGON_LOG
     assert str(log_path) in out
     log = log_path.read_text(encoding="utf-8")
     assert "error line 49" in log
 
 
-def test_cli_polygon_run_own_step_error_is_printed_in_full(outputs_dir, capsys):
+def test_cli_polygon_run_own_step_error_is_printed_in_full(problems_dir, capsys):
     # ревизия неизвестна — длинное сообщение с подсказкой в конце
-    _write_spec(outputs_dir, PROBLEM_ID)
-    _link(outputs_dir, revision=None)
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, revision=None)
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=RevisionClient(10)):
-        rc = cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push"])
+        rc = cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     out = capsys.readouterr().out
@@ -895,49 +895,49 @@ def test_cli_polygon_run_own_step_error_is_printed_in_full(outputs_dir, capsys):
     assert "…" not in out
 
 
-def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(outputs_dir, capsys):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.side_effect = RuntimeError("POLYGON_API_KEY is not set")
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
-        rc = cli.main(_cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push"])
+        rc = cli.main(_cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push"])
 
     assert rc == 1
     captured = capsys.readouterr()
     assert "create_problem: error — RuntimeError: POLYGON_API_KEY is not set" in captured.out
     assert "Traceback" not in captured.out + captured.err
-    log = (outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
+    log = (problems_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
     assert "Traceback" in log
 
 
-def test_cli_polygon_run_writes_step_progress_to_log(outputs_dir, capsys):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_cli_polygon_run_writes_step_progress_to_log(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         cli.main(
-            _cli_args(outputs_dir)
+            _cli_args(problems_dir)
             + [PROBLEM_ID, "polygon", "push", "--step", "create_problem"]
         )
 
-    log = (outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
+    log = (problems_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
     assert "[create_problem] step started" in log
-    assert not (outputs_dir / PROBLEM_ID / cli_commands.LLM_GENERATION_LOG).exists()
+    assert not (problems_dir / PROBLEM_ID / cli_commands.LLM_GENERATION_LOG).exists()
 
 
-def test_cli_polygon_run_appends_to_log_with_run_header(outputs_dir, capsys):
-    _write_spec(outputs_dir, PROBLEM_ID)
+def test_cli_polygon_run_appends_to_log_with_run_header(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
     client.call.return_value = [{"id": 123, "name": PROBLEM_ID}]
-    argv = _cli_args(outputs_dir) + [PROBLEM_ID, "polygon", "push", "--step", "create_problem"]
+    argv = _cli_args(problems_dir) + [PROBLEM_ID, "polygon", "push", "--step", "create_problem"]
 
     with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
         cli.main(argv)
         cli.main(argv)
 
-    log = (outputs_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
+    log = (problems_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
     header = f"===== run started: orchestrator {' '.join(argv)} ====="
     assert log.count(header) == 2
     assert log.count("[create_problem] step started") == 2

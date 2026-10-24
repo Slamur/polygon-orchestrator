@@ -59,7 +59,7 @@ def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
             spec2,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -95,7 +95,7 @@ def test_mismatched_artifacts_raise_and_write_nothing(spec, tmp_path):
                 spec,
                 None,
                 prompts_dir=PROMPTS_DIR,
-                outputs_dir=tmp_path,
+                problems_dir=tmp_path,
                 templates_dir=TEMPLATES_DIR,
             )
 
@@ -103,7 +103,7 @@ def test_mismatched_artifacts_raise_and_write_nothing(spec, tmp_path):
 
 
 def test_primary_artifact_path_is_statement_dir(spec, tmp_path):
-    path = primary_artifact_path("valid-spec", spec, outputs_dir=tmp_path)
+    path = primary_artifact_path("valid-spec", spec, problems_dir=tmp_path)
     assert path == tmp_path / "valid-spec" / "statement"
     assert path.suffix == ""
 
@@ -147,7 +147,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
                 spec,
                 None,
                 prompts_dir=PROMPTS_DIR,
-                outputs_dir=tmp_path,
+                problems_dir=tmp_path,
                 templates_dir=TEMPLATES_DIR,
             )
 
@@ -165,7 +165,7 @@ def test_preserve_legend_verbatim_true_includes_instruction(spec, tmp_path):
             spec_verbatim,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -182,7 +182,7 @@ def test_preserve_legend_verbatim_false_uses_default_instruction(spec, tmp_path)
             spec,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -202,7 +202,7 @@ def test_renders_without_crashing_when_known_ambiguities_is_null(spec, tmp_path)
             spec_no_ambiguities,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -224,7 +224,7 @@ def test_prompt_marks_missing_sample_output_and_keeps_given_one(spec, tmp_path):
             spec_mixed,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 

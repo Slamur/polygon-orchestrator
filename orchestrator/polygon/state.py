@@ -1,7 +1,7 @@
 """Состояние привязки `problem_id` -> Polygon problemId.
 
-Хранится в `outputs/<problem_id>/polygon_state.json` — на уровне
-`outputs/<problem_id>/`, а не внутри `.cache/`: это не результат-кэш
+Хранится в `problems/<problem_id>/polygon_state.json` — на уровне
+`problems/<problem_id>/`, а не внутри `.cache/`: это не результат-кэш
 модельного шага, а факт состояния на стороне Polygon.
 """
 
@@ -11,7 +11,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from orchestrator.cache import OUTPUTS_DIR
+from orchestrator.cache import PROBLEMS_DIR
 
 # Поля старого формата, которые больше не используются и при чтении
 # отбрасываются: `steps` — запись "что шаг последним отправил" одним хешем
@@ -21,7 +21,7 @@ _LEGACY_FIELDS = ("steps",)
 
 @dataclass
 class PolygonState:
-    """Содержимое `outputs/<problem_id>/polygon_state.json`."""
+    """Содержимое `problems/<problem_id>/polygon_state.json`."""
 
     problem_id: str
     polygon_id: int
@@ -33,12 +33,12 @@ class PolygonState:
     synced: dict[str, str] = field(default_factory=dict)
 
 
-def _state_file_path(problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR) -> Path:
-    return Path(outputs_dir) / problem_id / "polygon_state.json"
+def _state_file_path(problem_id: str, *, problems_dir: Path = PROBLEMS_DIR) -> Path:
+    return Path(problems_dir) / problem_id / "polygon_state.json"
 
 
 def load_polygon_state(
-    problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> PolygonState | None:
     """Читает состояние, если файл существует и является валидным PolygonState.
 
@@ -47,7 +47,7 @@ def load_polygon_state(
     Файл старого формата (с `steps`, без `revision`/`synced`) читается: база
     синхронизации у него просто неизвестна.
     """
-    path = _state_file_path(problem_id, outputs_dir=outputs_dir)
+    path = _state_file_path(problem_id, problems_dir=problems_dir)
     if not path.exists():
         return None
 
@@ -73,10 +73,10 @@ def load_polygon_state(
 
 
 def save_polygon_state(
-    problem_id: str, state: PolygonState, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, state: PolygonState, *, problems_dir: Path = PROBLEMS_DIR
 ) -> None:
-    """Перезаписывает `outputs/<problem_id>/polygon_state.json`."""
-    path = _state_file_path(problem_id, outputs_dir=outputs_dir)
+    """Перезаписывает `problems/<problem_id>/polygon_state.json`."""
+    path = _state_file_path(problem_id, problems_dir=problems_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(asdict(state), ensure_ascii=False, sort_keys=True, indent=2) + "\n",
@@ -89,7 +89,7 @@ def update_sync(
     *,
     synced: dict[str, str | None],
     revision: int | None,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
 ) -> None:
     """Обновляет базу синхронизации в `polygon_state.json`: ключи из `synced`
     перезаписываются (`None` — ключ удаляется), `revision` заменяется.
@@ -97,7 +97,7 @@ def update_sync(
     Требует, чтобы состояние уже существовало (задача привязана шагом
     `create_problem` или `polygon pull`) — иначе `ValueError`.
     """
-    state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
         raise ValueError(f"'{problem_id}': polygon_state.json is missing or corrupted")
     for key, value in synced.items():
@@ -106,4 +106,4 @@ def update_sync(
         else:
             state.synced[key] = value
     state.revision = revision
-    save_polygon_state(problem_id, state, outputs_dir=outputs_dir)
+    save_polygon_state(problem_id, state, problems_dir=problems_dir)

@@ -46,14 +46,14 @@ def test_extra_context_documents_is_none(spec_custom):
 
 
 def test_primary_artifact_path_is_fixed_checker_cpp(spec_custom, tmp_path):
-    path = primary_artifact_path("valid-spec", spec_custom, outputs_dir=tmp_path)
+    path = primary_artifact_path("valid-spec", spec_custom, problems_dir=tmp_path)
     assert path == tmp_path / "valid-spec" / "checker.cpp"
 
 
 def test_custom_needed_false_raises_before_calling_model(spec, tmp_path):
     with patch("orchestrator.model_router.call_model") as mock_call:
         with pytest.raises(ValueError, match="custom_needed"):
-            run_step("valid-spec", spec, None, prompts_dir=PROMPTS_DIR, outputs_dir=tmp_path)
+            run_step("valid-spec", spec, None, prompts_dir=PROMPTS_DIR, problems_dir=tmp_path)
     mock_call.assert_not_called()
 
 
@@ -95,7 +95,7 @@ def test_confirmed_writes_checker_cpp(spec_custom, tmp_path):
             spec_custom,
             None,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -126,7 +126,7 @@ def test_uncertain_raises_and_writes_nothing(spec_custom, tmp_path):
                 spec_custom,
                 None,
                 prompts_dir=PROMPTS_DIR,
-                outputs_dir=tmp_path,
+                problems_dir=tmp_path,
                 templates_dir=TEMPLATES_DIR,
             )
 

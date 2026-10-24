@@ -12,7 +12,7 @@ from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
-    OUTPUTS_DIR,
+    PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
@@ -70,10 +70,10 @@ def hash_inputs(
 
 
 def primary_artifact_path(
-    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
     """Путь к основному артефакту шага, см. `statement_draft.primary_artifact_path`."""
-    return Path(outputs_dir) / problem_id / "constraints.yaml"
+    return Path(problems_dir) / problem_id / "constraints.yaml"
 
 
 def extra_context_documents(
@@ -93,7 +93,7 @@ def run_step(
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
     """Прогоняет шаг `constraints_pick` для `problem_id`.
@@ -126,8 +126,8 @@ def run_step(
     останавливает оба файла разом, `validator.cpp` не пишется без
     `constraints.yaml` и наоборот.
 
-    При успехе пишет `outputs/<problem_id>/constraints.yaml` и
-    `outputs/<problem_id>/validator.cpp`; `validator.cpp` дополнительно
+    При успехе пишет `problems/<problem_id>/constraints.yaml` и
+    `problems/<problem_id>/validator.cpp`; `validator.cpp` дополнительно
     прогоняется через `compile_check` (как и любой другой `.cpp`-артефакт —
     см. `run_generative_step`).
 
@@ -139,7 +139,7 @@ def run_step(
     input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
-        return Path(outputs_dir) / problem_id / filename
+        return Path(problems_dir) / problem_id / filename
 
     return run_generative_step(
         step_name=STEP_NAME,
@@ -149,7 +149,7 @@ def run_step(
         input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
     )

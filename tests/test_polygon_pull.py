@@ -111,8 +111,8 @@ class FakePolygon:
 
 
 @pytest.fixture
-def outputs_dir(tmp_path):
-    return tmp_path / "outputs"
+def problems_dir(tmp_path):
+    return tmp_path / "problems"
 
 
 @pytest.fixture
@@ -124,7 +124,7 @@ def _statuses(result) -> dict[str, str]:
     return {item.name: item.status for item in result.items}
 
 
-def _link(outputs_dir: Path, polygon_id: int = POLYGON_ID, *, revision: int | None = None) -> None:
+def _link(problems_dir: Path, polygon_id: int = POLYGON_ID, *, revision: int | None = None) -> None:
     save_polygon_state(
         PROBLEM_ID,
         PolygonState(
@@ -134,12 +134,12 @@ def _link(outputs_dir: Path, polygon_id: int = POLYGON_ID, *, revision: int | No
             revision=revision,
             synced={"stale/key": "abc"},
         ),
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
 
 
-def _synced(outputs_dir: Path) -> dict[str, str]:
-    return load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).synced
+def _synced(problems_dir: Path) -> dict[str, str]:
+    return load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
 
 
 def _write(problem_dir: Path, name: str, content: str) -> Path:
@@ -149,13 +149,13 @@ def _write(problem_dir: Path, name: str, content: str) -> Path:
     return path
 
 
-def test_pull_into_missing_directory_downloads_everything(outputs_dir, polygon):
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+def test_pull_into_missing_directory_downloads_everything(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    problem_dir = outputs_dir / PROBLEM_ID
+    problem_dir = problems_dir / PROBLEM_ID
     assert result.ok
     assert result.polygon_id == POLYGON_ID
-    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).polygon_id == POLYGON_ID
+    assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).polygon_id == POLYGON_ID
     assert (problem_dir / "statement" / "legend.tex").read_text() == "L"
     assert (problem_dir / "statement" / "input_format.tex").read_text() == "I"
     assert (problem_dir / "statement" / "output_format.tex").read_text() == "O"
@@ -177,10 +177,10 @@ def test_pull_into_missing_directory_downloads_everything(outputs_dir, polygon):
     assert result.backup_dir is None
 
 
-def test_pull_records_revision_and_baseline(outputs_dir, polygon):
-    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+def test_pull_records_revision_and_baseline(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert state.revision == 5
     assert sorted(state.synced) == [
         "checker",
@@ -201,8 +201,8 @@ def test_pull_records_revision_and_baseline(outputs_dir, polygon):
     ]
 
 
-def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, outputs_dir, polygon):
-    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     # upload_test_script отклоняет groups — нужен flat
     spec_path = tmp_path / "valid-spec.yaml"
     spec_path.write_text(
@@ -212,11 +212,11 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, output
         encoding="utf-8",
     )
     spec = load_spec(spec_path)
-    synced = _synced(outputs_dir)
+    synced = _synced(problems_dir)
 
     def uploaded(step) -> dict:
         return run_step(
-            step, PROBLEM_ID, spec, outputs_dir=outputs_dir, client=MagicMock(), synced=synced
+            step, PROBLEM_ID, spec, problems_dir=problems_dir, client=MagicMock(), synced=synced
         ).uploaded
 
     for step in (
@@ -231,21 +231,21 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, output
     assert set(uploaded(upload_validator.STEP)) == {"validator", "validator.cpp"}
 
 
-def test_name_is_compared_without_surrounding_whitespace(outputs_dir, polygon):
-    problem_dir = outputs_dir / PROBLEM_ID
+def test_name_is_compared_without_surrounding_whitespace(problems_dir, polygon):
+    problem_dir = problems_dir / PROBLEM_ID
     _write(problem_dir, "statement/name.txt", "  Polygon Name")
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["statement/name.txt"] == ITEM_SAME
-    assert _synced(outputs_dir)["statement/name"] == pull_module.digest("Polygon Name")
+    assert _synced(problems_dir)["statement/name"] == pull_module.digest("Polygon Name")
 
 
-def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(outputs_dir, polygon):
-    problem_dir = outputs_dir / PROBLEM_ID
+def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(problems_dir, polygon):
+    problem_dir = problems_dir / PROBLEM_ID
     _write(problem_dir, "statement/name.txt", "Old Name\n")
 
-    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
     assert _statuses(result)["statement/name.txt"] == ITEM_OVERWRITTEN
 
     # title.ru спека ("Кратчайшие пути") больше не источник названия
@@ -254,46 +254,46 @@ def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(outputs_dir, poly
         upload_statement.STEP,
         PROBLEM_ID,
         spec,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         client=MagicMock(),
-        synced=_synced(outputs_dir),
+        synced=_synced(problems_dir),
     ).uploaded
     assert "statement/name" not in uploaded
 
 
-def test_uncommitted_changes_on_polygon_stop_pull_before_writing(outputs_dir, polygon):
+def test_uncommitted_changes_on_polygon_stop_pull_before_writing(problems_dir, polygon):
     polygon.problems[0]["modified"] = True
 
     with pytest.raises(PolygonStepError, match="uncommitted changes"):
-        pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+        pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert not (outputs_dir / PROBLEM_ID / "validator.cpp").exists()
-
-
-def test_pulled_limits_are_readable_by_set_constraints(outputs_dir, polygon):
-    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
-
-    assert set_constraints.read_limits(PROBLEM_ID, outputs_dir) == (2000, 256)
+    assert not (problems_dir / PROBLEM_ID / "validator.cpp").exists()
 
 
-def test_fractional_time_limit(outputs_dir, polygon):
+def test_pulled_limits_are_readable_by_set_constraints(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (2000, 256)
+
+
+def test_fractional_time_limit(problems_dir, polygon):
     polygon.info = {"timeLimit": 1500, "memoryLimit": 512}
 
-    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    content = (outputs_dir / PROBLEM_ID / "constraints.yaml").read_text()
+    content = (problems_dir / PROBLEM_ID / "constraints.yaml").read_text()
     assert "time_limit_seconds: 1.5\n" in content
 
 
-def test_differing_files_are_kept_and_dropped_from_baseline(outputs_dir, polygon):
-    problem_dir = outputs_dir / PROBLEM_ID
+def test_differing_files_are_kept_and_dropped_from_baseline(problems_dir, polygon):
+    problem_dir = problems_dir / PROBLEM_ID
     _write(problem_dir, "statement/legend.tex", "local legend")
     _write(problem_dir, "statement/examples/example_1.txt", "1 2\n")
     _write(problem_dir, "validator.cpp", "local validator")
     _write(problem_dir, "test_script_groups", "local script")
     _write(problem_dir, "solutions/ok_cpp_main_author.cpp", "// ok\n")
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
     assert statuses["statement/legend.tex"] == ITEM_KEPT
@@ -308,7 +308,7 @@ def test_differing_files_are_kept_and_dropped_from_baseline(outputs_dir, polygon
     assert (problem_dir / "statement" / "legend.tex").read_text() == "local legend"
     assert (problem_dir / "validator.cpp").read_text() == "local validator"
     assert not (problem_dir / "test_script").exists()
-    synced = _synced(outputs_dir)
+    synced = _synced(problems_dir)
     for key in ("statement/legend.tex", "validator.cpp", "validator", "test_script"):
         assert key not in synced, key
     for key in ("statement/input_format.tex", "statement/examples/example_1.txt"):
@@ -316,13 +316,13 @@ def test_differing_files_are_kept_and_dropped_from_baseline(outputs_dir, polygon
     assert result.backup_dir is None
 
 
-def test_overwrite_replaces_differing_files_and_backs_them_up(outputs_dir, polygon):
-    problem_dir = outputs_dir / PROBLEM_ID
+def test_overwrite_replaces_differing_files_and_backs_them_up(problems_dir, polygon):
+    problem_dir = problems_dir / PROBLEM_ID
     _write(problem_dir, "statement/legend.tex", "local legend")
     _write(problem_dir, "validator.cpp", "local validator")
     _write(problem_dir, "generators/gen_rand.cpp", "// gen\n")
 
-    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
     assert statuses["statement/legend.tex"] == ITEM_OVERWRITTEN
@@ -334,26 +334,26 @@ def test_overwrite_replaces_differing_files_and_backs_them_up(outputs_dir, polyg
     assert (result.backup_dir / "statement" / "legend.tex").read_text() == "local legend"
     assert (result.backup_dir / "validator.cpp").read_text() == "local validator"
     assert not (result.backup_dir / "generators").exists()
-    assert {"statement/legend.tex", "validator.cpp", "validator"} <= set(_synced(outputs_dir))
+    assert {"statement/legend.tex", "validator.cpp", "validator"} <= set(_synced(problems_dir))
 
 
-def test_line_endings_do_not_make_files_differ(outputs_dir, polygon):
-    _write(outputs_dir / PROBLEM_ID, "validator.cpp", "")
-    (outputs_dir / PROBLEM_ID / "validator.cpp").write_bytes(b"// validator\r\n")
+def test_line_endings_do_not_make_files_differ(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "validator.cpp", "")
+    (problems_dir / PROBLEM_ID / "validator.cpp").write_bytes(b"// validator\r\n")
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["validator.cpp"] == ITEM_SAME
-    assert "validator.cpp" in _synced(outputs_dir)
+    assert "validator.cpp" in _synced(problems_dir)
 
 
-def test_local_only_files_are_reported_and_kept(outputs_dir, polygon):
-    problem_dir = outputs_dir / PROBLEM_ID
+def test_local_only_files_are_reported_and_kept(problems_dir, polygon):
+    problem_dir = problems_dir / PROBLEM_ID
     _write(problem_dir, "generators/gen_local.cpp", "// local\n")
     _write(problem_dir, "solutions/wa_cpp_local_author.cpp", "// wa\n")
     _write(problem_dir, "statement/examples/example_3.txt", "5\n")
 
-    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
     for name in (
@@ -363,175 +363,175 @@ def test_local_only_files_are_reported_and_kept(outputs_dir, polygon):
     ):
         assert statuses[name] == ITEM_LOCAL_ONLY, name
         assert (problem_dir / name).exists()
-        assert name not in _synced(outputs_dir)
+        assert name not in _synced(problems_dir)
     assert "not on Polygon" in next(
         item.detail for item in result.items if item.name == "generators/gen_local.cpp"
     )
 
 
-def test_constraints_pick_result_is_never_overwritten(outputs_dir, polygon):
+def test_constraints_pick_result_is_never_overwritten(problems_dir, polygon):
     path = _write(
-        outputs_dir / PROBLEM_ID,
+        problems_dir / PROBLEM_ID,
         "constraints.yaml",
         "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\ngroups: []\n",
     )
 
-    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
     item = next(item for item in result.items if item.name == "constraints.yaml")
     assert item.status == ITEM_KEPT
     assert "1000ms/256MB" in item.detail and "2000ms/256MB" in item.detail
     assert "manually" in item.detail
     assert "groups: []" in path.read_text()
-    assert "limits" not in _synced(outputs_dir)
+    assert "limits" not in _synced(problems_dir)
 
 
-def test_pulled_constraints_file_is_overwritten(outputs_dir, polygon):
-    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+def test_pulled_constraints_file_is_overwritten(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
 
-    result = pull_problem(PROBLEM_ID, overwrite=True, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["constraints.yaml"] == ITEM_OVERWRITTEN
-    assert set_constraints.read_limits(PROBLEM_ID, outputs_dir) == (3000, 256)
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
 
 
-def test_same_limits_in_constraints_pick_result_are_up_to_date(outputs_dir, polygon):
+def test_same_limits_in_constraints_pick_result_are_up_to_date(problems_dir, polygon):
     _write(
-        outputs_dir / PROBLEM_ID,
+        problems_dir / PROBLEM_ID,
         "constraints.yaml",
         "time_limit_seconds: 2\nmemory_limit_mb: 256\ngroups: []\n",
     )
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["constraints.yaml"] == ITEM_SAME
-    assert "limits" in _synced(outputs_dir)
+    assert "limits" in _synced(problems_dir)
 
 
 def test_problem_lib_from_polygon_is_downloaded_even_if_it_differs_from_template(
-    outputs_dir, polygon
+    problems_dir, polygon
 ):
     polygon.resource_files["problem_lib.h"] = b"// edited for this problem\n"
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["problem_lib.h"] == ITEM_DOWNLOADED
-    assert (outputs_dir / PROBLEM_ID / "problem_lib.h").read_bytes() == b"// edited for this problem\n"
-    assert _synced(outputs_dir)["problem_lib.h"] == pull_module.digest(b"// edited for this problem\n")
+    assert (problems_dir / PROBLEM_ID / "problem_lib.h").read_bytes() == b"// edited for this problem\n"
+    assert _synced(problems_dir)["problem_lib.h"] == pull_module.digest(b"// edited for this problem\n")
 
 
-def test_different_local_problem_lib_is_kept(outputs_dir, polygon):
-    _write(outputs_dir / PROBLEM_ID, "problem_lib.h", "// local edits\n")
+def test_different_local_problem_lib_is_kept(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "problem_lib.h", "// local edits\n")
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["problem_lib.h"] == ITEM_KEPT
-    assert (outputs_dir / PROBLEM_ID / "problem_lib.h").read_text() == "// local edits\n"
-    assert "problem_lib.h" not in _synced(outputs_dir)
+    assert (problems_dir / PROBLEM_ID / "problem_lib.h").read_text() == "// local edits\n"
+    assert "problem_lib.h" not in _synced(problems_dir)
 
 
-def test_problem_lib_missing_on_polygon(outputs_dir, polygon):
+def test_problem_lib_missing_on_polygon(problems_dir, polygon):
     polygon.resource_files = {}
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["problem_lib.h"] == ITEM_ABSENT
-    assert "problem_lib.h" not in _synced(outputs_dir)
+    assert "problem_lib.h" not in _synced(problems_dir)
 
 
-def test_local_checker_with_standard_checker_on_polygon(outputs_dir, polygon):
-    _write(outputs_dir / PROBLEM_ID, "checker.cpp", "// local checker\n")
+def test_local_checker_with_standard_checker_on_polygon(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "checker.cpp", "// local checker\n")
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     item = next(item for item in result.items if item.name == "checker.cpp")
     assert item.status == ITEM_LOCAL_ONLY
     assert "std::ncmp.cpp" in item.detail and "custom_needed" in item.detail
-    synced = _synced(outputs_dir)
+    synced = _synced(problems_dir)
     assert "checker" in synced and "checker.cpp" not in synced
 
 
-def test_existing_link_is_reused_without_search_and_baseline_is_replaced(outputs_dir, polygon):
-    _link(outputs_dir)
+def test_existing_link_is_reused_without_search_and_baseline_is_replaced(problems_dir, polygon):
+    _link(problems_dir)
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert polygon.calls[0] == ("problems.list", {"id": str(POLYGON_ID)})
     assert [method for method in polygon.methods() if method == "problems.list"] == ["problems.list"]
     assert result.link_detail == f"already linked to Polygon id={POLYGON_ID}"
-    state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert state.created_at == "2026-09-19T12:00:00+00:00"
     assert state.revision == 5
     # чужие ключи pull не трогает — он переписывает только то, что сравнил
     assert state.synced["stale/key"] == "abc"
 
 
-def test_conflicting_polygon_id_is_an_error(outputs_dir, polygon):
-    _link(outputs_dir)
+def test_conflicting_polygon_id_is_an_error(problems_dir, polygon):
+    _link(problems_dir)
 
     with pytest.raises(PolygonStepError, match="already linked"):
-        pull_problem(PROBLEM_ID, polygon_id=1, outputs_dir=outputs_dir, client=polygon)
+        pull_problem(PROBLEM_ID, polygon_id=1, problems_dir=problems_dir, client=polygon)
 
     assert polygon.calls == []
 
 
-def test_name_search_ignores_inexact_and_deleted_matches(outputs_dir, polygon):
+def test_name_search_ignores_inexact_and_deleted_matches(problems_dir, polygon):
     polygon.problems = [
         {"id": 1, "name": PROBLEM_ID + "-old"},
         {"id": 2, "name": PROBLEM_ID, "deleted": True},
         {"id": POLYGON_ID, "name": PROBLEM_ID},
     ]
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert result.polygon_id == POLYGON_ID
 
 
-def test_unknown_name_is_an_error_and_writes_nothing(outputs_dir, polygon):
+def test_unknown_name_is_an_error_and_writes_nothing(problems_dir, polygon):
     polygon.problems = []
 
     with pytest.raises(PolygonStepError, match="no Polygon problem named"):
-        pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+        pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert not (outputs_dir / PROBLEM_ID).exists()
+    assert not (problems_dir / PROBLEM_ID).exists()
 
 
-def test_ambiguous_name_is_an_error(outputs_dir, polygon):
+def test_ambiguous_name_is_an_error(problems_dir, polygon):
     polygon.problems = [
         {"id": 1, "name": PROBLEM_ID, "owner": "a"},
         {"id": 2, "name": PROBLEM_ID, "owner": "b"},
     ]
 
     with pytest.raises(PolygonStepError, match="several Polygon problems"):
-        pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+        pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
 
-def test_search_always_sends_name_and_adds_id_only_when_given(outputs_dir, polygon):
-    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+def test_search_always_sends_name_and_adds_id_only_when_given(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     assert polygon.calls[0] == ("problems.list", {"name": PROBLEM_ID, "showDeleted": "false"})
 
-    (outputs_dir / PROBLEM_ID / "polygon_state.json").unlink()
+    (problems_dir / PROBLEM_ID / "polygon_state.json").unlink()
     polygon.calls.clear()
-    pull_problem(PROBLEM_ID, polygon_id=POLYGON_ID, outputs_dir=outputs_dir, client=polygon)
+    pull_problem(PROBLEM_ID, polygon_id=POLYGON_ID, problems_dir=problems_dir, client=polygon)
     assert polygon.calls[0] == (
         "problems.list",
         {"name": PROBLEM_ID, "showDeleted": "false", "id": str(POLYGON_ID)},
     )
 
 
-def test_explicit_polygon_id_picks_one_of_same_named_problems(outputs_dir, polygon):
+def test_explicit_polygon_id_picks_one_of_same_named_problems(problems_dir, polygon):
     polygon.problems = [
         {"id": 1, "name": PROBLEM_ID, "owner": "a"},
         {"id": POLYGON_ID, "name": PROBLEM_ID, "owner": "b"},
     ]
 
     result = pull_problem(
-        PROBLEM_ID, polygon_id=POLYGON_ID, outputs_dir=outputs_dir, client=polygon
+        PROBLEM_ID, polygon_id=POLYGON_ID, problems_dir=problems_dir, client=polygon
     )
 
     assert result.polygon_id == POLYGON_ID
-    assert load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir).polygon_id == POLYGON_ID
+    assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).polygon_id == POLYGON_ID
 
 
 @pytest.mark.parametrize(
@@ -543,45 +543,45 @@ def test_explicit_polygon_id_picks_one_of_same_named_problems(outputs_dir, polyg
     ],
     ids=["name mismatch", "deleted", "other id"],
 )
-def test_explicit_polygon_id_still_requires_name_and_not_deleted(outputs_dir, polygon, problems):
+def test_explicit_polygon_id_still_requires_name_and_not_deleted(problems_dir, polygon, problems):
     polygon.problems = problems
 
     with pytest.raises(PolygonStepError, match=f"with id={POLYGON_ID}"):
-        pull_problem(PROBLEM_ID, polygon_id=POLYGON_ID, outputs_dir=outputs_dir, client=polygon)
+        pull_problem(PROBLEM_ID, polygon_id=POLYGON_ID, problems_dir=problems_dir, client=polygon)
 
-    assert not (outputs_dir / PROBLEM_ID).exists()
+    assert not (problems_dir / PROBLEM_ID).exists()
 
 
-def test_custom_checker_is_downloaded_and_not_treated_as_generator(outputs_dir, polygon):
+def test_custom_checker_is_downloaded_and_not_treated_as_generator(problems_dir, polygon):
     polygon.checker = "check.cpp"
     polygon.source_files["check.cpp"] = b"// checker\n"
 
-    pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    problem_dir = outputs_dir / PROBLEM_ID
+    problem_dir = problems_dir / PROBLEM_ID
     assert (problem_dir / "checker.cpp").read_bytes() == b"// checker\n"
     assert [p.name for p in (problem_dir / "generators").iterdir()] == ["gen_rand.cpp"]
 
 
-def test_failed_part_does_not_stop_the_others_but_keeps_old_revision(outputs_dir, polygon):
-    _link(outputs_dir, revision=3)
+def test_failed_part_does_not_stop_the_others_but_keeps_old_revision(problems_dir, polygon):
+    _link(problems_dir, revision=3)
     polygon.failing = {"problem.statements", "problem.viewSolution"}
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
     assert not result.ok
     assert statuses["statement"] == ITEM_ERROR
     assert statuses["solutions/ok_cpp_main_author.cpp"] == ITEM_ERROR
     assert statuses["validator.cpp"] == ITEM_DOWNLOADED
-    assert not (outputs_dir / PROBLEM_ID / "solutions" / "ok_cpp_main_author.cpp").exists()
-    state = load_polygon_state(PROBLEM_ID, outputs_dir=outputs_dir)
+    assert not (problems_dir / PROBLEM_ID / "solutions" / "ok_cpp_main_author.cpp").exists()
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert state.revision == 3
     assert "validator.cpp" in state.synced
     assert "solutions/ok_cpp_main_author.cpp" not in state.synced
 
 
-def test_missing_parts_on_polygon_are_reported_as_absent(outputs_dir, polygon):
+def test_missing_parts_on_polygon_are_reported_as_absent(problems_dir, polygon):
     polygon.statements = {}
     polygon.validator = ""
     polygon.source_files = {}
@@ -589,7 +589,7 @@ def test_missing_parts_on_polygon_are_reported_as_absent(outputs_dir, polygon):
     polygon.solutions = {}
     polygon.tests = []
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
     assert result.ok
@@ -603,36 +603,36 @@ def test_missing_parts_on_polygon_are_reported_as_absent(outputs_dir, polygon):
         "solutions",
     ):
         assert statuses[name] == ITEM_ABSENT, name
-    assert not (outputs_dir / PROBLEM_ID / "statement").exists()
+    assert not (problems_dir / PROBLEM_ID / "statement").exists()
 
 
-def test_solution_name_outside_naming_scheme_gives_warning(outputs_dir, polygon):
+def test_solution_name_outside_naming_scheme_gives_warning(problems_dir, polygon):
     polygon.solutions = {"sol.cpp": ("MA", b"// sol\n")}
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert (outputs_dir / PROBLEM_ID / "solutions" / "sol.cpp").exists()
+    assert (problems_dir / PROBLEM_ID / "solutions" / "sol.cpp").exists()
     assert len(result.warnings) == 1 and "sol.cpp" in result.warnings[0]
 
 
-def test_unsafe_file_name_from_polygon_is_not_written(outputs_dir, polygon):
+def test_unsafe_file_name_from_polygon_is_not_written(problems_dir, polygon):
     polygon.solutions = {"../escape.cpp": ("OK", b"x")}
 
-    result = pull_problem(PROBLEM_ID, outputs_dir=outputs_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["solutions/../escape.cpp"] == ITEM_ERROR
-    assert not (outputs_dir / PROBLEM_ID / "escape.cpp").exists()
+    assert not (problems_dir / PROBLEM_ID / "escape.cpp").exists()
 
 
 def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
-    tmp_path, outputs_dir, polygon, capsys, monkeypatch
+    tmp_path, problems_dir, polygon, capsys, monkeypatch
 ):
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
     exit_code = cli.main(
         [
-            "--outputs-dir",
-            str(outputs_dir),
+            "--problems-dir",
+            str(problems_dir),
             PROBLEM_ID,
             "polygon",
             "pull",
@@ -643,16 +643,16 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
     assert exit_code == 0
     assert "  validator.cpp: downloaded — Polygon source file val.cpp" in out
     assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
-    log = (outputs_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
-    assert "run started: orchestrator --outputs-dir" in log
+    log = (problems_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
+    assert "run started: orchestrator --problems-dir" in log
     assert "[pull] validator.cpp: downloaded" in log
 
 
-def test_cli_pull_unresolved_problem_exits_with_error(outputs_dir, polygon, capsys, monkeypatch):
+def test_cli_pull_unresolved_problem_exits_with_error(problems_dir, polygon, capsys, monkeypatch):
     polygon.problems = []
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
-    exit_code = cli.main(["--outputs-dir", str(outputs_dir), PROBLEM_ID, "polygon", "pull"])
+    exit_code = cli.main(["--problems-dir", str(problems_dir), PROBLEM_ID, "polygon", "pull"])
 
     assert exit_code == 1
     err = capsys.readouterr().err
@@ -661,12 +661,12 @@ def test_cli_pull_unresolved_problem_exits_with_error(outputs_dir, polygon, caps
     assert err.strip().endswith("is available to this API key")
 
 
-def test_cli_pull_overwrite_reports_backup_dir(outputs_dir, polygon, capsys, monkeypatch):
-    _write(outputs_dir / PROBLEM_ID, "validator.cpp", "local validator")
+def test_cli_pull_overwrite_reports_backup_dir(problems_dir, polygon, capsys, monkeypatch):
+    _write(problems_dir / PROBLEM_ID, "validator.cpp", "local validator")
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
     exit_code = cli.main(
-        ["--outputs-dir", str(outputs_dir), PROBLEM_ID, "polygon", "pull", "--overwrite"]
+        ["--problems-dir", str(problems_dir), PROBLEM_ID, "polygon", "pull", "--overwrite"]
     )
 
     out = capsys.readouterr().out
