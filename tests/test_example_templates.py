@@ -5,8 +5,8 @@
 docs/PROMPTS.md, "Приложенные шаблоны как образцы"). Если образцы разойдутся
 между собой, модель начнёт учиться неверному соответствию — тесты ловят то,
 что можно проверить механически. Каждый тест прогоняется по всем каталогам
-`examples/*`, так что новая учебная задача проверяется без правки
-этого файла.
+задач в `examples/` (на любой глубине, см. `orchestrator/problem_paths.py`),
+так что новая учебная задача проверяется без правки этого файла.
 """
 
 import os
@@ -20,6 +20,7 @@ import yaml
 
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.polygon.steps.set_constraints import _extract_limits
+from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
 from orchestrator.spec import load_spec
 from orchestrator.references import SPEC_FILENAME
 from orchestrator.steps.base import EXAMPLES_DIR
@@ -28,7 +29,7 @@ from orchestrator.steps.generators_and_script import SCRIPT_FUNCTIONS_FILENAME, 
 REPO_ROOT = Path(__file__).parent.parent
 TEMPLATES_DIR = REPO_ROOT / "templates"
 EXAMPLES_ROOT = REPO_ROOT / EXAMPLES_DIR
-EXAMPLE_DIRS = sorted(path for path in EXAMPLES_ROOT.iterdir() if path.is_dir())
+EXAMPLE_DIRS = sorted(iter_problem_dirs(EXAMPLES_ROOT))
 EXAMPLE_CPP_FILES = sorted(path for example in EXAMPLE_DIRS for path in example.rglob("*.cpp"))
 
 
@@ -40,7 +41,8 @@ examples = pytest.mark.parametrize("example_dir", EXAMPLE_DIRS, ids=_id)
 
 
 def _example_spec(example_dir: Path):
-    return load_spec(example_dir / SPEC_FILENAME, expected_id=example_dir.name)
+    expected_id = problem_id_for(EXAMPLES_ROOT, _id(example_dir))
+    return load_spec(example_dir / SPEC_FILENAME, expected_id=expected_id)
 
 
 def _example_constraints(example_dir: Path) -> dict:
@@ -49,6 +51,17 @@ def _example_constraints(example_dir: Path) -> dict:
 
 def test_examples_exist():
     assert EXAMPLE_DIRS
+
+
+def test_example_dirs_hold_only_problems():
+    """Файлы образцов лежат только в каталогах задач: всё, что вне них,
+    не проверяется этими тестами и не годится как референс."""
+    stray = [
+        path
+        for path in EXAMPLES_ROOT.rglob("*")
+        if path.is_file() and not any(example in path.parents for example in EXAMPLE_DIRS)
+    ]
+    assert stray == []
 
 
 @examples
@@ -127,7 +140,7 @@ def _compile(cpp_path: Path) -> str | None:
     `problem_lib.h` ищется, как в compile-check пайплайна, сначала в каталоге
     задачи (у образца может быть своя копия с функциями задачи), потом в
     `templates/`."""
-    example_dir = EXAMPLES_ROOT / _id(cpp_path).split("/")[0]
+    example_dir = next(example for example in EXAMPLE_DIRS if example in cpp_path.parents)
     result = compile_check(cpp_path, [example_dir, TEMPLATES_DIR])
     if result.binary_path:
         result.binary_path.unlink(missing_ok=True)

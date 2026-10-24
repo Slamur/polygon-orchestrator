@@ -97,7 +97,7 @@ testlib, композицию генераторов, устройство `wa`/
 
 Заголовок приложенного документа — путь к файлу: относительно `templates/`
 для файлов внутри него (`tutorials/limits.md`), иначе путь как записан в
-спеке (`examples/array--prefix-sums/validator.cpp`,
+спеке (`examples/array/prefix-sums/validator.cpp`,
 `problems/old-task/validator.cpp`). По нему модель
 группирует образцы по задачам; в промптах файлы называются коротко, именем
 внутри каталога (`generators/*.cpp`, `validator.cpp`, `statement.md`).

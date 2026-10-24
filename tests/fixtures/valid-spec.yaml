@@ -59,7 +59,7 @@ generation:
     - "N = 1 (минимальный случай)"
     - "N = N_max, значения максимальные"
   references:
-    - "examples/array--prefix-sums/validator.cpp"
+    - "examples/array/prefix-sums/validator.cpp"
   script_style: "groups"
 
 solutions:

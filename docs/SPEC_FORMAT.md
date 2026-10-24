@@ -24,7 +24,7 @@ title:
   ru: "Название на русском"        # [required] начальное название на Polygon; дальше источник — problems/<id>/statement/name.txt
   en: "English title"              # [optional]
 references:                        # [optional] общие референсы — образцы для ВСЕХ шагов, см. "Референсы" ниже
-  - "examples/array--prefix-sums"
+  - "examples/array/prefix-sums"
 
 # ---------------------------------------------------------------------------
 # 1. ЧЕРНОВИК УСЛОВИЯ — вход для шага statement_draft

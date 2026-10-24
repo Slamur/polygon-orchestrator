@@ -27,7 +27,7 @@ def spec():
 
 
 # Путь от корня репозитория — так референс записывается в спеке.
-EXAMPLE_REF = "examples/array--prefix-sums"
+EXAMPLE_REF = "examples/array/prefix-sums"
 EXAMPLE_DIR = REPO_ROOT / EXAMPLE_REF
 SCRIPT_FUNCTIONS = (TEMPLATES_DIR / "test_script_functions.ftl").read_text(encoding="utf-8")
 
@@ -71,13 +71,13 @@ def test_run_step_attaches_every_generator_of_reference_directory(spec, tmp_path
 
     context_documents = mock_call.call_args.kwargs["context_documents"]
     expected = sorted(
-        f"examples/array--prefix-sums/generators/{p.name}"
+        f"examples/array/prefix-sums/generators/{p.name}"
         for p in (EXAMPLE_DIR / "generators").glob("*.cpp")
     )
     assert expected
-    attached = [d for d in context_documents if d.startswith("examples/array--prefix-sums/generators/")]
+    attached = [d for d in context_documents if d.startswith("examples/array/prefix-sums/generators/")]
     assert attached == expected
-    assert "examples/array--prefix-sums/spec.yaml" in context_documents
+    assert "examples/array/prefix-sums/spec.yaml" in context_documents
 
 
 def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):
