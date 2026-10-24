@@ -51,7 +51,8 @@ Pull отказывается работать, если в рабочей ко�
   Эвристика: Polygon не различает генераторы и прочие source-файлы, поэтому
   генератором считается всё, что не валидатор и не чекер;
 - test-script (`problem.script`, testset `tests`) -> `test_script` (или уже
-  существующий локально `test_script_groups`);
+  существующий локально `test_script_groups`); сравнивается без пустых строк
+  (`normalize_script`) — Polygon выкидывает их при сохранении;
 - решения (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   Тег решения на Polygon локально не сохраняется: `upload_solutions` выводит
   тег из имени файла, поэтому про имена не по его схеме — предупреждение;
@@ -89,7 +90,7 @@ from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.set_constraints import read_limits
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
 from orchestrator.polygon.steps.upload_statement import NAME_FILENAME
-from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
+from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES, normalize_script
 from orchestrator.polygon.sync import (
     CHECKER_FILE_KEY,
     CHECKER_KEY,
@@ -562,7 +563,8 @@ class _Puller:
         if not content.strip():
             self._missing_on_polygon(local_name, "empty test script on Polygon", key=SCRIPT_KEY)
             return
-        self._sync_file(local_name, lambda: content, key=SCRIPT_KEY)
+        # Как `upload_test_script`: пустые строки, которые выкидывает Polygon, не в счёт.
+        self._sync_file(local_name, lambda: content, key=SCRIPT_KEY, normalize=normalize_script)
 
     def pull_solutions(self) -> None:
         solutions = sorted(

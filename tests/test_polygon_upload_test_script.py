@@ -143,6 +143,31 @@ def test_status_done_then_stale_after_script_change(problems_dir, spec):
     assert "test_script" in detail
 
 
+def test_blank_lines_do_not_change_script_hash(problems_dir, spec):
+    # Polygon выкидывает пустые строки при сохранении скрипта.
+    _link(problems_dir)
+    path = _write_script(problems_dir, "gen_random 1 10 > $\n\n  \ngen_random 2 100 > $  \n\n")
+    _run(spec, problems_dir, MagicMock())
+
+    path.write_text(SCRIPT.replace("\n", "\r\n"), encoding="utf-8")
+    client = MagicMock()
+
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+    assert _run(spec, problems_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    client.call.assert_not_called()
+
+
+def test_blank_lines_are_kept_in_uploaded_source(problems_dir, spec):
+    _link(problems_dir)
+    content = "gen_random 1 10 > $\n\ngen_random 2 100 > $\n"
+    _write_script(problems_dir, content)
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert client.call.call_args.args[1]["source"] == content
+
+
 def test_status_stale_when_script_removed(problems_dir, spec):
     _link(problems_dir)
     path = _write_script(problems_dir)
