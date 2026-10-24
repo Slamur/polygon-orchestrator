@@ -1,11 +1,11 @@
-"""Согласованность учебных задач-образцов в `templates/examples/`.
+"""Согласованность учебных задач-образцов в `examples/`.
 
 `spec.yaml`, `constraints.yaml` и `validator.cpp` каждой учебной задачи
 прикладываются к вызовам модели как пара "спек -> ожидаемый результат" (см.
 docs/PROMPTS.md, "Приложенные шаблоны как образцы"). Если образцы разойдутся
 между собой, модель начнёт учиться неверному соответствию — тесты ловят то,
 что можно проверить механически. Каждый тест прогоняется по всем каталогам
-`templates/examples/*`, так что новая учебная задача проверяется без правки
+`examples/*`, так что новая учебная задача проверяется без правки
 этого файла.
 """
 
@@ -22,16 +22,18 @@ from orchestrator.checks.compile_check import compile_check
 from orchestrator.polygon.steps.set_constraints import _extract_limits
 from orchestrator.spec import load_spec
 from orchestrator.references import SPEC_FILENAME
-from orchestrator.steps.base import COMMON_SUBDIR, EXAMPLES_SUBDIR
+from orchestrator.steps.base import EXAMPLES_DIR
 from orchestrator.steps.generators_and_script import SCRIPT_FUNCTIONS_FILENAME, SCRIPT_NAMES
 
-TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
-EXAMPLE_DIRS = sorted(path for path in (TEMPLATES_DIR / EXAMPLES_SUBDIR).iterdir() if path.is_dir())
+REPO_ROOT = Path(__file__).parent.parent
+TEMPLATES_DIR = REPO_ROOT / "templates"
+EXAMPLES_ROOT = REPO_ROOT / EXAMPLES_DIR
+EXAMPLE_DIRS = sorted(path for path in EXAMPLES_ROOT.iterdir() if path.is_dir())
 EXAMPLE_CPP_FILES = sorted(path for example in EXAMPLE_DIRS for path in example.rglob("*.cpp"))
 
 
 def _id(path: Path) -> str:
-    return path.relative_to(TEMPLATES_DIR / EXAMPLES_SUBDIR).as_posix()
+    return path.relative_to(EXAMPLES_ROOT).as_posix()
 
 
 examples = pytest.mark.parametrize("example_dir", EXAMPLE_DIRS, ids=_id)
@@ -75,7 +77,7 @@ def test_example_constraints_follow_constraints_format(example_dir):
     # constraints_format.yaml прикладывается к constraints_pick как формат
     # результата — образцы не должны ему противоречить.
     format_keys = set(
-        yaml.safe_load((TEMPLATES_DIR / COMMON_SUBDIR / "constraints_format.yaml").read_text(encoding="utf-8"))
+        yaml.safe_load((TEMPLATES_DIR / "constraints_format.yaml").read_text(encoding="utf-8"))
     )
     constraints_keys = set(_example_constraints(example_dir))
     assert constraints_keys <= format_keys
@@ -112,7 +114,7 @@ def test_example_test_scripts_contain_standard_functions(example_dir):
     # Шаблон стандартных функций приложен к generators_and_script всегда, а
     # скрипт-образец — через референсы: если в образце окажется другой набор,
     # модель получит два противоречащих друг другу образца.
-    functions = (TEMPLATES_DIR / COMMON_SUBDIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
+    functions = (TEMPLATES_DIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
     for name in SCRIPT_NAMES:
         script_path = example_dir / name
         if script_path.exists():
@@ -124,9 +126,9 @@ def _compile(cpp_path: Path) -> str | None:
 
     `problem_lib.h` ищется, как в compile-check пайплайна, сначала в каталоге
     задачи (у образца может быть своя копия с функциями задачи), потом в
-    `templates/common/`."""
-    example_dir = TEMPLATES_DIR / EXAMPLES_SUBDIR / _id(cpp_path).split("/")[0]
-    result = compile_check(cpp_path, [example_dir, TEMPLATES_DIR / COMMON_SUBDIR])
+    `templates/`."""
+    example_dir = EXAMPLES_ROOT / _id(cpp_path).split("/")[0]
+    result = compile_check(cpp_path, [example_dir, TEMPLATES_DIR])
     if result.binary_path:
         result.binary_path.unlink(missing_ok=True)
     return None if result.success else result.stderr

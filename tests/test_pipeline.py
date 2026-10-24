@@ -346,7 +346,7 @@ def _break_reference(spec_file):
     path = spec_file
     content = path.read_text(encoding="utf-8")
     content = content.replace(
-        "problem_id: p1\n", "problem_id: p1\nreferences:\n  - templates/examples/no-such-task\n", 1
+        "problem_id: p1\n", "problem_id: p1\nreferences:\n  - examples/no-such-task\n", 1
     )
     path.write_text(content, encoding="utf-8")
 

@@ -3,7 +3,7 @@ title:
   ru: "Целые корни"
   en: "Integer roots"
 references:
-  - "templates/examples/array--prefix-sums"
+  - "examples/array--prefix-sums"
 
 statement_draft:
   legend_sketch: |

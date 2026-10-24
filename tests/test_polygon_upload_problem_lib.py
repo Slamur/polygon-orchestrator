@@ -29,8 +29,8 @@ def outputs_dir(tmp_path):
 @pytest.fixture
 def templates_dir(tmp_path):
     path = tmp_path / "templates"
-    (path / "common").mkdir(parents=True)
-    (path / "common" / "problem_lib.h").write_bytes(LIB_CONTENT)
+    (path).mkdir(parents=True)
+    (path / "problem_lib.h").write_bytes(LIB_CONTENT)
     return path
 
 
@@ -106,13 +106,13 @@ def test_problem_copy_wins_over_template(outputs_dir, templates_dir, spec):
     _run(spec, outputs_dir, templates_dir, client)
 
     assert client.call.call_args.args[1]["file"] == b"// edited\n"
-    assert (templates_dir / "common" / "problem_lib.h").read_bytes() == LIB_CONTENT
+    assert (templates_dir / "problem_lib.h").read_bytes() == LIB_CONTENT
 
 
 def test_template_change_does_not_touch_existing_copy(outputs_dir, templates_dir, spec):
     _link(outputs_dir)
     _run(spec, outputs_dir, templates_dir, MagicMock())
-    (templates_dir / "common" / "problem_lib.h").write_bytes(b"// new template\n")
+    (templates_dir / "problem_lib.h").write_bytes(b"// new template\n")
     client = MagicMock()
 
     message = _run(spec, outputs_dir, templates_dir, client, incremental=True)
@@ -159,7 +159,7 @@ def test_status_not_run_then_done_then_stale(outputs_dir, templates_dir, spec):
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"
 
     # шаблон после копирования не влияет
-    (templates_dir / "common" / "problem_lib.h").write_bytes(b"// new template\n")
+    (templates_dir / "problem_lib.h").write_bytes(b"// new template\n")
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"
 
     copy = outputs_dir / PROBLEM_ID / "problem_lib.h"
@@ -169,5 +169,5 @@ def test_status_not_run_then_done_then_stale(outputs_dir, templates_dir, spec):
     # копии нет — сравнивается шаблон, который push скопирует
     copy.unlink()
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "stale"
-    (templates_dir / "common" / "problem_lib.h").write_bytes(LIB_CONTENT)
+    (templates_dir / "problem_lib.h").write_bytes(LIB_CONTENT)
     assert step.compute_status(PROBLEM_ID, outputs_dir)[0] == "done"

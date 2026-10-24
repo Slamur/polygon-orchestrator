@@ -372,7 +372,7 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
     assert set(result.compile_results) == {"gen_ok.cpp", "gen_bad.cpp"}
     # перед compile-check у задачи появилась своя копия problem_lib.h
     assert (outputs_dir / "p1" / "problem_lib.h").read_bytes() == (
-        TEMPLATES_DIR / "common" / "problem_lib.h"
+        TEMPLATES_DIR / "problem_lib.h"
     ).read_bytes()
     assert result.compile_results["gen_ok.cpp"].success is True
     assert result.compile_results["gen_bad.cpp"].success is False
@@ -399,7 +399,7 @@ def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
         )
 
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    assert "common/tutorials/limits.md" in context_documents
+    assert "tutorials/limits.md" in context_documents
 
 
 def test_run_generative_step_extra_context_documents_none_is_backward_compatible(tmp_path):

@@ -31,7 +31,7 @@
   частичным, а пайплайн обязан остановиться на этом шаге.
 
 Промпты ниже опираются на этот контракт и не дублируют правила из
-`templates/common/tutorials/*.md` — а прямо на них ссылаются как на обязательные
+`templates/tutorials/*.md` — а прямо на них ссылаются как на обязательные
 инструкции, приложенные к вызову (в реальном вызове они передаются как часть контекста/системного
 сообщения, здесь показано как логическая ссылка). Правила разбиты по темам
 (`statement.md`, `limits.md`, `validator.md`, `tests.md`, `freemarker.md`,
@@ -41,13 +41,13 @@
 
 ## Приложенные шаблоны как образцы
 
-`templates/` делится на две части:
+Приложенные к шагам материалы лежат в двух каталогах:
 
-- `templates/common/` — общее для всех задач: правила `tutorials/*.md`,
+- `templates/` — общее для всех задач: правила `tutorials/*.md`,
   `problem_lib.h` (шаблон — копируется в `outputs/<problem_id>/problem_lib.h`,
   оттуда загружается в Polygon шагом `upload_problem_lib`), `testlib.h`.
   Этот же каталог — include-путь compile-check (после каталога задачи).
-- `templates/examples/<problem_id>/` — учебные задачи-образцы. Каждая лежит
+- `examples/<problem_id>/` — учебные задачи-образцы. Каждая лежит
   в той же раскладке, что и результат оркестратора `outputs/<problem_id>/`
   (`constraints.yaml`, `validator.cpp`, `checker.cpp`, `generators/`,
   `test_script`, `solutions/`, ...), плюс свой спек в обычном формате
@@ -58,13 +58,13 @@
 Образцы прикладываются к вызову только как **референсы спека** (`references`
 в корне спека — для всех шагов, в секции шага — для него; см.
 `docs/SPEC_FORMAT.md`, "Референсы"). Каталог-референс — любой каталог в
-раскладке `outputs/<problem_id>/`: учебная задача из `templates/examples/`
+раскладке `outputs/<problem_id>/`: учебная задача из `examples/`
 или прошлая задача автора в `outputs/`. Каждый шаг берёт из него только
 свою часть (`REFERENCE_DOCUMENTS` в `orchestrator/references.py`); правила
-из `templates/common/` (`STEP_CONTEXT_DOCUMENTS` в
+из `templates/` (`STEP_CONTEXT_DOCUMENTS` в
 `orchestrator/steps/base.py`) прикладываются всегда:
 
-| Шаг | Всегда (`common/`) | Из каталога-референса |
+| Шаг | Всегда (`templates/`) | Из каталога-референса |
 |-----|--------------------|-----------------------|
 | `statement_draft` | `statement.md` | `spec.yaml`, `statement/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
@@ -86,7 +86,7 @@
 образцов держи `spec.yaml` и `constraints.yaml` согласованными с ними —
 иначе пара начнёт учить неверному соответствию; часть этого проверяет
 `tests/test_example_templates.py` (для каждой задачи из
-`templates/examples/`). Каждый `system.md` явно делит, что из образца
+`examples/`). Каждый `system.md` явно делит, что из образца
 переносить (каркас файла, способ ввода-вывода, использование функций
 testlib, композицию генераторов, устройство `wa`/`tl`-решений), а что нет
 (формат данных, имена переменных, ограничения и логику задачи-образца).
@@ -96,8 +96,9 @@ testlib, композицию генераторов, устройство `wa`/
 ещё не сказано.
 
 Заголовок приложенного документа — путь к файлу: относительно `templates/`
-для файлов внутри него (`examples/array--prefix-sums/validator.cpp`), иначе
-путь как записан в спеке (`outputs/old-task/validator.cpp`). По нему модель
+для файлов внутри него (`tutorials/limits.md`), иначе путь как записан в
+спеке (`examples/array--prefix-sums/validator.cpp`,
+`outputs/old-task/validator.cpp`). По нему модель
 группирует образцы по задачам; в промптах файлы называются коротко, именем
 внутри каталога (`generators/*.cpp`, `validator.cpp`, `statement.md`).
 

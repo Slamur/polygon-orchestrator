@@ -24,7 +24,9 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-EXAMPLE_DIR = TEMPLATES_DIR / "examples" / "array--prefix-sums"
+# Путь от корня репозитория — так референс записывается в спеке.
+EXAMPLE_REF = "examples/array--prefix-sums"
+EXAMPLE_DIR = REPO_ROOT / EXAMPLE_REF
 
 
 def _write_reference(tmp_path: Path) -> Path:
@@ -89,7 +91,7 @@ def test_extra_context_documents_without_matching_solutions(spec, tmp_path):
 
 
 def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_path):
-    spec = spec.model_copy(update={"references": [str(EXAMPLE_DIR)]})
+    spec = spec.model_copy(update={"references": [EXAMPLE_REF]})
     response = ModelResponse(status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[])
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
