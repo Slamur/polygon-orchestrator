@@ -434,20 +434,68 @@ def test_local_only_files_are_reported_and_kept(problems_dir, polygon):
     )
 
 
-def test_constraints_pick_result_is_never_overwritten(problems_dir, polygon):
+def test_constraints_pick_result_is_kept_without_overwrite(problems_dir, polygon):
     path = _write(
         problems_dir / PROBLEM_ID,
         "constraints.yaml",
         "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\ngroups: []\n",
     )
 
-    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     item = next(item for item in result.items if item.name == "constraints.yaml")
     assert item.status == ITEM_KEPT
     assert "1000ms/256MB" in item.detail and "2000ms/256MB" in item.detail
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (1000, 256)
+    assert "limits" not in _synced(problems_dir)
+
+
+def test_overwrite_replaces_only_limits_in_constraints_pick_result(problems_dir, polygon):
+    original = (
+        "# constraints_pick result\n"
+        "limits:\n"
+        "  time_limit_seconds: 1  # tight\n"
+        "  memory_limit_mb: 256\n"
+        "  status: proposed\n"
+        "groups: []\n"
+    )
+    path = _write(problems_dir / PROBLEM_ID, "constraints.yaml", original)
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "constraints.yaml")
+    assert item.status == ITEM_OVERWRITTEN
+    assert "rationale" in item.detail
+    assert path.read_text() == original.replace(
+        "time_limit_seconds: 1  # tight", "time_limit_seconds: 2  # tight"
+    )
+    assert "limits" in _synced(problems_dir)
+    assert (result.backup_dir / "constraints.yaml").read_text() == original
+
+
+def test_overwrite_replaces_limits_at_root_and_in_limits_section(problems_dir, polygon):
+    _write(
+        problems_dir / PROBLEM_ID,
+        "constraints.yaml",
+        "time_limit_seconds: 1\nmemory_limit_mb: 64\n"
+        "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 64\n",
+    )
+
+    pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (2000, 256)
+
+
+def test_overwrite_keeps_constraints_pick_result_it_cannot_edit(problems_dir, polygon):
+    original = "limits: {time_limit_seconds: 1, memory_limit_mb: 256}\ngroups: []\n"
+    path = _write(problems_dir / PROBLEM_ID, "constraints.yaml", original)
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "constraints.yaml")
+    assert item.status == ITEM_KEPT
     assert "manually" in item.detail
-    assert "groups: []" in path.read_text()
+    assert path.read_text() == original
     assert "limits" not in _synced(problems_dir)
 
 
