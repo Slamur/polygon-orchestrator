@@ -231,13 +231,6 @@ class Checker(BaseModel):
         return self
 
 
-class Meta(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    requirements_docs: list[str] = Field(default_factory=list)
-    status: Literal["draft", "ready_for_generation", "reviewed"]
-
-
 class ProblemSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -249,7 +242,6 @@ class ProblemSpec(BaseModel):
     generation: Generation
     solutions: Optional[Solutions] = None
     checker: Checker
-    meta: Meta
 
     @model_validator(mode="after")
     def _check_problem_id(self) -> "ProblemSpec":

@@ -35,6 +35,3 @@ generation:
 checker:
   standard: "ncmp"
   custom_needed: false
-
-meta:
-  status: "draft"

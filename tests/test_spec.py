@@ -19,7 +19,6 @@ def test_load_valid_spec():
     assert spec.solutions is not None
     assert spec.solutions.wanted_verdicts == ["ok", "wa", "tl"]
     assert spec.checker.custom_needed is False
-    assert spec.meta.status == "draft"
 
 
 def test_missing_intended_complexity_raises_with_clear_message():

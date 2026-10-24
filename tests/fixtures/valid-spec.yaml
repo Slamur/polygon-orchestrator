@@ -74,8 +74,3 @@ checker:
   standard: "ncmp"
   custom_needed: false
   custom_comparison_notes: null
-
-meta:
-  requirements_docs:
-    - "templates/common/tutorials/statement.md"
-  status: "draft"

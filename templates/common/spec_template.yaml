@@ -9,8 +9,6 @@
 #   legend_sketch: |
 #     первая строка
 #     вторая строка
-#
-# Перед `llm generate` поменяйте meta.status на "ready_for_generation".
 
 problem_id: ""                       # [required] заполняется командой init, совпадает с именем каталога задачи
 title:
@@ -92,7 +90,3 @@ checker:
   custom_needed: false               # [required] true — нужен свой чекер
   custom_comparison_notes: null      # [required при custom_needed: true] формат ответа и правило сравнения
   references: []                     # [optional] образцы только для checker_draft
-
-meta:
-  requirements_docs: []
-  status: "draft"                    # "draft" | "ready_for_generation" | "reviewed"
