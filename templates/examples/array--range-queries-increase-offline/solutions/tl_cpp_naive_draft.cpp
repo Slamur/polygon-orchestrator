@@ -1,0 +1,51 @@
+#include <bits/stdc++.h>
+
+using ll = int64_t;
+
+struct Query {
+    int l;
+    int r;
+    int d;
+};
+
+void solve() {
+    int n, q;
+
+    std::cin >> n >> q;
+
+    std::vector<Query> queries(q);
+    for (auto& query : queries) {
+        std::cin >> query.l;
+    }
+    for (auto& query : queries) {
+        std::cin >> query.r;
+    }
+    for (auto& query : queries) {
+        std::cin >> query.d;
+    }
+
+    auto get_ans = [&]() {
+        std::vector<ll> ans(n, 0);
+        for (const auto& query : queries) {
+            for (int i = query.l; i <= query.r; ++i) {
+                ans[i - 1] += query.d;
+            }
+        }
+
+        return ans;
+    };
+
+    auto ans = get_ans();
+    for (int i = 0; i < n; ++i) {
+        std::cout << ans[i] << (i + 1 < n ? ' ' : '\n');
+    }
+}
+
+int main() {
+    std::ios_base::sync_with_stdio(false);
+    std::cin.tie(nullptr);
+
+    solve();
+
+    return 0;
+}

@@ -9,6 +9,7 @@ docs/PROMPTS.md, "Приложенные шаблоны как образцы").
 этого файла.
 """
 
+import os
 import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor
@@ -101,12 +102,15 @@ def test_example_validator_uses_constraints_bounds(example_dir):
     validator = (example_dir / "validator.cpp").read_text(encoding="utf-8")
     declared = {
         name: float(value)
-        for name, value in re.findall(r"\b((?:min|max)\w+)\s*=\s*([0-9.e]+)", validator)
+        for name, value in re.findall(r"\b((?:min|max)\w+)\s*=\s*(-?[0-9.e]+)", validator)
     }
+    # Границы-выражения (`max: N`) валидатор берёт из уже прочитанных
+    # значений, а не из констант — сравниваются только числовые.
     bounds = sorted(
         float(bound)
         for constant in _example_constraints(example_dir)["validator"]["constants"]
         for bound in (constant["min"], constant["max"])
+        if not isinstance(bound, str)
     )
     assert sorted(declared.values()) == bounds
 
@@ -124,8 +128,13 @@ def test_example_test_scripts_contain_standard_functions(example_dir):
 
 
 def _compile(cpp_path: Path) -> str | None:
-    """stderr компилятора, если `cpp_path` не собрался, иначе None."""
-    result = compile_check(cpp_path, TEMPLATES_DIR / COMMON_SUBDIR)
+    """stderr компилятора, если `cpp_path` не собрался, иначе None.
+
+    `problem_lib.h` ищется, как в compile-check пайплайна, сначала в каталоге
+    задачи (у образца может быть своя копия с функциями задачи), потом в
+    `templates/common/`."""
+    example_dir = TEMPLATES_DIR / EXAMPLES_SUBDIR / _id(cpp_path).split("/")[0]
+    result = compile_check(cpp_path, [example_dir, TEMPLATES_DIR / COMMON_SUBDIR])
     if result.binary_path:
         result.binary_path.unlink(missing_ok=True)
     return None if result.success else result.stderr
@@ -133,8 +142,10 @@ def _compile(cpp_path: Path) -> str | None:
 
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
 def test_example_cpp_files_compile():
-    # Параллельно: с testlib.h каждый файл собирается несколько секунд.
-    with ThreadPoolExecutor() as pool:
+    # Параллельно: с testlib.h каждый файл собирается несколько секунд; не
+    # больше компиляций, чем ядер, иначе при десятках файлов отдельные
+    # компиляции упираются в таймаут compile_check.
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
         errors = dict(zip(EXAMPLE_CPP_FILES, pool.map(_compile, EXAMPLE_CPP_FILES)))
     failed = {_id(path): stderr for path, stderr in errors.items() if stderr is not None}
     assert EXAMPLE_CPP_FILES
