@@ -27,46 +27,34 @@ import os
 import sys
 from pathlib import Path
 
-from orchestrator.cache import OUTPUTS_DIR, PROMPTS_DIR, SPECS_DIR, TEMPLATES_DIR
+from orchestrator.cache import OUTPUTS_DIR, PROMPTS_DIR, TEMPLATES_DIR
 from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
 
 
-def _spec_ids(parsed_args: argparse.Namespace) -> set[str]:
-    specs_dir = getattr(parsed_args, "specs_dir", None) or SPECS_DIR
-    return {path.stem for path in Path(specs_dir).glob("*.yaml")}
+def _complete_problem_ids(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
+    """Кандидаты Tab-дополнения `problem_id`: каталоги задач в `outputs/` —
+    со спеком (`spec.yaml`) или без него (`polygon status|pull` спек не
+    нужен, а команда набирается после `problem_id` и на момент дополнения
+    ещё неизвестна).
 
-
-def _output_ids(parsed_args: argparse.Namespace) -> set[str]:
+    Список не хранится нигде, а читается из каталога при каждом нажатии Tab —
+    с учётом `--outputs-dir`, если он уже набран в командной строке.
+    Фильтрацию по набранному префиксу делает сам `argcomplete`.
+    """
     outputs_dir = Path(getattr(parsed_args, "outputs_dir", None) or OUTPUTS_DIR)
     if not outputs_dir.is_dir():
-        return set()
-    return {
+        return []
+    return sorted(
         path.name
         for path in outputs_dir.iterdir()
         if path.is_dir() and not path.name.startswith(".")
-    }
-
-
-def _complete_problem_ids(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
-    """Кандидаты Tab-дополнения `problem_id`: спеки и каталоги `outputs/`.
-    Команда набирается после `problem_id` и на момент дополнения ещё
-    неизвестна, а `polygon status|pull` работают и с задачей, у которой есть
-    только каталог в `outputs/`.
-
-    Список не хранится нигде, а читается из каталогов при каждом нажатии Tab —
-    с учётом `--specs-dir`/`--outputs-dir`, если они уже набраны в командной
-    строке. Фильтрацию по набранному префиксу делает сам `argcomplete`.
-    """
-    return sorted(_spec_ids(parsed_args) | _output_ids(parsed_args))
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="orchestrator",
         description="Run generative problem-preparation steps for Polygon (see CLAUDE.md)",
-    )
-    parser.add_argument(
-        "--specs-dir", type=Path, default=SPECS_DIR, help="specs/*.yaml directory (default: specs/)"
     )
     parser.add_argument(
         "--prompts-dir", type=Path, default=PROMPTS_DIR, help="prompts/ directory (default: prompts/)"
@@ -82,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "problem_id", help="matches specs/<problem_id>.yaml and outputs/<problem_id>/"
+        "problem_id", help="problem directory outputs/<problem_id>/ (spec: outputs/<problem_id>/spec.yaml)"
     ).completer = _complete_problem_ids
 
     pipelines = parser.add_subparsers(dest="pipeline", required=True)

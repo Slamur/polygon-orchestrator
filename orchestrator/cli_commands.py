@@ -213,7 +213,6 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
                 args.problem_id,
                 force=args.force,
                 only_step=args.step,
-                specs_dir=args.specs_dir,
                 prompts_dir=args.prompts_dir,
                 outputs_dir=args.outputs_dir,
                 templates_dir=args.templates_dir,
@@ -246,7 +245,6 @@ def _print_step_statuses(problem_id: str, statuses, spec_error: str | None) -> b
 def cmd_llm_status(args: argparse.Namespace) -> int:
     statuses, spec_error = compute_step_statuses(
         args.problem_id,
-        specs_dir=args.specs_dir,
         prompts_dir=args.prompts_dir,
         outputs_dir=args.outputs_dir,
         templates_dir=args.templates_dir,
@@ -262,7 +260,6 @@ def cmd_llm_accept(args: argparse.Namespace) -> int:
     statuses, spec_error = accept_steps(
         args.problem_id,
         only_step=args.step,
-        specs_dir=args.specs_dir,
         prompts_dir=args.prompts_dir,
         outputs_dir=args.outputs_dir,
         templates_dir=args.templates_dir,
@@ -315,7 +312,6 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
             args.problem_id,
             only_step=args.step,
             force=args.force,
-            specs_dir=args.specs_dir,
             outputs_dir=args.outputs_dir,
             on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
         )

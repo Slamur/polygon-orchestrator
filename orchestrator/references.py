@@ -28,9 +28,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from orchestrator.spec import ProblemSpec
-
-SPEC_FILENAME = "spec.yaml"
+from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 
 # Что каждый шаг берёт из каталога-референса: пути относительно каталога,
 # запись с `*` — glob (файлы в отсортированном порядке). `spec.yaml`

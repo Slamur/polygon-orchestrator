@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Блокирует push, если имя ветки или сообщения коммитов (относительно
-# origin/main) содержат problem_id любой задачи из specs/*.yaml.
-# См. "Конфиденциальность specs/ и outputs/" в CLAUDE.md.
+# origin/main) содержат problem_id любой задачи — имя любого каталога в outputs/.
+# См. "Конфиденциальность outputs/" в CLAUDE.md.
 #
 # Подключение (один раз после клонирования): git config core.hooksPath githooks
 
@@ -12,10 +12,10 @@ shopt -s nocasematch
 repo_root="$(git rev-parse --show-toplevel)" || exit 0
 
 shopt -s nullglob
-spec_files=("$repo_root"/specs/*.yaml)
+problem_dirs=("$repo_root"/outputs/*/)
 shopt -u nullglob
 
-if [ ${#spec_files[@]} -eq 0 ]; then
+if [ ${#problem_dirs[@]} -eq 0 ]; then
     exit 0
 fi
 
@@ -29,8 +29,8 @@ if git rev-parse --verify --quiet origin/main >/dev/null; then
 fi
 
 leaked=0
-for spec in "${spec_files[@]}"; do
-    problem_id="$(basename "$spec" .yaml)"
+for problem_dir in "${problem_dirs[@]}"; do
+    problem_id="$(basename "$problem_dir")"
     [ -n "$problem_id" ] || continue
 
     if [[ "$branch" == *"$problem_id"* ]]; then

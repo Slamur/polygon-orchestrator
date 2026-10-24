@@ -34,7 +34,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Optional
 
-from orchestrator.cache import OUTPUTS_DIR, SPECS_DIR
+from orchestrator.cache import OUTPUTS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.steps import (
     create_problem,
@@ -50,7 +50,7 @@ from orchestrator.polygon.steps import (
 from orchestrator.polygon.state import load_polygon_state, update_sync
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.polygon.sync import fetch_revision
-from orchestrator.spec import SpecValidationError, load_spec
+from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import POLYGON_STEP_ORDER
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,6 @@ def run_polygon_pipeline(
     *,
     only_step: Optional[str] = None,
     force: bool = False,
-    specs_dir: Path = SPECS_DIR,
     outputs_dir: Path = OUTPUTS_DIR,
     client: PolygonClient | None = None,
     on_outcome: Callable[[PolygonStepOutcome], None] | None = None,
@@ -145,7 +144,7 @@ def run_polygon_pipeline(
     записывается в `result.spec_error`, клиент при этом не создаётся.
     """
     try:
-        spec = load_spec(Path(specs_dir) / f"{problem_id}.yaml")
+        spec = load_problem_spec(problem_id, outputs_dir=outputs_dir)
     except SpecValidationError as exc:
         return PolygonPipelineResult(problem_id=problem_id, spec_error=str(exc))
 

@@ -631,8 +631,6 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
 
     exit_code = cli.main(
         [
-            "--specs-dir",
-            str(tmp_path / "no-specs"),
             "--outputs-dir",
             str(outputs_dir),
             PROBLEM_ID,
@@ -646,7 +644,7 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
     assert "  validator.cpp: downloaded — Polygon source file val.cpp" in out
     assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
     log = (outputs_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
-    assert "run started: orchestrator --specs-dir" in log
+    assert "run started: orchestrator --outputs-dir" in log
     assert "[pull] validator.cpp: downloaded" in log
 
 
