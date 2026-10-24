@@ -8,6 +8,14 @@ venv/
 problems/*
 !problems/.gitkeep
 
+# служебные файлы оркестратора в учебных задачах (сами образцы коммитятся):
+# кэш шагов, логи, привязка к Polygon (личный problemId автора), бэкапы pull
+examples/**/.cache/
+examples/**/.pull_backup/
+examples/**/polygon_state.json
+examples/**/llm_generation.log
+examples/**/polygon.log
+
 # прежнее имя каталога задач (теперь problems/) — на случай оставшихся локальных копий
 outputs/
 
