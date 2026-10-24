@@ -13,6 +13,12 @@ Polygon дополнительно требует `problem.enableGroups` (не �
 groups-шаблонов в `templates/` сейчас нет. Явная ошибка лучше тихого
 неверного поведения.
 
+Polygon при сохранении скрипта выкидывает из него пустые строки, поэтому
+хеш считается от `normalize_script` (без пустых строк и пробелов в концах
+строк) — иначе `polygon pull` видел бы расхождение с локальным файлом и
+сбрасывал базу, а следующий push загружал бы скрипт заново. Загружается
+при этом исходный файл как есть.
+
 По смыслу шаг идёт после `upload_generators` — скрипт ссылается на
 генераторы по имени, — хотя Polygon при сохранении скрипта этого не
 проверяет.
@@ -66,7 +72,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     polygon_id = require_polygon_state(ctx).polygon_id
     script_path = script_artifact_path(ctx.problem_id, ctx.spec, problems_dir=ctx.problems_dir)
     content = _read_script(ctx.problem_id, ctx.problems_dir, script_path)
-    items = {SCRIPT_KEY: digest(content)}
+    items = {SCRIPT_KEY: digest(normalize_script(content))}
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
 
@@ -91,9 +97,18 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
         problem_dir = Path(problems_dir) / problem_id
         existing = [name for name in SCRIPT_FILENAMES if (problem_dir / name).exists()]
         script_path = problem_dir / (existing[0] if existing else SCRIPT_FILENAMES[0])
-        return {SCRIPT_KEY: digest(_read_script(problem_id, problems_dir, script_path))}
+        content = _read_script(problem_id, problems_dir, script_path)
+        return {SCRIPT_KEY: digest(normalize_script(content))}
 
     return sync_status(problem_id, problems_dir, key_prefix=SCRIPT_KEY, read_items=read_items)
+
+
+def normalize_script(content: bytes) -> bytes:
+    """Скрипт в том виде, в каком его сравнивают `push` и `pull`: без пустых
+    строк (их выкидывает Polygon), без пробелов в концах строк и с LF вместо
+    CRLF."""
+    lines = content.decode("utf-8").replace("\r\n", "\n").split("\n")
+    return "\n".join(line.rstrip() for line in lines if line.strip()).encode("utf-8")
 
 
 def _read_script(problem_id: str, problems_dir: Path, script_path: Path) -> bytes:

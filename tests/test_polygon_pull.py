@@ -270,6 +270,37 @@ def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(problems_dir, pol
     assert "statement/name" not in uploaded
 
 
+def test_script_without_blank_lines_on_polygon_is_same_and_not_pushed_again(
+    tmp_path, problems_dir, polygon
+):
+    # Polygon выкидывает пустые строки из сохранённого скрипта.
+    problem_dir = problems_dir / PROBLEM_ID
+    local = "gen_rand 1 > $\n\n\ngen_rand 2 > $\n"
+    _write(problem_dir, "test_script", local)
+    polygon.script = b"gen_rand 1 > $\ngen_rand 2 > $\n"
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["test_script"] == ITEM_SAME
+    assert (problem_dir / "test_script").read_text() == local
+    spec_path = tmp_path / "valid-spec.yaml"
+    spec_path.write_text(
+        (FIXTURES_DIR / "valid-spec.yaml")
+        .read_text(encoding="utf-8")
+        .replace('script_style: "groups"', 'script_style: "flat"'),
+        encoding="utf-8",
+    )
+    uploaded = run_step(
+        upload_test_script.STEP,
+        PROBLEM_ID,
+        load_spec(spec_path),
+        problems_dir=problems_dir,
+        client=MagicMock(),
+        synced=_synced(problems_dir),
+    ).uploaded
+    assert uploaded == {}
+
+
 def test_uncommitted_changes_on_polygon_stop_pull_before_writing(problems_dir, polygon):
     polygon.problems[0]["modified"] = True
 
