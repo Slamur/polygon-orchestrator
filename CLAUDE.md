@@ -136,7 +136,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   └── claude_code_client.py   # ClaudeCodeClient(LLMClient) — те же модели через `claude -p` по подписке
 │   ├── polygon/
 │   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
-│   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example)
+│   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example); пауза между запросами и экспоненциальный back-off на HTTP 429
 │   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
 │   │   ├── sync.py                 # база синхронизации: ключи элементов задачи, sha256, fetch_revision (ревизия задачи на Polygon)

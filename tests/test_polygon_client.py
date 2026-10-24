@@ -20,10 +20,13 @@ def credentials(monkeypatch):
     monkeypatch.delenv("POLYGON_API_BASE_URL", raising=False)
 
 
-def _response(body=None, *, status_code: int = 200, text: str = "") -> MagicMock:
+def _response(
+    body=None, *, status_code: int = 200, text: str = "", headers: dict | None = None
+) -> MagicMock:
     response = MagicMock()
     response.status_code = status_code
     response.text = text
+    response.headers = headers or {}
     if body is None:
         response.json.side_effect = ValueError("not json")
     else:
@@ -165,3 +168,105 @@ def test_call_raw_non_200_without_json_raises_polygon_api_error(credentials, mon
 
     with pytest.raises(PolygonApiError, match="HTTP 502"):
         PolygonClient().call_raw("problem.script", {"problemId": "5", "testset": "tests"})
+
+
+class FakeTime:
+    """Часы и `sleep` клиента: `sleep` только сдвигает время и запоминает паузу."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+        self.sleeps: list[float] = []
+
+    def clock(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+def _too_many(headers: dict | None = None) -> MagicMock:
+    return _response(status_code=429, text="<html>429 Too Many Requests</html>", headers=headers)
+
+
+def _ok(result=None) -> MagicMock:
+    return _response({"status": "OK", "result": result})
+
+
+def test_requests_are_spaced_by_min_interval(credentials, monkeypatch):
+    fake = FakeTime()
+    monkeypatch.setattr(polygon_client.requests, "post", MagicMock(return_value=_ok()))
+    client = PolygonClient(sleep=fake.sleep, clock=fake.clock)
+
+    client.call("problem.info", {})
+    fake.now += 0.2
+    client.call("problem.info", {})
+    fake.now += 10
+    client.call("problem.info", {})
+
+    assert fake.sleeps == [pytest.approx(0.3)]
+
+
+def test_429_is_retried_with_exponential_backoff(credentials, monkeypatch):
+    fake = FakeTime()
+    post = MagicMock(side_effect=[_too_many(), _too_many(), _ok({"id": 5})])
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+
+    result = PolygonClient(sleep=fake.sleep, clock=fake.clock).call("problem.info", {})
+
+    assert result == {"id": 5}
+    assert post.call_count == 3
+    assert fake.sleeps == [5, 10]
+    # каждая попытка подписана заново
+    sigs = {call.kwargs["files"]["apiSig"][1] for call in post.call_args_list}
+    assert len(sigs) == 3
+
+
+def test_retry_after_header_overrides_backoff(credentials, monkeypatch):
+    fake = FakeTime()
+    post = MagicMock(side_effect=[_too_many({"Retry-After": "2"}), _ok()])
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+
+    PolygonClient(sleep=fake.sleep, clock=fake.clock).call("problem.info", {})
+
+    assert fake.sleeps == [2]
+
+
+def test_429_slows_down_following_requests(credentials, monkeypatch):
+    fake = FakeTime()
+    post = MagicMock(side_effect=[_too_many({"Retry-After": "1"}), _ok(), _ok(), _ok()])
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+    client = PolygonClient(sleep=fake.sleep, clock=fake.clock)
+
+    client.call("problem.info", {})
+    fake.sleeps.clear()
+    client.call("problem.info", {})
+    client.call("problem.info", {})
+
+    # интервал удвоился: 0.5 -> 1.0
+    assert fake.sleeps == [pytest.approx(1.0), pytest.approx(1.0)]
+
+
+def test_429_after_all_retries_raises_polygon_api_error(credentials, monkeypatch):
+    fake = FakeTime()
+    post = MagicMock(return_value=_too_many())
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+
+    with pytest.raises(PolygonApiError, match="HTTP 429"):
+        PolygonClient(sleep=fake.sleep, clock=fake.clock).call_raw("problem.viewFile", {})
+
+    assert post.call_count == len(polygon_client._RETRY_DELAYS_SECONDS) + 1
+    retry_sleeps = [s for s in fake.sleeps if s >= 5]
+    assert retry_sleeps == list(polygon_client._RETRY_DELAYS_SECONDS)
+
+
+def test_other_errors_are_not_retried(credentials, monkeypatch):
+    fake = FakeTime()
+    post = MagicMock(return_value=_response(status_code=500, text="boom"))
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+
+    with pytest.raises(PolygonApiError, match="HTTP 500"):
+        PolygonClient(sleep=fake.sleep, clock=fake.clock).call_raw("problem.viewFile", {})
+
+    assert post.call_count == 1
+    assert fake.sleeps == []
