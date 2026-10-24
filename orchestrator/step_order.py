@@ -37,4 +37,5 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_generators",
     "upload_test_script",
     "upload_solutions",
+    "upload_spec",
 ]

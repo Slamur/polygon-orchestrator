@@ -618,7 +618,7 @@ def test_step_order_has_upload_test_script_after_upload_generators():
     ]
 
 
-def test_step_order_ends_with_upload_solutions():
+def test_step_order_ends_with_upload_spec():
     assert POLYGON_STEP_ORDER == [
         "create_problem",
         "set_constraints",
@@ -629,6 +629,7 @@ def test_step_order_ends_with_upload_solutions():
         "upload_generators",
         "upload_test_script",
         "upload_solutions",
+        "upload_spec",
     ]
 
 
@@ -689,6 +690,7 @@ def test_status_not_run_without_state(tmp_path):
         ("upload_generators", "not run"),
         ("upload_test_script", "not run"),
         ("upload_solutions", "not run"),
+        ("upload_spec", "not run"),
     ]
 
 
@@ -711,6 +713,7 @@ def test_status_done_with_state(tmp_path):
         ("upload_generators", "not run"),
         ("upload_test_script", "not run"),
         ("upload_solutions", "not run"),
+        ("upload_spec", "not run"),
     ]
     assert statuses[0].detail == "polygon_id=777"
 
@@ -735,6 +738,7 @@ def test_status_after_full_run_then_constraints_change(problems_dir):
         ("upload_generators", "done"),
         ("upload_test_script", "done"),
         ("upload_solutions", "done"),
+        ("upload_spec", "done"),
     ]
 
     (problems_dir / PROBLEM_ID / "constraints.yaml").write_text(
@@ -793,6 +797,7 @@ def test_cli_polygon_run_prints_outcomes(problems_dir, capsys):
     assert "upload_generators: ok" in out
     assert "upload_test_script: ok" in out
     assert "upload_solutions: ok" in out
+    assert "upload_spec: ok" in out
 
 
 def test_cli_polygon_run_with_step(problems_dir, capsys):

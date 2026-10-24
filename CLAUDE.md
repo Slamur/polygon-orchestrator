@@ -40,7 +40,10 @@ Python-оркестратор, который берёт структуриро�
   `problems/<путь задачи>/validator.cpp` и назначение его валидатором
   (`upload_validator`), назначение чекера (`upload_checker`: для
   `checker.custom_needed: true` — загрузка `problems/<путь задачи>/checker.cpp`,
-  иначе — стандартный чекер из `checker.standard` без загрузки файла).
+  иначе — стандартный чекер из `checker.standard` без загрузки файла),
+  загрузка `problems/<путь задачи>/spec.yaml` как есть в раздел Attachments
+  (aux-файл, `upload_spec`) — чтобы `polygon pull` восстанавливал задачу
+  вместе со спеком.
   Шаги загружают только то, что изменилось с последней синхронизации с
   Polygon (база — `revision`/`synced` в `polygon_state.json`, см.
   `orchestrator/polygon/sync.py`). После каждого polygon-шага, который
@@ -138,7 +141,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
 │   │   ├── sync.py                 # база синхронизации: ключи элементов задачи, sha256, fetch_revision (ревизия задачи на Polygon)
 │   │   ├── pull.py                 # pull_problem — привязка к существующей задаче, сравнение с ней и выгрузка (обратное направление к steps/)
-│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions
+│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions, upload_spec
 │   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
@@ -147,7 +150,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 └── problems/
     └── <путь задачи>/              # на любой глубине: <группа>/.../<problem_id>/ (см. "Запуск")
-        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` из templates/spec_template.yaml
+        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` из templates/spec_template.yaml; на Polygon — в Attachments (upload_spec / pull)
         ├── .cache/
         │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
         │   ├── constraints_pick.json
@@ -338,7 +341,8 @@ Python-оркестратор, который берёт структуриро�
   `--polygon-id` дополнительно сужает поиск, если
   задач с таким именем несколько), сравнивает с ней части задачи, которыми
   пользуется оркестратор (условие и примеры, TL/ML, валидатор,
-  нестандартный чекер, генераторы, test-script, решения), скачивает в
+  нестандартный чекер, генераторы, test-script, решения, спек из
+  Attachments), скачивает в
   каталог задачи недостающие локально и переписывает базу
   синхронизации по текущей ревизии Polygon. Отличающиеся от Polygon файлы
   без `--overwrite` остаются локальными (следующий push их загрузит), с
@@ -348,7 +352,8 @@ Python-оркестратор, который берёт структуриро�
   `constraints.yaml` — результат `constraints_pick` — не перезаписывается
   и с `--overwrite` (TL/ML — только сообщение о расхождении). Отказывается
   работать, если на Polygon есть незакоммиченные правки. Каталог задачи
-  создаётся, если его нет; спек не нужен. На Polygon ничего не меняет
+  создаётся, если его нет; локальный спек не нужен (сам `spec.yaml`
+  сравнивается и скачивается как обычный файл). На Polygon ничего не меняет
   (только чтение), но в сеть ходит — те же ограничения на запуск без явной
   команды. Детали — в докстринге `orchestrator/polygon/pull.py`.
 

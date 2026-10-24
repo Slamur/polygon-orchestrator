@@ -37,6 +37,7 @@ CHECKER_FILE_KEY = "checker.cpp"
 CHECKER_KEY = "checker"  # имя назначенного чекера (`checker.cpp` или `std::...`)
 STATEMENT_NAME_KEY = "statement/name"
 SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
+SPEC_KEY = "spec.yaml"
 
 
 def statement_file_key(filename: str) -> str:

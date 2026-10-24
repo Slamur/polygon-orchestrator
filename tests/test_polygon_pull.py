@@ -22,6 +22,7 @@ from orchestrator.polygon.steps import (
     upload_generators,
     upload_problem_lib,
     upload_solutions,
+    upload_spec,
     upload_statement,
     upload_test_script,
     upload_validator,
@@ -51,6 +52,7 @@ class FakePolygon:
         self.checker = "std::ncmp.cpp"
         self.source_files = {"val.cpp": b"// validator\n", "gen_rand.cpp": b"// gen\n"}
         self.resource_files = {"problem_lib.h": template_problem_lib_path().read_bytes()}
+        self.aux_files = {"spec.yaml": b"problem_id: example-problem\n"}
         self.script = b"gen_rand 1 > $\n"
         self.solutions = {"ok_cpp_main_author.cpp": ("MA", b"// ok\n")}
         self.tests = [
@@ -82,7 +84,7 @@ class FakePolygon:
             "problem.files": lambda: {
                 "resourceFiles": [{"name": name} for name in self.resource_files],
                 "sourceFiles": [{"name": name} for name in self.source_files],
-                "auxFiles": [],
+                "auxFiles": [{"name": name} for name in self.aux_files],
             },
             "problem.solutions": lambda: [
                 {"name": name, "tag": tag} for name, (tag, _) in self.solutions.items()
@@ -96,7 +98,11 @@ class FakePolygon:
             raise PolygonApiError(method_name, "boom")
         assert params["problemId"] == str(POLYGON_ID)
         if method_name == "problem.viewFile":
-            files = self.source_files if params["type"] == "source" else self.resource_files
+            files = {
+                "source": self.source_files,
+                "resource": self.resource_files,
+                "aux": self.aux_files,
+            }[params["type"]]
             return files[params["name"]]
         if method_name == "problem.viewSolution":
             return self.solutions[params["name"]][1]
@@ -173,6 +179,7 @@ def test_pull_into_missing_directory_downloads_everything(problems_dir, polygon)
     assert (problem_dir / "solutions" / "ok_cpp_main_author.cpp").read_bytes() == b"// ok\n"
     assert _statuses(result)["checker.cpp"] == ITEM_ABSENT
     assert (problem_dir / "problem_lib.h").read_bytes() == polygon.resource_files["problem_lib.h"]
+    assert (problem_dir / "spec.yaml").read_bytes() == polygon.aux_files["spec.yaml"]
     assert result.warnings == []
     assert result.backup_dir is None
 
@@ -188,6 +195,7 @@ def test_pull_records_revision_and_baseline(problems_dir, polygon):
         "limits",
         "problem_lib.h",
         "solutions/ok_cpp_main_author.cpp",
+        "spec.yaml",
         "statement/examples/example_1.txt",
         "statement/examples/example_2.txt",
         "statement/input_format.tex",
@@ -225,6 +233,7 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, proble
         upload_generators.STEP,
         upload_test_script.STEP,
         upload_solutions.STEP,
+        upload_spec.STEP,
     ):
         assert uploaded(step) == {}, step.name
     # на Polygon валидатор назначен под другим именем — push загрузит validator.cpp
@@ -438,6 +447,25 @@ def test_problem_lib_missing_on_polygon(problems_dir, polygon):
 
     assert _statuses(result)["problem_lib.h"] == ITEM_ABSENT
     assert "problem_lib.h" not in _synced(problems_dir)
+
+
+def test_different_local_spec_is_kept(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "spec.yaml", "problem_id: example-problem\n# local\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["spec.yaml"] == ITEM_KEPT
+    assert "spec.yaml" not in _synced(problems_dir)
+
+
+def test_spec_missing_on_polygon(problems_dir, polygon):
+    polygon.aux_files = {}
+    _write(problems_dir / PROBLEM_ID, "spec.yaml", "problem_id: example-problem\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["spec.yaml"] == ITEM_LOCAL_ONLY
+    assert "spec.yaml" not in _synced(problems_dir)
 
 
 def test_local_checker_with_standard_checker_on_polygon(problems_dir, polygon):

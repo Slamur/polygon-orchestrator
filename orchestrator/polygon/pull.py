@@ -24,8 +24,10 @@ Polygon каждую часть задачи, которой пользуетс�
 Pull отказывается работать, если в рабочей копии задачи на Polygon есть
 незакоммиченные правки: база синхронизации — всегда закоммиченная ревизия.
 
-Спек (`problems/<problem_id>/spec.yaml`) не нужен и не читается: команда рассчитана
-в том числе на задачи, у которых локально нет вообще ничего.
+Локальный спек (`problems/<problem_id>/spec.yaml`) не нужен: команда рассчитана
+в том числе на задачи, у которых локально нет вообще ничего. Сам спек
+сравнивается с Polygon как обычный файл (см. ниже), но не разбирается и не
+валидируется.
 
 Что с чем сравнивается (имена — те же, что читают polygon-шаги):
 
@@ -55,7 +57,9 @@ Pull отказывается работать, если в рабочей ко�
   тег из имени файла, поэтому про имена не по его схеме — предупреждение;
 - resource `problem_lib.h` -> `problem_lib.h` (копия задачи, см.
   `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`; если её нет на
-  Polygon, push загрузит локальную, а без неё — шаблон).
+  Polygon, push загрузит локальную, а без неё — шаблон);
+- aux-файл `spec.yaml` (раздел "Attachments", `problem.files` +
+  `problem.viewFile`) -> `spec.yaml` (загружает шаг `upload_spec`).
 
 Текст сравнивается с точностью до переводов строк (`\\r\\n` = `\\n`).
 NOTE: не проверено на реальном API, не нормализует ли Polygon содержимое
@@ -92,6 +96,7 @@ from orchestrator.polygon.sync import (
     LIMITS_KEY,
     PROBLEM_LIB_KEY,
     SCRIPT_KEY,
+    SPEC_KEY,
     STATEMENT_NAME_KEY,
     VALIDATOR_FILE_KEY,
     VALIDATOR_KEY,
@@ -101,6 +106,7 @@ from orchestrator.polygon.sync import (
 )
 from orchestrator.problem_paths import (
     PROBLEMS_DIR,
+    SPEC_FILENAME,
     ProblemPathError,
     check_new_problem_location,
     problem_id_for,
@@ -239,6 +245,7 @@ def pull_problem(
         ("generators", puller.pull_generators),
         ("test_script", puller.pull_script),
         ("solutions", puller.pull_solutions),
+        (SPEC_FILENAME, puller.pull_spec),
     ):
         try:
             part()
@@ -581,6 +588,17 @@ class _Puller:
         local_only = self._local_only("solutions", remote_names, pattern="*")
         if not solutions and not local_only:
             self.add("solutions", ITEM_ABSENT, "no solutions on Polygon")
+
+    def pull_spec(self) -> None:
+        attachments = {file["name"] for file in self._polygon_files().get("auxFiles") or []}
+        if SPEC_FILENAME not in attachments:
+            self._missing_on_polygon(SPEC_FILENAME, "no attachment on Polygon", key=SPEC_KEY)
+            return
+        self._sync_file(
+            SPEC_FILENAME,
+            lambda: self._call_raw("problem.viewFile", {"type": "aux", "name": SPEC_FILENAME}),
+            key=SPEC_KEY,
+        )
 
     def _warn_if_unparseable_solution_name(self, polygon_name: str, tag: object) -> None:
         try:
