@@ -15,7 +15,8 @@ Polygon каждую часть задачи, которой пользуетс�
 - локально файла нет — скачивается (`downloaded`);
 - совпадает с Polygon — не трогается (`up to date`);
 - отличается — без `--overwrite` остаётся локальная версия (`kept`), и
-  следующий `polygon push` загрузит её на Polygon; с `--overwrite`
+  следующий `polygon push` загрузит её на Polygon (в базу записывается хеш
+  версии с Polygon — push сравнивает с ним локальный); с `--overwrite`
   локальный файл переносится в `.pull_backup/<время>/` (`problems/` вне git,
   другой копии у него нет) и заменяется версией с Polygon (`overwritten`);
 - есть только локально — не трогается (`local only`), и следующий push
@@ -23,6 +24,22 @@ Polygon каждую часть задачи, которой пользуетс�
 
 Pull отказывается работать, если в рабочей копии задачи на Polygon есть
 незакоммиченные правки: база синхронизации — всегда закоммиченная ревизия.
+
+Файлы, которые Polygon отдаёт листингом с временем изменения (валидатор,
+нестандартный чекер, генераторы, решения, `problem_lib.h`, `spec.yaml`),
+скачиваются, только если версия на Polygon может отличаться от записанной в
+базе. Версия на Polygon считается известной — её хеш равен `synced[ключ]`,
+— если у ключа есть хеш в базе и либо отметка (`stamps`, см.
+`orchestrator/polygon/sync.py`) совпадает с листингом, либо ревизия на
+Polygon равна записанной в базе (с последней синхронизации на Polygon ничего
+не коммитили; ревизии на Polygon только растут, поэтому ключи, сверенные
+даже упавшим pull, относятся к той же ревизии). Для известной версии
+локальный файл сравнивается по хешу без скачивания: совпал — `up to date`,
+отличается — `kept`, и скачивается он только с `--overwrite`. Отметки
+записываются вместе с хешами по каждому файлу — частично упавший pull
+оставляет базу, в которой каждая пара "хеш + отметка" верна. Условие,
+примеры, TL/ML и test-script запрашиваются каждый раз — по одному запросу
+на часть, времени изменения у них нет.
 
 Локальный спек (`problems/<problem_id>/spec.yaml`) не нужен: команда рассчитана
 в том числе на задачи, у которых локально нет вообще ничего. Сам спек
@@ -47,9 +64,8 @@ Pull отказывается работать, если в рабочей ко�
 - валидатор (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
 - чекер (`problem.checker`) -> `checker.cpp`, если он не стандартный
   (`std::...` — скачивать нечего);
-- остальные source-файлы `*.cpp` (`problem.files`) -> `generators/`.
-  Эвристика: Polygon не различает генераторы и прочие source-файлы, поэтому
-  генератором считается всё, что не валидатор и не чекер;
+- остальные source-файлы `*.cpp` (`problem.files`) -> `generators/`
+  (`generator_source_names`: всё, что не валидатор и не чекер);
 - test-script (`problem.script`, testset `tests`) -> `test_script` (или уже
   существующий локально `test_script_groups`); сравнивается без пустых строк
   (`normalize_script`) — Polygon выкидывает их при сохранении;
@@ -99,11 +115,14 @@ from orchestrator.polygon.sync import (
     SCRIPT_KEY,
     SPEC_KEY,
     STATEMENT_NAME_KEY,
+    STANDARD_CHECKER_PREFIX,
     VALIDATOR_FILE_KEY,
     VALIDATOR_KEY,
     digest,
     fetch_revision,
+    generator_source_names,
     limits_digest,
+    remote_stamps,
 )
 from orchestrator.problem_paths import (
     PROBLEMS_DIR,
@@ -137,14 +156,14 @@ _STATEMENT_FILES = {
     "notes": "notes.tex",
 }
 
-_VALIDATOR_FILENAME = "validator.cpp"
-_CHECKER_FILENAME = "checker.cpp"
+_VALIDATOR_FILENAME = VALIDATOR_FILE_KEY
+_CHECKER_FILENAME = CHECKER_FILE_KEY
 _CONSTRAINTS_FILENAME = "constraints.yaml"
-_STANDARD_CHECKER_PREFIX = "std::"
 _BACKUP_DIRNAME = ".pull_backup"
 
 _KEPT_DETAIL = "differs from Polygon, local version kept — the next push will upload it"
 _LOCAL_ONLY_DETAIL = "not on Polygon — the next push will upload it"
+_NOT_DOWNLOADED_DETAIL = "unchanged on Polygon since the last sync, not downloaded"
 
 _CONSTRAINTS_HEADER = (
     "# Pulled from Polygon (orchestrator <problem> polygon pull): TL/ML only.\n"
@@ -225,6 +244,7 @@ def pull_problem(
         revision=current.revision,
     )
     problem_dir = Path(problems_dir) / problem_id
+    base = load_polygon_state(problem_id, problems_dir=problems_dir)
     puller = _Puller(
         client=client,
         polygon_id=resolved_id,
@@ -235,6 +255,9 @@ def pull_problem(
         / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         result=result,
         on_item=on_item,
+        base_synced=dict(base.synced),
+        base_stamps=dict(base.stamps),
+        revision_unchanged=base.revision is not None and base.revision == current.revision,
     )
     for name, part in (
         ("statement", puller.pull_statement),
@@ -255,11 +278,11 @@ def pull_problem(
 
     # Базу по успешно сравненным частям записываем всегда, ревизию — только
     # если сравнились все: иначе push не должен считать базу полной.
-    state = load_polygon_state(problem_id, problems_dir=problems_dir)
     update_sync(
         problem_id,
         synced=puller.synced,
-        revision=current.revision if result.ok else state.revision,
+        stamps=puller.stamps,
+        revision=current.revision if result.ok else base.revision,
         problems_dir=problems_dir,
     )
     if puller.backed_up:
@@ -333,10 +356,12 @@ def _resolve_and_link(
 class _Puller:
     """Сравнение частей одной задачи; каждая `pull_*` — одна часть.
 
-    `synced` копит изменения базы синхронизации: ключ -> sha256 того, что
-    теперь одинаково локально и на Polygon, или `None` — локальное
-    расходится с Polygon (или чего-то нет на Polygon), push должен
-    загрузить."""
+    `synced` копит изменения базы синхронизации: ключ -> sha256 версии на
+    Polygon (с точностью до нормализации — того, что легло бы локально), или
+    `None` — версия на Polygon неизвестна или её нет, push должен загрузить.
+    `stamps` — отметки версий на Polygon для тех же ключей (см.
+    `update_sync`). `base_*` и `revision_unchanged` — база до этого pull,
+    по ней решается, какие файлы можно не скачивать (см. докстринг модуля)."""
 
     client: PolygonClient
     polygon_id: int
@@ -345,9 +370,16 @@ class _Puller:
     backup_dir: Path
     result: PullResult
     on_item: Callable[[PullItem], None] | None = None
+    base_synced: dict[str, str] = field(default_factory=dict)
+    base_stamps: dict[str, str] = field(default_factory=dict)
+    revision_unchanged: bool = False
     synced: dict[str, str | None] = field(default_factory=dict)
+    stamps: dict[str, str | None] = field(default_factory=dict)
     backed_up: bool = False
     _files: dict | None = None
+    _solutions: list | None = None
+    _assigned: dict[str, str | None] = field(default_factory=dict)
+    _remote_stamps: dict[str, str] | None = None
 
     def add(self, name: str, status: str, detail: str = "") -> None:
         item = PullItem(name, status, detail)
@@ -490,10 +522,11 @@ class _Puller:
                 "problem.viewFile", {"type": "resource", "name": PROBLEM_LIB_FILENAME}
             ),
             key=PROBLEM_LIB_KEY,
+            stamped=True,
         )
 
     def pull_validator(self) -> None:
-        polygon_name = self._call("problem.validator")
+        polygon_name = self._assigned_name("problem.validator")
         if not polygon_name:
             self._missing_on_polygon(
                 _VALIDATOR_FILENAME, "no validator set on Polygon", key=VALIDATOR_FILE_KEY
@@ -506,16 +539,17 @@ class _Puller:
             key=VALIDATOR_FILE_KEY,
             also={VALIDATOR_KEY: digest(polygon_name)},
             detail=f"Polygon source file {polygon_name}",
+            stamped=True,
         )
 
     def pull_checker(self) -> None:
-        polygon_name = self._call("problem.checker")
+        polygon_name = self._assigned_name("problem.checker")
         if not polygon_name:
             self._missing_on_polygon(
                 _CHECKER_FILENAME, "no checker set on Polygon", key=CHECKER_FILE_KEY
             )
             self.synced[CHECKER_KEY] = None
-        elif polygon_name.startswith(_STANDARD_CHECKER_PREFIX):
+        elif polygon_name.startswith(STANDARD_CHECKER_PREFIX):
             self._missing_on_polygon(
                 _CHECKER_FILENAME,
                 f"standard checker {polygon_name} on Polygon",
@@ -531,26 +565,25 @@ class _Puller:
                 key=CHECKER_FILE_KEY,
                 also={CHECKER_KEY: digest(polygon_name)},
                 detail=f"Polygon source file {polygon_name}",
+                stamped=True,
             )
 
     def pull_generators(self) -> None:
-        not_generators = {
-            _VALIDATOR_FILENAME,
-            _CHECKER_FILENAME,
-            self._call("problem.validator"),
-            self._call("problem.checker"),
-        }
-        names = sorted(
-            file["name"]
-            for file in self._polygon_files().get("sourceFiles") or []
-            if file["name"].endswith(".cpp") and file["name"] not in not_generators
+        names = generator_source_names(
+            self._polygon_files().get("sourceFiles") or [],
+            self._assigned_name("problem.validator"),
+            self._assigned_name("problem.checker"),
         )
         for polygon_name in names:
             name = f"generators/{polygon_name}"
             if not _is_plain_filename(polygon_name):
                 self.add(name, ITEM_ERROR, "unsafe file name, skipped")
             else:
-                self._sync_file(name, lambda polygon_name=polygon_name: self._view_source(polygon_name))
+                self._sync_file(
+                    name,
+                    lambda polygon_name=polygon_name: self._view_source(polygon_name),
+                    stamped=True,
+                )
 
         local_only = self._local_only("generators", set(names), pattern="*.cpp")
         if not names and not local_only:
@@ -567,9 +600,7 @@ class _Puller:
         self._sync_file(local_name, lambda: content, key=SCRIPT_KEY, normalize=normalize_script)
 
     def pull_solutions(self) -> None:
-        solutions = sorted(
-            self._call("problem.solutions") or [], key=lambda solution: solution["name"]
-        )
+        solutions = sorted(self._polygon_solutions(), key=lambda solution: solution["name"])
         for solution in solutions:
             polygon_name = solution["name"]
             name = f"solutions/{polygon_name}"
@@ -582,6 +613,7 @@ class _Puller:
                     "problem.viewSolution", {"name": polygon_name}
                 ),
                 detail=f"Polygon tag {solution.get('tag')}",
+                stamped=True,
             )
             if written:
                 self._warn_if_unparseable_solution_name(polygon_name, solution.get("tag"))
@@ -600,6 +632,7 @@ class _Puller:
             SPEC_FILENAME,
             lambda: self._call_raw("problem.viewFile", {"type": "aux", "name": SPEC_FILENAME}),
             key=SPEC_KEY,
+            stamped=True,
         )
 
     def _warn_if_unparseable_solution_name(self, polygon_name: str, tag: object) -> None:
@@ -621,24 +654,44 @@ class _Puller:
         also: dict[str, str] | None = None,
         detail: str = "",
         normalize: Callable[[bytes], bytes] = lambda content: content,
+        stamped: bool = False,
     ) -> bool:
         """Сравнивает локальный файл `name` с версией на Polygon (`fetch`) и
         при необходимости пишет её на диск (см. докстринг модуля). Ключ базы —
-        `key` (по умолчанию `name`) и дополнительные записи `also` — все они
-        записываются, только если файл теперь совпадает с Polygon.
-        `normalize` применяется к содержимому перед сравнением и хешем.
+        `key` (по умолчанию `name`); дополнительные записи `also` пишутся,
+        только если файл теперь совпадает с Polygon. `normalize` применяется
+        к содержимому перед сравнением и хешем.
+
+        `stamped` — у файла есть отметка в листинге Polygon: она пишется в
+        базу вместе с хешем, и если версия на Polygon уже известна по базе,
+        файл не скачивается, пока его не нужно записать на диск.
 
         Возвращает, был ли файл записан. Ошибка API — запись "error" по этому
         файлу, остальные файлы той же части продолжают обрабатываться."""
-        keys = {key or name: None, **{k: None for k in also or {}}}
+        key = key or name
+        also = also or {}
+        stamp = self._remote_stamp(key) if stamped else None
+        path = self.problem_dir / name
+
+        known = self._known_remote_digest(key, stamp) if stamped else None
+        if known is not None and path.exists():
+            local = digest(normalize(path.read_bytes()))
+            if local == known:
+                self.add(name, ITEM_SAME, _join(detail, _NOT_DOWNLOADED_DETAIL))
+                self._record(key, known, stamp, also)
+                return False
+            if not self.overwrite:
+                self.add(name, ITEM_KEPT, _join(detail, _KEPT_DETAIL))
+                self._record(key, known, stamp, {k: None for k in also})
+                return False
+
         try:
             remote = fetch()
         except PolygonApiError as exc:
             self.add(name, ITEM_ERROR, str(exc))
-            self.synced.update(keys)
+            self._record(key, None, None, {k: None for k in also})
             return False
 
-        path = self.problem_dir / name
         written = False
         if not path.exists():
             self._write(name, remote)
@@ -653,12 +706,49 @@ class _Puller:
             written = True
         else:
             self.add(name, ITEM_KEPT, _join(detail, _KEPT_DETAIL))
-            self.synced.update(keys)
+            self._record(key, digest(normalize(remote)), stamp, {k: None for k in also})
             return False
 
-        self.synced[key or name] = digest(normalize(path.read_bytes()))
-        self.synced.update(also or {})
+        self._record(key, digest(normalize(path.read_bytes())), stamp, also)
         return written
+
+    def _record(
+        self, key: str, value: str | None, stamp: str | None, also: dict[str, str | None]
+    ) -> None:
+        """Пишет в базу хеш `key` вместе с его отметкой и записи `also`."""
+        self.synced[key] = value
+        self.stamps[key] = stamp
+        self.synced.update(also)
+
+    def _known_remote_digest(self, key: str, stamp: str | None) -> str | None:
+        """Хеш версии `key` на Polygon, если он известен по базе без
+        скачивания (см. докстринг модуля), иначе `None`."""
+        base = self.base_synced.get(key)
+        if base is None:
+            return None
+        if self.revision_unchanged or (stamp is not None and self.base_stamps.get(key) == stamp):
+            return base
+        return None
+
+    def _remote_stamp(self, key: str) -> str | None:
+        if self._remote_stamps is None:
+            self._remote_stamps = remote_stamps(
+                self._listing(self._polygon_files, {}),
+                self._listing(self._polygon_solutions, []),
+                self._listing(lambda: self._assigned_name("problem.validator"), None),
+                self._listing(lambda: self._assigned_name("problem.checker"), None),
+            )
+        return self._remote_stamps.get(key)
+
+    def _listing(self, fetch: Callable[[], object], fallback: object) -> object:
+        """Листинг для отметок; упал — `fallback`: файлы без отметок просто
+        скачиваются, а сама ошибка всплывёт в той части, которой листинг
+        нужен (её ключи тогда не трогаются)."""
+        try:
+            return fetch()
+        except PolygonApiError as exc:
+            logger.warning("[pull] no modification times from this listing: %s", exc)
+            return fallback
 
     def _missing_on_polygon(
         self,
@@ -703,6 +793,17 @@ class _Puller:
         if self._files is None:
             self._files = self._call("problem.files") or {}
         return self._files
+
+    def _polygon_solutions(self) -> list:
+        if self._solutions is None:
+            self._solutions = self._call("problem.solutions") or []
+        return self._solutions
+
+    def _assigned_name(self, method_name: str) -> str | None:
+        """Имя назначенного валидатора/чекера (`problem.validator`/`problem.checker`)."""
+        if method_name not in self._assigned:
+            self._assigned[method_name] = self._call(method_name)
+        return self._assigned[method_name]
 
     def _view_source(self, polygon_name: str) -> bytes:
         return self._call_raw("problem.viewFile", {"type": "source", "name": polygon_name})

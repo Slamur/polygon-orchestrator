@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -28,6 +29,7 @@ from orchestrator.polygon.steps import (
     upload_validator,
 )
 from orchestrator.polygon.steps.base import PolygonStepError, run_step
+from orchestrator.polygon.steps.upload_test_script import normalize_script
 from orchestrator.steps.base import template_problem_lib_path
 from orchestrator.spec import load_spec
 
@@ -61,6 +63,9 @@ class FakePolygon:
             {"index": 3, "manual": False, "useInStatements": False},
         ]
         self.test_inputs = {2: b"3 4\n"}
+        # Время изменения файлов и решений в листингах (по умолчанию 100);
+        # `None` — Polygon его не отдаёт.
+        self.mtimes: dict[str, int | None] = {}
         self.failing: set[str] = set()
         self.calls: list[tuple[str, dict]] = []
 
@@ -82,12 +87,13 @@ class FakePolygon:
             "problem.validator": lambda: self.validator,
             "problem.checker": lambda: self.checker,
             "problem.files": lambda: {
-                "resourceFiles": [{"name": name} for name in self.resource_files],
-                "sourceFiles": [{"name": name} for name in self.source_files],
-                "auxFiles": [{"name": name} for name in self.aux_files],
+                "resourceFiles": [self._listed(n, c) for n, c in self.resource_files.items()],
+                "sourceFiles": [self._listed(n, c) for n, c in self.source_files.items()],
+                "auxFiles": [self._listed(n, c) for n, c in self.aux_files.items()],
             },
             "problem.solutions": lambda: [
-                {"name": name, "tag": tag} for name, (tag, _) in self.solutions.items()
+                {**self._listed(name, content), "tag": tag}
+                for name, (tag, content) in self.solutions.items()
             ],
             "problem.tests": lambda: self.tests,
         }[method_name]()
@@ -112,8 +118,23 @@ class FakePolygon:
             return self.test_inputs[int(params["testIndex"])]
         raise AssertionError(method_name)
 
+    def _listed(self, name: str, content: bytes) -> dict:
+        listed = {"name": name, "length": len(content)}
+        mtime = self.mtimes.get(name, 100)
+        if mtime is not None:
+            listed["modificationTimeSeconds"] = mtime
+        return listed
+
     def methods(self) -> list[str]:
         return [name for name, _ in self.calls]
+
+    def downloads(self) -> list[str]:
+        """Скачанные файлы с отметками: source/resource/aux-файлы и решения."""
+        return [
+            params["name"]
+            for name, params in self.calls
+            if name in ("problem.viewFile", "problem.viewSolution")
+        ]
 
 
 @pytest.fixture
@@ -325,7 +346,7 @@ def test_fractional_time_limit(problems_dir, polygon):
     assert "time_limit_seconds: 1.5\n" in content
 
 
-def test_differing_files_are_kept_and_dropped_from_baseline(problems_dir, polygon):
+def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir, polygon):
     problem_dir = problems_dir / PROBLEM_ID
     _write(problem_dir, "statement/legend.tex", "local legend")
     _write(problem_dir, "statement/examples/example_1.txt", "1 2\n")
@@ -349,8 +370,12 @@ def test_differing_files_are_kept_and_dropped_from_baseline(problems_dir, polygo
     assert (problem_dir / "validator.cpp").read_text() == "local validator"
     assert not (problem_dir / "test_script").exists()
     synced = _synced(problems_dir)
-    for key in ("statement/legend.tex", "validator.cpp", "validator", "test_script"):
-        assert key not in synced, key
+    # В базе — версия с Polygon: push сравнит с ней локальную и загрузит.
+    assert synced["statement/legend.tex"] == pull_module.digest("L")
+    assert synced["validator.cpp"] == pull_module.digest(b"// validator\n")
+    assert synced["test_script"] == pull_module.digest(normalize_script(polygon.script))
+    # Назначение валидатора не подтверждено — push назначит заново.
+    assert "validator" not in synced
     for key in ("statement/input_format.tex", "statement/examples/example_1.txt"):
         assert key in synced, key
     assert result.backup_dir is None
@@ -468,7 +493,9 @@ def test_different_local_problem_lib_is_kept(problems_dir, polygon):
 
     assert _statuses(result)["problem_lib.h"] == ITEM_KEPT
     assert (problems_dir / PROBLEM_ID / "problem_lib.h").read_text() == "// local edits\n"
-    assert "problem_lib.h" not in _synced(problems_dir)
+    assert _synced(problems_dir)["problem_lib.h"] == pull_module.digest(
+        polygon.resource_files["problem_lib.h"]
+    )
 
 
 def test_problem_lib_missing_on_polygon(problems_dir, polygon):
@@ -486,7 +513,7 @@ def test_different_local_spec_is_kept(problems_dir, polygon):
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["spec.yaml"] == ITEM_KEPT
-    assert "spec.yaml" not in _synced(problems_dir)
+    assert _synced(problems_dir)["spec.yaml"] == pull_module.digest(polygon.aux_files["spec.yaml"])
 
 
 def test_spec_missing_on_polygon(problems_dir, polygon):
@@ -767,3 +794,224 @@ def test_cli_pull_overwrite_reports_backup_dir(problems_dir, polygon, capsys, mo
     assert exit_code == 0
     assert "  validator.cpp: overwritten" in out
     assert "overwritten local files are backed up in" in out
+
+
+# --- Инкрементальный pull: отметки версий файлов на Polygon ---
+
+_STAMPED_KEYS = {
+    "problem_lib.h",
+    "validator.cpp",
+    "generators/gen_rand.cpp",
+    "solutions/ok_cpp_main_author.cpp",
+    "spec.yaml",
+}
+
+
+def _state(problems_dir: Path) -> PolygonState:
+    return load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
+
+
+def _assert_stamps_paired(problems_dir: Path) -> None:
+    """Инвариант базы: отметки бывают только у ключей с хешем."""
+    state = _state(problems_dir)
+    assert set(state.stamps) <= set(state.synced)
+
+
+def _bump_revision(polygon: FakePolygon) -> None:
+    """Кто-то закоммитил на Polygon: короткий путь по ревизии не работает,
+    решают отметки."""
+    polygon.problems[0]["revision"] += 1
+
+
+def test_pull_records_stamps_for_listed_files(problems_dir, polygon):
+    polygon.mtimes["val.cpp"] = 123
+
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    stamps = _state(problems_dir).stamps
+    assert set(stamps) == _STAMPED_KEYS
+    assert stamps["validator.cpp"] == "val.cpp:123:13"
+    _assert_stamps_paired(problems_dir)
+
+
+def test_pull_does_not_download_files_unchanged_on_polygon(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    polygon.calls.clear()
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert result.ok
+    assert polygon.downloads() == []
+    for name in ("validator.cpp", "generators/gen_rand.cpp", "solutions/ok_cpp_main_author.cpp"):
+        item = next(item for item in result.items if item.name == name)
+        assert item.status == ITEM_SAME, name
+        assert "not downloaded" in item.detail
+    assert _state(problems_dir).revision == 6
+    assert set(_state(problems_dir).stamps) == _STAMPED_KEYS
+
+
+def test_pull_downloads_only_files_changed_on_polygon(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    polygon.solutions["ok_cpp_main_author.cpp"] = ("MA", b"// ok, fixed on Polygon\n")
+    polygon.mtimes["ok_cpp_main_author.cpp"] = 200
+    polygon.calls.clear()
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
+    assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
+    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_OVERWRITTEN
+    solution = problems_dir / PROBLEM_ID / "solutions" / "ok_cpp_main_author.cpp"
+    assert solution.read_bytes() == b"// ok, fixed on Polygon\n"
+    assert _state(problems_dir).stamps["solutions/ok_cpp_main_author.cpp"].endswith(":200:24")
+
+
+def test_locally_changed_file_unchanged_on_polygon_is_kept_without_download(
+    problems_dir, polygon
+):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    _write(problems_dir / PROBLEM_ID, "generators/gen_rand.cpp", "// local edit\n")
+    polygon.calls.clear()
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert polygon.downloads() == []
+    assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_KEPT
+    state = _state(problems_dir)
+    # В базе по-прежнему версия с Polygon — push загрузит локальную.
+    assert state.synced["generators/gen_rand.cpp"] == pull_module.digest(b"// gen\n")
+    assert "generators/gen_rand.cpp" in state.stamps
+
+
+def test_overwrite_downloads_only_locally_changed_files(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    _write(problems_dir / PROBLEM_ID, "generators/gen_rand.cpp", "// local edit\n")
+    polygon.calls.clear()
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
+    assert polygon.downloads() == ["gen_rand.cpp"]
+    assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_OVERWRITTEN
+    assert (problems_dir / PROBLEM_ID / "generators" / "gen_rand.cpp").read_bytes() == b"// gen\n"
+    assert (result.backup_dir / "generators" / "gen_rand.cpp").read_text() == "// local edit\n"
+
+
+def test_missing_local_file_is_downloaded_even_if_unchanged_on_polygon(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    (problems_dir / PROBLEM_ID / "validator.cpp").unlink()
+    polygon.calls.clear()
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert polygon.downloads() == ["val.cpp"]
+    assert _statuses(result)["validator.cpp"] == ITEM_DOWNLOADED
+
+
+def test_unchanged_revision_skips_downloads_for_state_without_stamps(problems_dir, polygon):
+    # Задача синхронизирована до появления отметок: ревизия та же — на
+    # Polygon ничего не коммитили, хеши базы верны и без отметок.
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    state = _state(problems_dir)
+    save_polygon_state(PROBLEM_ID, replace(state, stamps={}), problems_dir=problems_dir)
+    polygon.calls.clear()
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert result.ok
+    assert polygon.downloads() == []
+    assert set(_state(problems_dir).stamps) == _STAMPED_KEYS
+
+
+def test_changed_revision_without_stamps_downloads_everything(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    state = _state(problems_dir)
+    save_polygon_state(PROBLEM_ID, replace(state, stamps={}), problems_dir=problems_dir)
+    _bump_revision(polygon)
+    polygon.calls.clear()
+
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert sorted(polygon.downloads()) == sorted(
+        ["problem_lib.h", "val.cpp", "gen_rand.cpp", "ok_cpp_main_author.cpp", "spec.yaml"]
+    )
+
+
+def test_files_without_modification_time_are_always_downloaded(problems_dir, polygon):
+    polygon.mtimes["gen_rand.cpp"] = None
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    polygon.calls.clear()
+
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert polygon.downloads() == ["gen_rand.cpp"]
+    assert "generators/gen_rand.cpp" not in _state(problems_dir).stamps
+
+
+class _FailingDownload(FakePolygon):
+    """Polygon, у которого падает скачивание отдельных файлов по имени."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.failing_names: set[str] = set()
+
+    def call_raw(self, method_name, params):
+        if params.get("name") in self.failing_names:
+            self.calls.append((method_name, params))
+            raise PolygonApiError(method_name, "HTTP 429")
+        return super().call_raw(method_name, params)
+
+
+def test_failed_download_drops_hash_and_stamp_and_is_retried(problems_dir):
+    polygon = _FailingDownload()
+    polygon.failing_names = {"ok_cpp_main_author.cpp"}
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert not result.ok
+    state = _state(problems_dir)
+    assert "solutions/ok_cpp_main_author.cpp" not in state.synced
+    assert "solutions/ok_cpp_main_author.cpp" not in state.stamps
+    assert state.revision is None
+    _assert_stamps_paired(problems_dir)
+
+    polygon.failing_names = set()
+    polygon.calls.clear()
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    # Ревизия базы неизвестна, решают отметки: скачивается только упавшее.
+    assert result.ok
+    assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
+    assert _state(problems_dir).revision == 5
+
+
+def test_failed_listing_keeps_previous_pairs_valid(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    before = _state(problems_dir)
+    _bump_revision(polygon)
+    polygon.failing = {"problem.solutions"}
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert not result.ok
+    after = _state(problems_dir)
+    # Часть "solutions" не сверялась — её пара хеш+отметка от прошлого pull.
+    key = "solutions/ok_cpp_main_author.cpp"
+    assert after.synced[key] == before.synced[key]
+    assert after.stamps[key] == before.stamps[key]
+    assert after.revision == 5
+    _assert_stamps_paired(problems_dir)
+
+    # Решение поменяли на Polygon, пока листинг падал, — отметка не совпадёт.
+    polygon.failing = set()
+    polygon.solutions["ok_cpp_main_author.cpp"] = ("MA", b"// changed\n")
+    polygon.mtimes["ok_cpp_main_author.cpp"] = 300
+    polygon.calls.clear()
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
+    assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
+    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_OVERWRITTEN
