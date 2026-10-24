@@ -293,7 +293,7 @@ def _commit_and_record(
 def compute_polygon_step_statuses(
     problem_id: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> list[PolygonStepOutcome]:
-    """Состояние polygon-шагов для `orchestrator <id> polygon status`, без сети:
+    """Состояние polygon-шагов для `orchestrator <задача> polygon status`, без сети:
     по `compute_status` каждого шага, в порядке `POLYGON_STEP_ORDER`.
 
     Состояние — только по локальным данным (база синхронизации в

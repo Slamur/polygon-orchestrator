@@ -26,7 +26,7 @@ from orchestrator.spec import ProblemSpec
 logger = logging.getLogger(__name__)
 
 
-# Состояния polygon-шага для `orchestrator <id> polygon status` (без сети).
+# Состояния polygon-шага для `orchestrator <задача> polygon status` (без сети).
 STATUS_DONE = "done"
 STATUS_STALE = "stale"
 STATUS_NOT_RUN = "not run"

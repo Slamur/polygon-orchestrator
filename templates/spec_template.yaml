@@ -1,4 +1,4 @@
-# Черновик спека задачи. Создан командой `orchestrator <problem_id> init`
+# Черновик спека задачи. Создан командой `orchestrator <задача> init`
 # из templates/spec_template.yaml.
 #
 # Полный формат с примерами и пояснениями — docs/SPEC_FORMAT.md.
@@ -10,7 +10,7 @@
 #     первая строка
 #     вторая строка
 
-problem_id: ""                       # [required] заполняется командой init, совпадает с именем каталога задачи
+problem_id: ""                       # [required] заполняется командой init: имя каталога задачи (в examples/ — путь через "--")
 title:
   ru: ""                             # [required] начальное название задачи на Polygon
   en: null                           # [optional]

@@ -329,7 +329,7 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
 # как у учебных задач `examples/<путь задачи>/spec.yaml`), см.
 # `orchestrator/problem_paths.py`.
 
-# Шаблон черновика спека для `orchestrator <problem_id> init` (путь
+# Шаблон черновика спека для `orchestrator <задача> init` (путь
 # относительно templates_dir). Шагам не прикладывается.
 SPEC_TEMPLATE = "spec_template.yaml"
 
