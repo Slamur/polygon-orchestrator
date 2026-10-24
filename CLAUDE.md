@@ -27,7 +27,7 @@ Python-оркестратор, который берёт структуриро�
 - опциональные черновики авторских решений (ok/wa/tle) для последующей
   ручной проверки автором;
 - опциональный черновик кастомного чекера (C++/testlib, по паттерну
-  read_and_check — см. `checker.cpp` учебной задачи в `templates/examples/`), только если
+  read_and_check — см. `checker.cpp` учебной задачи в `examples/`), только если
   `checker.custom_needed: true` в спеке; если используется стандартный
   чекер (`checker.standard`) — этот шаг не запускается, генерировать
   нечего;
@@ -71,30 +71,30 @@ Python-оркестратор, который берёт структуриро�
 │   └── POLYGON_API.md            # документация Polygon API (методы, параметры, return objects)
 ├── templates/                    # существующие шаблоны автора — НЕ трогать структуру,
 │   │                             # использовать как основу для генерации
-│   ├── common/                   # общее для всех задач; include-каталог compile-check
-│   │   ├── problem_lib.h         # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
-│   │   ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
-│   │   ├── spec_template.yaml    # черновик спека для `orchestrator <problem_id> init`; шагам не прикладывается
-│   │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
-│   │   ├── testlib.h
-│   │   └── tutorials/
-│   │       ├── statement.md      # правила по условию (statement_draft)
-│   │       ├── limits.md         # правила по TL/ML (constraints_pick, solutions_draft)
-│   │       ├── validator.md      # правила по валидатору (constraints_pick)
-│   │       ├── tests.md          # правила по тестам, генераторам и test-script (generators_and_script)
-│   │       ├── freemarker.md     # правила по FreeMarker-скриптам (generators_and_script)
-│   │       ├── solutions.md      # правила по решениям (solutions_draft)
-│   │       ├── checker.md        # правила по чекеру (checker_draft)
-│   │       └── polygon.md        # справка по интерфейсу Polygon — шагам не прикладывается
-│   └── examples/                 # учебные задачи-образцы, по каталогу на задачу
-│       └── <вид-входа>--<суть>/  # например array--prefix-sums; раскладка как у outputs/<problem_id>/
-│           ├── spec.yaml         # спек учебной задачи (problem_id = имя каталога) — пара "спек -> результат"
-│           ├── constraints.yaml  # ожидаемый результат constraints_pick для spec.yaml
-│           ├── validator.cpp
-│           ├── checker.cpp
-│           ├── generators/       # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
-│           ├── solutions/        # решения-образцы: <verdict>_<language>_<description>_draft.<ext>
-│           └── test_script       # к шагам прикладывается только через references спека
+│   └── common/                   # общее для всех задач; include-каталог compile-check
+│       ├── problem_lib.h         # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
+│       ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
+│       ├── spec_template.yaml    # черновик спека для `orchestrator <problem_id> init`; шагам не прикладывается
+│       ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
+│       ├── testlib.h
+│       └── tutorials/
+│           ├── statement.md      # правила по условию (statement_draft)
+│           ├── limits.md         # правила по TL/ML (constraints_pick, solutions_draft)
+│           ├── validator.md      # правила по валидатору (constraints_pick)
+│           ├── tests.md          # правила по тестам, генераторам и test-script (generators_and_script)
+│           ├── freemarker.md     # правила по FreeMarker-скриптам (generators_and_script)
+│           ├── solutions.md      # правила по решениям (solutions_draft)
+│           ├── checker.md        # правила по чекеру (checker_draft)
+│           └── polygon.md        # справка по интерфейсу Polygon — шагам не прикладывается
+├── examples/                     # учебные задачи-образцы, по каталогу на задачу
+│   └── <вид-входа>--<суть>/      # например array--prefix-sums; раскладка как у outputs/<problem_id>/
+│       ├── spec.yaml             # спек учебной задачи (problem_id = имя каталога) — пара "спек -> результат"
+│       ├── constraints.yaml      # ожидаемый результат constraints_pick для spec.yaml
+│       ├── validator.cpp
+│       ├── checker.cpp
+│       ├── generators/           # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
+│       ├── solutions/            # решения-образцы: <verdict>_<language>_<description>_draft.<ext>
+│       └── test_script           # к шагам прикладывается только через references спека
 ├── prompts/
 │   ├── statement_draft/
 │   │   ├── system.md
@@ -495,7 +495,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   самодостаточен, без ссылок на другие файлы правил. `polygon.md` — справка
   по интерфейсу Polygon, ни одному шагу не прикладывается.
 - `templates/common/problem_lib.h` и файлы учебных задач
-  `templates/examples/<problem_id>/` (`validator.cpp`, `checker.cpp`,
+  `examples/<problem_id>/` (`validator.cpp`, `checker.cpp`,
   `generators/*.cpp`, `test_script`, `solutions/*`)
   — это основа, которую нужно расширять, а не переизобретать. Если шаг
   генерации создаёт новый генератор — он должен `#include "problem_lib.h"` и
@@ -509,7 +509,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
 - `templates/common/` — общее для всех задач и прикладывается к шагам
   всегда (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`); там же
   `constraints_format.yaml` — формат результата `constraints_pick`, который
-  читают следующие шаги и `polygon push`. `templates/examples/` — учебные
+  читают следующие шаги и `polygon push`. `examples/` — учебные
   задачи, по каталогу `<вид входных данных>--<суть задачи>` на каждую
   (`array--prefix-sums`), в раскладке `outputs/<problem_id>/` плюс свой
   спек `spec.yaml` (`problem_id` = имя каталога; ожидаемый по нему
@@ -522,7 +522,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   в секциях шагов (только для своего шага), см. `docs/SPEC_FORMAT.md`,
   "Референсы", и `orchestrator/references.py`. Референс — файл или каталог
   в раскладке `outputs/<problem_id>/` (учебная задача из
-  `templates/examples/`, прошлая задача автора в `outputs/`); каждый шаг
+  `examples/`, прошлая задача автора в `outputs/`); каждый шаг
   берёт из каталога только свою часть (`REFERENCE_DOCUMENTS`), решения —
   только на языках из `solutions.languages`. Без референсов шаг получает
   только `templates/common/`. Содержимое референсов входит в хеш промпта

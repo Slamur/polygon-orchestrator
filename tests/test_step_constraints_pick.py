@@ -44,7 +44,7 @@ def test_confirmed_writes_constraints_yaml(spec, tmp_path):
 
 
 def test_confirmed_writes_validator_cpp_and_compiles(spec, tmp_path):
-    valid_validator = (TEMPLATES_DIR / "examples/array--prefix-sums/validator.cpp").read_text(encoding="utf-8")
+    valid_validator = (REPO_ROOT / "examples/array--prefix-sums/validator.cpp").read_text(encoding="utf-8")
     response = ModelResponse(
         status="confirmed",
         artifacts={"constraints.yaml": "n_max: 100000", "validator.cpp": valid_validator},

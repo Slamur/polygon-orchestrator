@@ -26,7 +26,9 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-EXAMPLE_DIR = TEMPLATES_DIR / "examples" / "array--prefix-sums"
+# Путь от корня репозитория — так референс записывается в спеке.
+EXAMPLE_REF = "examples/array--prefix-sums"
+EXAMPLE_DIR = REPO_ROOT / EXAMPLE_REF
 SCRIPT_FUNCTIONS = (TEMPLATES_DIR / "common" / "test_script_functions.ftl").read_text(encoding="utf-8")
 
 
@@ -47,15 +49,14 @@ def test_run_step_passes_references_as_extra_context_documents(spec, tmp_path):
             templates_dir=TEMPLATES_DIR,
         )
 
-    # Ссылки внутри templates/ прикладываются под путём относительно
-    # templates_dir — так же, как документы фиксированного списка.
+    # Ссылки вне templates/ прикладываются под путём, как он записан в спеке.
     context_documents = mock_call.call_args.kwargs["context_documents"]
     for ref in spec.generation.references:
-        assert Path(ref).relative_to("templates").as_posix() in context_documents
+        assert ref in context_documents
 
 
 def test_run_step_attaches_every_generator_of_reference_directory(spec, tmp_path):
-    spec = spec.model_copy(update={"references": [str(EXAMPLE_DIR)]})
+    spec = spec.model_copy(update={"references": [EXAMPLE_REF]})
     response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "ok"}, notes=[])
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:

@@ -3,7 +3,7 @@ title:
   ru: "Прибавление на отрезках"
   en: "Range additions"
 references:
-  - "templates/examples/array--prefix-sums"
+  - "examples/array--prefix-sums"
 
 statement_draft:
   legend_sketch: |

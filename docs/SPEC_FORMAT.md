@@ -24,7 +24,7 @@ title:
   ru: "Название на русском"        # [required] начальное название на Polygon; дальше источник — outputs/<id>/statement/name.txt
   en: "English title"              # [optional]
 references:                        # [optional] общие референсы — образцы для ВСЕХ шагов, см. "Референсы" ниже
-  - "templates/examples/array--prefix-sums"
+  - "examples/array--prefix-sums"
 
 # ---------------------------------------------------------------------------
 # 1. ЧЕРНОВИК УСЛОВИЯ — вход для шага statement_draft
@@ -225,7 +225,7 @@ checker:
 Шаговые референсы добавляются к общим, а не заменяют их.
 
 **Каталог-референс** устроен как `outputs/<problem_id>/` — результат
-оркестратора: учебная задача `templates/examples/<problem_id>/`, прошлая
+оркестратора: учебная задача `examples/<problem_id>/`, прошлая
 задача автора в `outputs/<problem_id>/` (в том числе выгруженная
 `polygon pull`) и т.п. Каждый шаг берёт из каталога только свою
 часть (`REFERENCE_DOCUMENTS` в `orchestrator/references.py`):

@@ -15,7 +15,7 @@ title:
   ru: ""                             # [required] начальное название задачи на Polygon
   en: null                           # [optional]
 references: []                       # [optional] образцы для всех шагов: каталоги задач или файлы, например
-                                     #   - "templates/examples/array--prefix-sums"
+                                     #   - "examples/array--prefix-sums"
 
 # ---------------------------------------------------------------------------
 # 1. ЧЕРНОВИК УСЛОВИЯ — шаг statement_draft

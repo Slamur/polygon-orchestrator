@@ -41,13 +41,13 @@
 
 ## Приложенные шаблоны как образцы
 
-`templates/` делится на две части:
+Приложенные к шагам материалы лежат в двух каталогах:
 
 - `templates/common/` — общее для всех задач: правила `tutorials/*.md`,
   `problem_lib.h` (шаблон — копируется в `outputs/<problem_id>/problem_lib.h`,
   оттуда загружается в Polygon шагом `upload_problem_lib`), `testlib.h`.
   Этот же каталог — include-путь compile-check (после каталога задачи).
-- `templates/examples/<problem_id>/` — учебные задачи-образцы. Каждая лежит
+- `examples/<problem_id>/` — учебные задачи-образцы. Каждая лежит
   в той же раскладке, что и результат оркестратора `outputs/<problem_id>/`
   (`constraints.yaml`, `validator.cpp`, `checker.cpp`, `generators/`,
   `test_script`, `solutions/`, ...), плюс свой спек в обычном формате
@@ -58,7 +58,7 @@
 Образцы прикладываются к вызову только как **референсы спека** (`references`
 в корне спека — для всех шагов, в секции шага — для него; см.
 `docs/SPEC_FORMAT.md`, "Референсы"). Каталог-референс — любой каталог в
-раскладке `outputs/<problem_id>/`: учебная задача из `templates/examples/`
+раскладке `outputs/<problem_id>/`: учебная задача из `examples/`
 или прошлая задача автора в `outputs/`. Каждый шаг берёт из него только
 свою часть (`REFERENCE_DOCUMENTS` в `orchestrator/references.py`); правила
 из `templates/common/` (`STEP_CONTEXT_DOCUMENTS` в
@@ -86,7 +86,7 @@
 образцов держи `spec.yaml` и `constraints.yaml` согласованными с ними —
 иначе пара начнёт учить неверному соответствию; часть этого проверяет
 `tests/test_example_templates.py` (для каждой задачи из
-`templates/examples/`). Каждый `system.md` явно делит, что из образца
+`examples/`). Каждый `system.md` явно делит, что из образца
 переносить (каркас файла, способ ввода-вывода, использование функций
 testlib, композицию генераторов, устройство `wa`/`tl`-решений), а что нет
 (формат данных, имена переменных, ограничения и логику задачи-образца).

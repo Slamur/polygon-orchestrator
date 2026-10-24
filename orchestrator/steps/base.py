@@ -43,15 +43,15 @@ from orchestrator.checks.compile_check import CompileResult, compile_check
 PROMPTS_DIR = Path("prompts")
 OUTPUTS_DIR = Path("outputs")
 TEMPLATES_DIR = Path("templates")
+# Учебные задачи-образцы `examples/<problem_id>/`, каждая в раскладке
+# `outputs/<problem_id>/` плюс свой спек `spec.yaml`. Сами по себе к вызову не
+# прикладываются — только как референсы спека (`orchestrator/references.py`).
+EXAMPLES_DIR = Path("examples")
 
 # Раскладка templates_dir: `common/` — общее для всех задач (правила
 # `tutorials/*.md`, `problem_lib.h`, `testlib.h`; `common/` же — include-каталог
-# для compile-check), `examples/<problem_id>/` — учебные задачи-образцы, каждая
-# в раскладке `outputs/<problem_id>/` плюс свой спек `spec.yaml`. Учебные
-# задачи сами по себе к вызову не прикладываются — только как референсы
-# спека (`orchestrator/references.py`).
+# для compile-check).
 COMMON_SUBDIR = "common"
-EXAMPLES_SUBDIR = "examples"
 
 # У каждой задачи своя копия `problem_lib.h` — `outputs/<problem_id>/problem_lib.h`:
 # шаблон `common/problem_lib.h` — только её начальное содержимое, и правки
@@ -260,12 +260,12 @@ def _context_document_key(path: Path, templates_dir: Path) -> str:
 
     Файл внутри `templates_dir` получает тот же вид ключа, что и документы
     фиксированного списка, — путь относительно `templates_dir`
-    (`examples/<problem_id>/validator.cpp`). Так он не прикладывается второй
+    (`common/problem_lib.h`). Так он не прикладывается второй
     раз, если на него ведут два референса (общий каталог и шаговый файл из
     него), а ключ (он входит в `compute_prompt_hash`) не зависит от того,
     как записан сам `templates_dir` — относительно или абсолютно. Файл вне
     `templates_dir` остаётся под путём как он передан
-    (`outputs/<problem_id>/validator.cpp`).
+    (`examples/<problem_id>/validator.cpp`, `outputs/<problem_id>/validator.cpp`).
     """
     try:
         return path.resolve().relative_to(templates_dir.resolve()).as_posix()

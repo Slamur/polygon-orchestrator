@@ -320,7 +320,7 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
 
 
 # Спек задачи в её каталоге: `outputs/<problem_id>/spec.yaml` (как у учебных
-# задач `templates/examples/<problem_id>/spec.yaml`).
+# задач `examples/<problem_id>/spec.yaml`).
 SPEC_FILENAME = "spec.yaml"
 
 # Шаблон черновика спека для `orchestrator <problem_id> init` (путь
