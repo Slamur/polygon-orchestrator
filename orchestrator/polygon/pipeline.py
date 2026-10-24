@@ -12,7 +12,9 @@
 - в рабочей копии есть незакоммиченные правки — push останавливается
   всегда, даже с `force`: иначе коммит после шага унёс бы их в ревизию;
 - задан `force` — база не используется, шаги загружают всё (как `git push
-  --force`);
+  --force`), а первый коммит заменяет базу целиком на загруженное: прежние
+  записи о том, что на Polygon, после правок в обход оркестратора могли
+  устареть, а ревизия в базе станет текущей;
 - ревизия неизвестна (задача привязана к уже существующей на Polygon или
   до появления этого поля) — что на Polygon, неизвестно, push
   останавливается до `polygon pull` (или `--force`);
@@ -25,6 +27,14 @@
 (`problem.commitChanges`), и только после этого загруженное и новая
 ревизия записываются в базу — чтобы при падении на очередном шаге всё
 сделанное предыдущими уже было в ревизии и в базе.
+
+В конце прогона (и при падении шага) — отметки версий файлов на Polygon
+(`stamps`, см. `orchestrator/polygon/sync.py`), чтобы следующий `polygon
+pull` не скачивал загруженное: `_record_stamps`, если что-то коммитилось
+или у файлов из базы нет отметок. Отметки пишутся, только если ревизия на
+Polygon после листинга всё ещё та, что в базе, и незакоммиченных правок
+нет — иначе листинг мог захватить чужую правку. Ошибка здесь push не
+роняет: без отметок следующий pull просто скачает эти файлы.
 """
 
 from __future__ import annotations
@@ -48,9 +58,9 @@ from orchestrator.polygon.steps import (
     upload_test_script,
     upload_validator,
 )
-from orchestrator.polygon.state import load_polygon_state, update_sync
+from orchestrator.polygon.state import load_polygon_state, record_stamps, update_sync
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
-from orchestrator.polygon.sync import fetch_revision
+from orchestrator.polygon.sync import fetch_remote_stamps, fetch_revision, is_stamped_key
 from orchestrator.problem_paths import problem_address
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import POLYGON_STEP_ORDER
@@ -161,47 +171,57 @@ def run_polygon_pipeline(
             on_outcome(outcome)
 
     baseline_checked = False
+    committed = False
+    # `force`: первый коммит заменяет базу целиком (см. докстринг модуля).
+    replace_base = force
     synced: dict[str, str] | None = None
 
-    for step_name in steps_to_run:
-        step = _POLYGON_STEPS[step_name]
-        logger.info("[%s] step started", step_name)
-        try:
-            if step.commits_changes and not baseline_checked:
-                synced = _sync_baseline(
-                    problem_id, force=force, problems_dir=problems_dir, client=client
+    try:
+        for step_name in steps_to_run:
+            step = _POLYGON_STEPS[step_name]
+            logger.info("[%s] step started", step_name)
+            try:
+                if step.commits_changes and not baseline_checked:
+                    synced = _sync_baseline(
+                        problem_id, force=force, problems_dir=problems_dir, client=client
+                    )
+                    baseline_checked = True
+                step_result = run_step(
+                    step, problem_id, spec, problems_dir=problems_dir, client=client, synced=synced
                 )
-                baseline_checked = True
-            step_result = run_step(
-                step, problem_id, spec, problems_dir=problems_dir, client=client, synced=synced
-            )
-            detail = step_result.message
-            if step.commits_changes and step_result.uploaded:
-                detail += "; " + _commit_and_record(
-                    problem_id,
-                    step_name,
-                    step_result.uploaded,
-                    problems_dir=problems_dir,
-                    client=client,
+                detail = step_result.message
+                if step.commits_changes and step_result.uploaded:
+                    detail += "; " + _commit_and_record(
+                        problem_id,
+                        step_name,
+                        step_result.uploaded,
+                        replace=replace_base,
+                        problems_dir=problems_dir,
+                        client=client,
+                    )
+                    committed = True
+                    replace_base = False
+            except (PolygonApiError, PolygonStepError) as exc:
+                logger.error("[%s] %s", step_name, exc)
+                record(
+                    PolygonStepOutcome(
+                        step_name,
+                        OUTCOME_ERROR,
+                        str(exc),
+                        full_detail=isinstance(exc, PolygonStepError),
+                    )
                 )
-        except (PolygonApiError, PolygonStepError) as exc:
-            logger.error("[%s] %s", step_name, exc)
-            record(
-                PolygonStepOutcome(
-                    step_name,
-                    OUTCOME_ERROR,
-                    str(exc),
-                    full_detail=isinstance(exc, PolygonStepError),
+                return result
+            except Exception as exc:  # noqa: BLE001 — traceback в лог, а не в консоль
+                logger.exception("[%s] unexpected error", step_name)
+                record(
+                    PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}")
                 )
-            )
-            return result
-        except Exception as exc:  # noqa: BLE001 — traceback в лог, а не в консоль
-            logger.exception("[%s] unexpected error", step_name)
-            record(
-                PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}")
-            )
-            return result
-        record(PolygonStepOutcome(step_name, OUTCOME_OK, detail))
+                return result
+            record(PolygonStepOutcome(step_name, OUTCOME_OK, detail))
+    finally:
+        if baseline_checked:
+            _record_stamps(problem_id, committed=committed, problems_dir=problems_dir, client=client)
 
     return result
 
@@ -260,6 +280,7 @@ def _commit_and_record(
     step_name: str,
     uploaded: dict[str, str],
     *,
+    replace: bool = False,
     problems_dir: Path,
     client: PolygonClient,
 ) -> str:
@@ -272,6 +293,9 @@ def _commit_and_record(
     Новая ревизия перечитывается с Polygon (`problems.list`), а не
     вычисляется как "+1" — так база не зависит от того, как Polygon
     нумерует ревизии.
+
+    `replace` — база заменяется загруженным целиком (первый коммит
+    `--force`, см. докстринг модуля).
     """
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
@@ -288,8 +312,42 @@ def _commit_and_record(
         },
     )
     revision = fetch_revision(client, state.polygon_id).revision
-    update_sync(problem_id, synced=uploaded, revision=revision, problems_dir=problems_dir)
+    update_sync(
+        problem_id, synced=uploaded, revision=revision, replace=replace, problems_dir=problems_dir
+    )
     return f"committed on Polygon id={state.polygon_id} (revision {revision})"
+
+
+def _record_stamps(
+    problem_id: str, *, committed: bool, problems_dir: Path, client: PolygonClient
+) -> None:
+    """Записывает в базу отметки версий файлов на Polygon (см. докстринг
+    модуля). Без коммитов в этом прогоне — только если у каких-то файлов из
+    базы отметок нет (задача синхронизирована до их появления): иначе
+    листинг ничего бы не добавил."""
+    state = load_polygon_state(problem_id, problems_dir=problems_dir)
+    if state is None or state.revision is None:
+        return
+    unstamped = [key for key in state.synced if is_stamped_key(key) and key not in state.stamps]
+    if not committed and not unstamped:
+        return
+    try:
+        stamps = fetch_remote_stamps(client, state.polygon_id)
+        current = fetch_revision(client, state.polygon_id)
+    except Exception as exc:  # noqa: BLE001 — оптимизация, push не роняет
+        logger.warning("modification times are not recorded: %s", exc)
+        return
+    if current.modified or current.revision != state.revision:
+        logger.warning(
+            "modification times are not recorded: Polygon changed during the push "
+            "(revision %s, %s recorded%s) — the next pull will download the files",
+            current.revision,
+            state.revision,
+            ", uncommitted changes" if current.modified else "",
+        )
+        return
+    record_stamps(problem_id, stamps, problems_dir=problems_dir)
+    logger.info("recorded modification times of %d Polygon files", len(stamps))
 
 
 def compute_polygon_step_statuses(

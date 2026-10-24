@@ -260,6 +260,16 @@ def _link(
     )
 
 
+# Запись отметок версий файлов в конце push (`pipeline._record_stamps`).
+_STAMP_CALLS = [
+    "problem.files",
+    "problem.solutions",
+    "problem.validator",
+    "problem.checker",
+    "problems.list",
+]
+
+
 class RevisionClient:
     """Клиент, у которого задача 777 на Polygon с ревизией `revision`: каждый
     `problem.commitChanges` увеличивает её на 1. Остальные методы — `None`."""
@@ -599,12 +609,14 @@ def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
         ("set_constraints", "error"),
     ]
     assert "constraints_pick" in result.outcomes[-1].detail
-    # set_constraints упал до сети — вызовы только от проверки ревизии и upload_spec
+    # set_constraints упал до сети — вызовы только от проверки ревизии и
+    # upload_spec, потом запись отметок после коммита upload_spec
     assert client.methods() == [
         "problems.list",
         "problem.saveFile",
         "problem.commitChanges",
         "problems.list",
+        *_STAMP_CALLS,
     ]
 
 
@@ -904,3 +916,101 @@ def test_cli_polygon_run_appends_to_log_with_run_header(problems_dir, capsys):
     assert "\n\n" in log  # пустая строка между прогонами
     # заголовок только в файл, не в консоль
     assert "run started" not in capsys.readouterr().out
+
+
+# --- Отметки версий файлов на Polygon в конце push ---
+
+
+class ListingClient(RevisionClient):
+    """`RevisionClient`, который отдаёт листинг с `spec.yaml` в Attachments;
+    `bump_on_listing` — кто-то коммитит на Polygon между коммитом push и
+    листингом."""
+
+    def __init__(self, *args, bump_on_listing: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bump_on_listing = bump_on_listing
+
+    def call(self, method, params):
+        result = super().call(method, params)
+        if method == "problem.files":
+            if self.bump_on_listing:
+                self.revision += 1
+            return {"auxFiles": [{"name": "spec.yaml", "modificationTimeSeconds": 50, "length": 7}]}
+        if method == "problem.solutions":
+            return []
+        return result
+
+
+def test_push_records_stamps_of_uploaded_files(problems_dir):
+    # upload_spec загрузит spec.yaml, set_constraints упадёт без constraints.yaml
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
+    client = ListingClient(revision=10)
+
+    run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
+
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
+    assert state.revision == 11
+    assert state.stamps == {"spec.yaml": "spec.yaml:50:7"}
+
+
+def test_push_skips_stamps_if_polygon_changed_after_commit(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
+    client = ListingClient(revision=10, bump_on_listing=True)
+
+    result = run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
+
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
+    assert "spec.yaml" in state.synced
+    assert state.stamps == {}
+    assert [o.status for o in result.outcomes][:2] == ["ok", "ok"]
+
+
+def test_push_stamp_recording_error_does_not_fail_push(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
+    client = ListingClient(revision=10, failing="problem.files")
+
+    result = run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
+
+    assert [(o.step_name, o.status) for o in result.outcomes][:2] == [
+        ("create_problem", "ok"),
+        ("upload_spec", "ok"),
+    ]
+    assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).stamps == {}
+
+
+def test_push_without_commits_lists_only_for_unstamped_files(problems_dir, fake_steps):
+    fake_steps(commits_changes=True)
+    _write_spec(problems_dir, PROBLEM_ID)
+    unchanged = {f"step_{n}/item": "h" for n in "abc"}
+    _link(problems_dir, synced=unchanged)
+    client = ListingClient(revision=10)
+
+    run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
+
+    # Ни коммитов, ни файлов без отметок — листинг не нужен.
+    assert client.methods() == ["problems.list"]
+
+    _link(problems_dir, synced={**unchanged, "spec.yaml": "x"})
+    client = ListingClient(revision=10)
+    run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
+
+    assert "problem.files" in client.methods()
+    assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).stamps == {
+        "spec.yaml": "spec.yaml:50:7"
+    }
+
+
+def test_force_push_replaces_baseline_with_uploaded(problems_dir):
+    _write_spec(problems_dir, PROBLEM_ID)
+    # Ключ из прошлой базы: после правок на Polygon в обход он мог устареть.
+    _link(problems_dir, synced={"generators/gen_old.cpp": "stale"})
+    client = ListingClient(revision=10)
+
+    run_polygon_pipeline(PROBLEM_ID, force=True, problems_dir=problems_dir, client=client)
+
+    synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
+    assert "generators/gen_old.cpp" not in synced
+    assert "spec.yaml" in synced
