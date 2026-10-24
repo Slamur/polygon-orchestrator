@@ -20,6 +20,7 @@ from typing import Callable
 from orchestrator.cache import PROBLEMS_DIR
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.state import PolygonState, load_polygon_state
+from orchestrator.problem_paths import problem_address
 from orchestrator.spec import ProblemSpec
 
 logger = logging.getLogger(__name__)
@@ -103,9 +104,10 @@ def require_polygon_state(ctx: StepContext) -> PolygonState:
     запустить сначала."""
     state = load_polygon_state(ctx.problem_id, problems_dir=ctx.problems_dir)
     if state is None:
+        address = problem_address(ctx.problems_dir, ctx.problem_id)
         raise PolygonStepError(
             f"'{ctx.problem_id}': the problem is not created on Polygon yet — first "
-            f"run the create_problem step (`orchestrator {ctx.problem_id} polygon push "
+            f"run the create_problem step (`orchestrator {address} polygon push "
             "--step create_problem`)"
         )
     return state

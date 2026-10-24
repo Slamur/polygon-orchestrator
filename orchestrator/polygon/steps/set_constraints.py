@@ -25,6 +25,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import LIMITS_KEY, limits_digest
+from orchestrator.problem_paths import problem_address
 
 STEP_NAME = "set_constraints"
 
@@ -90,9 +91,10 @@ def read_limits(problem_id: str, problems_dir: Path) -> tuple[int, int]:
     """
     constraints_path = Path(problems_dir) / problem_id / "constraints.yaml"
     if not constraints_path.exists():
+        address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': {constraints_path} not found — first run "
-            f"the generative step constraints_pick (`orchestrator {problem_id} llm generate "
+            f"the generative step constraints_pick (`orchestrator {address} llm generate "
             "--step constraints_pick`)"
         )
 

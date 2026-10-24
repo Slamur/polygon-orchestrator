@@ -34,6 +34,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import digest, generator_key
+from orchestrator.problem_paths import problem_address
 
 STEP_NAME = "upload_generators"
 
@@ -88,9 +89,10 @@ def _read_generators(problem_id: str, problems_dir: Path) -> list[tuple[str, byt
     Нет каталога или в нём нет ни одного `.cpp` — `PolygonStepError`."""
     generators_dir = Path(problems_dir) / problem_id / "generators"
     if not generators_dir.is_dir():
+        address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': directory {generators_dir} not found — first "
-            f"run the generative step generators_and_script (`orchestrator {problem_id} llm generate "
+            f"run the generative step generators_and_script (`orchestrator {address} llm generate "
             f"--step generators_and_script`)"
         )
     paths = sorted(generators_dir.glob("*.cpp"), key=lambda p: p.name)

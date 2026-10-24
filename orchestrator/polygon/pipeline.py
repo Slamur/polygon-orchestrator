@@ -50,6 +50,7 @@ from orchestrator.polygon.steps import (
 from orchestrator.polygon.state import load_polygon_state, update_sync
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.polygon.sync import fetch_revision
+from orchestrator.problem_paths import problem_address
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import POLYGON_STEP_ORDER
 
@@ -222,13 +223,14 @@ def _sync_baseline(
     if state is None:
         return None
 
+    address = problem_address(problems_dir, problem_id)
     current = fetch_revision(client, state.polygon_id)
     if current.modified:
         raise PolygonStepError(
             f"'{problem_id}': Polygon problem id={state.polygon_id} has uncommitted changes "
             "in its working copy — commit or discard them on Polygon first (push refuses "
             "to commit them, even with --force), then run "
-            f"`orchestrator {problem_id} polygon pull [--overwrite]`"
+            f"`orchestrator {address} polygon pull [--overwrite]`"
         )
     if force:
         logger.info("--force: uploading everything, the sync baseline is ignored")
@@ -237,15 +239,15 @@ def _sync_baseline(
         raise PolygonStepError(
             f"'{problem_id}': the Polygon revision of the last sync is unknown (the problem "
             "was linked to an existing Polygon problem or before revisions were recorded) — "
-            f"run `orchestrator {problem_id} polygon pull [--overwrite]` first, or overwrite "
-            f"Polygon with `orchestrator {problem_id} polygon push --force`"
+            f"run `orchestrator {address} polygon pull [--overwrite]` first, or overwrite "
+            f"Polygon with `orchestrator {address} polygon push --force`"
         )
     if current.revision != state.revision:
         raise PolygonStepError(
             f"'{problem_id}': Polygon problem id={state.polygon_id} changed since the last "
             f"sync (revision {current.revision} on Polygon, {state.revision} recorded) — "
-            f"run `orchestrator {problem_id} polygon pull [--overwrite]`, or overwrite "
-            f"Polygon with `orchestrator {problem_id} polygon push --force`"
+            f"run `orchestrator {address} polygon pull [--overwrite]`, or overwrite "
+            f"Polygon with `orchestrator {address} polygon push --force`"
         )
     logger.info("Polygon revision %s matches the last sync", current.revision)
     return dict(state.synced)

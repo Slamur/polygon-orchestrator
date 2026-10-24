@@ -54,8 +54,8 @@ def _base_args(problems_dir: Path) -> list[str]:
     return [
         "--prompts-dir",
         str(PROMPTS_DIR),
-        "--problems-dir",
-        str(problems_dir),
+        "--base-dir",
+        str(problems_dir.parent),
         "--templates-dir",
         str(TEMPLATES_DIR),
     ]
@@ -70,7 +70,7 @@ def test_run_single_problem_prints_step_outcomes_and_exits_zero(problems_dir, tm
     _write_spec(problems_dir, "p1")
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        rc = cli.main(_base_args(problems_dir) + ["p1", "llm", "generate"])
+        rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -83,7 +83,7 @@ def test_run_writes_llm_generation_log(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(problems_dir) + ["p1", "llm", "generate"])
+        cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
 
     log = (problems_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     assert "statement_draft" in log
@@ -92,7 +92,7 @@ def test_run_writes_llm_generation_log(problems_dir, tmp_path, capsys):
 
 def test_run_log_accumulates_runs_with_header_and_step_starts(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
-    argv = _base_args(problems_dir) + ["p1", "llm", "generate", "--step", "statement_draft"]
+    argv = _base_args(problems_dir) + ["problems/p1", "llm", "generate", "--step", "statement_draft"]
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(argv)
@@ -114,7 +114,7 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(problems_dir, tmp_path, ca
         notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
     )
     with patch("orchestrator.model_router.call_model", return_value=uncertain_response):
-        rc = cli.main(_base_args(problems_dir) + ["p1", "llm", "generate"])
+        rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
 
     assert rc == 1
     out = capsys.readouterr().out
@@ -126,7 +126,7 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(problems_dir, tmp_path, ca
 def test_status_reports_not_run_before_any_run(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
 
-    rc = cli.main(_base_args(problems_dir) + ["p1", "llm", "status"])
+    rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -137,10 +137,10 @@ def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(problems_dir) + ["p1", "llm", "generate"])
+        cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
     capsys.readouterr()  # discard run's own output
 
-    rc = cli.main(_base_args(problems_dir) + ["p1", "llm", "status"])
+    rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
 
     assert rc == 0
     out = capsys.readouterr().out
@@ -150,12 +150,12 @@ def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
 def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
-        cli.main(_base_args(problems_dir) + ["p1", "llm", "generate"])
+        cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
     (problems_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
     capsys.readouterr()
 
     with patch("orchestrator.model_router.call_model") as mock_call:
-        rc = cli.main(_base_args(problems_dir) + ["p1", "llm", "accept"])
+        rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "accept"])
 
     mock_call.assert_not_called()
     assert rc == 0
@@ -163,14 +163,14 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     assert "generators_and_script: accepted — was stale: " in out
     assert "upstream: constraints.yaml" in out
 
-    cli.main(_base_args(problems_dir) + ["p1", "llm", "status"])
+    cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
     assert capsys.readouterr().out.count("cache hit") == 4
 
 
 def test_accept_before_any_run_exits_nonzero(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
 
-    rc = cli.main(_base_args(problems_dir) + ["p1", "llm", "accept"])
+    rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "accept"])
 
     assert rc == 1
     assert "statement_draft: not accepted" in capsys.readouterr().out

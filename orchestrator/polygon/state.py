@@ -11,7 +11,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from orchestrator.cache import PROBLEMS_DIR
+from orchestrator.problem_paths import POLYGON_STATE_FILENAME, PROBLEMS_DIR
 
 # Поля старого формата, которые больше не используются и при чтении
 # отбрасываются: `steps` — запись "что шаг последним отправил" одним хешем
@@ -34,7 +34,7 @@ class PolygonState:
 
 
 def _state_file_path(problem_id: str, *, problems_dir: Path = PROBLEMS_DIR) -> Path:
-    return Path(problems_dir) / problem_id / "polygon_state.json"
+    return Path(problems_dir) / problem_id / POLYGON_STATE_FILENAME
 
 
 def load_polygon_state(

@@ -24,6 +24,7 @@ from orchestrator.polygon.steps.base import (
     StepContext,
     StepResult,
 )
+from orchestrator.problem_paths import problem_address, problem_id_for
 
 STEP_NAME = "create_problem"
 
@@ -45,16 +46,19 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Переиспользует существующую на Polygon задачу с таким именем, иначе создаёт новую."""
-    polygon_id = _find_polygon_id_by_name(client, ctx.problem_id)
+    """Переиспользует существующую на Polygon задачу с таким именем, иначе создаёт новую.
+    Имя задачи на Polygon — её `problem_id` (`problem_id_for`)."""
+    name = problem_id_for(ctx.problems_dir, ctx.problem_id)
+    polygon_id = _find_polygon_id_by_name(client, name)
     if polygon_id is not None:
         _link(ctx, polygon_id, revision=None)
+        address = problem_address(ctx.problems_dir, ctx.problem_id)
         return StepResult(
             f"found existing Polygon problem by name (id={polygon_id}), reused — run "
-            f"`orchestrator {ctx.problem_id} polygon pull` before pushing to it"
+            f"`orchestrator {address} polygon pull` before pushing to it"
         )
 
-    polygon_id = _create_polygon_problem(client, ctx.problem_id)
+    polygon_id = _create_polygon_problem(client, name)
     _link(ctx, polygon_id, revision=fetch_revision(client, polygon_id).revision)
     return StepResult(f"created new Polygon problem (id={polygon_id})")
 
@@ -81,7 +85,7 @@ def _link(ctx: StepContext, polygon_id: int, *, revision: int | None) -> None:
     save_polygon_state(
         ctx.problem_id,
         PolygonState(
-            problem_id=ctx.problem_id,
+            problem_id=problem_id_for(ctx.problems_dir, ctx.problem_id),
             polygon_id=polygon_id,
             created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             revision=revision,

@@ -33,6 +33,7 @@ from orchestrator.cache import (
     load_cache_entry,
     save_cache_entry,
 )
+from orchestrator.problem_paths import problem_address
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import STEP_ORDER
@@ -539,7 +540,8 @@ def _accept_step(
         return StepStatus(
             step_name,
             STATUS_NOT_ACCEPTED,
-            f"{current.state}: {detail} — run 'orchestrator {problem_id} llm generate'",
+            f"{current.state}: {detail} — run "
+            f"'orchestrator {problem_address(problems_dir, problem_id)} llm generate'",
         )
 
     assert cache_entry is not None

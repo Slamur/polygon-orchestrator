@@ -1,4 +1,4 @@
-"""Загрузка и валидация спека задачи (`problems/<problem_id>/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
+"""Загрузка и валидация спека задачи (`problems/<путь задачи>/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
 
 Модуль только парсит и проверяет спек — никаких вызовов модели и никакой
 генерации артефактов здесь нет (см. CLAUDE.md).
@@ -13,7 +13,13 @@ from typing import Literal, Optional, Union
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-PROBLEM_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+from orchestrator.problem_paths import (
+    PROBLEM_ID_PATTERN,
+    SPEC_FILENAME,
+    ProblemPathError,
+    check_new_problem_location,
+    problem_id_for,
+)
 
 # `references` секций — какие образцы приложить к вызову (их содержимое входит
 # в `compute_prompt_hash`, см. orchestrator/references.py), а не содержание
@@ -319,9 +325,9 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
     return spec
 
 
-# Спек задачи в её каталоге: `problems/<problem_id>/spec.yaml` (как у учебных
-# задач `examples/<problem_id>/spec.yaml`).
-SPEC_FILENAME = "spec.yaml"
+# Спек задачи в её каталоге `SPEC_FILENAME` (`problems/<путь задачи>/spec.yaml`,
+# как у учебных задач `examples/<путь задачи>/spec.yaml`), см.
+# `orchestrator/problem_paths.py`.
 
 # Шаблон черновика спека для `orchestrator <problem_id> init` (путь
 # относительно templates_dir). Шагам не прикладывается.
@@ -335,15 +341,21 @@ class SpecInitError(Exception):
     """Черновик спека не создан: неверный `problem_id`, спек уже есть и т.п."""
 
 
-def create_spec_draft(problem_id: str, *, problems_dir: Path, templates_dir: Path) -> Path:
-    """Создаёт каталог задачи `problems_dir/<problem_id>/` (если его нет) и
+def create_spec_draft(problem_path: str, *, problems_dir: Path, templates_dir: Path) -> Path:
+    """Создаёт каталог задачи `problems_dir/<problem_path>/` (если его нет) и
     кладёт в него черновик `spec.yaml` из `SPEC_TEMPLATE` с подставленным
-    `problem_id`; остальные поля остаются пустыми — их заполняет автор.
+    `problem_id` (`problem_id_for`: в `problems/` — имя каталога задачи, в
+    `examples/` — путь через `--`); остальные поля остаются пустыми — их
+    заполняет автор.
 
     Существующий `spec.yaml` не перезаписывается. Каталог задачи может уже
     существовать (например, после `polygon pull`) — тогда в нём просто
-    появляется спек. Возвращает путь к созданному файлу.
+    появляется спек. Задача не может лежать внутри другой задачи или
+    содержать задачи, а её `problem_id` не должен быть занят задачей в
+    другом каталоге (`check_new_problem_location`). Возвращает путь к
+    созданному файлу.
     """
+    problem_id = problem_id_for(problems_dir, problem_path)
     if not PROBLEM_ID_PATTERN.match(problem_id):
         raise SpecInitError(
             f"problem_id '{problem_id}' must be ASCII "
@@ -369,20 +381,28 @@ def create_spec_draft(problem_id: str, *, problems_dir: Path, templates_dir: Pat
             f"spec template {template_path} has no 'problem_id: \"\"' line to fill in"
         )
 
-    path = spec_path(problem_id, problems_dir=problems_dir)
+    path = spec_path(problem_path, problems_dir=problems_dir)
     if path.exists():
         raise SpecInitError(f"{path} already exists, not overwriting it")
+    try:
+        check_new_problem_location(problems_dir, problem_path)
+    except ProblemPathError as exc:
+        raise SpecInitError(str(exc)) from exc
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(draft, encoding="utf-8")
     return path
 
 
-def spec_path(problem_id: str, *, problems_dir: Path) -> Path:
-    """Путь к спеку задачи: `problems_dir/<problem_id>/spec.yaml`."""
-    return Path(problems_dir) / problem_id / SPEC_FILENAME
+def spec_path(problem_path: str, *, problems_dir: Path) -> Path:
+    """Путь к спеку задачи: `problems_dir/<problem_path>/spec.yaml`."""
+    return Path(problems_dir) / problem_path / SPEC_FILENAME
 
 
-def load_problem_spec(problem_id: str, *, problems_dir: Path) -> ProblemSpec:
+def load_problem_spec(problem_path: str, *, problems_dir: Path) -> ProblemSpec:
     """Загружает спек задачи из её каталога (`spec_path`); `problem_id` в
-    спеке должен совпадать с именем каталога. Ошибки — как у `load_spec`."""
-    return load_spec(spec_path(problem_id, problems_dir=problems_dir), expected_id=problem_id)
+    спеке должен совпадать с выведенным из пути каталога (`problem_id_for`).
+    Ошибки — как у `load_spec`."""
+    return load_spec(
+        spec_path(problem_path, problems_dir=problems_dir),
+        expected_id=problem_id_for(problems_dir, problem_path),
+    )

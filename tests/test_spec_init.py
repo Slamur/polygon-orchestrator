@@ -12,11 +12,13 @@ from orchestrator.spec import (
     SpecInitError,
     SpecValidationError,
     create_spec_draft,
+    load_problem_spec,
     load_spec,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
 TEMPLATES_DIR = REPO_ROOT / "templates"
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 def _model_keys(model: type[BaseModel]) -> set[str]:
@@ -116,11 +118,74 @@ def test_create_spec_draft_rejects_bad_problem_id(tmp_path):
     assert not (tmp_path / "1-task").exists()
 
 
+def test_nested_draft_takes_problem_id_from_leaf_in_problems(tmp_path):
+    problems = tmp_path / "problems"
+    spec_path = create_spec_draft(
+        "contest/2026/my-task", problems_dir=problems, templates_dir=TEMPLATES_DIR
+    )
+
+    assert spec_path == problems / "contest" / "2026" / "my-task" / SPEC_FILENAME
+    assert yaml.safe_load(spec_path.read_text(encoding="utf-8"))["problem_id"] == "my-task"
+
+
+def test_nested_draft_joins_path_into_problem_id_in_examples(tmp_path):
+    examples = tmp_path / "examples"
+    spec_path = create_spec_draft("array/sums", problems_dir=examples, templates_dir=TEMPLATES_DIR)
+
+    assert yaml.safe_load(spec_path.read_text(encoding="utf-8"))["problem_id"] == "array--sums"
+
+
+@pytest.mark.parametrize(
+    ("root", "problem_path", "problem_id", "wrong_id"),
+    [
+        ("problems", "contest/2026/my-task", "my-task", "contest--2026--my-task"),
+        ("examples", "array/sums", "array--sums", "sums"),
+    ],
+)
+def test_load_problem_spec_checks_problem_id_derived_from_path(
+    tmp_path, root, problem_path, problem_id, wrong_id
+):
+    problems_dir = tmp_path / root
+    spec_path = problems_dir / problem_path / SPEC_FILENAME
+    spec_path.parent.mkdir(parents=True)
+    content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+
+    spec_path.write_text(content.replace("problem_id: valid-spec", f"problem_id: {problem_id}"))
+    assert load_problem_spec(problem_path, problems_dir=problems_dir).problem_id == problem_id
+
+    spec_path.write_text(content.replace("problem_id: valid-spec", f"problem_id: {wrong_id}"))
+    with pytest.raises(SpecValidationError, match="does not match"):
+        load_problem_spec(problem_path, problems_dir=problems_dir)
+
+
+def test_create_spec_draft_rejects_duplicate_id_and_nesting(tmp_path):
+    problems = tmp_path / "problems"
+    create_spec_draft("contest/2025/my-task", problems_dir=problems, templates_dir=TEMPLATES_DIR)
+
+    def init(problem_path: str) -> None:
+        create_spec_draft(problem_path, problems_dir=problems, templates_dir=TEMPLATES_DIR)
+
+    with pytest.raises(SpecInitError, match="already used by problems/contest/2025/my-task"):
+        init("contest/2026/my-task")
+    with pytest.raises(SpecInitError, match="inside another problem"):
+        init("contest/2025/my-task/inner")
+    with pytest.raises(SpecInitError, match="already contains problem"):
+        init("contest")
+    assert not (problems / "contest" / "2026").exists()
+
+
 def test_cli_init_creates_draft_and_fails_on_second_run(tmp_path, capsys):
-    argv = ["--problems-dir", str(tmp_path), "--templates-dir", str(TEMPLATES_DIR), "my-task", "init"]
+    argv = [
+        "--base-dir",
+        str(tmp_path),
+        "--templates-dir",
+        str(TEMPLATES_DIR),
+        "problems/contest/my-task",
+        "init",
+    ]
 
     assert cli.main(argv) == 0
-    assert (tmp_path / "my-task" / SPEC_FILENAME).exists()
+    assert (tmp_path / "problems" / "contest" / "my-task" / SPEC_FILENAME).exists()
     assert "created" in capsys.readouterr().out
 
     assert cli.main(argv) == 1

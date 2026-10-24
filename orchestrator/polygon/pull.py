@@ -74,7 +74,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from orchestrator.cache import PROBLEMS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import (
     PolygonState,
@@ -99,6 +98,12 @@ from orchestrator.polygon.sync import (
     digest,
     fetch_revision,
     limits_digest,
+)
+from orchestrator.problem_paths import (
+    PROBLEMS_DIR,
+    ProblemPathError,
+    check_new_problem_location,
+    problem_id_for,
 )
 from orchestrator.steps.base import PROBLEM_LIB_FILENAME
 
@@ -179,9 +184,13 @@ def pull_problem(
     локальные файлы и переписывает базу синхронизации (см. докстринг
     модуля).
 
-    Какая задача на Polygon: уже записанная в `polygon_state.json`; иначе
-    поиск неудалённой задачи с именем `problem_id` (и id `polygon_id`, если
-    он передан — на случай нескольких задач с одним именем). Если
+    `problem_id` — путь каталога задачи внутри корня `problems_dir` (см.
+    `orchestrator/problem_paths.py`). Какая задача на Polygon: уже
+    записанная в `polygon_state.json`; иначе поиск неудалённой задачи с
+    именем — `problem_id`, выведенным из пути (`problem_id_for`), — и id
+    `polygon_id`, если он передан (на случай нескольких задач с одним
+    именем). Непривязанная задача заводится только там, где её разрешает
+    `check_new_problem_location`. Если
     задачу определить не удалось или в её рабочей копии есть
     незакоммиченные правки — `PolygonStepError`, файлы не трогаются.
     `PolygonApiError` на этом этапе тоже пробрасывается наружу.
@@ -265,19 +274,25 @@ def _resolve_and_link(
             )
         return state.polygon_id, f"already linked to Polygon id={state.polygon_id}"
 
+    try:
+        check_new_problem_location(problems_dir, problem_id)
+    except ProblemPathError as exc:
+        raise PolygonStepError(str(exc)) from exc
+    name = problem_id_for(problems_dir, problem_id)
+
     # Имя передаётся всегда, числовой id — если задан: `--polygon-id` только
     # сужает поиск, а не отменяет проверку имени. Фильтр `name` у
     # `problems.list` может оказаться неточным (не проверено на реальном
     # API), а удалённые задачи нам не нужны — оставляем только точные
     # совпадения среди неудалённых.
-    params = {"name": problem_id, "showDeleted": "false"}
+    params = {"name": name, "showDeleted": "false"}
     if polygon_id is not None:
         params["id"] = str(polygon_id)
-    searched = f"named {problem_id!r}" + (f" with id={polygon_id}" if polygon_id else "")
+    searched = f"named {name!r}" + (f" with id={polygon_id}" if polygon_id else "")
     found = [
         item
         for item in client.call("problems.list", params) or []
-        if item.get("name") == problem_id
+        if item.get("name") == name
         and not item.get("deleted")
         and polygon_id in (None, item.get("id"))
     ]
@@ -297,7 +312,7 @@ def _resolve_and_link(
     save_polygon_state(
         problem_id,
         PolygonState(
-            problem_id=problem_id,
+            problem_id=name,
             polygon_id=polygon_id,
             created_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
         ),

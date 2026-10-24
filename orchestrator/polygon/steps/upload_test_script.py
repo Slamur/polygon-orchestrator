@@ -37,6 +37,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import SCRIPT_KEY, digest
+from orchestrator.problem_paths import problem_address
 from orchestrator.steps.generators_and_script import (
     primary_artifact_path as script_artifact_path,
 )
@@ -64,7 +65,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
     polygon_id = require_polygon_state(ctx).polygon_id
     script_path = script_artifact_path(ctx.problem_id, ctx.spec, problems_dir=ctx.problems_dir)
-    content = _read_script(ctx.problem_id, script_path)
+    content = _read_script(ctx.problem_id, ctx.problems_dir, script_path)
     items = {SCRIPT_KEY: digest(content)}
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
@@ -90,19 +91,20 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
         problem_dir = Path(problems_dir) / problem_id
         existing = [name for name in SCRIPT_FILENAMES if (problem_dir / name).exists()]
         script_path = problem_dir / (existing[0] if existing else SCRIPT_FILENAMES[0])
-        return {SCRIPT_KEY: digest(_read_script(problem_id, script_path))}
+        return {SCRIPT_KEY: digest(_read_script(problem_id, problems_dir, script_path))}
 
     return sync_status(problem_id, problems_dir, key_prefix=SCRIPT_KEY, read_items=read_items)
 
 
-def _read_script(problem_id: str, script_path: Path) -> bytes:
+def _read_script(problem_id: str, problems_dir: Path, script_path: Path) -> bytes:
     """Содержимое test-script. Путь передаётся снаружи: в `_execute` он
     зависит от `script_style` спека (`primary_artifact_path`), а в
     `_compute_status` спека нет."""
     if not script_path.exists():
+        address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': {script_path} not found — first run "
-            f"the generative step generators_and_script (`orchestrator {problem_id} llm generate "
+            f"the generative step generators_and_script (`orchestrator {address} llm generate "
             f"--step generators_and_script`)"
         )
     return script_path.read_bytes()
