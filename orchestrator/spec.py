@@ -325,3 +325,61 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
         )
 
     return spec
+
+
+# Спек задачи в её каталоге: `outputs/<problem_id>/spec.yaml` (как у учебных
+# задач `templates/examples/<problem_id>/spec.yaml`).
+SPEC_FILENAME = "spec.yaml"
+
+# Шаблон черновика спека для `orchestrator <problem_id> init` (путь
+# относительно templates_dir). Шагам не прикладывается.
+SPEC_TEMPLATE = "common/spec_template.yaml"
+
+# Значение `""` вместе с пробелами вокруг него — до комментария или конца строки.
+_TEMPLATE_PROBLEM_ID = re.compile(r'^problem_id:( *"" *)(?=#|$)', re.MULTILINE)
+
+
+class SpecInitError(Exception):
+    """Черновик спека не создан: неверный `problem_id`, спек уже есть и т.п."""
+
+
+def create_spec_draft(problem_id: str, *, outputs_dir: Path, templates_dir: Path) -> Path:
+    """Создаёт каталог задачи `outputs_dir/<problem_id>/` (если его нет) и
+    кладёт в него черновик `spec.yaml` из `SPEC_TEMPLATE` с подставленным
+    `problem_id`; остальные поля остаются пустыми — их заполняет автор.
+
+    Существующий `spec.yaml` не перезаписывается. Каталог задачи может уже
+    существовать (например, после `polygon pull`) — тогда в нём просто
+    появляется спек. Возвращает путь к созданному файлу.
+    """
+    if not PROBLEM_ID_PATTERN.match(problem_id):
+        raise SpecInitError(
+            f"problem_id '{problem_id}' must be ASCII "
+            "(letters/digits/'-'/'_', starting with a letter), see SPEC_FORMAT.md"
+        )
+
+    template_path = Path(templates_dir) / SPEC_TEMPLATE
+    try:
+        template = template_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise SpecInitError(f"failed to read spec template {template_path}: {exc}") from exc
+
+    # Подставляем значение в строку шаблона, а не через yaml.dump: так в
+    # черновике остаются комментарии шаблона. Колонка комментария после
+    # значения сохраняется, если `problem_id` в неё помещается.
+    def substitute(match: re.Match) -> str:
+        value = f" {problem_id} "
+        return "problem_id:" + value.ljust(len(match.group(1)))
+
+    draft, count = _TEMPLATE_PROBLEM_ID.subn(substitute, template, count=1)
+    if count != 1:
+        raise SpecInitError(
+            f"spec template {template_path} has no 'problem_id: \"\"' line to fill in"
+        )
+
+    spec_path = Path(outputs_dir) / problem_id / SPEC_FILENAME
+    if spec_path.exists():
+        raise SpecInitError(f"{spec_path} already exists, not overwriting it")
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(draft, encoding="utf-8")
+    return spec_path

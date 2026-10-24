@@ -1,6 +1,7 @@
 """Входная точка оркестратора. Все команды имеют вид
 `orchestrator <problem_id> <pipeline> <command> [аргументы]` (CLAUDE.md,
-"Запуск"): `llm generate|status|accept` — генеративные шаги,
+"Запуск"): `init` — каталог задачи с черновиком спека,
+`llm generate|status|accept` — генеративные шаги,
 `polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
 `problem_id` идёт первым: обычно работа идёт над одной задачей, и разные
 команды к ней удобнее менять в конце строки.
@@ -85,6 +86,13 @@ def build_parser() -> argparse.ArgumentParser:
     ).completer = _complete_problem_ids
 
     pipelines = parser.add_subparsers(dest="pipeline", required=True)
+
+    init_parser = pipelines.add_parser(
+        "init",
+        help="create outputs/<problem_id>/ with a draft spec.yaml from "
+        "templates/common/spec_template.yaml (never overwrites an existing spec)",
+    )
+    init_parser.set_defaults(handler="cmd_init")
 
     llm_parser = pipelines.add_parser("llm", help="generative steps (calls the model via API)")
     llm_commands = llm_parser.add_subparsers(dest="command", required=True)

@@ -76,6 +76,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── common/                   # общее для всех задач; include-каталог compile-check
 │   │   ├── problem_lib.h         # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
 │   │   ├── constraints_format.yaml # формат constraints.yaml (результат constraints_pick)
+│   │   ├── spec_template.yaml    # черновик спека для `orchestrator <problem_id> init`; шагам не прикладывается
 │   │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
 │   │   ├── testlib.h
 │   │   └── tutorials/
@@ -114,7 +115,7 @@ Python-оркестратор, который берёт структуриро�
 │       └── user.md.j2
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд llm generate|status|accept, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|status|accept, polygon push|status|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
 │   ├── spec.py                    # парсинг и валидация specs/*.yaml против SPEC_FORMAT.md
 │   ├── references.py              # референсы спека (`references`): какие файлы каких каталогов получает каждый шаг
@@ -148,6 +149,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 └── outputs/
     └── <problem_id>/
+        ├── spec.yaml               # черновик спека, созданный `orchestrator <problem_id> init` из templates/common/spec_template.yaml
         ├── .cache/
         │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
         │   ├── constraints_pick.json
@@ -265,6 +267,11 @@ Python-оркестратор, который берёт структуриро�
 необходимости. То, что должно обеспечить CLI (`orchestrator/cli.py` —
 парсер, `orchestrator/cli_commands.py` — сами команды):
 
+- `orchestrator <problem_id> init` — создаёт каталог `outputs/<problem_id>/`
+  (если его нет) с черновиком `spec.yaml` из
+  `templates/common/spec_template.yaml`: `problem_id` подставлен, остальные
+  поля пустые, с комментариями-подсказками. Существующий `spec.yaml` не
+  перезаписывается. Ни модель, ни Polygon не вызывает.
 - `orchestrator <problem_id> llm generate [--step NAME] [--force]` — прогон
   задачи (всех шагов или одного конкретного); шаги, для которых кэш
   валиден, пропускаются автоматически (см. ниже). `--force` игнорирует кэш
