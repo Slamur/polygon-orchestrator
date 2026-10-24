@@ -1,4 +1,4 @@
-problem_id: example--array--subsegment-queries-increase-offline
+problem_id: array--subsegment-queries-increase-offline
 title:
   ru: "Прибавление на отрезках"
   en: "Range additions"
@@ -62,7 +62,7 @@ constraints:
       description: "количество операций"
     - name: "L_i"
       min: 1
-      max: "R_i"
+      max: "N"
       description: "левая граница отрезка i-й операции"
     - name: "R_i"
       min: "L_i"

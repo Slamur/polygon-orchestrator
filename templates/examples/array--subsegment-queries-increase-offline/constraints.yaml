@@ -1,4 +1,4 @@
-problem_id: example--array--subsegment-queries-increase-offline
+problem_id: array--subsegment-queries-increase-offline
 intended_complexity: "O(N + Q)"
 complexity_reasoning: |
   Разностный массив: для каждой операции inc[L] += D, inc[R + 1] -= D
@@ -18,7 +18,7 @@ variables:
     status: confirmed
   - name: "L_i"
     min: 1
-    max: R_i
+    max: N
     description: "левая граница отрезка i-й операции"
     status: confirmed
   - name: "R_i"
