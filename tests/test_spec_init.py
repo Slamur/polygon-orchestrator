@@ -56,7 +56,7 @@ def test_template_lists_every_spec_field():
 
 
 def test_create_spec_draft_fills_problem_id_and_keeps_comments(tmp_path):
-    spec_path = create_spec_draft("my-task", outputs_dir=tmp_path, templates_dir=TEMPLATES_DIR)
+    spec_path = create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
 
     assert spec_path == tmp_path / "my-task" / SPEC_FILENAME
     text = spec_path.read_text(encoding="utf-8")
@@ -67,7 +67,7 @@ def test_create_spec_draft_fills_problem_id_and_keeps_comments(tmp_path):
 def test_draft_fails_validation_on_empty_required_fields(tmp_path):
     """Черновик — не готовый спек: пустые обязательные поля не проходят
     валидацию, а не молча уходят в шаги."""
-    spec_path = create_spec_draft("my-task", outputs_dir=tmp_path, templates_dir=TEMPLATES_DIR)
+    spec_path = create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
 
     with pytest.raises(SpecValidationError) as exc_info:
         load_spec(spec_path, expected_id="my-task")
@@ -77,7 +77,7 @@ def test_draft_fails_validation_on_empty_required_fields(tmp_path):
 
 
 def test_draft_is_valid_once_required_fields_are_filled(tmp_path):
-    spec_path = create_spec_draft("my-task", outputs_dir=tmp_path, templates_dir=TEMPLATES_DIR)
+    spec_path = create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
     data = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
     data["title"]["ru"] = "Задача"
     statement = data["statement_draft"]
@@ -101,23 +101,23 @@ def test_create_spec_draft_keeps_existing_dir_and_never_overwrites_spec(tmp_path
     problem_dir.mkdir()
     (problem_dir / "validator.cpp").write_text("// pulled", encoding="utf-8")
 
-    create_spec_draft("my-task", outputs_dir=tmp_path, templates_dir=TEMPLATES_DIR)
+    create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
     (problem_dir / SPEC_FILENAME).write_text("edited", encoding="utf-8")
 
     with pytest.raises(SpecInitError, match="already exists"):
-        create_spec_draft("my-task", outputs_dir=tmp_path, templates_dir=TEMPLATES_DIR)
+        create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
     assert (problem_dir / SPEC_FILENAME).read_text(encoding="utf-8") == "edited"
     assert (problem_dir / "validator.cpp").read_text(encoding="utf-8") == "// pulled"
 
 
 def test_create_spec_draft_rejects_bad_problem_id(tmp_path):
     with pytest.raises(SpecInitError, match="must be ASCII"):
-        create_spec_draft("1-task", outputs_dir=tmp_path, templates_dir=TEMPLATES_DIR)
+        create_spec_draft("1-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
     assert not (tmp_path / "1-task").exists()
 
 
 def test_cli_init_creates_draft_and_fails_on_second_run(tmp_path, capsys):
-    argv = ["--outputs-dir", str(tmp_path), "--templates-dir", str(TEMPLATES_DIR), "my-task", "init"]
+    argv = ["--problems-dir", str(tmp_path), "--templates-dir", str(TEMPLATES_DIR), "my-task", "init"]
 
     assert cli.main(argv) == 0
     assert (tmp_path / "my-task" / SPEC_FILENAME).exists()

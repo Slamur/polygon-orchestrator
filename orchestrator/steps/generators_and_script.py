@@ -13,7 +13,7 @@ from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
-    OUTPUTS_DIR,
+    PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
@@ -27,10 +27,10 @@ STEP_NAME = "generators_and_script"
 
 # Имя артефакта шага constraints_pick, от которого зависит этот шаг
 # (CLAUDE.md, "Кэширование по хешу спека": вход шага 3 — секция generation +
-# содержимое outputs/<id>/constraints.yaml, полученное на шаге 2).
+# содержимое problems/<id>/constraints.yaml, полученное на шаге 2).
 CONSTRAINTS_ARTIFACT = "constraints.yaml"
 
-# Каталог генераторов внутри outputs/<problem_id>/ — туда шаг кладёт `.cpp`.
+# Каталог генераторов внутри problems/<problem_id>/ — туда шаг кладёт `.cpp`.
 GENERATORS_SUBDIR = "generators"
 
 # Стандартные функции test-script'а (div, pow, fact, ...) — шаблон автора в
@@ -219,7 +219,7 @@ def extra_context_documents(
 
 
 def primary_artifact_path(
-    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
     """Путь к test-script'у — единственному детерминированному по имени
     артефакту шага (генераторы `.cpp` модель называет сама, а имя скрипта
@@ -227,7 +227,7 @@ def primary_artifact_path(
     каталогов": `test_script` для `flat`, `test_script_groups` для `groups`).
     """
     script_name = "test_script" if spec.generation.script_style == "flat" else "test_script_groups"
-    return Path(outputs_dir) / problem_id / script_name
+    return Path(problems_dir) / problem_id / script_name
 
 
 def run_step(
@@ -236,7 +236,7 @@ def run_step(
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
     """Прогоняет шаг `generators_and_script` для `problem_id`.
@@ -269,8 +269,8 @@ def run_step(
     `StepUncertainError` без записи файлов.
 
     При успехе пишет сгенерированные `.cpp`-файлы в
-    `outputs/<problem_id>/generators/`, а `test_script`/`test_script_groups`
-    — в `outputs/<problem_id>/` (см. CLAUDE.md, "Структура каталогов").
+    `problems/<problem_id>/generators/`, а `test_script`/`test_script_groups`
+    — в `problems/<problem_id>/` (см. CLAUDE.md, "Структура каталогов").
 
     `upstream_artifacts` обязателен и должен содержать ключ
     `"constraints.yaml"` с содержимым артефакта шага `constraints_pick` —
@@ -289,7 +289,7 @@ def run_step(
     input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
-        base = Path(outputs_dir) / problem_id
+        base = Path(problems_dir) / problem_id
         if filename.endswith(".cpp"):
             return base / GENERATORS_SUBDIR / artifact_filename(filename, GENERATORS_SUBDIR)
         return base / artifact_filename(filename)
@@ -307,7 +307,7 @@ def run_step(
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
         prompts_dir=prompts_dir,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
         postprocess_artifacts=_restore_functions_in_artifacts(

@@ -11,7 +11,7 @@ def run_and_record(
     step: PolygonStep,
     problem_id: str,
     spec,
-    outputs_dir: Path,
+    problems_dir: Path,
     client,
     *,
     incremental: bool = False,
@@ -21,9 +21,9 @@ def run_and_record(
     базу, как после коммита."""
     synced = None
     if incremental:
-        state = load_polygon_state(problem_id, outputs_dir=outputs_dir)
+        state = load_polygon_state(problem_id, problems_dir=problems_dir)
         synced = dict(state.synced) if state is not None else {}
-    result = run_step(step, problem_id, spec, outputs_dir=outputs_dir, client=client, synced=synced)
+    result = run_step(step, problem_id, spec, problems_dir=problems_dir, client=client, synced=synced)
     if result.uploaded:
-        update_sync(problem_id, synced=result.uploaded, revision=1, outputs_dir=outputs_dir)
+        update_sync(problem_id, synced=result.uploaded, revision=1, problems_dir=problems_dir)
     return result

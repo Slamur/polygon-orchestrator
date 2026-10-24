@@ -1,4 +1,4 @@
-"""Загрузка и валидация спека задачи (`outputs/<problem_id>/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
+"""Загрузка и валидация спека задачи (`problems/<problem_id>/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
 
 Модуль только парсит и проверяет спек — никаких вызовов модели и никакой
 генерации артефактов здесь нет (см. CLAUDE.md).
@@ -35,7 +35,7 @@ _FIELD_HINTS: dict[str, str] = {
     ),
     "generation.base_template_refs": (
         "the field was renamed to generation.references (a reference may now "
-        "also be a directory laid out like outputs/<problem_id>/), see SPEC_FORMAT.md"
+        "also be a directory laid out like problems/<problem_id>/), see SPEC_FORMAT.md"
     ),
 }
 
@@ -319,7 +319,7 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
     return spec
 
 
-# Спек задачи в её каталоге: `outputs/<problem_id>/spec.yaml` (как у учебных
+# Спек задачи в её каталоге: `problems/<problem_id>/spec.yaml` (как у учебных
 # задач `examples/<problem_id>/spec.yaml`).
 SPEC_FILENAME = "spec.yaml"
 
@@ -335,8 +335,8 @@ class SpecInitError(Exception):
     """Черновик спека не создан: неверный `problem_id`, спек уже есть и т.п."""
 
 
-def create_spec_draft(problem_id: str, *, outputs_dir: Path, templates_dir: Path) -> Path:
-    """Создаёт каталог задачи `outputs_dir/<problem_id>/` (если его нет) и
+def create_spec_draft(problem_id: str, *, problems_dir: Path, templates_dir: Path) -> Path:
+    """Создаёт каталог задачи `problems_dir/<problem_id>/` (если его нет) и
     кладёт в него черновик `spec.yaml` из `SPEC_TEMPLATE` с подставленным
     `problem_id`; остальные поля остаются пустыми — их заполняет автор.
 
@@ -369,7 +369,7 @@ def create_spec_draft(problem_id: str, *, outputs_dir: Path, templates_dir: Path
             f"spec template {template_path} has no 'problem_id: \"\"' line to fill in"
         )
 
-    path = spec_path(problem_id, outputs_dir=outputs_dir)
+    path = spec_path(problem_id, problems_dir=problems_dir)
     if path.exists():
         raise SpecInitError(f"{path} already exists, not overwriting it")
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -377,12 +377,12 @@ def create_spec_draft(problem_id: str, *, outputs_dir: Path, templates_dir: Path
     return path
 
 
-def spec_path(problem_id: str, *, outputs_dir: Path) -> Path:
-    """Путь к спеку задачи: `outputs_dir/<problem_id>/spec.yaml`."""
-    return Path(outputs_dir) / problem_id / SPEC_FILENAME
+def spec_path(problem_id: str, *, problems_dir: Path) -> Path:
+    """Путь к спеку задачи: `problems_dir/<problem_id>/spec.yaml`."""
+    return Path(problems_dir) / problem_id / SPEC_FILENAME
 
 
-def load_problem_spec(problem_id: str, *, outputs_dir: Path) -> ProblemSpec:
+def load_problem_spec(problem_id: str, *, problems_dir: Path) -> ProblemSpec:
     """Загружает спек задачи из её каталога (`spec_path`); `problem_id` в
     спеке должен совпадать с именем каталога. Ошибки — как у `load_spec`."""
-    return load_spec(spec_path(problem_id, outputs_dir=outputs_dir), expected_id=problem_id)
+    return load_spec(spec_path(problem_id, problems_dir=problems_dir), expected_id=problem_id)

@@ -20,7 +20,7 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-def _link(outputs_dir: Path) -> None:
+def _link(problems_dir: Path) -> None:
     save_polygon_state(
         PROBLEM_ID,
         PolygonState(
@@ -28,19 +28,19 @@ def _link(outputs_dir: Path) -> None:
             polygon_id=POLYGON_ID,
             created_at="2026-09-19T12:00:00+00:00",
         ),
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
 
 
-def _write_constraints(outputs_dir: Path, content: str) -> None:
-    path = outputs_dir / PROBLEM_ID / "constraints.yaml"
+def _write_constraints(problems_dir: Path, content: str) -> None:
+    path = problems_dir / PROBLEM_ID / "constraints.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
 
 
-def _run(spec, outputs_dir, client, *, incremental: bool = False) -> str:
+def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     return run_and_record(
-        STEP, PROBLEM_ID, spec, outputs_dir, client, incremental=incremental
+        STEP, PROBLEM_ID, spec, problems_dir, client, incremental=incremental
     ).message
 
 
@@ -190,8 +190,8 @@ def test_non_mapping_yaml(tmp_path, spec):
 # --- status ---
 
 
-def _status(outputs_dir: Path) -> tuple[str, str]:
-    return STEP.compute_status(PROBLEM_ID, outputs_dir)
+def _status(problems_dir: Path) -> tuple[str, str]:
+    return STEP.compute_status(PROBLEM_ID, problems_dir)
 
 
 def test_successful_run_records_sent_params(tmp_path, spec):
@@ -201,7 +201,7 @@ def test_successful_run_records_sent_params(tmp_path, spec):
 
     _run(spec, tmp_path, client)
 
-    assert list(load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path).synced) == ["limits"]
+    assert list(load_polygon_state(PROBLEM_ID, problems_dir=tmp_path).synced) == ["limits"]
 
 
 def test_incremental_run_skips_unchanged_limits_and_sends_changed(tmp_path, spec):
@@ -229,7 +229,7 @@ def test_failed_api_call_records_nothing(tmp_path, spec):
     with pytest.raises(RuntimeError):
         _run(spec, tmp_path, client)
 
-    assert load_polygon_state(PROBLEM_ID, outputs_dir=tmp_path).synced == {}
+    assert load_polygon_state(PROBLEM_ID, problems_dir=tmp_path).synced == {}
     assert _status(tmp_path)[0] == "not run"
 
 

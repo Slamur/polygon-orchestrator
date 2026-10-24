@@ -63,7 +63,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
         )
 
     polygon_id = require_polygon_state(ctx).polygon_id
-    script_path = script_artifact_path(ctx.problem_id, ctx.spec, outputs_dir=ctx.outputs_dir)
+    script_path = script_artifact_path(ctx.problem_id, ctx.spec, problems_dir=ctx.problems_dir)
     content = _read_script(ctx.problem_id, script_path)
     items = {SCRIPT_KEY: digest(content)}
     if not changed_items(ctx, items):
@@ -82,17 +82,17 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     )
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`). Спек здесь недоступен,
     поэтому сравнивается первый существующий из `SCRIPT_FILENAMES`."""
 
     def read_items() -> dict[str, str]:
-        problem_dir = Path(outputs_dir) / problem_id
+        problem_dir = Path(problems_dir) / problem_id
         existing = [name for name in SCRIPT_FILENAMES if (problem_dir / name).exists()]
         script_path = problem_dir / (existing[0] if existing else SCRIPT_FILENAMES[0])
         return {SCRIPT_KEY: digest(_read_script(problem_id, script_path))}
 
-    return sync_status(problem_id, outputs_dir, key_prefix=SCRIPT_KEY, read_items=read_items)
+    return sync_status(problem_id, problems_dir, key_prefix=SCRIPT_KEY, read_items=read_items)
 
 
 def _read_script(problem_id: str, script_path: Path) -> bytes:

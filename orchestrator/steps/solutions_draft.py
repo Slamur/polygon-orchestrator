@@ -12,7 +12,7 @@ from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, split_solution_stem
 from orchestrator.steps.base import (
-    OUTPUTS_DIR,
+    PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
@@ -95,14 +95,14 @@ def hash_inputs(
 
 
 def primary_artifact_path(
-    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
     """Каталог с черновиками решений — точный список файлов модель выбирает
     сама (зависит от `solutions.wanted_verdicts`), поэтому в отличие от
     остальных шагов здесь нет фиксированного имени файла: `pipeline.py`
     считает кэш валидным, только если каталог существует и не пуст.
     """
-    return Path(outputs_dir) / problem_id / "solutions"
+    return Path(problems_dir) / problem_id / "solutions"
 
 
 def extra_context_documents(
@@ -143,7 +143,7 @@ def run_step(
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
     """Прогоняет шаг `solutions_draft` для `problem_id`.
@@ -174,7 +174,7 @@ def run_step(
     uncertain`, и вызов завершится `StepUncertainError` без записи файлов, а
     не попыткой домыслить алгоритм по легенде/условию.
 
-    При успехе пишет файлы решений в `outputs/<problem_id>/solutions/`.
+    При успехе пишет файлы решений в `problems/<problem_id>/solutions/`.
     """
     _require_solutions_section(problem_id, spec)
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
@@ -189,7 +189,7 @@ def run_step(
 
     def resolve_artifact_path(filename: str) -> Path:
         return (
-            Path(outputs_dir)
+            Path(problems_dir)
             / problem_id
             / SOLUTIONS_SUBDIR
             / artifact_filename(filename, SOLUTIONS_SUBDIR)
@@ -208,7 +208,7 @@ def run_step(
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
         prompts_dir=prompts_dir,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
     )

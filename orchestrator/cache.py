@@ -6,7 +6,7 @@
 секция спека (+ апстрим-артефакты предыдущих шагов), ни содержимое
 промпт-шаблонов, ни модель из `model_router.py`.
 
-Этот модуль только считает хеши и читает/пишет `outputs/<id>/.cache/<step>.json`
+Этот модуль только считает хеши и читает/пишет `problems/<id>/.cache/<step>.json`
 — решение о том, вызывать ли модель, принимает `pipeline.py`.
 """
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 PROMPTS_DIR = Path("prompts")
-OUTPUTS_DIR = Path("outputs")
+PROBLEMS_DIR = Path("problems")
 TEMPLATES_DIR = Path("templates")
 
 # Статус, который никогда не считается валидным кэшем (см. CLAUDE.md,
@@ -99,7 +99,7 @@ def compute_prompt_hash(
     `extra_context_documents`, см. `orchestrator.steps.base.
     load_context_documents`) — иначе правка tutorials/*.md/problem_lib.h/
     generators/*.cpp и т.п. не инвалидирует кэш шагов, которые от них зависят.
-    Это наш собственный результат-кэш (`outputs/<id>/.cache/<step>.json`),
+    Это наш собственный результат-кэш (`problems/<id>/.cache/<step>.json`),
     не связан с Anthropic prompt caching.
     """
     system_text, user_text, context_documents = _read_prompt_inputs(
@@ -167,7 +167,7 @@ def _read_prompt_inputs(
 
 @dataclass
 class CacheEntry:
-    """Содержимое `outputs/<problem_id>/.cache/<step>.json`.
+    """Содержимое `problems/<problem_id>/.cache/<step>.json`.
 
     `input_parts`/`prompt_parts` — хеши по частям (`compute_input_parts`/
     `compute_prompt_parts`), только для объяснения, что изменилось; `None` у
@@ -187,13 +187,13 @@ class CacheEntry:
 
 
 def _cache_file_path(
-    problem_id: str, step_name: str, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    return Path(outputs_dir) / problem_id / ".cache" / f"{step_name}.json"
+    return Path(problems_dir) / problem_id / ".cache" / f"{step_name}.json"
 
 
 def load_cache_entry(
-    problem_id: str, step_name: str, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Optional[CacheEntry]:
     """Читает кэш шага, если файл существует и является валидным CacheEntry.
 
@@ -201,7 +201,7 @@ def load_cache_entry(
     трактуются одинаково — как "кэша нет" (`None`), а не как ошибка: в этом
     случае пайплайн просто вызовет модель заново.
     """
-    path = _cache_file_path(problem_id, step_name, outputs_dir=outputs_dir)
+    path = _cache_file_path(problem_id, step_name, problems_dir=problems_dir)
     if not path.exists():
         return None
 
@@ -224,10 +224,10 @@ def save_cache_entry(
     step_name: str,
     entry: CacheEntry,
     *,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
 ) -> None:
-    """Перезаписывает `outputs/<problem_id>/.cache/<step_name>.json`."""
-    path = _cache_file_path(problem_id, step_name, outputs_dir=outputs_dir)
+    """Перезаписывает `problems/<problem_id>/.cache/<step_name>.json`."""
+    path = _cache_file_path(problem_id, step_name, problems_dir=problems_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(asdict(entry), ensure_ascii=False, sort_keys=True, indent=2) + "\n",

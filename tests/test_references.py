@@ -22,7 +22,7 @@ def _write(path: Path, content: str = "x") -> Path:
 
 
 def _reference_dir(tmp_path: Path, name: str = "example-problem") -> Path:
-    """Каталог в раскладке outputs/<problem_id>/ со своим spec.yaml."""
+    """Каталог в раскладке problems/<problem_id>/ со своим spec.yaml."""
     directory = tmp_path / name
     _write(directory / "spec.yaml")
     _write(directory / "constraints.yaml")

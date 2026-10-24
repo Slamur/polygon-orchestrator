@@ -3,7 +3,7 @@
 ## Что это за репозиторий
 
 Python-оркестратор, который берёт структурированный спек задачи
-(`outputs/<problem_id>/spec.yaml`, формат — см. `docs/SPEC_FORMAT.md`) и прогоняет
+(`problems/<problem_id>/spec.yaml`, формат — см. `docs/SPEC_FORMAT.md`) и прогоняет
 его через последовательность **генеративных шагов**. Каждый шаг — отдельный
 вызов LLM по API (не через Claude Code) плюс минимальная механическая
 проверка результата. Результат — черновики артефактов Polygon-задачи
@@ -33,13 +33,13 @@ Python-оркестратор, который берёт структуриро�
   нечего;
 - создание задачи на Polygon по `problem_id` из спека через Polygon API
   (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
-  хранится в `outputs/<problem_id>/polygon_state.json`) и перенос TL/ML из
-  `outputs/<problem_id>/constraints.yaml` через `problem.updateInfo`
-  (`set_constraints`), загрузка `outputs/<problem_id>/problem_lib.h` как
+  хранится в `problems/<problem_id>/polygon_state.json`) и перенос TL/ML из
+  `problems/<problem_id>/constraints.yaml` через `problem.updateInfo`
+  (`set_constraints`), загрузка `problems/<problem_id>/problem_lib.h` как
   resource-файла (`upload_problem_lib`), загрузка
-  `outputs/<problem_id>/validator.cpp` и назначение его валидатором
+  `problems/<problem_id>/validator.cpp` и назначение его валидатором
   (`upload_validator`), назначение чекера (`upload_checker`: для
-  `checker.custom_needed: true` — загрузка `outputs/<problem_id>/checker.cpp`,
+  `checker.custom_needed: true` — загрузка `problems/<problem_id>/checker.cpp`,
   иначе — стандартный чекер из `checker.standard` без загрузки файла).
   Шаги загружают только то, что изменилось с последней синхронизации с
   Polygon (база — `revision`/`synced` в `polygon_state.json`, см.
@@ -71,7 +71,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── POLYGON_API.md            # документация Polygon API (методы, параметры, return objects)
 ├── templates/                    # общее для всех задач; include-каталог compile-check.
 │   │                             # Шаблоны автора — НЕ трогать структуру, использовать как основу для генерации
-│   ├── problem_lib.h             # шаблон: копируется в outputs/<problem_id>/problem_lib.h, если там его нет
+│   ├── problem_lib.h             # шаблон: копируется в problems/<problem_id>/problem_lib.h, если там его нет
 │   ├── constraints_format.yaml   # формат constraints.yaml (результат constraints_pick)
 │   ├── spec_template.yaml        # черновик спека для `orchestrator <problem_id> init`; шагам не прикладывается
 │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
@@ -86,7 +86,7 @@ Python-оркестратор, который берёт структуриро�
 │       ├── checker.md            # правила по чекеру (checker_draft)
 │       └── polygon.md            # справка по интерфейсу Polygon — шагам не прикладывается
 ├── examples/                     # учебные задачи-образцы, по каталогу на задачу
-│   └── <вид-входа>--<суть>/      # например array--prefix-sums; раскладка как у outputs/<problem_id>/
+│   └── <вид-входа>--<суть>/      # например array--prefix-sums; раскладка как у problems/<problem_id>/
 │       ├── spec.yaml             # спек учебной задачи (problem_id = имя каталога) — пара "спек -> результат"
 │       ├── constraints.yaml      # ожидаемый результат constraints_pick для spec.yaml
 │       ├── validator.cpp
@@ -114,7 +114,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
 │   ├── cli_commands.py            # реализация команд init, llm generate|status|accept, polygon push|status|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
-│   ├── spec.py                    # парсинг и валидация outputs/<problem_id>/spec.yaml против SPEC_FORMAT.md; черновик спека для init
+│   ├── spec.py                    # парсинг и валидация problems/<problem_id>/spec.yaml против SPEC_FORMAT.md; черновик спека для init
 │   ├── references.py              # референсы спека (`references`): какие файлы каких каталогов получает каждый шаг
 │   ├── steps/
 │   │   ├── statement_draft.py
@@ -144,7 +144,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
 │   │   └── run_with_timeout.py    # запуск бинаря с жёстким timeout
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
-└── outputs/
+└── problems/
     └── <problem_id>/
         ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <problem_id> init` из templates/spec_template.yaml
         ├── .cache/
@@ -172,7 +172,7 @@ Python-оркестратор, который берёт структуриро�
 ## Роль каждого генеративного шага
 
 1. **`statement_draft`** — вход: секция `statement_draft` спека. Выход:
-   черновик условия в `outputs/<id>/statement/` — отдельные `.tex` на
+   черновик условия в `problems/<id>/statement/` — отдельные `.tex` на
    легенду/ввод/вывод/примечание + input каждого примера в
    `examples/example_<N>.txt` (набор имён проверяется до записи на диск),
    следующий структуре и стилистическим правилам из
@@ -248,7 +248,7 @@ Python-оркестратор, который берёт структуриро�
 
 Каждый шаг — чистая функция от (спек + результаты предыдущих шагов) к
 артефакту(-ам) + отчёту о неуверенности. Шаги идемпотентны: повторный запуск
-с тем же входом должен быть безопасен (перезаписывает `outputs/<id>/...`, не
+с тем же входом должен быть безопасен (перезаписывает `problems/<id>/...`, не
 аккумулирует состояние) — но по умолчанию повторный запуск с **тем же**
 входом не должен даже дойти до вызова модели, см. ниже "Кэширование по хешу
 спека".
@@ -257,15 +257,15 @@ Python-оркестратор, который берёт структуриро�
 
 Задачи в этом проекте независимы друг от друга и адресуются по
 `problem_id`: всё, что относится к задаче, — спек и результаты шагов —
-лежит в её каталоге `outputs/<problem_id>/` (спек — `spec.yaml`).
+лежит в её каталоге `problems/<problem_id>/` (спек — `spec.yaml`).
 Обычно работа идёт над одной задачей, поэтому `problem_id` в CLI стоит
-первым, а команда к нему — после: `orchestrator [--outputs-dir ...]
+первым, а команда к нему — после: `orchestrator [--problems-dir ...]
 <problem_id> <init|llm|polygon> [команда] [флаги]`. Пакетного прогона по всем
 спекам (`--all`) сейчас нет — убран как ненужный, вернуть при
 необходимости. То, что должно обеспечить CLI (`orchestrator/cli.py` —
 парсер, `orchestrator/cli_commands.py` — сами команды):
 
-- `orchestrator <problem_id> init` — создаёт каталог `outputs/<problem_id>/`
+- `orchestrator <problem_id> init` — создаёт каталог `problems/<problem_id>/`
   (если его нет) с черновиком `spec.yaml` из
   `templates/spec_template.yaml`: `problem_id` подставлен, остальные
   поля пустые, с комментариями-подсказками. Существующий `spec.yaml` не
@@ -318,7 +318,7 @@ Python-оркестратор, который берёт структуриро�
   задач с таким именем несколько), сравнивает с ней части задачи, которыми
   пользуется оркестратор (условие и примеры, TL/ML, валидатор,
   нестандартный чекер, генераторы, test-script, решения), скачивает в
-  `outputs/<problem_id>/` недостающие локально и переписывает базу
+  `problems/<problem_id>/` недостающие локально и переписывает базу
   синхронизации по текущей ревизии Polygon. Отличающиеся от Polygon файлы
   без `--overwrite` остаются локальными (следующий push их загрузит), с
   `--overwrite` заменяются версией с Polygon, а старые переносятся в
@@ -332,7 +332,7 @@ Python-оркестратор, который берёт структуриро�
   команды. Детали — в докстринге `orchestrator/polygon/pull.py`.
 
 `problem_id` дополняется по Tab (`argcomplete`; разовая настройка shell — в
-`docs/SETUP.md`): кандидаты — каталоги задач в `outputs/`, со спеком или
+`docs/SETUP.md`): кандидаты — каталоги задач в `problems/`, со спеком или
 без (`polygon status|pull` спек не нужен, а команда на момент дополнения
 `problem_id` ещё не набрана); читаются при каждом нажатии, ничего не
 кэшируется. На каждый Tab shell запускает `cli.py`
@@ -368,7 +368,7 @@ Python-оркестратор, который берёт структуриро�
   `generation` + тот же формат ввода из `statement_draft` (правка
   формата входа в условии должна инвалидировать кэш генераторов, даже если
   секция `generation` не менялась) +
-  содержимое `outputs/<id>/constraints.yaml`, полученное на шаге 2, +
+  содержимое `problems/<id>/constraints.yaml`, полученное на шаге 2, +
   `solutions.known_wrong_approaches` (если секция `solutions` задана —
   правка `known_wrong_approaches` тоже должна инвалидировать кэш этого
   шага, не только правка `generation`); `solutions_draft` → секция
@@ -387,12 +387,12 @@ Python-оркестратор, который берёт структуриро�
 Логика в `pipeline.py` перед каждым шагом:
 
 1. Посчитать `input_hash` по правилам выше.
-2. Прочитать `outputs/<id>/.cache/<step>.json`, если есть.
+2. Прочитать `problems/<id>/.cache/<step>.json`, если есть.
 3. Если `input_hash` совпадает с сохранённым **и** ожидаемые файлы
    артефактов на месте **и** сохранённый `status` не был `uncertain`
    (кэшировать "провал по недостатку данных" бессмысленно — он должен
    всплывать при каждом запуске, пока спек не поправят) — шаг пропускается,
-   в лог идёт "cache hit", `outputs/` не трогается.
+   в лог идёт "cache hit", `problems/` не трогается.
 4. Иначе — обычный вызов модели, и по успешному результату файл кэша
    перезаписывается новым `input_hash`/`prompt_hash`/`model`/`status`/
    `timestamp`.
@@ -427,7 +427,7 @@ Python-оркестратор, который берёт структуриро�
 - Оркестратор (Python-код) должен различать эти два случая механически:
   ответ с `uncertain: true` останавливает пайплайн для этого problem_id и
   требует правки спека; ответ с `status: proposed` полях — не останавливает
-  пайплайн, но помечает соответствующие файлы/поля в `outputs/` как
+  пайплайн, но помечает соответствующие файлы/поля в `problems/` как
   требующие ручной проверки автором (например, суффиксом `# PROPOSED,
   REVIEW ME` в сгенерированном файле или отдельным полем в
   `constraints.yaml`).
@@ -500,7 +500,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   генерации создаёт новый генератор — он должен `#include "problem_lib.h"` и
   следовать тем же соглашениям об именовании (`register...`, `opt<T>(...)`,
   стиль `gen_test` из `generators/*.cpp`). У каждой задачи своя копия
-  `problem_lib.h` (`outputs/<problem_id>/problem_lib.h`, см.
+  `problem_lib.h` (`problems/<problem_id>/problem_lib.h`, см.
   `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`): шаблон — только её
   начальное содержимое, правка шаблона в уже существующие копии не
   попадает. Compile-check ищет `problem_lib.h` сначала в каталоге задачи,
@@ -510,7 +510,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   `constraints_format.yaml` — формат результата `constraints_pick`, который
   читают следующие шаги и `polygon push`. `examples/` — учебные
   задачи, по каталогу `<вид входных данных>--<суть задачи>` на каждую
-  (`array--prefix-sums`), в раскладке `outputs/<problem_id>/` плюс свой
+  (`array--prefix-sums`), в раскладке `problems/<problem_id>/` плюс свой
   спек `spec.yaml` (`problem_id` = имя каталога; ожидаемый по нему
   результат `constraints_pick` — `constraints.yaml` рядом; при правке
   образцов держать оба согласованными с ними и с `constraints_format.yaml`
@@ -520,8 +520,8 @@ CLI, расход из лимитов подписки, а не с API-бала�
   **референсы спека** — поле `references` в корне спека (для всех шагов) и
   в секциях шагов (только для своего шага), см. `docs/SPEC_FORMAT.md`,
   "Референсы", и `orchestrator/references.py`. Референс — файл или каталог
-  в раскладке `outputs/<problem_id>/` (учебная задача из
-  `examples/`, прошлая задача автора в `outputs/`); каждый шаг
+  в раскладке `problems/<problem_id>/` (учебная задача из
+  `examples/`, прошлая задача автора в `problems/`); каждый шаг
   берёт из каталога только свою часть (`REFERENCE_DOCUMENTS`), решения —
   только на языках из `solutions.languages`. Без референсов шаг получает
   только `templates/`. Содержимое референсов входит в хеш промпта
@@ -558,7 +558,7 @@ Claude Code — весь код оркестратора (парсер спек�
    в духе того, как это описано в `docs/PROMPTS.md`-контракте (явно,
    по делу, без домысливания). Ни в названии ветки, ни в коммитах, ни в
    PR не должно быть `problem_id` и деталей спеков — см. "Конфиденциальность
-   outputs/" ниже.
+   problems/" ниже.
 5. **Claude Code не мержит PR сам**, если это явно не попросили. Дефолт —
    PR остаётся открытым и ждёт ревью автора; merge/squash — руками через
    GitHub (или по явной команде "смержи PR").
@@ -572,12 +572,12 @@ Claude Code — весь код оркестратора (парсер спек�
 
 Также предполагается, что в клоне выполнено `git config core.hooksPath
 githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует push, если
-имя ветки или сообщения коммитов содержат `problem_id` — имя любого каталога в `outputs/`.
+имя ветки или сообщения коммитов содержат `problem_id` — имя любого каталога в `problems/`.
 Хук — страховка, а не замена правилам из раздела ниже.
 
-## Конфиденциальность outputs/
+## Конфиденциальность problems/
 
-`outputs/` (вместе со спеками задач `outputs/<problem_id>/spec.yaml`) — в
+`problems/` (вместе со спеками задач `problems/<problem_id>/spec.yaml`) — в
 `.gitignore` намеренно: репозиторий
 оркестратора публичный, а сами задачи — нет, пока не опубликованы на
 контесте. Это единственный барьер между "черновик задачи" и "виден кому
@@ -599,7 +599,7 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 Это же касается тестов и их фикстур (`tests/`): в них используются только
 синтетические `problem_id` (`example-problem`, `my-task`) и синтетические
-спеки, а не копии или выжимки реальных файлов из `outputs/`.
+спеки, а не копии или выжимки реальных файлов из `problems/`.
 
 Названия веток и сообщения коммитов — только про то, ЧТО меняется в коде
 оркестратора, а не про то, НАД КАКОЙ задачей ты его при этом тестировал.
@@ -609,7 +609,7 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 Если для PR description нужен пример поведения — используй синтетический
 пример (`problem_id: example-problem`, произвольные `N`/условие), а не
-реальный спек, даже если реальный уже лежит в `outputs/<id>/` локально и
+реальный спек, даже если реальный уже лежит в `problems/<id>/` локально и
 "было бы проще показать на нём".
 
 Это ограничение — только на то, что попадает в git/PR. В обычном ответе в
@@ -663,7 +663,7 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 Разрешено без спроса (к модели не обращается):
 - `orchestrator <problem_id> llm status` — читает только кэш и файлы, в сеть не ходит;
-- `orchestrator <problem_id> llm accept` — пишет только `outputs/<id>/.cache/`, к модели
+- `orchestrator <problem_id> llm accept` — пишет только `problems/<id>/.cache/`, к модели
   не обращается (но меняет кэш автора — запускать по его просьбе);
 - `pytest` (integration-тесты по умолчанию выключены `-m 'not integration'`
   — не трогать `pyproject.toml`, чтобы это не включить случайно);

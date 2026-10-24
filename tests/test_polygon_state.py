@@ -20,20 +20,20 @@ def _state() -> PolygonState:
 
 
 def test_round_trip(tmp_path: Path):
-    save_polygon_state("p1", _state(), outputs_dir=tmp_path)
+    save_polygon_state("p1", _state(), problems_dir=tmp_path)
 
-    assert load_polygon_state("p1", outputs_dir=tmp_path) == _state()
+    assert load_polygon_state("p1", problems_dir=tmp_path) == _state()
 
 
 def test_state_file_lives_next_to_cache_dir_not_inside_it(tmp_path: Path):
-    save_polygon_state("p1", _state(), outputs_dir=tmp_path)
+    save_polygon_state("p1", _state(), problems_dir=tmp_path)
 
     assert (tmp_path / "p1" / "polygon_state.json").is_file()
     assert not (tmp_path / "p1" / ".cache").exists()
 
 
 def test_save_uses_cache_serialization_style(tmp_path: Path):
-    save_polygon_state("p1", _state(), outputs_dir=tmp_path)
+    save_polygon_state("p1", _state(), problems_dir=tmp_path)
 
     text = (tmp_path / "p1" / "polygon_state.json").read_text(encoding="utf-8")
     assert text.endswith("\n")
@@ -52,16 +52,16 @@ def test_save_uses_cache_serialization_style(tmp_path: Path):
 
 
 def test_save_overwrites_existing_state(tmp_path: Path):
-    save_polygon_state("p1", _state(), outputs_dir=tmp_path)
+    save_polygon_state("p1", _state(), problems_dir=tmp_path)
     newer = PolygonState(problem_id="p1", polygon_id=7, created_at="2026-09-20T00:00:00+00:00")
 
-    save_polygon_state("p1", newer, outputs_dir=tmp_path)
+    save_polygon_state("p1", newer, problems_dir=tmp_path)
 
-    assert load_polygon_state("p1", outputs_dir=tmp_path) == newer
+    assert load_polygon_state("p1", problems_dir=tmp_path) == newer
 
 
 def test_load_missing_file_returns_none(tmp_path: Path):
-    assert load_polygon_state("nope", outputs_dir=tmp_path) is None
+    assert load_polygon_state("nope", problems_dir=tmp_path) is None
 
 
 def test_load_broken_json_returns_none(tmp_path: Path):
@@ -69,7 +69,7 @@ def test_load_broken_json_returns_none(tmp_path: Path):
     path.parent.mkdir(parents=True)
     path.write_text("{not json", encoding="utf-8")
 
-    assert load_polygon_state("p1", outputs_dir=tmp_path) is None
+    assert load_polygon_state("p1", problems_dir=tmp_path) is None
 
 
 def test_load_non_dict_json_returns_none(tmp_path: Path):
@@ -77,7 +77,7 @@ def test_load_non_dict_json_returns_none(tmp_path: Path):
     path.parent.mkdir(parents=True)
     path.write_text("[1, 2, 3]", encoding="utf-8")
 
-    assert load_polygon_state("p1", outputs_dir=tmp_path) is None
+    assert load_polygon_state("p1", problems_dir=tmp_path) is None
 
 
 def test_load_wrong_fields_returns_none(tmp_path: Path):
@@ -85,7 +85,7 @@ def test_load_wrong_fields_returns_none(tmp_path: Path):
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps({"problem_id": "p1", "extra": 1}), encoding="utf-8")
 
-    assert load_polygon_state("p1", outputs_dir=tmp_path) is None
+    assert load_polygon_state("p1", problems_dir=tmp_path) is None
 
 
 def test_state_file_without_sync_fields_loads_with_unknown_baseline(tmp_path: Path):
@@ -96,7 +96,7 @@ def test_state_file_without_sync_fields_loads_with_unknown_baseline(tmp_path: Pa
         encoding="utf-8",
     )
 
-    state = load_polygon_state("p1", outputs_dir=tmp_path)
+    state = load_polygon_state("p1", problems_dir=tmp_path)
 
     assert state is not None
     assert state.revision is None
@@ -118,7 +118,7 @@ def test_legacy_steps_records_are_dropped_on_load(tmp_path: Path):
         encoding="utf-8",
     )
 
-    state = load_polygon_state("p1", outputs_dir=tmp_path)
+    state = load_polygon_state("p1", problems_dir=tmp_path)
 
     assert state == PolygonState(problem_id="p1", polygon_id=7, created_at="x")
 
@@ -132,15 +132,15 @@ def test_malformed_sync_fields_treated_as_missing_state(tmp_path: Path, field, v
         encoding="utf-8",
     )
 
-    assert load_polygon_state("p1", outputs_dir=tmp_path) is None
+    assert load_polygon_state("p1", problems_dir=tmp_path) is None
 
 
 def test_update_sync_sets_and_removes_keys_and_replaces_revision(tmp_path: Path):
-    save_polygon_state("p1", _state(), outputs_dir=tmp_path)
-    update_sync("p1", synced={"a": "1", "b": "2"}, revision=5, outputs_dir=tmp_path)
-    update_sync("p1", synced={"a": "3", "b": None, "c": None}, revision=6, outputs_dir=tmp_path)
+    save_polygon_state("p1", _state(), problems_dir=tmp_path)
+    update_sync("p1", synced={"a": "1", "b": "2"}, revision=5, problems_dir=tmp_path)
+    update_sync("p1", synced={"a": "3", "b": None, "c": None}, revision=6, problems_dir=tmp_path)
 
-    state = load_polygon_state("p1", outputs_dir=tmp_path)
+    state = load_polygon_state("p1", problems_dir=tmp_path)
 
     assert state.polygon_id == 123456
     assert state.synced == {"a": "3"}
@@ -149,4 +149,4 @@ def test_update_sync_sets_and_removes_keys_and_replaces_revision(tmp_path: Path)
 
 def test_update_sync_without_state_raises(tmp_path: Path):
     with pytest.raises(ValueError):
-        update_sync("p1", synced={}, revision=None, outputs_dir=tmp_path)
+        update_sync("p1", synced={}, revision=None, problems_dir=tmp_path)

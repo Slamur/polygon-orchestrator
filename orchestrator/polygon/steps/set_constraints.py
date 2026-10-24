@@ -1,4 +1,4 @@
-"""Polygon-шаг 2 — перенос TL/ML из `outputs/<problem_id>/constraints.yaml`
+"""Polygon-шаг 2 — перенос TL/ML из `problems/<problem_id>/constraints.yaml`
 (результат генеративного шага `constraints_pick`) в Polygon через
 `problem.updateInfo`.
 
@@ -36,7 +36,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Переносит TL/ML в Polygon (`ctx.spec` не используется), если они
     отличаются от базы синхронизации."""
     polygon_id = require_polygon_state(ctx).polygon_id
-    time_limit_ms, memory_limit_mb = read_limits(ctx.problem_id, ctx.outputs_dir)
+    time_limit_ms, memory_limit_mb = read_limits(ctx.problem_id, ctx.problems_dir)
     items = {LIMITS_KEY: limits_digest(time_limit_ms, memory_limit_mb)}
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
@@ -55,21 +55,21 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     )
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`). Ручные правки TL/ML в UI
     Polygon отсюда не видны."""
 
     def read_items() -> dict[str, str]:
-        return {LIMITS_KEY: limits_digest(*read_limits(problem_id, outputs_dir))}
+        return {LIMITS_KEY: limits_digest(*read_limits(problem_id, problems_dir))}
 
-    return sync_status(problem_id, outputs_dir, key_prefix=LIMITS_KEY, read_items=read_items)
+    return sync_status(problem_id, problems_dir, key_prefix=LIMITS_KEY, read_items=read_items)
 
 
 def _describe(time_limit_ms: int, memory_limit_mb: int) -> str:
     return f"timeLimit={time_limit_ms}ms memoryLimit={memory_limit_mb}MB"
 
 
-def read_limits(problem_id: str, outputs_dir: Path) -> tuple[int, int]:
+def read_limits(problem_id: str, problems_dir: Path) -> tuple[int, int]:
     """(timeLimit в миллисекундах, memoryLimit в мегабайтах) из
     `constraints.yaml` — в единицах `problem.updateInfo`. Без сети; если
     `constraints.yaml` нет или он некорректен — `PolygonStepError` (при
@@ -88,7 +88,7 @@ def read_limits(problem_id: str, outputs_dir: Path) -> tuple[int, int]:
     `problem.updateInfo` это прямо не сказано — после первого реального
     вызова стоит сверить с вкладкой General в UI Polygon.
     """
-    constraints_path = Path(outputs_dir) / problem_id / "constraints.yaml"
+    constraints_path = Path(problems_dir) / problem_id / "constraints.yaml"
     if not constraints_path.exists():
         raise PolygonStepError(
             f"'{problem_id}': {constraints_path} not found — first run "

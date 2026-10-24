@@ -1,4 +1,4 @@
-"""Polygon-шаг 3 — загрузка `outputs/<problem_id>/problem_lib.h` в Polygon
+"""Polygon-шаг 3 — загрузка `problems/<problem_id>/problem_lib.h` в Polygon
 как resource-файла (`problem.saveFile`, `type=resource`).
 
 У каждой задачи своя копия `problem_lib.h` (см. `PROBLEM_LIB_FILENAME` в
@@ -53,7 +53,7 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
         polygon_id = require_polygon_state(ctx).polygon_id
         try:
             path = ensure_problem_lib(
-                ctx.problem_id, outputs_dir=ctx.outputs_dir, templates_dir=templates_dir
+                ctx.problem_id, problems_dir=ctx.problems_dir, templates_dir=templates_dir
             )
         except FileNotFoundError as exc:
             raise PolygonStepError(str(exc)) from exc
@@ -75,12 +75,12 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
             f"uploaded {PROBLEM_LIB_FILENAME} as resource to Polygon id={polygon_id}", items
         )
 
-    def compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+    def compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
         """По базе синхронизации (`sync_status`). Пока копии задачи нет,
         сравнивается шаблон — его push скопирует и загрузит."""
 
         def read_items() -> dict[str, str]:
-            path = problem_lib_path(problem_id, outputs_dir)
+            path = problem_lib_path(problem_id, problems_dir)
             if not path.exists():
                 path = template_problem_lib_path(templates_dir)
             if not path.exists():
@@ -88,7 +88,7 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
             return {PROBLEM_LIB_KEY: digest(path.read_bytes())}
 
         return sync_status(
-            problem_id, outputs_dir, key_prefix=PROBLEM_LIB_KEY, read_items=read_items
+            problem_id, problems_dir, key_prefix=PROBLEM_LIB_KEY, read_items=read_items
         )
 
     return PolygonStep(

@@ -11,13 +11,13 @@
 3. вызвать `model_router.call_model(...)`;
 4. разобрать `ModelResponse.status` по "Правилу эскалации при неуверенности"
    (CLAUDE.md): `uncertain` — остановить шаг и не писать артефакты;
-   `confirmed`/`proposed` — записать артефакты в `outputs/<problem_id>/...`,
+   `confirmed`/`proposed` — записать артефакты в `problems/<problem_id>/...`,
    прогнать `compile_check` по всем `.cpp`-артефактам и сохранить
    `CacheEntry` через `cache.py`.
 
 Этот модуль реализует шаги 1-5 один раз (`run_generative_step`); конкретные
 модули в `orchestrator/steps/*.py` только знают, какую секцию спека читать,
-как разложить артефакты по каталогам `outputs/<id>/...` и что входит в
+как разложить артефакты по каталогам `problems/<id>/...` и что входит в
 апстрим-хеш — сами не дублируют этот цикл.
 """
 
@@ -41,14 +41,14 @@ from orchestrator.cache import (
 from orchestrator.checks.compile_check import CompileResult, compile_check
 
 PROMPTS_DIR = Path("prompts")
-OUTPUTS_DIR = Path("outputs")
+PROBLEMS_DIR = Path("problems")
 TEMPLATES_DIR = Path("templates")
 # Учебные задачи-образцы `examples/<problem_id>/`, каждая в раскладке
-# `outputs/<problem_id>/` плюс свой спек `spec.yaml`. Сами по себе к вызову не
+# `problems/<problem_id>/` плюс свой спек `spec.yaml`. Сами по себе к вызову не
 # прикладываются — только как референсы спека (`orchestrator/references.py`).
 EXAMPLES_DIR = Path("examples")
 
-# У каждой задачи своя копия `problem_lib.h` — `outputs/<problem_id>/problem_lib.h`:
+# У каждой задачи своя копия `problem_lib.h` — `problems/<problem_id>/problem_lib.h`:
 # шаблон `templates/problem_lib.h` — только её начальное содержимое, и правки
 # автора под конкретную задачу не перезаписывают ни шаблон, ни
 # `llm generate`, ни `polygon push`. Копию создаёт `ensure_problem_lib` —
@@ -114,7 +114,7 @@ class StepUncertainError(Exception):
     ответа не хватает данных, явно заданных автором в спеке, модель обязана
     вернуть `uncertain` вместо того, чтобы додумывать значение, а оркестратор
     обязан остановить пайплайн для этого `problem_id` и не трогать
-    `outputs/` — этот класс исключения и есть тот механический стоп-сигнал.
+    `problems/` — этот класс исключения и есть тот механический стоп-сигнал.
     """
 
     def __init__(self, step_name: str, problem_id: str, notes: list[dict[str, Any]]):
@@ -126,7 +126,7 @@ class StepUncertainError(Exception):
         ) or "the model did not provide notes with the missing fields"
         super().__init__(
             f"Step '{step_name}' for '{problem_id}' stopped (status: uncertain): "
-            f"{details}. Fix outputs/{problem_id}/spec.yaml and run the step again."
+            f"{details}. Fix problems/{problem_id}/spec.yaml and run the step again."
         )
 
 
@@ -136,7 +136,7 @@ class StepResult:
 
     `notes` сохраняет заметки модели как есть (в т.ч. `kind: proposed`) —
     какие поля отмечать как "требует ручной проверки автором" в
-    `outputs/` решает вызывающий код (пайплайн), см. CLAUDE.md, "Правило
+    `problems/` решает вызывающий код (пайплайн), см. CLAUDE.md, "Правило
     эскалации при неуверенности".
     """
 
@@ -179,7 +179,7 @@ def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[
     шагов, которые сами по себе от этой секции не зависят, но без неё
     вынуждены угадывать формат (валидатор, генераторы, решения).
 
-    Берётся именно спек, а не сгенерированные `outputs/<id>/statement/*.tex`:
+    Берётся именно спек, а не сгенерированные `problems/<id>/statement/*.tex`:
     спек — первоисточник, и он есть, даже если `statement_draft` ушёл в
     `uncertain`. Возвращаемый словарь — одновременно контекст для
     `user.md.j2` и часть входа хеша кэша шага (единая точка сборки, чтобы они
@@ -260,7 +260,7 @@ def _context_document_key(path: Path, templates_dir: Path) -> str:
     него), а ключ (он входит в `compute_prompt_hash`) не зависит от того,
     как записан сам `templates_dir` — относительно или абсолютно. Файл вне
     `templates_dir` остаётся под путём как он передан
-    (`examples/<problem_id>/validator.cpp`, `outputs/<problem_id>/validator.cpp`).
+    (`examples/<problem_id>/validator.cpp`, `problems/<problem_id>/validator.cpp`).
     """
     try:
         return path.resolve().relative_to(templates_dir.resolve()).as_posix()
@@ -313,16 +313,16 @@ def template_problem_lib_path(templates_dir: Path = TEMPLATES_DIR) -> Path:
     return Path(templates_dir) / PROBLEM_LIB_FILENAME
 
 
-def problem_lib_path(problem_id: str, outputs_dir: Path = OUTPUTS_DIR) -> Path:
-    return Path(outputs_dir) / problem_id / PROBLEM_LIB_FILENAME
+def problem_lib_path(problem_id: str, problems_dir: Path = PROBLEMS_DIR) -> Path:
+    return Path(problems_dir) / problem_id / PROBLEM_LIB_FILENAME
 
 
 def ensure_problem_lib(
-    problem_id: str, *, outputs_dir: Path = OUTPUTS_DIR, templates_dir: Path = TEMPLATES_DIR
+    problem_id: str, *, problems_dir: Path = PROBLEMS_DIR, templates_dir: Path = TEMPLATES_DIR
 ) -> Path:
     """Путь к `problem_lib.h` задачи; если его нет — сначала копирует туда
     шаблон. Нет и шаблона — `FileNotFoundError`."""
-    path = problem_lib_path(problem_id, outputs_dir)
+    path = problem_lib_path(problem_id, problems_dir)
     if not path.exists():
         template = template_problem_lib_path(templates_dir)
         if not template.exists():
@@ -334,7 +334,7 @@ def ensure_problem_lib(
 
 def artifact_filename(filename: str, subdir: str | None = None) -> str:
     """Имя файла артефакта без каталога, для шагов, которые сами решают, в
-    какой каталог `outputs/<problem_id>/` его положить. Заголовки образцов,
+    какой каталог `problems/<problem_id>/` его положить. Заголовки образцов,
     которые видит модель, — пути вида `.../generators/gen_rand.cpp`, и
     модель может вернуть ключ `generators/gen_rand.cpp` вместо
     `gen_rand.cpp`: префикс `subdir` (каталог, куда шаг и так кладёт файл)
@@ -374,7 +374,7 @@ def run_generative_step(
     resolve_artifact_path: Callable[[str], Path],
     input_parts: dict[str, str] | None = None,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
     extra_context_documents: list[str] | None = None,
     validate_artifacts: Callable[[dict[str, str]], None] | None = None,
@@ -398,7 +398,7 @@ def run_generative_step(
     `llm status` мог сказать, что именно изменилось.
 
     `resolve_artifact_path(filename)` — как разложить `artifacts` ответа
-    модели по каталогам `outputs/<problem_id>/...` (у каждого шага своя
+    модели по каталогам `problems/<problem_id>/...` (у каждого шага своя
     раскладка, см. CLAUDE.md, "Структура каталогов").
 
     `extra_context_documents` — дополнительные пути (относительно корня
@@ -414,7 +414,7 @@ def run_generative_step(
     ожидает шаг). Вызывается только при `confirmed`/`proposed` (при
     `uncertain` `artifacts` по контракту может быть пустым/частичным) и
     строго ДО записи на диск: если она бросает `ValueError`, исключение
-    всплывает из этой функции как есть, в `outputs/` не пишется ни один
+    всплывает из этой функции как есть, в `problems/` не пишется ни один
     файл и `CacheEntry` не сохраняется.
 
     `postprocess_artifacts(artifacts)` — необязательная механическая
@@ -423,7 +423,7 @@ def run_generative_step(
     `notes` ответа модели, чтобы автор видел, что файл правила не модель).
 
     При `status: uncertain` бросает `StepUncertainError` и не пишет ничего в
-    `outputs/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
+    `problems/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
     записанные `.cpp`-файлы через `compile_check` (без запуска — см.
     CLAUDE.md, "Минимальная страховка вместо судящего контура") и сохраняет
     `CacheEntry` с этим `input_hash`, актуальным хешем промптов и моделью
@@ -460,11 +460,11 @@ def run_generative_step(
     artifact_paths = _write_artifacts(artifacts, resolve_artifact_path)
 
     if any(path.suffix == ".cpp" for path in artifact_paths.values()):
-        ensure_problem_lib(problem_id, outputs_dir=outputs_dir, templates_dir=templates_dir)
+        ensure_problem_lib(problem_id, problems_dir=problems_dir, templates_dir=templates_dir)
     compile_results: dict[str, CompileResult] = {
         # `problem_lib.h` задачи — раньше шаблонного.
         filename: compile_check(
-            path, [Path(outputs_dir) / problem_id, Path(templates_dir)]
+            path, [Path(problems_dir) / problem_id, Path(templates_dir)]
         )
         for filename, path in artifact_paths.items()
         if path.suffix == ".cpp"
@@ -494,7 +494,7 @@ def run_generative_step(
             input_parts=input_parts,
             prompt_parts=prompt_parts,
         ),
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
     )
 
     return StepResult(

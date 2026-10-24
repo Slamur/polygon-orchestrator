@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Блокирует push, если имя ветки или сообщения коммитов (относительно
-# origin/main) содержат problem_id любой задачи — имя любого каталога в outputs/.
-# См. "Конфиденциальность outputs/" в CLAUDE.md.
+# origin/main) содержат problem_id любой задачи — имя любого каталога в problems/
+# (и в outputs/ — прежнее имя каталога задач, на случай оставшейся локальной копии).
+# См. "Конфиденциальность problems/" в CLAUDE.md.
 #
 # Подключение (один раз после клонирования): git config core.hooksPath githooks
 
@@ -12,7 +13,7 @@ shopt -s nocasematch
 repo_root="$(git rev-parse --show-toplevel)" || exit 0
 
 shopt -s nullglob
-problem_dirs=("$repo_root"/outputs/*/)
+problem_dirs=("$repo_root"/problems/*/ "$repo_root"/outputs/*/)
 shopt -u nullglob
 
 if [ ${#problem_dirs[@]} -eq 0 ]; then

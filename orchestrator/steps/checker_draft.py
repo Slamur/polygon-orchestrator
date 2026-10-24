@@ -12,7 +12,7 @@ from orchestrator.cache import compute_input_parts
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
-    OUTPUTS_DIR,
+    PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
@@ -59,13 +59,13 @@ def hash_inputs(
 
 
 def primary_artifact_path(
-    problem_id: str, spec: ProblemSpec, *, outputs_dir: Path = OUTPUTS_DIR
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
     """Путь к основному артефакту шага — в отличие от `solutions_draft`
     (каталог с произвольным набором файлов), у `checker_draft` ровно один
     файл с фиксированным именем, см. `constraints_pick.primary_artifact_path`.
     """
-    return Path(outputs_dir) / problem_id / "checker.cpp"
+    return Path(problems_dir) / problem_id / "checker.cpp"
 
 
 def extra_context_documents(
@@ -85,7 +85,7 @@ def run_step(
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
     prompts_dir: Path = PROMPTS_DIR,
-    outputs_dir: Path = OUTPUTS_DIR,
+    problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
     """Прогоняет шаг `checker_draft` для `problem_id`.
@@ -105,7 +105,7 @@ def run_step(
     опциональная секция, здесь секция `checker` обязательна всегда, а
     "шаг не нужен" выражается конкретным значением `custom_needed: false`).
 
-    При успехе пишет `outputs/<problem_id>/checker.cpp`.
+    При успехе пишет `problems/<problem_id>/checker.cpp`.
 
     `upstream_artifacts` не используется: `checker_draft` ни от чего не
     зависит (CLAUDE.md, "Кэширование по хешу спека").
@@ -120,7 +120,7 @@ def run_step(
     input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
-        return Path(outputs_dir) / problem_id / filename
+        return Path(problems_dir) / problem_id / filename
 
     return run_generative_step(
         step_name=STEP_NAME,
@@ -130,7 +130,7 @@ def run_step(
         input_parts=input_parts,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
-        outputs_dir=outputs_dir,
+        problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
     )

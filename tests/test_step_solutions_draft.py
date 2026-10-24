@@ -100,7 +100,7 @@ def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
     for compiled in result.compile_results.values():
@@ -128,13 +128,13 @@ def test_missing_solutions_section_raises(spec, tmp_path):
             spec_no_solutions,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
         )
 
 
 def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):
     with pytest.raises(ValueError, match="constraints.yaml"):
-        run_step("valid-spec", spec, None, prompts_dir=PROMPTS_DIR, outputs_dir=tmp_path)
+        run_step("valid-spec", spec, None, prompts_dir=PROMPTS_DIR, problems_dir=tmp_path)
 
 
 def test_confirmed_writes_solution_files(spec, tmp_path):
@@ -150,7 +150,7 @@ def test_confirmed_writes_solution_files(spec, tmp_path):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -177,7 +177,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
                 spec,
                 upstream,
                 prompts_dir=PROMPTS_DIR,
-                outputs_dir=tmp_path,
+                problems_dir=tmp_path,
                 templates_dir=TEMPLATES_DIR,
             )
 
@@ -196,7 +196,7 @@ def test_renders_without_crashing_when_known_wrong_approaches_is_null(spec, tmp_
             spec_bare,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -211,7 +211,7 @@ def _run_and_get_user_prompt(spec, tmp_path, upstream):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
     return mock_call.call_args.args[2]
@@ -312,7 +312,7 @@ def test_solution_name_with_solutions_prefix_is_not_nested(spec, tmp_path):
             spec,
             {"constraints.yaml": "n_max: 1"},
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -334,7 +334,7 @@ def test_solution_name_with_foreign_path_raises_and_writes_nothing(spec, tmp_pat
                 spec,
                 {"constraints.yaml": "n_max: 1"},
                 prompts_dir=PROMPTS_DIR,
-                outputs_dir=tmp_path,
+                problems_dir=tmp_path,
                 templates_dir=TEMPLATES_DIR,
             )
 

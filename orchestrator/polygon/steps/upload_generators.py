@@ -1,4 +1,4 @@
-"""Polygon-шаг 7 — загрузка всех `outputs/<problem_id>/generators/*.cpp`
+"""Polygon-шаг 7 — загрузка всех `problems/<problem_id>/generators/*.cpp`
 (результат генеративного шага `generators_and_script`; имена файлов модель
 выбирает сама) в Polygon как source-файлов (`problem.saveFile`,
 `type=source`).
@@ -46,7 +46,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     до первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
-    generators = _read_generators(ctx.problem_id, ctx.outputs_dir)
+    generators = _read_generators(ctx.problem_id, ctx.problems_dir)
     changed = changed_items(ctx, _items(generators))
     if not changed:
         return StepResult(NO_CHANGES_MESSAGE)
@@ -68,14 +68,14 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     )
 
 
-def _compute_status(problem_id: str, outputs_dir: Path) -> tuple[str, str]:
+def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`): новый или изменённый
     генератор делает шаг "stale"."""
     return sync_status(
         problem_id,
-        outputs_dir,
+        problems_dir,
         key_prefix=generator_key(""),
-        read_items=lambda: _items(_read_generators(problem_id, outputs_dir)),
+        read_items=lambda: _items(_read_generators(problem_id, problems_dir)),
     )
 
 
@@ -83,10 +83,10 @@ def _items(generators: list[tuple[str, bytes]]) -> dict[str, str]:
     return {generator_key(name): digest(content) for name, content in generators}
 
 
-def _read_generators(problem_id: str, outputs_dir: Path) -> list[tuple[str, bytes]]:
+def _read_generators(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
     """[(имя, содержимое), ...] для `generators/*.cpp` по алфавиту имён.
     Нет каталога или в нём нет ни одного `.cpp` — `PolygonStepError`."""
-    generators_dir = Path(outputs_dir) / problem_id / "generators"
+    generators_dir = Path(problems_dir) / problem_id / "generators"
     if not generators_dir.is_dir():
         raise PolygonStepError(
             f"'{problem_id}': directory {generators_dir} not found — first "

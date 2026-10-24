@@ -45,7 +45,7 @@ def test_run_step_passes_references_as_extra_context_documents(spec, tmp_path):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -65,7 +65,7 @@ def test_run_step_attaches_every_generator_of_reference_directory(spec, tmp_path
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -82,10 +82,10 @@ def test_run_step_attaches_every_generator_of_reference_directory(spec, tmp_path
 
 def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):
     with pytest.raises(ValueError, match="constraints.yaml"):
-        run_step("valid-spec", spec, None, prompts_dir=PROMPTS_DIR, outputs_dir=tmp_path)
+        run_step("valid-spec", spec, None, prompts_dir=PROMPTS_DIR, problems_dir=tmp_path)
 
     with pytest.raises(ValueError, match="constraints.yaml"):
-        run_step("valid-spec", spec, {}, prompts_dir=PROMPTS_DIR, outputs_dir=tmp_path)
+        run_step("valid-spec", spec, {}, prompts_dir=PROMPTS_DIR, problems_dir=tmp_path)
 
 
 def test_confirmed_splits_cpp_and_script_artifacts(spec, tmp_path):
@@ -102,7 +102,7 @@ def test_confirmed_splits_cpp_and_script_artifacts(spec, tmp_path):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -135,7 +135,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
                 spec,
                 upstream,
                 prompts_dir=PROMPTS_DIR,
-                outputs_dir=tmp_path,
+                problems_dir=tmp_path,
                 templates_dir=TEMPLATES_DIR,
             )
 
@@ -162,7 +162,7 @@ def test_renders_without_crashing_when_optional_lists_are_null(spec, tmp_path):
             spec_bare,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -179,7 +179,7 @@ def test_renders_without_crashing_when_solutions_section_missing(spec, tmp_path)
             spec_no_solutions,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -197,7 +197,7 @@ def test_known_wrong_approaches_render_into_user_prompt(spec, tmp_path):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -214,7 +214,7 @@ def test_specific_test_ideas_render_into_user_prompt(spec, tmp_path):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -235,7 +235,7 @@ def test_missing_specific_test_ideas_notes_manual_review_in_prompt(spec, tmp_pat
             spec_no_ideas,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -279,7 +279,7 @@ def test_run_step_renders_input_format_from_statement_draft(spec, tmp_path):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -462,7 +462,7 @@ def test_run_step_restores_dropped_script_functions_with_note(spec, tmp_path):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
@@ -482,7 +482,7 @@ def _run_with_artifacts(spec, tmp_path, artifacts):
             spec,
             upstream,
             prompts_dir=PROMPTS_DIR,
-            outputs_dir=tmp_path,
+            problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
         )
 
