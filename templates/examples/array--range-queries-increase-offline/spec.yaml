@@ -1,4 +1,4 @@
-problem_id: array--subsegment-queries-increase-offline
+problem_id: array--range-queries-increase-offline
 title:
   ru: "Прибавление на отрезках"
   en: "Range additions"

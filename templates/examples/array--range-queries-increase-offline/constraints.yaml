@@ -1,4 +1,4 @@
-problem_id: array--subsegment-queries-increase-offline
+problem_id: array--range-queries-increase-offline
 intended_complexity: "O(N + Q)"
 complexity_reasoning: |
   Разностный массив: для каждой операции inc[L] += D, inc[R + 1] -= D
