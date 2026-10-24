@@ -8,6 +8,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -75,13 +77,21 @@ def load_polygon_state(
 def save_polygon_state(
     problem_id: str, state: PolygonState, *, problems_dir: Path = PROBLEMS_DIR
 ) -> None:
-    """Перезаписывает `problems/<problem_id>/polygon_state.json`."""
+    """Перезаписывает `problems/<problem_id>/polygon_state.json` атомарно:
+    через временный файл рядом и `os.replace` — прерванная запись не
+    оставляет обрезанный JSON (его `load_polygon_state` счёл бы
+    отсутствием привязки)."""
     path = _state_file_path(problem_id, problems_dir=problems_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(asdict(state), ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    content = json.dumps(asdict(state), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp:
+            tmp.write(content)
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
 
 
 def update_sync(

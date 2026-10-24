@@ -1,3 +1,4 @@
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -150,3 +151,19 @@ def test_update_sync_sets_and_removes_keys_and_replaces_revision(tmp_path: Path)
 def test_update_sync_without_state_raises(tmp_path: Path):
     with pytest.raises(ValueError):
         update_sync("p1", synced={}, revision=None, problems_dir=tmp_path)
+
+
+def test_interrupted_save_keeps_previous_state(tmp_path, monkeypatch):
+    problems_dir = tmp_path / "problems"
+    state = PolygonState(problem_id="my-task", polygon_id=1, created_at="2026-09-19T12:00:00+00:00")
+    save_polygon_state("my-task", state, problems_dir=problems_dir)
+
+    def fail(*_args, **_kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("orchestrator.polygon.state.os.replace", fail)
+    with pytest.raises(KeyboardInterrupt):
+        save_polygon_state("my-task", replace(state, polygon_id=2), problems_dir=problems_dir)
+
+    assert load_polygon_state("my-task", problems_dir=problems_dir).polygon_id == 1
+    assert [p.name for p in (problems_dir / "my-task").iterdir()] == ["polygon_state.json"]
