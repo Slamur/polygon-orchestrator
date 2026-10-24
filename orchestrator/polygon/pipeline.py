@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
     create_problem.STEP_NAME: create_problem.STEP,
+    upload_spec.STEP_NAME: upload_spec.STEP,
     set_constraints.STEP_NAME: set_constraints.STEP,
     upload_problem_lib.STEP_NAME: upload_problem_lib.STEP,
     upload_validator.STEP_NAME: upload_validator.STEP,
@@ -67,7 +68,6 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_generators.STEP_NAME: upload_generators.STEP,
     upload_test_script.STEP_NAME: upload_test_script.STEP,
     upload_solutions.STEP_NAME: upload_solutions.STEP,
-    upload_spec.STEP_NAME: upload_spec.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:

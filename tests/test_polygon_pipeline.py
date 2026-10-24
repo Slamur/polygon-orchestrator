@@ -432,7 +432,7 @@ def test_reused_polygon_problem_needs_pull_before_push(problems_dir):
 
     assert [(o.step_name, o.status) for o in result.outcomes] == [
         ("create_problem", "ok"),
-        ("set_constraints", "error"),
+        ("upload_spec", "error"),
     ]
     assert "polygon pull" in result.outcomes[0].detail
     assert "polygon pull" in result.outcomes[1].detail
@@ -567,60 +567,10 @@ def test_full_run_commits_after_every_step_but_create_problem(problems_dir):
     assert commits == [f"orchestrator: {name}" for name in POLYGON_STEP_ORDER[1:]]
 
 
-def test_step_order_has_set_constraints_after_create_problem():
-    assert POLYGON_STEP_ORDER[:2] == ["create_problem", "set_constraints"]
-
-
-def test_step_order_has_upload_problem_lib_after_set_constraints():
-    assert POLYGON_STEP_ORDER[:3] == ["create_problem", "set_constraints", "upload_problem_lib"]
-
-
-def test_step_order_has_upload_validator_after_upload_problem_lib():
-    assert POLYGON_STEP_ORDER[:4] == [
-        "create_problem",
-        "set_constraints",
-        "upload_problem_lib",
-        "upload_validator",
-    ]
-
-
-def test_step_order_has_upload_checker_after_upload_validator():
-    assert POLYGON_STEP_ORDER[:5] == [
-        "create_problem",
-        "set_constraints",
-        "upload_problem_lib",
-        "upload_validator",
-        "upload_checker",
-    ]
-
-
-def test_step_order_has_upload_statement_after_upload_checker():
-    assert POLYGON_STEP_ORDER[:6] == [
-        "create_problem",
-        "set_constraints",
-        "upload_problem_lib",
-        "upload_validator",
-        "upload_checker",
-        "upload_statement",
-    ]
-
-
-def test_step_order_has_upload_test_script_after_upload_generators():
-    assert POLYGON_STEP_ORDER[:8] == [
-        "create_problem",
-        "set_constraints",
-        "upload_problem_lib",
-        "upload_validator",
-        "upload_checker",
-        "upload_statement",
-        "upload_generators",
-        "upload_test_script",
-    ]
-
-
-def test_step_order_ends_with_upload_spec():
+def test_step_order():
     assert POLYGON_STEP_ORDER == [
         "create_problem",
+        "upload_spec",
         "set_constraints",
         "upload_problem_lib",
         "upload_validator",
@@ -629,7 +579,6 @@ def test_step_order_ends_with_upload_spec():
         "upload_generators",
         "upload_test_script",
         "upload_solutions",
-        "upload_spec",
     ]
 
 
@@ -646,11 +595,17 @@ def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
     assert result.ok is False
     assert [(o.step_name, o.status) for o in result.outcomes] == [
         ("create_problem", "ok"),
+        ("upload_spec", "ok"),
         ("set_constraints", "error"),
     ]
     assert "constraints_pick" in result.outcomes[-1].detail
-    # только проверка ревизии — шаг упал до загрузки
-    assert client.methods() == ["problems.list"]
+    # set_constraints упал до сети — вызовы только от проверки ревизии и upload_spec
+    assert client.methods() == [
+        "problems.list",
+        "problem.saveFile",
+        "problem.commitChanges",
+        "problems.list",
+    ]
 
 
 def test_invalid_spec_sets_spec_error_and_never_creates_client(problems_dir):
@@ -682,6 +637,7 @@ def test_status_not_run_without_state(tmp_path):
 
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "not run"),
+        ("upload_spec", "not run"),
         ("set_constraints", "not run"),
         ("upload_problem_lib", "not run"),
         ("upload_validator", "not run"),
@@ -690,7 +646,6 @@ def test_status_not_run_without_state(tmp_path):
         ("upload_generators", "not run"),
         ("upload_test_script", "not run"),
         ("upload_solutions", "not run"),
-        ("upload_spec", "not run"),
     ]
 
 
@@ -705,6 +660,7 @@ def test_status_done_with_state(tmp_path):
 
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
+        ("upload_spec", "not run"),
         ("set_constraints", "not run"),
         ("upload_problem_lib", "not run"),
         ("upload_validator", "not run"),
@@ -713,7 +669,6 @@ def test_status_done_with_state(tmp_path):
         ("upload_generators", "not run"),
         ("upload_test_script", "not run"),
         ("upload_solutions", "not run"),
-        ("upload_spec", "not run"),
     ]
     assert statuses[0].detail == "polygon_id=777"
 
@@ -730,6 +685,7 @@ def test_status_after_full_run_then_constraints_change(problems_dir):
     statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=problems_dir)
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
+        ("upload_spec", "done"),
         ("set_constraints", "done"),
         ("upload_problem_lib", "done"),
         ("upload_validator", "done"),
@@ -738,14 +694,13 @@ def test_status_after_full_run_then_constraints_change(problems_dir):
         ("upload_generators", "done"),
         ("upload_test_script", "done"),
         ("upload_solutions", "done"),
-        ("upload_spec", "done"),
     ]
 
     (problems_dir / PROBLEM_ID / "constraints.yaml").write_text(
         "limits:\n  time_limit_seconds: 3\n  memory_limit_mb: 256\n", encoding="utf-8"
     )
     statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=problems_dir)
-    assert (statuses[1].status, statuses[1].detail) == (
+    assert (statuses[2].status, statuses[2].detail) == (
         "stale",
         "changed since the last sync: limits",
     )
