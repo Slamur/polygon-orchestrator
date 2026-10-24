@@ -178,7 +178,7 @@ solutions:
   references: []                       # [optional] референсы только для solutions_draft (см. "Референсы")
 
 # ---------------------------------------------------------------------------
-# СЛУЖЕБНОЕ
+# 5. ЧЕКЕР (только при custom_needed: true) — вход для шага checker_draft
 # ---------------------------------------------------------------------------
 checker:
   standard: "ncmp"                   # [optional] имя стандартного чекера ИЛИ null
@@ -186,11 +186,6 @@ checker:
   custom_comparison_notes: null       # [required если custom_needed=true] — как сравнивать ответы,
                                        # точность для вещественных и т.д. (см. tutorials/checker.md)
   references: []                      # [optional] референсы только для checker_draft (см. "Референсы")
-
-meta:
-  requirements_docs:                  # ссылки на приложенные md с правилами — не дублируются в спеке,
-    - "templates/common/tutorials/statement.md"
-  status: "draft"                     # "draft" | "ready_for_generation" | "reviewed"
 ```
 
 ## Почему именно так

@@ -118,14 +118,3 @@ checker:
     Сравнение: меньший индекс лучше; "NO" хуже любого индекса. Ответ
     участника должен быть не хуже ответа жюри; если он строго лучше —
     это ошибка жюри (fail).
-
-meta:
-  requirements_docs:
-    - "templates/common/tutorials/statement.md"
-    - "templates/common/tutorials/limits.md"
-    - "templates/common/tutorials/validator.md"
-    - "templates/common/tutorials/tests.md"
-    - "templates/common/tutorials/freemarker.md"
-    - "templates/common/tutorials/solutions.md"
-    - "templates/common/tutorials/checker.md"
-  status: "reviewed"
