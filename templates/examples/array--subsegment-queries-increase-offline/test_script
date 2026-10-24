@@ -1,0 +1,116 @@
+<#assign desc = "Generators"/>
+<#assign rand = "gen_queries_rand"/>
+<#assign allSeg = "gen_queries_all_segments"/>
+<#assign grid = "gen_queries_grid"/>
+<#assign fixedLR = "gen_queries_fixed_lr"/>
+<#assign rFixed = "gen_queries_r_fixed"/>
+
+<#assign desc = "Functions"/>
+<#function div a b>
+    <#return (a / b)?long>
+</#function>
+<#function ceil a b>
+    <#return div(a - 1, b) + 1/>
+</#function>
+<#function min a b>
+    <#return [a, b]?sort?first>
+</#function>
+<#function max a b>
+    <#return [a, b]?sort?last>
+</#function>
+<#function pow base power>
+    <#assign res = 1/>
+    <#list 0..<power as it>
+        <#assign res = res * base/>
+    </#list>
+    <#return res>
+</#function>
+<#function fact n>
+    <#assign res = 1/>
+    <#list 0..<n as it>
+        <#assign res = res * (it + 1)/>
+    </#list>
+    <#return res>
+</#function>
+<#function contains items value>
+    <#list items as item>
+        <#if item == value>
+            <#return true/>
+        </#if>
+    </#list>
+    <#return false/>
+</#function>
+
+<#assign desc = "Constraints"/>
+<#assign minN = 1/>
+<#assign maxN = 3 * pow(10, 5)/>
+<#assign minQ = 1/>
+<#assign maxQ = 3 * pow(10, 5)/>
+<#assign minD = -1 * pow(10, 9)/>
+<#assign maxD = pow(10, 9)/>
+
+<#assign desc = "Generation"/>
+
+<#-- smallN / smallQ / smallD: not fixed by the author, chosen as a modest
+     scale for small tests and for the "N=max,Q=small"/"N=small,Q=max"
+     scenarios (status: proposed, see response notes). -->
+<#assign smallN = 10/>
+<#assign smallQ = 10/>
+<#assign smallD = 1000/>
+
+<#-- midAllSegN: largest N with all subsegments fitting into maxQ
+     (774 * 775 / 2 = 299925 operations). -->
+<#assign midAllSegN = 774/>
+
+<#assign midN = div(maxN, 2)/>
+<#assign midStart = div(maxN, 4)/>
+<#assign midEnd = div(3 * maxN, 4)/>
+
+<#-- Small tests of various sizes: small D and full-range D -->
+<#list minN..smallN as n>
+    ${rand} -n=${n} -q=${n} -minD=${-smallD} -maxD=${smallD} > $
+    ${rand} -n=${n} -q=${n} -minD=${minD} -maxD=${maxD} > $
+</#list>
+
+<#-- All subsegments for every N from 1 to 10, small D -->
+<#list minN..smallN as n>
+    ${allSeg} -n=${n} -minD=${-smallD} -maxD=${smallD} > $
+</#list>
+
+<#-- All subsegments for N = 774 (Q close to maxQ) -->
+${allSeg} -n=${midAllSegN} -minD=${minD} -maxD=${maxD} > $
+
+<#-- N = Q = max, grid sqrt(Q) * sqrt(Q), start = 1, end = N: all segments long -->
+${grid} -n=${maxN} -q=${maxQ} -start=${minN} -end=${maxN} -minD=${minD} -maxD=${maxD} > $
+
+<#-- Same grid with D = maxD / D = minD for every operation: values up to
+     Q * maxD by absolute value, catches 32-bit overflow in diff array /
+     prefix sums -->
+${grid} -n=${maxN} -q=${maxQ} -start=${minN} -end=${maxN} -minD=${maxD} -maxD=${maxD} > $
+${grid} -n=${maxN} -q=${maxQ} -start=${minN} -end=${maxN} -minD=${minD} -maxD=${minD} > $
+
+<#-- Grid with other start/end: literally "both boundaries in the middle,
+     start = end" -> a single point segment at the middle of the array
+     (the only valid Q for start = end is 1) -->
+${grid} -n=${maxN} -q=1 -start=${midN} -end=${midN} -minD=${minD} -maxD=${maxD} > $
+
+<#-- Additional non-trivial grid away from the array edges, both
+     boundaries strictly inside the array, at full Q = maxQ scale
+     (status: proposed, see response notes: the literal start = end
+     reading above only yields one trivial operation). -->
+${grid} -n=${maxN} -q=${maxQ} -start=${midStart} -end=${midEnd} -minD=${minD} -maxD=${maxD} > $
+
+<#-- All Q operations on the same fixed segment: whole array, last cell, first cell -->
+${fixedLR} -n=${maxN} -q=${maxQ} -l=${minN} -r=${maxN} -minD=${minD} -maxD=${maxD} > $
+${fixedLR} -n=${maxN} -q=${maxQ} -l=${maxN} -r=${maxN} -minD=${minD} -maxD=${maxD} > $
+${fixedLR} -n=${maxN} -q=${maxQ} -l=${minN} -r=${minN} -minD=${minD} -maxD=${maxD} > $
+
+<#-- Many operations with R = N: catches inc[R] -= D instead of inc[R + 1] -= D -->
+${rFixed} -n=${maxN} -q=${maxQ} -r=${maxN} -minD=${minD} -maxD=${maxD} > $
+
+<#-- Random operations at N = Q = max, D over the whole range -->
+${rand} -n=${maxN} -q=${maxQ} -minD=${minD} -maxD=${maxD} > $
+
+<#-- N = max, Q small, and N small, Q = max -->
+${rand} -n=${maxN} -q=${smallQ} -minD=${minD} -maxD=${maxD} > $
+${rand} -n=${smallN} -q=${maxQ} -minD=${minD} -maxD=${maxD} > $

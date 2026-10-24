@@ -1,0 +1,143 @@
+problem_id: example--array--subsegment-queries-increase-offline
+title:
+  ru: "Прибавление на отрезках"
+  en: "Range additions"
+references:
+  - "templates/examples/array--prefix-sums"
+
+statement_draft:
+  legend_sketch: |
+    Дан массив длины N, изначально заполненный нулями. К нему по очереди
+    применяются Q операций: i-я операция прибавляет число D_i ко всем
+    элементам с индексами от L_i до R_i включительно. Нужно вывести
+    массив после применения всех операций.
+  formal_input_sketch: |
+    В первой строке два целых числа N и Q (1 <= N, Q <= 3 * 10^5) — длина массива и количество операций.
+    Во второй строке Q целых чисел L_1, ..., L_Q — левые границы отрезков операций.
+    В третьей строке Q целых чисел R_1, ..., R_Q (1 <= L_i <= R_i <= N) — правые границы отрезков.
+    В четвёртой строке Q целых чисел D_1, ..., D_Q (|D_i| <= 10^9) — прибавляемые числа.
+    i-я операция задаётся тройкой (L_i, R_i, D_i).
+  formal_output_sketch: |
+    В одной строке через пробел N целых чисел — элементы массива после
+    применения всех операций, по порядку от первого до N-го.
+    Ответ всегда существует и единственен.
+  indexing: "1-indexed"
+  sample_examples:
+    - input: |
+        5 3
+        1 2 4
+        3 5 4
+        2 -1 5
+      output: |
+        2 1 1 4 -1
+      note_hint: |
+        Состояние массива после каждой операции:
+
+        - после первой: 2 2 2 0 0
+        - после второй: 2 1 1 -1 -1
+        - после третьей: 2 1 1 4 -1
+    - input: |
+        1 1
+        1
+        1
+        7
+      output: |
+        7
+      note_hint: "Единственная операция прибавляет 7 к единственному элементу массива"
+
+constraints:
+  intended_complexity: "O(N + Q)"
+  complexity_reasoning: |
+    Разностный массив: для каждой операции inc[L] += D, inc[R + 1] -= D
+    (массив inc размера N + 2), затем ответ — префиксные суммы inc.
+    Значения по модулю достигают Q * max|D| = 3 * 10^14 — нужен 64-битный тип.
+  variables:
+    - name: "N"
+      min: 1
+      max: 300000
+      description: "длина массива"
+    - name: "Q"
+      min: 1
+      max: 300000
+      description: "количество операций"
+    - name: "L_i"
+      min: 1
+      max: "R_i"
+      description: "левая граница отрезка i-й операции"
+    - name: "R_i"
+      min: "L_i"
+      max: "N"
+      description: "правая граница отрезка i-й операции"
+    - name: "D_i"
+      min: -1000000000
+      max: 1000000000
+      description: "прибавляемое число i-й операции"
+  test_groups_needed: false
+  time_limit_seconds: 2
+  memory_limit_mb: 256
+
+generation:
+  generator_ideas:
+    - name: "gen_queries_rand"
+      params: ["n", "q", "minD", "maxD"]
+      purpose: "N и Q случайных операций: L <= R случайные в [1, N], D случайное из [minD, maxD]"
+    - name: "gen_queries_all_segments"
+      params: ["n", "minD", "maxD"]
+      purpose: |
+        Все N * (N + 1) / 2 различных отрезков [L, R] массива длины N по
+        одному разу, в случайном порядке; Q = N * (N + 1) / 2, D каждой
+        операции случайное из [minD, maxD]. Для маленьких N; падает, если
+        Q превышает максимум.
+    - name: "gen_queries_grid"
+      params: ["n", "q", "start", "end", "minD", "maxD"]
+      purpose: |
+        K = floor(sqrt(q)); левые границы — start, start + 1, ..., start + K - 1,
+        правые — end - K + 1, ..., end; операции — все K * K пар (L, R) в
+        случайном порядке, D случайное из [minD, maxD]. С start = 1, end = N
+        и большими N, Q все отрезки длинные — ловит наивное прибавление
+        за O(N) на операцию. Падает, если какая-то пара даёт L > R или
+        границы выходят за [1, N].
+  specific_test_ideas:
+    - "N = 1, Q = 1"
+    - "все подотрезки для каждого N от 1 до 10, маленькие D"
+    - "все подотрезки для N = 774 (Q = 299925, близко к максимуму)"
+    - "N = Q = max, сетка sqrt(Q) * sqrt(Q) со start = 1, end = N — все отрезки почти весь массив"
+    - "та же сетка с D = 10^9 у всех операций и с D = -10^9 у всех операций — значения до 3 * 10^14 по модулю, переполнение 32-битного типа"
+    - "сетка с другими start/end (например, обе границы в середине массива, start = end)"
+    - "все операции на [1, N]; все операции на [N, N]; все операции на [1, 1]"
+    - "много операций с R = N — ловит массив inc без ячейки R + 1"
+    - "случайные операции при N = Q = max, D во всём диапазоне"
+    - "N = max, Q маленькое и наоборот"
+  script_style: "flat"
+
+solutions:
+  wanted_verdicts: ["ok", "wa", "tl", "tl_ok", "re"]
+  languages: ["cpp", "java", "py"]
+  algorithm_hint: |
+    Разностный массив inc размера N + 2 в 64-битном типе: для каждой
+    операции inc[L] += D, inc[R + 1] -= D. Элемент i итогового массива —
+    сумма inc[1] + ... + inc[i] (префиксные суммы за один проход).
+    Ввод-вывод быстрый: до 9 * 10^5 чисел на вход, 3 * 10^5 на выход.
+  known_wrong_approaches:
+    - "wa (cpp/java): разностный массив и префиксные суммы в 32-битном типе — переполнение при |D| = 10^9 и большом Q"
+    - "re (py): массив inc размера N + 1 вместо N + 2 — inc[R + 1] выходит за границу массива при R = N"
+    - "tl: наивное прибавление за O(R - L + 1) на каждую операцию — O(N * Q)"
+    - "tl_ok (cpp/java): рекурсивное дерево отрезков, прибавление на отрезке и запрос в точке — O((N + Q) log N)"
+    - "tl_ok (cpp/java): нерекурсивное дерево отрезков снизу вверх, прибавление на отрезке и запрос в точке — O((N + Q) log N)"
+    - "tl_ok (cpp/java): дерево Фенвика над разностным массивом (add(L, D), add(R + 1, -D), элемент — префиксная сумма) — O((N + Q) log N)"
+    - "tl_ok (cpp/java): корневая декомпозиция с ленивым прибавлением на блоках — O(Q * sqrt(N))"
+
+checker:
+  standard: "ncmp"
+  custom_needed: false
+  custom_comparison_notes: null
+
+meta:
+  requirements_docs:
+    - "templates/common/tutorials/statement.md"
+    - "templates/common/tutorials/limits.md"
+    - "templates/common/tutorials/validator.md"
+    - "templates/common/tutorials/tests.md"
+    - "templates/common/tutorials/freemarker.md"
+    - "templates/common/tutorials/solutions.md"
+  status: "draft"

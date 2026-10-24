@@ -1,0 +1,265 @@
+2026-10-24 02:16:33,929 INFO orchestrator: ===== run started: orchestrator polygon push example--array--subsegment-queries-increase-offline =====
+2026-10-24 02:16:33,938 INFO orchestrator.polygon.pipeline: [create_problem] step started
+2026-10-24 02:16:33,940 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:16:34,448 INFO orchestrator.polygon.client: PolygonClient.call(problem.create): POST https://polygon.codeforces.com/api/problem.create
+2026-10-24 02:16:34,828 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:16:35,340 INFO orchestrator.polygon.steps.base: [create_problem] created new Polygon problem (id=613053)
+2026-10-24 02:16:35,340 INFO orchestrator.polygon.pipeline: [set_constraints] step started
+2026-10-24 02:16:35,340 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:16:35,726 INFO orchestrator.polygon.pipeline: Polygon revision 0 matches the last sync
+2026-10-24 02:16:35,731 INFO orchestrator.polygon.client: PolygonClient.call(problem.updateInfo): POST https://polygon.codeforces.com/api/problem.updateInfo
+2026-10-24 02:16:36,619 INFO orchestrator.polygon.steps.base: [set_constraints] set timeLimit=2000ms memoryLimit=256MB on Polygon id=613053
+2026-10-24 02:16:36,621 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:16:38,453 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:16:38,786 INFO orchestrator.polygon.pipeline: [upload_problem_lib] step started
+2026-10-24 02:16:38,788 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 02:16:39,101 INFO orchestrator.polygon.steps.base: [upload_problem_lib] uploaded problem_lib.h as resource to Polygon id=613053
+2026-10-24 02:16:39,104 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:16:41,104 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:16:41,485 INFO orchestrator.polygon.pipeline: [upload_validator] step started
+2026-10-24 02:16:41,485 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 02:16:53,286 INFO orchestrator.polygon.client: PolygonClient.call(problem.setValidator): POST https://polygon.codeforces.com/api/problem.setValidator
+2026-10-24 02:16:53,570 INFO orchestrator.polygon.steps.base: [upload_validator] uploaded and set validator.cpp as validator on Polygon id=613053
+2026-10-24 02:16:53,572 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:16:55,473 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:16:55,923 INFO orchestrator.polygon.pipeline: [upload_checker] step started
+2026-10-24 02:16:55,924 INFO orchestrator.polygon.client: PolygonClient.call(problem.setChecker): POST https://polygon.codeforces.com/api/problem.setChecker
+2026-10-24 02:16:56,334 INFO orchestrator.polygon.steps.base: [upload_checker] set standard checker 'std::ncmp.cpp' on Polygon id=613053
+2026-10-24 02:16:56,336 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:16:58,047 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:16:58,362 INFO orchestrator.polygon.pipeline: [upload_statement] step started
+2026-10-24 02:16:58,363 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveStatement): POST https://polygon.codeforces.com/api/problem.saveStatement
+2026-10-24 02:16:58,745 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveTest): POST https://polygon.codeforces.com/api/problem.saveTest
+2026-10-24 02:16:59,059 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveTest): POST https://polygon.codeforces.com/api/problem.saveTest
+2026-10-24 02:16:59,366 INFO orchestrator.polygon.steps.base: [upload_statement] saved statement (name='Прибавление на отрезках') and 2 of 2 sample test(s) on Polygon id=613053
+2026-10-24 02:16:59,367 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:17:01,116 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:17:01,455 INFO orchestrator.polygon.pipeline: [upload_generators] step started
+2026-10-24 02:17:01,456 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 02:17:18,455 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 02:17:33,364 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 02:17:46,102 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 02:17:58,654 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 02:18:12,734 INFO orchestrator.polygon.steps.base: [upload_generators] uploaded 5 of 5 generator(s) (gen_queries_all_segments.cpp, gen_queries_fixed_lr.cpp, gen_queries_grid.cpp, gen_queries_r_fixed.cpp, gen_queries_rand.cpp) to Polygon id=613053
+2026-10-24 02:18:12,735 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:18:14,690 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:18:15,081 INFO orchestrator.polygon.pipeline: [upload_test_script] step started
+2026-10-24 02:18:15,082 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveScript): POST https://polygon.codeforces.com/api/problem.saveScript
+2026-10-24 02:18:29,859 ERROR orchestrator.polygon.pipeline: [upload_test_script] Polygon API problem.saveScript: source: Test #33 coincides with test #4 [script='gen_queries_rand -n=1 -q=1 -minD=-1000000000 -maxD=1000000000'].
+
+2026-10-24 02:31:03,722 INFO orchestrator: ===== run started: orchestrator polygon push example--array--subsegment-queries-increase-offline =====
+2026-10-24 02:31:03,726 INFO orchestrator.polygon.pipeline: [create_problem] step started
+2026-10-24 02:31:03,726 INFO orchestrator.polygon.steps.base: [create_problem] already linked to Polygon id=613053, skipped
+2026-10-24 02:31:03,726 INFO orchestrator.polygon.pipeline: [set_constraints] step started
+2026-10-24 02:31:03,727 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:31:04,119 INFO orchestrator.polygon.pipeline: Polygon revision 6 matches the last sync
+2026-10-24 02:31:04,124 INFO orchestrator.polygon.steps.base: [set_constraints] no changes since the last sync, skipped
+2026-10-24 02:31:04,124 INFO orchestrator.polygon.pipeline: [upload_problem_lib] step started
+2026-10-24 02:31:04,124 INFO orchestrator.polygon.steps.base: [upload_problem_lib] no changes since the last sync, skipped
+2026-10-24 02:31:04,124 INFO orchestrator.polygon.pipeline: [upload_validator] step started
+2026-10-24 02:31:04,124 INFO orchestrator.polygon.steps.base: [upload_validator] no changes since the last sync, skipped
+2026-10-24 02:31:04,124 INFO orchestrator.polygon.pipeline: [upload_checker] step started
+2026-10-24 02:31:04,125 INFO orchestrator.polygon.steps.base: [upload_checker] no changes since the last sync, skipped
+2026-10-24 02:31:04,125 INFO orchestrator.polygon.pipeline: [upload_statement] step started
+2026-10-24 02:31:04,125 INFO orchestrator.polygon.steps.base: [upload_statement] no changes since the last sync, skipped
+2026-10-24 02:31:04,125 INFO orchestrator.polygon.pipeline: [upload_generators] step started
+2026-10-24 02:31:04,125 INFO orchestrator.polygon.steps.base: [upload_generators] no changes since the last sync, skipped
+2026-10-24 02:31:04,126 INFO orchestrator.polygon.pipeline: [upload_test_script] step started
+2026-10-24 02:31:04,126 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveScript): POST https://polygon.codeforces.com/api/problem.saveScript
+2026-10-24 02:31:29,000 INFO orchestrator.polygon.steps.base: [upload_test_script] uploaded test script (test_script) to Polygon id=613053
+2026-10-24 02:31:29,001 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:31:32,468 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:31:32,888 INFO orchestrator.polygon.pipeline: [upload_solutions] step started
+2026-10-24 02:31:32,889 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:31:37,959 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:31:53,402 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:31:54,188 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:31:59,236 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:32:03,135 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:32:06,883 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:32:10,877 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:32:15,061 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:32:32,135 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:32:48,048 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:33:04,258 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:33:21,429 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:33:37,812 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:33:38,861 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:33:42,267 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:33:58,499 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:33:59,418 INFO orchestrator.polygon.steps.base: [upload_solutions] uploaded 17 of 17 solution(s) to Polygon id=613053: ok_cpp_diff_draft.cpp=OK, ok_java_diff_draft.java=OK, ok_py_diff_draft.py=MA, tl_cpp_naive_draft.cpp=TL, tl_ok_cpp_fenwick_draft.cpp=TO, tl_ok_cpp_segtree_iterative_draft.cpp=TO, tl_ok_cpp_segtree_recursive_draft.cpp=TO, tl_ok_cpp_sqrt_draft.cpp=TO, tl_ok_java_fenwick_draft.java=TO, tl_ok_java_segtree_iterative_draft.java=TO, tl_ok_java_segtree_recursive_draft.java=TO, tl_ok_java_slowio_draft.java=TO, tl_ok_java_sqrt_draft.java=TO, tl_ok_py_slowio_draft.py=TO, wa_cpp_overflow_draft.cpp=WA, wa_java_overflow_draft.java=WA, wa_py_right_border_draft.py=WA
+2026-10-24 02:33:59,418 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:34:02,924 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+
+2026-10-24 02:43:05,855 INFO orchestrator: ===== run started: orchestrator polygon push example--array--subsegment-queries-increase-offline =====
+2026-10-24 02:43:05,863 INFO orchestrator.polygon.pipeline: [create_problem] step started
+2026-10-24 02:43:05,863 INFO orchestrator.polygon.steps.base: [create_problem] already linked to Polygon id=613053, skipped
+2026-10-24 02:43:05,863 INFO orchestrator.polygon.pipeline: [set_constraints] step started
+2026-10-24 02:43:05,864 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:43:06,339 ERROR orchestrator.polygon.pipeline: [set_constraints] 'example--array--subsegment-queries-increase-offline': Polygon problem id=613053 changed since the last sync (revision 9 on Polygon, 8 recorded) — run `orchestrator polygon pull example--array--subsegment-queries-increase-offline [--overwrite]`, or overwrite Polygon with `orchestrator polygon push example--array--subsegment-queries-increase-offline --force`
+
+2026-10-24 02:43:22,628 INFO orchestrator: ===== run started: orchestrator polygon pull example--array--subsegment-queries-increase-offline =====
+2026-10-24 02:43:22,628 INFO orchestrator.polygon.pull: [pull] already linked to Polygon id=613053
+2026-10-24 02:43:22,628 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:43:23,030 INFO orchestrator.polygon.client: PolygonClient.call(problem.statements): POST https://polygon.codeforces.com/api/problem.statements
+2026-10-24 02:43:23,335 INFO orchestrator.polygon.pull: [pull] statement/legend.tex: up to date
+2026-10-24 02:43:23,335 INFO orchestrator.polygon.pull: [pull] statement/input_format.tex: up to date
+2026-10-24 02:43:23,335 INFO orchestrator.polygon.pull: [pull] statement/output_format.tex: kept — differs from Polygon, local version kept — the next push will upload it
+2026-10-24 02:43:23,336 INFO orchestrator.polygon.pull: [pull] statement/notes.tex: up to date
+2026-10-24 02:43:23,336 INFO orchestrator.polygon.pull: [pull] statement/name.txt: up to date
+2026-10-24 02:43:23,336 INFO orchestrator.polygon.client: PolygonClient.call(problem.tests): POST https://polygon.codeforces.com/api/problem.tests
+2026-10-24 02:43:23,644 INFO orchestrator.polygon.pull: [pull] statement/examples/example_1.txt: up to date — Polygon test 1
+2026-10-24 02:43:23,644 INFO orchestrator.polygon.pull: [pull] statement/examples/example_2.txt: up to date — Polygon test 2
+2026-10-24 02:43:23,702 INFO orchestrator.polygon.client: PolygonClient.call(problem.info): POST https://polygon.codeforces.com/api/problem.info
+2026-10-24 02:43:24,034 INFO orchestrator.polygon.pull: [pull] constraints.yaml: up to date — TL/ML
+2026-10-24 02:43:24,035 INFO orchestrator.polygon.client: PolygonClient.call(problem.files): POST https://polygon.codeforces.com/api/problem.files
+2026-10-24 02:43:24,361 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewFile): POST https://polygon.codeforces.com/api/problem.viewFile
+2026-10-24 02:43:24,591 INFO orchestrator.polygon.pull: [pull] problem_lib.h: up to date
+2026-10-24 02:43:24,592 INFO orchestrator.polygon.client: PolygonClient.call(problem.validator): POST https://polygon.codeforces.com/api/problem.validator
+2026-10-24 02:43:24,950 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewFile): POST https://polygon.codeforces.com/api/problem.viewFile
+2026-10-24 02:43:25,182 INFO orchestrator.polygon.pull: [pull] validator.cpp: up to date — Polygon source file validator.cpp
+2026-10-24 02:43:25,182 INFO orchestrator.polygon.client: PolygonClient.call(problem.checker): POST https://polygon.codeforces.com/api/problem.checker
+2026-10-24 02:43:25,424 INFO orchestrator.polygon.pull: [pull] checker.cpp: absent — standard checker std::ncmp.cpp on Polygon
+2026-10-24 02:43:25,425 INFO orchestrator.polygon.client: PolygonClient.call(problem.validator): POST https://polygon.codeforces.com/api/problem.validator
+2026-10-24 02:43:25,644 INFO orchestrator.polygon.client: PolygonClient.call(problem.checker): POST https://polygon.codeforces.com/api/problem.checker
+2026-10-24 02:43:25,874 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewFile): POST https://polygon.codeforces.com/api/problem.viewFile
+2026-10-24 02:43:26,121 INFO orchestrator.polygon.pull: [pull] generators/gen_queries_all_segments.cpp: up to date
+2026-10-24 02:43:26,121 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewFile): POST https://polygon.codeforces.com/api/problem.viewFile
+2026-10-24 02:43:26,347 INFO orchestrator.polygon.pull: [pull] generators/gen_queries_fixed_lr.cpp: up to date
+2026-10-24 02:43:26,348 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewFile): POST https://polygon.codeforces.com/api/problem.viewFile
+2026-10-24 02:43:26,585 INFO orchestrator.polygon.pull: [pull] generators/gen_queries_grid.cpp: up to date
+2026-10-24 02:43:26,585 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewFile): POST https://polygon.codeforces.com/api/problem.viewFile
+2026-10-24 02:43:26,821 INFO orchestrator.polygon.pull: [pull] generators/gen_queries_r_fixed.cpp: up to date
+2026-10-24 02:43:26,822 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewFile): POST https://polygon.codeforces.com/api/problem.viewFile
+2026-10-24 02:43:27,046 INFO orchestrator.polygon.pull: [pull] generators/gen_queries_rand.cpp: up to date
+2026-10-24 02:43:27,048 INFO orchestrator.polygon.client: PolygonClient.call(problem.script): POST https://polygon.codeforces.com/api/problem.script
+2026-10-24 02:43:27,354 INFO orchestrator.polygon.pull: [pull] test_script: kept — differs from Polygon, local version kept — the next push will upload it
+2026-10-24 02:43:27,354 INFO orchestrator.polygon.client: PolygonClient.call(problem.solutions): POST https://polygon.codeforces.com/api/problem.solutions
+2026-10-24 02:43:27,583 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:27,808 INFO orchestrator.polygon.pull: [pull] solutions/ok_cpp_diff_draft.cpp: up to date — Polygon tag OK
+2026-10-24 02:43:27,808 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:28,030 INFO orchestrator.polygon.pull: [pull] solutions/ok_java_diff_draft.java: up to date — Polygon tag OK
+2026-10-24 02:43:28,030 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:28,284 INFO orchestrator.polygon.pull: [pull] solutions/ok_py_diff_draft.py: kept — Polygon tag MA; differs from Polygon, local version kept — the next push will upload it
+2026-10-24 02:43:28,284 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:28,510 INFO orchestrator.polygon.pull: [pull] solutions/tl_cpp_naive_draft.cpp: up to date — Polygon tag TL
+2026-10-24 02:43:28,511 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:28,740 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_cpp_fenwick_draft.cpp: up to date — Polygon tag TO
+2026-10-24 02:43:28,740 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:28,966 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_cpp_segtree_iterative_draft.cpp: up to date — Polygon tag TO
+2026-10-24 02:43:28,967 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:29,204 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_cpp_segtree_recursive_draft.cpp: up to date — Polygon tag TO
+2026-10-24 02:43:29,205 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:29,436 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_cpp_sqrt_draft.cpp: up to date — Polygon tag TO
+2026-10-24 02:43:29,436 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:29,658 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_java_fenwick_draft.java: up to date — Polygon tag TO
+2026-10-24 02:43:29,658 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:29,889 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_java_segtree_iterative_draft.java: up to date — Polygon tag TO
+2026-10-24 02:43:29,889 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:30,135 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_java_segtree_recursive_draft.java: up to date — Polygon tag TO
+2026-10-24 02:43:30,136 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:30,370 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_java_slowio_draft.java: up to date — Polygon tag TO
+2026-10-24 02:43:30,370 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:30,596 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_java_sqrt_draft.java: up to date — Polygon tag TO
+2026-10-24 02:43:30,596 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:30,825 INFO orchestrator.polygon.pull: [pull] solutions/tl_ok_py_slowio_draft.py: up to date — Polygon tag TO
+2026-10-24 02:43:30,825 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:31,058 INFO orchestrator.polygon.pull: [pull] solutions/wa_cpp_overflow_draft.cpp: up to date — Polygon tag WA
+2026-10-24 02:43:31,058 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:31,292 INFO orchestrator.polygon.pull: [pull] solutions/wa_java_overflow_draft.java: up to date — Polygon tag WA
+2026-10-24 02:43:31,293 INFO orchestrator.polygon.client: PolygonClient.call(problem.viewSolution): POST https://polygon.codeforces.com/api/problem.viewSolution
+2026-10-24 02:43:31,528 INFO orchestrator.polygon.pull: [pull] solutions/wa_py_right_border_draft.py: up to date — Polygon tag WA
+
+2026-10-24 02:43:44,166 INFO orchestrator: ===== run started: orchestrator polygon push example--array--subsegment-queries-increase-offline =====
+2026-10-24 02:43:44,171 INFO orchestrator.polygon.pipeline: [create_problem] step started
+2026-10-24 02:43:44,171 INFO orchestrator.polygon.steps.base: [create_problem] already linked to Polygon id=613053, skipped
+2026-10-24 02:43:44,171 INFO orchestrator.polygon.pipeline: [set_constraints] step started
+2026-10-24 02:43:44,172 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:43:44,534 INFO orchestrator.polygon.pipeline: Polygon revision 9 matches the last sync
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.steps.base: [set_constraints] no changes since the last sync, skipped
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.pipeline: [upload_problem_lib] step started
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.steps.base: [upload_problem_lib] no changes since the last sync, skipped
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.pipeline: [upload_validator] step started
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.steps.base: [upload_validator] no changes since the last sync, skipped
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.pipeline: [upload_checker] step started
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.steps.base: [upload_checker] no changes since the last sync, skipped
+2026-10-24 02:43:44,539 INFO orchestrator.polygon.pipeline: [upload_statement] step started
+2026-10-24 02:43:44,540 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveStatement): POST https://polygon.codeforces.com/api/problem.saveStatement
+2026-10-24 02:43:44,940 INFO orchestrator.polygon.steps.base: [upload_statement] saved statement (name='Прибавление на отрезках') on Polygon id=613053
+2026-10-24 02:43:44,941 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:43:48,055 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:43:48,385 INFO orchestrator.polygon.pipeline: [upload_generators] step started
+2026-10-24 02:43:48,386 INFO orchestrator.polygon.steps.base: [upload_generators] no changes since the last sync, skipped
+2026-10-24 02:43:48,386 INFO orchestrator.polygon.pipeline: [upload_test_script] step started
+2026-10-24 02:43:48,386 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveScript): POST https://polygon.codeforces.com/api/problem.saveScript
+2026-10-24 02:43:51,510 INFO orchestrator.polygon.steps.base: [upload_test_script] uploaded test script (test_script) to Polygon id=613053
+2026-10-24 02:43:51,511 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:43:51,741 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 02:43:52,070 INFO orchestrator.polygon.pipeline: [upload_solutions] step started
+2026-10-24 02:43:52,071 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 02:43:53,044 INFO orchestrator.polygon.steps.base: [upload_solutions] uploaded 1 of 17 solution(s) to Polygon id=613053: ok_py_diff_draft.py=MA
+2026-10-24 02:43:53,045 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 02:43:56,719 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+
+2026-10-24 12:05:09,087 INFO orchestrator: ===== run started: orchestrator polygon push example--array--subsegment-queries-increase-offline =====
+2026-10-24 12:05:09,092 INFO orchestrator.polygon.pipeline: [create_problem] step started
+2026-10-24 12:05:09,092 INFO orchestrator.polygon.steps.base: [create_problem] already linked to Polygon id=613053, skipped
+2026-10-24 12:05:09,092 INFO orchestrator.polygon.pipeline: [set_constraints] step started
+2026-10-24 12:05:09,093 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 12:05:09,605 INFO orchestrator.polygon.pipeline: Polygon revision 11 matches the last sync
+2026-10-24 12:05:09,612 INFO orchestrator.polygon.steps.base: [set_constraints] no changes since the last sync, skipped
+2026-10-24 12:05:09,612 INFO orchestrator.polygon.pipeline: [upload_problem_lib] step started
+2026-10-24 12:05:09,613 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 12:05:10,013 INFO orchestrator.polygon.steps.base: [upload_problem_lib] uploaded problem_lib.h as resource to Polygon id=613053
+2026-10-24 12:05:10,014 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 12:05:13,439 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 12:05:13,769 INFO orchestrator.polygon.pipeline: [upload_validator] step started
+2026-10-24 12:05:13,769 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 12:05:33,584 INFO orchestrator.polygon.client: PolygonClient.call(problem.setValidator): POST https://polygon.codeforces.com/api/problem.setValidator
+2026-10-24 12:05:33,838 INFO orchestrator.polygon.steps.base: [upload_validator] uploaded and set validator.cpp as validator on Polygon id=613053
+2026-10-24 12:05:33,839 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 12:05:37,353 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 12:05:37,718 INFO orchestrator.polygon.pipeline: [upload_checker] step started
+2026-10-24 12:05:37,718 INFO orchestrator.polygon.steps.base: [upload_checker] no changes since the last sync, skipped
+2026-10-24 12:05:37,718 INFO orchestrator.polygon.pipeline: [upload_statement] step started
+2026-10-24 12:05:37,719 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveStatement): POST https://polygon.codeforces.com/api/problem.saveStatement
+2026-10-24 12:05:38,052 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveTest): POST https://polygon.codeforces.com/api/problem.saveTest
+2026-10-24 12:05:38,487 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveTest): POST https://polygon.codeforces.com/api/problem.saveTest
+2026-10-24 12:05:38,911 INFO orchestrator.polygon.steps.base: [upload_statement] saved statement (name='Прибавление на отрезках') and 2 of 2 sample test(s) on Polygon id=613053
+2026-10-24 12:05:38,912 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 12:05:42,782 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 12:05:43,119 INFO orchestrator.polygon.pipeline: [upload_generators] step started
+2026-10-24 12:05:43,120 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 12:06:06,643 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 12:06:26,197 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 12:06:41,202 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 12:06:54,709 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveFile): POST https://polygon.codeforces.com/api/problem.saveFile
+2026-10-24 12:07:11,565 INFO orchestrator.polygon.steps.base: [upload_generators] uploaded 5 of 5 generator(s) (gen_queries_all_segments.cpp, gen_queries_fixed_lr.cpp, gen_queries_grid.cpp, gen_queries_r_fixed.cpp, gen_queries_rand.cpp) to Polygon id=613053
+2026-10-24 12:07:11,567 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 12:07:15,597 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 12:07:15,937 INFO orchestrator.polygon.pipeline: [upload_test_script] step started
+2026-10-24 12:07:15,937 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveScript): POST https://polygon.codeforces.com/api/problem.saveScript
+2026-10-24 12:07:58,976 INFO orchestrator.polygon.steps.base: [upload_test_script] uploaded test script (test_script) to Polygon id=613053
+2026-10-24 12:07:58,977 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 12:08:05,424 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
+2026-10-24 12:08:05,838 INFO orchestrator.polygon.pipeline: [upload_solutions] step started
+2026-10-24 12:08:05,840 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:11,263 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:28,363 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:30,005 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:31,440 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:36,762 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:40,857 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:45,053 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:49,410 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:08:54,990 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:09:23,404 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:09:43,015 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:10:10,049 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:10:27,662 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:10:49,457 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:10:50,602 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:10:56,030 INFO orchestrator.polygon.client: PolygonClient.call(problem.saveSolution): POST https://polygon.codeforces.com/api/problem.saveSolution
+2026-10-24 12:11:11,694 INFO orchestrator.polygon.steps.base: [upload_solutions] uploaded 17 of 17 solution(s) to Polygon id=613053: ok_cpp_diff_draft.cpp=OK, ok_java_diff_draft.java=OK, ok_py_diff_draft.py=MA, re_py_inc_size_draft.py=RJ, tl_cpp_naive_draft.cpp=TL, tl_ok_cpp_fenwick_draft.cpp=TO, tl_ok_cpp_segtree_iterative_draft.cpp=TO, tl_ok_cpp_segtree_recursive_draft.cpp=TO, tl_ok_cpp_sqrt_draft.cpp=TO, tl_ok_java_fenwick_draft.java=TO, tl_ok_java_segtree_iterative_draft.java=TO, tl_ok_java_segtree_recursive_draft.java=TO, tl_ok_java_slowio_draft.java=TO, tl_ok_java_sqrt_draft.java=TO, tl_ok_py_slowio_draft.py=TO, wa_cpp_overflow_draft.cpp=WA, wa_java_overflow_draft.java=WA
+2026-10-24 12:11:11,695 INFO orchestrator.polygon.client: PolygonClient.call(problem.commitChanges): POST https://polygon.codeforces.com/api/problem.commitChanges
+2026-10-24 12:11:21,321 INFO orchestrator.polygon.client: PolygonClient.call(problems.list): POST https://polygon.codeforces.com/api/problems.list
