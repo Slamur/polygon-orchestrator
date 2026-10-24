@@ -141,7 +141,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
 │   │   ├── sync.py                 # база синхронизации: ключи элементов задачи, sha256, fetch_revision (ревизия задачи на Polygon)
 │   │   ├── pull.py                 # pull_problem — привязка к существующей задаче, сравнение с ней и выгрузка (обратное направление к steps/)
-│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions, upload_spec
+│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_spec, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions
 │   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/

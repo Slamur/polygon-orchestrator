@@ -23,12 +23,15 @@ STEP_ORDER: list[str] = [
     "solutions_draft",
 ]
 
-# Список расширяется по мере добавления шагов — дописывать новые имена в конец
-# и добавлять запись в `polygon.pipeline._POLYGON_STEPS`; больше ничего менять
-# не нужно, если новый шаг — такой же `PolygonStep`, запускаемый через
-# `steps.base.run_step`.
+# Список расширяется по мере добавления шагов — дописывать новые имена (как
+# правило, в конец) и добавлять запись в `polygon.pipeline._POLYGON_STEPS`;
+# больше ничего менять не нужно, если новый шаг — такой же `PolygonStep`,
+# запускаемый через `steps.base.run_step`. `upload_spec` идёт сразу после
+# `create_problem`: спек — основа задачи, и он должен оказаться на Polygon,
+# даже если какой-то из следующих шагов упадёт.
 POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
+    "upload_spec",
     "set_constraints",
     "upload_problem_lib",
     "upload_validator",
@@ -37,5 +40,4 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_generators",
     "upload_test_script",
     "upload_solutions",
-    "upload_spec",
 ]
