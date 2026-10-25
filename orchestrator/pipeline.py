@@ -37,6 +37,7 @@ from orchestrator.cache import (
     PendingResponse,
     is_cache_valid,
     load_cache_entry,
+    discard_pending_response,
     load_pending_response,
     save_cache_entry,
 )
@@ -53,6 +54,7 @@ from orchestrator.steps import (
 )
 from orchestrator.steps.base import (
     PROBLEMS_DIR,
+    CONFLICTS_REPORT,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepRevision,
@@ -83,6 +85,7 @@ OUTCOME_PROPOSED = "proposed"
 OUTCOME_UNCERTAIN = "uncertain"
 OUTCOME_SKIPPED_OPTIONAL = "skipped_optional"
 OUTCOME_ERROR = "error"
+OUTCOME_CONFLICT = "conflict"
 OUTCOME_NO_PENDING = "no_pending_response"
 
 
@@ -99,6 +102,10 @@ class StepOutcome:
     removed: list[tuple[Path, str]] = field(default_factory=list)
     renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
     backup_dir: Optional[Path] = None
+    # Что из ответа модели не применено (имя файла, причина) и куда отложены
+    # версии модели (`steps.base.StepResult`).
+    conflicts: list[tuple[str, str]] = field(default_factory=list)
+    conflicts_dir: Optional[Path] = None
 
 
 @dataclass
@@ -351,17 +358,39 @@ def _run_step_into(
         result.stopped_uncertain = True
         return False
 
+    conflicts_dir = step_result.conflicts_dir
+    if conflicts_dir is not None:
+        address = problem_address(problems_dir, problem_id)
+        resolve = (
+            f"{len(step_result.conflicts)} part(s) of the response not applied "
+            f"(status: {step_result.status}) — see {conflicts_dir / CONFLICTS_REPORT}; "
+            "resolve by hand, delete the directory and run "
+            f"'orchestrator {address} llm accept --step {step_name}'"
+        )
+        if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
+            resolve += (
+                " (nothing is applied and the response is saved: after fixing the cause "
+                f"'orchestrator {address} llm apply --step {step_name}' applies it)"
+            )
+        detail = f"{detail}; {resolve}" if detail else resolve
     result.outcomes.append(
         StepOutcome(
             step_name,
-            step_result.status,
+            OUTCOME_CONFLICT if conflicts_dir is not None else step_result.status,
             detail,
             notes=step_result.notes,
             removed=step_result.removed,
             renamed=step_result.renamed,
             backup_dir=step_result.backup_dir,
+            conflicts=step_result.conflicts,
+            conflicts_dir=conflicts_dir,
         )
     )
+    if conflicts_dir is not None:
+        # Следующие шаги зависят от файлов этого — пока автор не разберёт
+        # конфликты, дальше не идём.
+        result.stopped_uncertain = True
+        return False
     return True
 
 
@@ -491,6 +520,19 @@ def run_pipeline(
                 templates_dir=templates_dir,
             ):
                 return result
+        elif cache_entry is not None and cache_entry.conflicts is not None and not (
+            force or fresh
+        ):
+            result.outcomes.append(
+                StepOutcome(
+                    step_name,
+                    OUTCOME_CONFLICT,
+                    _conflicts_detail(problem_id, step_name, cache_entry, problems_dir)
+                    + " (or 'llm generate --force' to call the model again)",
+                )
+            )
+            result.stopped_uncertain = True
+            return result
         elif (
             not (force or fresh)
             and is_cache_valid(
@@ -556,6 +598,7 @@ STATUS_CACHE_HIT = "cache hit"
 STATUS_STALE = "stale"
 STATUS_NOT_RUN = "not run"
 STATUS_UNCERTAIN = "uncertain"
+STATUS_CONFLICT = "conflict"
 STATUS_SKIPPED_OPTIONAL = "skipped (optional)"
 STATUS_BLOCKED = "blocked"
 
@@ -621,8 +664,12 @@ def accept_steps(
     вход которых изменится уже после принятия.
 
     Не принимаются: шаги без артефакта на диске, шаги без записи кэша
-    (`not run` — ни разу не генерировались) и шаги со `status: uncertain`
-    (провал по недостатку данных должен всплывать, пока спек не поправят).
+    (`not run` — ни разу не генерировались), шаги со `status: uncertain`
+    (провал по недостатку данных должен всплывать, пока спек не поправят) и
+    шаги с неразобранными конфликтами (каталог конфликтов ещё на месте).
+    Шаг с разобранными конфликтами (каталог удалён) принимается, даже если
+    его вход не менялся. Неприменённый сохранённый ответ принятого шага
+    удаляется.
     Статус записи кэша (`confirmed`/`proposed`) сохраняется, у записи
     выставляется `accepted: true`.
 
@@ -710,7 +757,14 @@ def _status_of_step(
     artifact_present: bool,
     problems_dir: Path,
 ) -> StepStatus:
-    status = _cache_status_of_step(step_name, cache_entry, hashes, artifact_present)
+    if cache_entry is not None and cache_entry.conflicts is not None:
+        status = StepStatus(
+            step_name,
+            STATUS_CONFLICT,
+            _conflicts_detail(problem_id, step_name, cache_entry, problems_dir),
+        )
+    else:
+        status = _cache_status_of_step(step_name, cache_entry, hashes, artifact_present)
     if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
         hint = (
             "a saved model response is not applied — "
@@ -719,6 +773,27 @@ def _status_of_step(
         )
         status.detail = f"{status.detail}; {hint}" if status.detail else hint
     return status
+
+
+def _conflicts_resolved(problem_id: str, entry: CacheEntry, problems_dir: Path) -> bool:
+    """Автор разобрал конфликты прошлого прогона — удалил их каталог."""
+    assert entry.conflicts is not None
+    return not (Path(problems_dir) / problem_id / entry.conflicts).exists()
+
+
+def _conflicts_detail(
+    problem_id: str, step_name: str, entry: CacheEntry, problems_dir: Path
+) -> str:
+    accept = (
+        f"'orchestrator {problem_address(problems_dir, problem_id)} "
+        f"llm accept --step {step_name}'"
+    )
+    if _conflicts_resolved(problem_id, entry, problems_dir):
+        return f"conflicts of the last run resolved ({entry.conflicts} deleted) — run {accept}"
+    return (
+        f"unresolved conflicts of the last run in {entry.conflicts} — resolve by hand, "
+        f"delete the directory and run {accept}"
+    )
 
 
 def _cache_status_of_step(
@@ -755,7 +830,16 @@ def _accept_step(
     )
     if current.state == STATUS_CACHE_HIT:
         return current
-    if current.state != STATUS_STALE or not artifact_present:
+    if current.state == STATUS_CONFLICT:
+        assert cache_entry is not None
+        if not _conflicts_resolved(problem_id, cache_entry, problems_dir):
+            return StepStatus(step_name, STATUS_NOT_ACCEPTED, current.detail)
+        if not artifact_present:
+            return StepStatus(
+                step_name, STATUS_NOT_ACCEPTED, "conflicts resolved, but the artifact is missing on disk"
+            )
+        accepted_detail = f"conflicts resolved ({cache_entry.conflicts} deleted)"
+    elif current.state != STATUS_STALE or not artifact_present:
         detail = current.detail or "the step has never been generated"
         return StepStatus(
             step_name,
@@ -763,6 +847,8 @@ def _accept_step(
             f"{current.state}: {detail} — run "
             f"'orchestrator {problem_address(problems_dir, problem_id)} llm generate'",
         )
+    else:
+        accepted_detail = f"was stale: {current.detail}"
 
     assert cache_entry is not None
     save_cache_entry(
@@ -781,4 +867,6 @@ def _accept_step(
         ),
         problems_dir=problems_dir,
     )
-    return StepStatus(step_name, STATUS_ACCEPTED, f"was stale: {current.detail}")
+    # Принятые файлы актуальны — неприменённый ответ того же шага больше не нужен.
+    discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
+    return StepStatus(step_name, STATUS_ACCEPTED, accepted_detail)

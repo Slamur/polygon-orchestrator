@@ -606,7 +606,7 @@ def _apply(problems_dir, **kwargs):
     return result
 
 
-def test_rejected_response_stops_pipeline_without_writing_and_is_saved(spec_file, tmp_path):
+def test_rejected_response_stops_pipeline_with_conflict_and_is_saved(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     result, mock_call = _run_with_failing_statement_check(problems_dir)
 
@@ -614,16 +614,60 @@ def test_rejected_response_stops_pipeline_without_writing_and_is_saved(spec_file
     assert mock_call.call_count == 1
     [outcome] = result.outcomes
     assert outcome.step_name == "statement_draft"
-    assert outcome.status == pipeline.OUTCOME_ERROR
-    assert "the set of files does not match" in outcome.detail
+    assert outcome.status == pipeline.OUTCOME_CONFLICT
+    assert all("the set of files does not match" in reason for _, reason in outcome.conflicts)
+    assert "llm accept --step statement_draft" in outcome.detail
     assert "llm apply --step statement_draft" in outcome.detail
     problem_dir = problems_dir / "p1"
     assert not (problem_dir / "statement").exists()
-    assert not (problem_dir / ".cache" / "statement_draft.json").exists()
+    assert (outcome.conflicts_dir / "statement" / "legend.tex").is_file()
     assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
     status = _statuses(problems_dir)["statement_draft"]
-    assert status.state == pipeline.STATUS_NOT_RUN
+    assert status.state == pipeline.STATUS_CONFLICT
+    assert "unresolved conflicts" in status.detail
     assert "llm apply --step statement_draft" in status.detail
+
+
+def _resolve_statement_conflict(problems_dir, conflicts_dir):
+    """Автор разбирает конфликт: берёт версию модели и удаляет каталог."""
+    import shutil
+
+    shutil.copytree(conflicts_dir / "statement", problems_dir / "p1" / "statement")
+    shutil.rmtree(conflicts_dir)
+
+
+def test_generate_does_not_call_model_for_step_with_unresolved_conflicts(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    _run_with_failing_statement_check(problems_dir)
+
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        result = _run(problems_dir)
+
+    mock_call.assert_not_called()
+    [outcome] = result.outcomes
+    assert outcome.status == pipeline.OUTCOME_CONFLICT
+    assert "unresolved conflicts" in outcome.detail
+    assert "--force" in outcome.detail
+
+
+def test_accept_after_resolving_conflicts_makes_step_a_cache_hit(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    [outcome] = _run_with_failing_statement_check(problems_dir)[0].outcomes
+
+    refused = _accept(problems_dir, only_step="statement_draft")["statement_draft"]
+    assert refused.state == pipeline.STATUS_NOT_ACCEPTED
+    assert "unresolved conflicts" in refused.detail
+
+    _resolve_statement_conflict(problems_dir, outcome.conflicts_dir)
+    assert "resolved" in _statuses(problems_dir)["statement_draft"].detail
+    accepted = _accept(problems_dir, only_step="statement_draft")["statement_draft"]
+
+    assert accepted.state == pipeline.STATUS_ACCEPTED
+    assert "conflicts resolved" in accepted.detail
+    status = _statuses(problems_dir)["statement_draft"]
+    assert (status.state, status.detail) == (pipeline.STATUS_CACHE_HIT, "")
+    # Принятый шаг больше не предлагает применить сохранённый ответ.
+    assert not (problems_dir / "p1" / ".cache" / "statement_draft.response.json").exists()
 
 
 def test_apply_writes_saved_response_without_calling_model(spec_file, tmp_path):

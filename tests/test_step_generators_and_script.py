@@ -505,13 +505,17 @@ def test_generator_name_with_generators_prefix_is_not_nested(spec, tmp_path):
 @pytest.mark.parametrize(
     "bad_name", ["other/gen_rand.cpp", "../gen_rand.cpp", "generators/sub/gen_rand.cpp", "dir/test_script"]
 )
-def test_artifact_name_with_foreign_path_raises_and_writes_nothing(spec, tmp_path, bad_name):
-    with pytest.raises(ValueError, match="not a plain file name"):
-        _run_with_artifacts(spec, tmp_path, {"test_script_groups": SCRIPT_FUNCTIONS, bad_name: "x"})
+def test_artifact_name_with_foreign_path_is_set_aside_and_the_rest_applied(
+    spec, tmp_path, bad_name
+):
+    result = _run_with_artifacts(
+        spec, tmp_path, {"test_script_groups": SCRIPT_FUNCTIONS, bad_name: "x"}
+    )
 
     problem_dir = tmp_path / "valid-spec"
-    # Записан только неприменённый ответ модели (для `llm apply`).
-    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
-        ".cache",
-        ".cache/generators_and_script.response.json",
-    ]
+    assert (problem_dir / "test_script_groups").is_file()
+    [(filename, reason)] = result.conflicts
+    assert filename == bad_name
+    assert "not a plain file name" in reason
+    assert result.conflicts_dir is not None
+    assert not any((problem_dir / "generators").glob("*"))

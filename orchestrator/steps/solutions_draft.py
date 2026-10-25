@@ -223,6 +223,8 @@ def run_step(
         saved_response=saved_response,
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
+        # Файлы независимы: генераторы/скрипт и решения применяются по одному.
+        partial_apply=True,
         prompts_dir=prompts_dir,
         problems_dir=problems_dir,
         templates_dir=templates_dir,

@@ -190,6 +190,7 @@ def test_save_and_load_cache_entry_roundtrip(tmp_path):
         "prompt_parts": None,
         "input_values": None,
         "accepted": False,
+        "conflicts": None,
     }
 
 
