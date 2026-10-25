@@ -105,7 +105,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--step", choices=STEP_ORDER, default=None, help="run only one step"
     )
     generate_parser.add_argument(
-        "--force", action="store_true", help="ignore the cache and call the model again"
+        "--force",
+        action="store_true",
+        help="ignore the cache and call the model again (revising the current files)",
+    )
+    generate_parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="generate from scratch without showing the current files to the model "
+        "(implies --force)",
     )
     generate_parser.set_defaults(handler="cmd_llm_generate")
 

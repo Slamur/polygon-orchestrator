@@ -188,6 +188,7 @@ def test_save_and_load_cache_entry_roundtrip(tmp_path):
         "timestamp": "2026-09-13T00:00:00Z",
         "input_parts": None,
         "prompt_parts": None,
+        "input_values": None,
         "accepted": False,
     }
 

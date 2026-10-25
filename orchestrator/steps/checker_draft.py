@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.cache import compute_input_parts
+from orchestrator.cache import compute_input_values
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
@@ -16,6 +16,8 @@ from orchestrator.steps.base import (
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
+    StepRevision,
+    existing_artifacts,
     run_generative_step,
 )
 
@@ -53,7 +55,7 @@ def hash_inputs(
 ) -> tuple[Any, Optional[dict[str, Any]]]:
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_parts`), чтобы они не разошлись."""
+    (`cache.compute_input_values`), чтобы они не разошлись."""
     _require_custom_checker(problem_id, spec)
     return spec.checker.custom_comparison_notes, None
 
@@ -66,6 +68,14 @@ def primary_artifact_path(
     файл с фиксированным именем, см. `constraints_pick.primary_artifact_path`.
     """
     return Path(problems_dir) / problem_id / "checker.cpp"
+
+
+def current_artifacts(
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
+) -> dict[str, Path]:
+    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
+    модель) -> путь — для режима доработки (`base.StepRevision`). `checker.cpp`."""
+    return existing_artifacts({"checker.cpp": Path(problems_dir) / problem_id / "checker.cpp"})
 
 
 def extra_context_documents(
@@ -84,6 +94,7 @@ def run_step(
     spec: ProblemSpec,
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
+    revision: Optional[StepRevision] = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -117,7 +128,7 @@ def run_step(
         "checker": spec.checker.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD),
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
-    input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
+    input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
         return Path(problems_dir) / problem_id / filename
@@ -127,7 +138,8 @@ def run_step(
         problem_id=problem_id,
         context=context,
         input_hash=input_hash,
-        input_parts=input_parts,
+        input_values=input_values,
+        revision=revision,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
         problems_dir=problems_dir,

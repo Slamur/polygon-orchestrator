@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.cache import compute_input_parts
+from orchestrator.cache import compute_input_values
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
@@ -16,6 +17,8 @@ from orchestrator.steps.base import (
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
+    StepRevision,
+    existing_artifacts,
     run_generative_step,
     with_default_lists,
 )
@@ -28,6 +31,7 @@ _LIST_FIELDS = ["known_ambiguities"]
 
 STATEMENT_SUBDIR = "statement"
 _FIXED_STATEMENT_FILES = ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]
+_EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 
 
 def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
@@ -82,7 +86,7 @@ def hash_inputs(
 ) -> tuple[Any, Optional[dict[str, Any]]]:
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_parts`), чтобы они не разошлись."""
+    (`cache.compute_input_values`), чтобы они не разошлись."""
     section_data = with_default_lists(
         spec.statement_draft.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
     )
@@ -98,6 +102,26 @@ def primary_artifact_path(
     подпапке `statement/`.
     """
     return Path(problems_dir) / problem_id / STATEMENT_SUBDIR
+
+
+def current_artifacts(
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
+) -> dict[str, Path]:
+    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
+    модель) -> путь — для режима доработки (`base.StepRevision`).
+    4 tex-файла и `examples/example_<N>.txt` (по возрастанию N); `name.txt`
+    — не артефакт шага (его пишут `polygon push`/`pull`)."""
+    statement_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR
+    candidates = {name: statement_dir / name for name in _FIXED_STATEMENT_FILES}
+    examples_dir = statement_dir / "examples"
+    examples = examples_dir.glob("example_*.txt") if examples_dir.is_dir() else []
+    numbered = sorted(
+        (int(match.group(1)), path)
+        for path in examples
+        if (match := _EXAMPLE_NAME.match(path.name))
+    )
+    candidates.update({f"examples/{path.name}": path for _, path in numbered})
+    return existing_artifacts(candidates)
 
 
 def extra_context_documents(
@@ -116,6 +140,7 @@ def run_step(
     spec: ProblemSpec,
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
+    revision: Optional[StepRevision] = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -158,7 +183,7 @@ def run_step(
     )
     context = {"problem_id": problem_id, "statement_draft": section_data}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
-    input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
+    input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
         # filename приходит как "legend.tex" или "examples/example_1.txt" —
@@ -172,7 +197,8 @@ def run_step(
         problem_id=problem_id,
         context=context,
         input_hash=input_hash,
-        input_parts=input_parts,
+        input_values=input_values,
+        revision=revision,
         resolve_artifact_path=resolve_artifact_path,
         prompts_dir=prompts_dir,
         problems_dir=problems_dir,

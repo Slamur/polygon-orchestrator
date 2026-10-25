@@ -15,6 +15,17 @@
    прогнать `compile_check` по всем `.cpp`-артефактам и сохранить
    `CacheEntry` через `cache.py`.
 
+Режим доработки (`StepRevision`): если файлы шага уже есть на диске, модель
+получает их вместе с тем, что изменилось во входе шага с прошлого прогона
+(`prompts/revise.md.j2`), и дорабатывает их, а не пишет с нуля. Каждый
+текущий файл в ответе — ровно в одном из: `artifacts` (изменён),
+`unchanged`, `removed`, `renamed[].from` (`_plan_revision`). Удалённые
+файлы не удаляются, а переименовываются в `<имя>.removed`
+(`REMOVED_SUFFIX`) — автор посмотрит и удалит сам; переименования
+применяются сразу. Прежние версии перезаписанных и переименованных файлов
+(в любом режиме) — в `.llm_backup/<время>/` каталога задачи
+(`problems/` вне git, истории у файлов задачи нет).
+
 Этот модуль реализует шаги 1-5 один раз (`run_generative_step`); конкретные
 модули в `orchestrator/steps/*.py` только знают, какую секцию спека читать,
 как разложить артефакты по каталогам `problems/<id>/...` и что входит в
@@ -24,25 +35,38 @@
 from __future__ import annotations
 
 import datetime
+import json
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import jinja2
+import yaml
 
 from orchestrator import model_router
 from orchestrator.cache import (
+    REVISE_PROMPT,
     CacheEntry,
+    changed_input_values,
     compute_prompt_hash,
     compute_prompt_parts,
+    input_parts_from_values,
     save_cache_entry,
 )
 from orchestrator.checks.compile_check import CompileResult, compile_check
-from orchestrator.problem_paths import EXAMPLES_DIR, PROBLEMS_DIR
+from orchestrator.problem_paths import EXAMPLES_DIR, PROBLEMS_DIR, REMOVED_SUFFIX, is_removed_mark
 
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
+
+# `REVISE_PROMPT` (импортирован из `cache.py`) — общий для всех шагов блок
+# user-промпта режима доработки (относительно prompts_dir): дописывается к
+# `prompts/<step>/user.md.j2`, когда модели показаны текущие файлы шага.
+
+# Каталог (в каталоге задачи) с прежними версиями файлов, которые шаг
+# перезаписал или переименовал: `.llm_backup/<время>/<путь в каталоге задачи>`.
+LLM_BACKUP_DIRNAME = ".llm_backup"
 # Учебные задачи-образцы `examples/` (`EXAMPLES_DIR`), каждая в раскладке
 # `problems/<problem_id>/` плюс свой спек `spec.yaml` (как задачи раскладываются
 # по вложенным каталогам — см. `orchestrator/problem_paths.py`). Сами по себе к
@@ -146,6 +170,32 @@ class StepResult:
     artifact_paths: dict[str, Path] = field(default_factory=dict)
     notes: list[dict[str, Any]] = field(default_factory=list)
     compile_results: dict[str, CompileResult] = field(default_factory=dict)
+    # Режим доработки: файлы, помеченные `.removed` (путь пометки, причина),
+    # и переименования (старый путь, новый путь, причина).
+    revised: bool = False
+    removed: list[tuple[Path, str]] = field(default_factory=list)
+    renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
+    # Куда легли прежние версии перезаписанных/переименованных файлов;
+    # `None` — ничего не перезаписано.
+    backup_dir: Optional[Path] = None
+
+
+@dataclass
+class StepRevision:
+    """Режим доработки: шаг уже запускался, и его файлы есть на диске.
+
+    `current_paths` — текущие файлы шага: имя артефакта (как его вернула бы
+    модель, см. `current_artifacts` шагов) -> путь. `previous_input_values`
+    — вход прошлого прогона по частям (`CacheEntry.input_values`), по нему
+    модели показывается, что изменилось; `None` — неизвестно (записи кэша
+    нет или она старше `input_values`). `other_changes` — что ещё
+    изменилось с прошлого прогона, кроме входа (модель, промпт, приложенные
+    документы), — только имена, без содержимого.
+    """
+
+    current_paths: dict[str, Path]
+    previous_input_values: Optional[dict[str, Any]] = None
+    other_changes: list[str] = field(default_factory=list)
 
 
 def _jinja_env(prompts_dir: Path) -> jinja2.Environment:
@@ -216,6 +266,51 @@ def render_user_prompt(
     env = _jinja_env(prompts_dir)
     template = env.get_template(f"{step_name}/user.md.j2")
     return template.render(**context)
+
+
+def _display_value(value: Any) -> Optional[str]:
+    """Часть входа шага текстом для промпта: строка — как есть (текст
+    легенды, содержимое `constraints.yaml`), списки и словари — YAML,
+    прочие значения — JSON (`true`, `5`, `null` у поля, заданного как null)."""
+    if isinstance(value, str):
+        return value
+    if not isinstance(value, (dict, list)):
+        return json.dumps(value)
+    return yaml.safe_dump(
+        value, allow_unicode=True, sort_keys=False, default_flow_style=False
+    ).rstrip("\n")
+
+
+def render_revision_prompt(
+    revision: StepRevision,
+    input_values: dict[str, Any],
+    *,
+    prompts_dir: Path = PROMPTS_DIR,
+) -> str:
+    """Блок режима доработки (`prompts/revise.md.j2`): текущие файлы шага и
+    что изменилось во входе шага с прошлого прогона (`None` у "было" —
+    части не было, у "стало" — её больше нет; поле со значением null —
+    `null`)."""
+    previous = revision.previous_input_values
+    changes = changed_input_values(previous, input_values)
+    context = {
+        "current_files": [
+            {"name": name, "content": path.read_text(encoding="utf-8").rstrip("\n")}
+            for name, path in revision.current_paths.items()
+        ],
+        "changes": None
+        if changes is None
+        else [
+            {
+                "name": name,
+                "old": _display_value(old) if name in previous else None,
+                "new": _display_value(new) if name in input_values else None,
+            }
+            for name, old, new in changes
+        ],
+        "other_changes": revision.other_changes,
+    }
+    return _jinja_env(prompts_dir).get_template(REVISE_PROMPT).render(**context)
 
 
 def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> str:
@@ -352,17 +447,162 @@ def artifact_filename(filename: str, subdir: str | None = None) -> str:
     return parts[0]
 
 
+def existing_artifacts(candidates: dict[str, Path]) -> dict[str, Path]:
+    """Те из `candidates` (имя артефакта -> путь), что есть на диске и не
+    помечены как удалённые, — для `current_artifacts` шагов."""
+    return {
+        name: path
+        for name, path in candidates.items()
+        if path.is_file() and not is_removed_mark(path)
+    }
+
+
+def directory_artifacts(directory: Path, pattern: str = "*") -> dict[str, Path]:
+    """Файлы `directory` по `pattern` под своими именами (по алфавиту), кроме
+    помеченных как удалённые."""
+    if not directory.is_dir():
+        return {}
+    return existing_artifacts(
+        {path.name: path for path in sorted(directory.glob(pattern), key=lambda p: p.name)}
+    )
+
+
+@dataclass
+class _RevisionPlan:
+    """Проверенный ответ модели в режиме доработки — что сделать с файлами."""
+
+    # Итоговый набор файлов шага: имя -> содержимое (то, что останется после
+    # применения ответа; его проверяет `validate_artifacts`).
+    final_artifacts: dict[str, str]
+    removed: list[tuple[Path, str]]
+    renamed: list[tuple[Path, Path, str]]
+
+
+def _plan_revision(
+    step_name: str,
+    response: Any,
+    revision: StepRevision,
+    resolve_path: Callable[[str], Path],
+) -> _RevisionPlan:
+    """Проверяет, что каждый текущий файл шага в ответе модели ровно в
+    одном из `artifacts`/`unchanged`/`removed`/`renamed[].from`, а новые
+    имена переименований свободны. Файлы сопоставляются по пути
+    (`resolve_path`), а не по строке имени: `generators/gen.cpp` и `gen.cpp`
+    — один файл. Любая проблема — `ValueError` со всеми проблемами сразу, до
+    записи на диск."""
+    current_by_path = {path.resolve(): name for name, path in revision.current_paths.items()}
+    problems: list[str] = []
+    seen: dict[str, list[str]] = {name: [] for name in revision.current_paths}
+
+    def current_name(filename: str, where: str) -> Optional[str]:
+        name = current_by_path.get(resolve_path(filename).resolve())
+        if name is None:
+            problems.append(f"{where} '{filename}' is not a current file of the step")
+        else:
+            seen[name].append(where)
+        return name
+
+    for filename in response.artifacts:
+        name = current_by_path.get(resolve_path(filename).resolve())
+        if name is not None:
+            seen[name].append("artifacts")
+    unchanged = [
+        name for filename in response.unchanged
+        if (name := current_name(filename, "unchanged")) is not None
+    ]
+    removed: list[tuple[Path, str]] = []
+    for entry in response.removed:
+        name = current_name(entry["filename"], "removed")
+        if name is not None:
+            removed.append((revision.current_paths[name], entry["reason"]))
+    renamed: list[tuple[Path, Path, str]] = []
+    targets: set[Path] = set()
+    for entry in response.renamed:
+        name = current_name(entry["from"], "renamed.from")
+        target = resolve_path(entry["to"])
+        if target.resolve() in current_by_path or target.exists():
+            problems.append(f"renamed.to '{entry['to']}' is already taken")
+        elif target.resolve() in targets:
+            problems.append(f"renamed.to '{entry['to']}' is used twice")
+        targets.add(target.resolve())
+        if name is not None:
+            renamed.append((revision.current_paths[name], target, entry["reason"]))
+
+    for name, places in seen.items():
+        if not places:
+            problems.append(f"current file '{name}' is missing from the response")
+        elif len(places) > 1:
+            problems.append(f"current file '{name}' is in several places: {', '.join(places)}")
+    if problems:
+        raise ValueError(
+            f"Step '{step_name}': the revision response does not account for the "
+            f"current files ({'; '.join(problems)})"
+        )
+
+    final_artifacts = {
+        name: revision.current_paths[name].read_text(encoding="utf-8") for name in unchanged
+    }
+    for entry, (old_path, _, _) in zip(response.renamed, renamed):
+        final_artifacts[entry["to"]] = old_path.read_text(encoding="utf-8")
+    final_artifacts.update(response.artifacts)
+    return _RevisionPlan(final_artifacts=final_artifacts, removed=removed, renamed=renamed)
+
+
+class _Backup:
+    """Прежние версии файлов задачи — в `.llm_backup/<время>/` (создаётся при
+    первом файле)."""
+
+    def __init__(self, problem_dir: Path) -> None:
+        self.problem_dir = problem_dir
+        self.directory: Optional[Path] = None
+
+    def save(self, path: Path) -> None:
+        if self.directory is None:
+            stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            self.directory = self.problem_dir / LLM_BACKUP_DIRNAME / stamp
+        target = self.directory / path.relative_to(self.problem_dir)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+
+
 def _write_artifacts(
     artifacts: dict[str, str],
     resolve_path: Callable[[str], Path],
+    backup: _Backup,
+    *,
+    skip_backup: set[Path] = frozenset(),
 ) -> dict[str, Path]:
     written: dict[str, Path] = {}
     for filename, content in artifacts.items():
         path = resolve_path(filename)
+        if (
+            path.is_file()
+            and path not in skip_backup
+            and path.read_text(encoding="utf-8") != content
+        ):
+            backup.save(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         written[filename] = path
     return written
+
+
+def _apply_removals_and_renames(plan: _RevisionPlan, backup: _Backup) -> list[tuple[Path, str]]:
+    """Помечает удалённые файлы (`<имя>.removed`; прежняя пометка с тем же
+    именем — в бэкап) и переименовывает файлы (старая версия — в бэкап).
+    Возвращает `(путь пометки, причина)` удалённых."""
+    marks: list[tuple[Path, str]] = []
+    for path, reason in plan.removed:
+        mark = path.with_name(path.name + REMOVED_SUFFIX)
+        if mark.exists():
+            backup.save(mark)
+        path.replace(mark)
+        marks.append((mark, reason))
+    for old_path, new_path, _ in plan.renamed:
+        backup.save(old_path)
+        new_path.parent.mkdir(parents=True, exist_ok=True)
+        old_path.replace(new_path)
+    return marks
 
 
 def run_generative_step(
@@ -372,7 +612,8 @@ def run_generative_step(
     context: dict[str, Any],
     input_hash: str,
     resolve_artifact_path: Callable[[str], Path],
-    input_parts: dict[str, str] | None = None,
+    input_values: dict[str, Any] | None = None,
+    revision: StepRevision | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -393,9 +634,17 @@ def run_generative_step(
     `input_hash` — уже посчитанный `cache.compute_input_hash(...)` для этого
     шага; сюда же передаётся вызывающим модулем, поскольку только он знает,
     какая секция спека и какие апстрим-артефакты на шаг влияют (см.
-    CLAUDE.md, "Кэширование по хешу спека"). `input_parts` — тот же вход по
-    частям (`cache.compute_input_parts`), сохраняется в `CacheEntry`, чтобы
-    `llm status` мог сказать, что именно изменилось.
+    CLAUDE.md, "Кэширование по хешу спека"). `input_values` — тот же вход по
+    частям (`cache.compute_input_values`): он и его хеши по частям
+    сохраняются в `CacheEntry`, чтобы `llm status` мог сказать, что именно
+    изменилось, а следующий прогон в режиме доработки — показать это модели.
+
+    `revision` — режим доработки (см. докстринг модуля): к user-промпту
+    дописывается `prompts/revise.md.j2` с текущими файлами шага и
+    изменениями входа; ответ проверяется `_plan_revision`, удалённые файлы
+    помечаются `.removed`, переименования применяются. `None` — модель
+    пишет файлы с нуля (текущие файлы шага, которых нет в ответе, остаются
+    на диске как есть).
 
     `resolve_artifact_path(filename)` — как разложить `artifacts` ответа
     модели по каталогам `problems/<problem_id>/...` (у каждого шага своя
@@ -411,7 +660,9 @@ def run_generative_step(
 
     `validate_artifacts(artifacts)` — необязательная проверка набора
     артефактов из ответа модели (например, что имена файлов ровно те, что
-    ожидает шаг). Вызывается только при `confirmed`/`proposed` (при
+    ожидает шаг); в режиме доработки — итогового набора файлов шага
+    (изменённые + `unchanged` + переименованные, без удалённых). Вызывается
+    только при `confirmed`/`proposed` (при
     `uncertain` `artifacts` по контракту может быть пустым/частичным) и
     строго ДО записи на диск: если она бросает `ValueError`, исключение
     всплывает из этой функции как есть, в `problems/` не пишется ни один
@@ -421,6 +672,7 @@ def run_generative_step(
     доработка артефактов после `validate_artifacts` и до записи на диск:
     возвращает новый набор артефактов и заметки о сделанном (добавляются к
     `notes` ответа модели, чтобы автор видел, что файл правила не модель).
+    В режиме доработки получает только новые и изменённые файлы.
 
     При `status: uncertain` бросает `StepUncertainError` и не пишет ничего в
     `problems/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
@@ -429,8 +681,13 @@ def run_generative_step(
     `CacheEntry` с этим `input_hash`, актуальным хешем промптов и моделью
     шага из `model_router.STEP_TO_MODEL`.
     """
+    input_values = input_values or {}
     system_prompt = read_system_prompt(step_name, prompts_dir=prompts_dir)
     user_prompt = render_user_prompt(step_name, context, prompts_dir=prompts_dir)
+    if revision is not None:
+        user_prompt = user_prompt.rstrip("\n") + "\n\n" + render_revision_prompt(
+            revision, input_values, prompts_dir=prompts_dir
+        )
     context_documents = load_context_documents(
         step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
     )
@@ -448,25 +705,52 @@ def run_generative_step(
     if response.status == STATUS_UNCERTAIN:
         raise StepUncertainError(step_name, problem_id, response.notes)
 
+    notes = list(response.notes)
+    plan: Optional[_RevisionPlan] = None
+    if revision is not None:
+        plan = _plan_revision(step_name, response, revision, resolve_artifact_path)
+    elif response.unchanged or response.removed or response.renamed:
+        notes.append({
+            "field": "response",
+            "kind": "ignored",
+            "explanation": (
+                "модель вернула unchanged/removed/renamed, хотя текущие файлы ей "
+                "не показывались (генерация с нуля), — проигнорировано"
+            ),
+        })
+
     if validate_artifacts is not None:
-        validate_artifacts(response.artifacts)
+        validate_artifacts(plan.final_artifacts if plan is not None else response.artifacts)
 
     artifacts = response.artifacts
-    notes = list(response.notes)
     if postprocess_artifacts is not None:
         artifacts, extra_notes = postprocess_artifacts(artifacts)
         notes.extend(extra_notes)
 
-    artifact_paths = _write_artifacts(artifacts, resolve_artifact_path)
+    backup = _Backup(Path(problems_dir) / problem_id)
+    marks: list[tuple[Path, str]] = []
+    renamed: list[tuple[Path, Path, str]] = []
+    if plan is not None:
+        marks = _apply_removals_and_renames(plan, backup)
+        renamed = plan.renamed
+    artifact_paths = _write_artifacts(
+        artifacts,
+        resolve_artifact_path,
+        backup,
+        skip_backup={new_path for _, new_path, _ in renamed},
+    )
 
-    if any(path.suffix == ".cpp" for path in artifact_paths.values()):
+    to_compile = dict(artifact_paths)
+    for _, new_path, _ in renamed:
+        to_compile.setdefault(new_path.name, new_path)
+    if any(path.suffix == ".cpp" for path in to_compile.values()):
         ensure_problem_lib(problem_id, problems_dir=problems_dir, templates_dir=templates_dir)
     compile_results: dict[str, CompileResult] = {
         # `problem_lib.h` задачи — раньше шаблонного.
         filename: compile_check(
             path, [Path(problems_dir) / problem_id, Path(templates_dir)]
         )
-        for filename, path in artifact_paths.items()
+        for filename, path in to_compile.items()
         if path.suffix == ".cpp"
     }
 
@@ -491,8 +775,9 @@ def run_generative_step(
             model=model_router.STEP_TO_MODEL[step_name],
             status=response.status,
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            input_parts=input_parts,
+            input_parts=input_parts_from_values(input_values),
             prompt_parts=prompt_parts,
+            input_values=input_values,
         ),
         problems_dir=problems_dir,
     )
@@ -504,4 +789,8 @@ def run_generative_step(
         artifact_paths=artifact_paths,
         notes=notes,
         compile_results=compile_results,
+        revised=revision is not None,
+        removed=marks,
+        renamed=renamed,
+        backup_dir=backup.directory,
     )

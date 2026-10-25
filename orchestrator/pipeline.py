@@ -5,8 +5,11 @@
 
 `run_pipeline` не вызывает модель, если это не нужно: перед каждым шагом
 считает `input_hash`/`prompt_hash` (не запуская сам шаг) и проверяет
-`cache.is_cache_valid(...)` — модель вызывается только если кэш невалиден
-или `force=True`. Если шаг возвращает `status: uncertain`
+`cache.is_cache_valid(...)` — модель вызывается только если кэш невалиден,
+`force=True` или `fresh=True`. Если файлы шага уже есть на диске, шаг
+запускается в режиме доработки (`steps.base.StepRevision`): модель получает
+их и то, что изменилось во входе шага; `fresh=True` — с нуля, без текущих
+файлов. Если шаг возвращает `status: uncertain`
 (`StepUncertainError`), пайплайн останавливается для этого `problem_id`
 (последующие шаги не запускаются), но не бросает исключение наружу: это
 ожидаемый исход, а не сбой, и CLI печатает его как результат шага.
@@ -25,7 +28,8 @@ from orchestrator import model_router
 from orchestrator.cache import (
     UNCERTAIN_STATUS,
     CacheEntry,
-    compute_input_parts,
+    compute_input_values,
+    input_parts_from_values,
     compute_prompt_hash,
     compute_prompt_parts,
     describe_changed_parts,
@@ -33,7 +37,7 @@ from orchestrator.cache import (
     load_cache_entry,
     save_cache_entry,
 )
-from orchestrator.problem_paths import problem_address
+from orchestrator.problem_paths import is_removed_mark, problem_address
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import STEP_ORDER
@@ -48,6 +52,7 @@ from orchestrator.steps.base import (
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
+    StepRevision,
     StepUncertainError,
 )
 
@@ -84,6 +89,11 @@ class StepOutcome:
     status: str
     detail: str = ""
     notes: list[dict[str, Any]] = field(default_factory=list)
+    # Режим доработки (`steps.base.StepResult`): файлы, помеченные
+    # `.removed`, переименования и каталог с прежними версиями файлов.
+    removed: list[tuple[Path, str]] = field(default_factory=list)
+    renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
+    backup_dir: Optional[Path] = None
 
 
 @dataclass
@@ -105,10 +115,11 @@ def _artifact_present(path: Path) -> bool:
 
     Для шага `solutions_draft` `path` — каталог с произвольным набором
     файлов (модель сама называет решения), поэтому "на месте" означает
-    "существует и не пуст"; для остальных шагов `path` — конкретный файл.
+    "существует и в нём есть что-то, кроме помеченного `.removed`"; для
+    остальных шагов `path` — конкретный файл.
     """
     if path.is_dir():
-        return any(path.iterdir())
+        return any(not is_removed_mark(child) for child in path.iterdir())
     return path.exists()
 
 
@@ -123,6 +134,7 @@ class _StepHashes:
     input_parts: dict[str, str]
     prompt_parts: dict[str, str]
     model: str
+    input_values: dict[str, Any]
 
 
 def _optional_skip_detail(step_name: str, spec: Any) -> Optional[str]:
@@ -169,7 +181,7 @@ def _compute_step_hashes(
     референс спека не найден или ничего не даёт шагу."""
     module = _STEP_MODULES[step_name]
     input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
-    input_parts = compute_input_parts(*module.hash_inputs(problem_id, spec, upstream_artifacts))
+    input_values = compute_input_values(*module.hash_inputs(problem_id, spec, upstream_artifacts))
     extra_documents = module.extra_context_documents(spec, templates_dir=templates_dir)
     prompt_kwargs = dict(
         prompts_dir=prompts_dir,
@@ -179,9 +191,10 @@ def _compute_step_hashes(
     return _StepHashes(
         input_hash=input_hash,
         prompt_hash=compute_prompt_hash(step_name, **prompt_kwargs),
-        input_parts=input_parts,
+        input_parts=input_parts_from_values(input_values),
         prompt_parts=compute_prompt_parts(step_name, **prompt_kwargs),
         model=model_router.STEP_TO_MODEL[step_name],
+        input_values=input_values,
     )
 
 
@@ -223,10 +236,39 @@ def _stale_reason(entry: CacheEntry, hashes: _StepHashes) -> str:
     return reason
 
 
+def _revision_for_step(
+    module: ModuleType,
+    problem_id: str,
+    spec: Any,
+    cache_entry: Optional[CacheEntry],
+    hashes: _StepHashes,
+    problems_dir: Path,
+) -> Optional[StepRevision]:
+    """Режим доработки, если файлы шага есть на диске; иначе `None` (с нуля).
+    Что изменилось во входе — по `input_values` записи кэша; смена модели и
+    промптов/документов — только именами (`other_changes`)."""
+    current = module.current_artifacts(problem_id, spec, problems_dir=problems_dir)
+    if not current:
+        return None
+    other_changes: list[str] = []
+    if cache_entry is not None:
+        if cache_entry.model != hashes.model:
+            other_changes.append(f"model: {cache_entry.model} -> {hashes.model}")
+        if cache_entry.prompt_hash != hashes.prompt_hash:
+            changed = describe_changed_parts(cache_entry.prompt_parts, hashes.prompt_parts)
+            other_changes.extend(changed or ["prompt templates or attached documents"])
+    return StepRevision(
+        current_paths=current,
+        previous_input_values=cache_entry.input_values if cache_entry is not None else None,
+        other_changes=other_changes,
+    )
+
+
 def run_pipeline(
     problem_id: str,
     *,
     force: bool = False,
+    fresh: bool = False,
     only_step: Optional[str] = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
@@ -241,7 +283,11 @@ def run_pipeline(
     `run <problem_id> --step NAME`, требующий этого руками).
 
     `force=True` обходит кэш полностью — каждый нужный шаг вызывает модель
-    заново, независимо от `input_hash`/`prompt_hash`. Если шаг перезапущен
+    заново, независимо от `input_hash`/`prompt_hash`. Шаг, файлы которого
+    уже есть на диске, запускается в режиме доработки (`_revision_for_step`);
+    `fresh=True` — с нуля, без текущих файлов, и, как `force`, независимо от
+    кэша (просьба "с нуля" при валидном кэше иначе молча ничего бы не
+    сделала). Если шаг перезапущен
     без `force` из-за устаревшего кэша, в `StepOutcome.detail` — что именно
     изменилось (`_stale_reason`).
 
@@ -295,7 +341,7 @@ def run_pipeline(
         artifact_present = _artifact_present(primary_path)
 
         cache_hit = (
-            not force
+            not (force or fresh)
             and is_cache_valid(
                 cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model
             )
@@ -311,7 +357,9 @@ def run_pipeline(
                 )
             )
         else:
-            if force:
+            if fresh:
+                rerun_reason = "from scratch (--fresh)"
+            elif force:
                 rerun_reason = "forced (--force)"
             elif cache_entry is None or cache_entry.status == UNCERTAIN_STATUS:
                 rerun_reason = ""
@@ -319,6 +367,16 @@ def run_pipeline(
                 rerun_reason = "regenerated: artifact is missing on disk"
             else:
                 rerun_reason = f"regenerated: {_stale_reason(cache_entry, hashes)}"
+            revision = (
+                None
+                if fresh
+                else _revision_for_step(
+                    module, problem_id, spec, cache_entry, hashes, problems_dir
+                )
+            )
+            if revision is not None:
+                mode = f"revising {len(revision.current_paths)} current file(s)"
+                rerun_reason = f"{rerun_reason}; {mode}" if rerun_reason else mode
             if rerun_reason:
                 logger.info("[%s] %s", step_name, rerun_reason)
             try:
@@ -326,6 +384,7 @@ def run_pipeline(
                     problem_id,
                     spec,
                     dict(upstream_artifacts) or None,
+                    revision=revision,
                     prompts_dir=prompts_dir,
                     problems_dir=problems_dir,
                     templates_dir=templates_dir,
@@ -338,7 +397,15 @@ def run_pipeline(
                 return result
 
             result.outcomes.append(
-                StepOutcome(step_name, step_result.status, rerun_reason, notes=step_result.notes)
+                StepOutcome(
+                    step_name,
+                    step_result.status,
+                    rerun_reason,
+                    notes=step_result.notes,
+                    removed=step_result.removed,
+                    renamed=step_result.renamed,
+                    backup_dir=step_result.backup_dir,
+                )
             )
 
         if step_name == "constraints_pick":
@@ -556,6 +623,7 @@ def _accept_step(
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             input_parts=hashes.input_parts,
             prompt_parts=hashes.prompt_parts,
+            input_values=hashes.input_values,
             accepted=True,
         ),
         problems_dir=problems_dir,
