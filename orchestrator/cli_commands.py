@@ -193,6 +193,12 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
             field_name = note.get("field", "?")
             explanation = note.get("explanation", "")
             logger.info(f"      [{kind}] {field_name}: {explanation}")
+        for mark, reason in outcome.removed:
+            logger.info(f"      removed (review and delete by hand): {mark} — {reason}")
+        for old_path, new_path, reason in outcome.renamed:
+            logger.info(f"      renamed: {old_path} -> {new_path} — {reason}")
+        if outcome.backup_dir is not None:
+            logger.info(f"      previous versions of overwritten files: {outcome.backup_dir}")
 
     if result.stopped_uncertain:
         logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")
@@ -212,6 +218,7 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
             result = run_pipeline(
                 args.problem_id,
                 force=args.force,
+                fresh=args.fresh,
                 only_step=args.step,
                 prompts_dir=args.prompts_dir,
                 problems_dir=args.problems_dir,

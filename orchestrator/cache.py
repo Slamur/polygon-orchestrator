@@ -23,6 +23,12 @@ from orchestrator.problem_paths import PROBLEMS_DIR
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
 
+# Общий для всех шагов блок user-промпта режима доработки
+# (`orchestrator/steps/base.py`), относительно prompts_dir. Входит в хеш
+# промпта каждого шага: правка блока должна инвалидировать кэш, как правка
+# самих промптов шага.
+REVISE_PROMPT = "revise.md.j2"
+
 # Статус, который никогда не считается валидным кэшем (см. CLAUDE.md,
 # "Кэширование по хешу спека", пункт 3): провал по недостатку данных должен
 # всплывать при каждом запуске, пока автор не поправит спек.
@@ -61,27 +67,56 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def compute_input_parts(spec_section: Any, upstream_artifacts: Any = None) -> dict[str, str]:
-    """Хеши отдельных частей входа шага — тех же данных, что
-    `compute_input_hash`, но по частям: `spec: <ключ>[.<подключ>]` для полей
-    секции спека (на два уровня вглубь) и `upstream: <имя>` для апстрим-
-    артефактов. Решение "валиден ли кэш" принимается только по общему хешу,
-    части нужны, чтобы `llm status`/`llm generate` могли сказать, что
-    именно изменилось (`describe_changed_parts`).
+def compute_input_values(spec_section: Any, upstream_artifacts: Any = None) -> dict[str, Any]:
+    """Вход шага по частям — те же данные, что `compute_input_hash`:
+    `spec: <ключ>[.<подключ>]` для полей секции спека (на два уровня вглубь)
+    и `upstream: <имя>` для апстрим-артефактов. Значения сохраняются в кэше
+    (`CacheEntry.input_values`), чтобы следующий прогон в режиме доработки
+    показал модели, что именно изменилось (`changed_input_values`).
     """
-    parts: dict[str, str] = {}
+    values: dict[str, Any] = {}
     if isinstance(spec_section, dict):
         for key, value in spec_section.items():
             if isinstance(value, dict):
                 for sub_key, sub_value in value.items():
-                    parts[f"spec: {key}.{sub_key}"] = _sha256(_canonical_json(sub_value))
+                    values[f"spec: {key}.{sub_key}"] = sub_value
             else:
-                parts[f"spec: {key}"] = _sha256(_canonical_json(value))
+                values[f"spec: {key}"] = value
     else:
-        parts["spec"] = _sha256(_canonical_json(spec_section))
+        values["spec"] = spec_section
     for name, content in (upstream_artifacts or {}).items():
-        parts[f"upstream: {name}"] = _sha256(_canonical_json(content))
-    return parts
+        values[f"upstream: {name}"] = content
+    return values
+
+
+def input_parts_from_values(values: dict[str, Any]) -> dict[str, str]:
+    """Хеши частей входа (`compute_input_values`). Решение "валиден ли кэш"
+    принимается только по общему хешу, части нужны, чтобы
+    `llm status`/`llm generate` могли сказать, что именно изменилось
+    (`describe_changed_parts`)."""
+    return {name: _sha256(_canonical_json(value)) for name, value in values.items()}
+
+
+def compute_input_parts(spec_section: Any, upstream_artifacts: Any = None) -> dict[str, str]:
+    """Хеши отдельных частей входа шага, см. `compute_input_values`."""
+    return input_parts_from_values(compute_input_values(spec_section, upstream_artifacts))
+
+
+def changed_input_values(
+    old_values: Optional[dict[str, Any]], new_values: dict[str, Any]
+) -> Optional[list[tuple[str, Any, Any]]]:
+    """Изменившиеся части входа: `(имя, было, стало)`; у появившейся части
+    "было" — `None`, у исчезнувшей "стало" — `None`. `old_values=None` (запись
+    кэша без значений) — `None`: что изменилось, неизвестно."""
+    if old_values is None:
+        return None
+    changes = [
+        (name, old_values.get(name), value)
+        for name, value in new_values.items()
+        if name not in old_values or _canonical_json(old_values[name]) != _canonical_json(value)
+    ]
+    changes += [(name, value, None) for name, value in old_values.items() if name not in new_values]
+    return changes
 
 
 def compute_prompt_hash(
@@ -94,7 +129,8 @@ def compute_prompt_hash(
     """sha256 от `prompts/<step_name>/{system.md,user.md.j2}` + документов контекста.
 
     Читает файлы с диска, так что правка промпта инвалидирует кэш шага, даже
-    если сам спек не менялся. Помимо самих промптов, в хеш также входит
+    если сам спек не менялся. Помимо самих промптов (и общего блока режима
+    доработки `REVISE_PROMPT`, если он есть), в хеш также входит
     содержимое всех документов контекста этого шага
     (`orchestrator.steps.base.STEP_CONTEXT_DOCUMENTS[step_name]` +
     `extra_context_documents`, см. `orchestrator.steps.base.
@@ -113,6 +149,9 @@ def compute_prompt_hash(
     digest = hashlib.sha256()
     digest.update(system_text.encode("utf-8"))
     digest.update(user_text.encode("utf-8"))
+    revise_text = _read_revise_prompt(prompts_dir)
+    if revise_text is not None:
+        digest.update(revise_text.encode("utf-8"))
     for doc_path, content in context_documents.items():
         digest.update(doc_path.encode("utf-8"))
         digest.update(content.encode("utf-8"))
@@ -140,9 +179,20 @@ def compute_prompt_parts(
         f"prompt: {step_name}/system.md": _sha256(system_text),
         f"prompt: {step_name}/user.md.j2": _sha256(user_text),
     }
+    revise_text = _read_revise_prompt(prompts_dir)
+    if revise_text is not None:
+        parts[f"prompt: {REVISE_PROMPT}"] = _sha256(revise_text)
     for doc_path, content in context_documents.items():
         parts[f"document: {doc_path}"] = _sha256(content)
     return parts
+
+
+def _read_revise_prompt(prompts_dir: Path) -> Optional[str]:
+    """`prompts/revise.md.j2`, если он есть. Нет — `None`: в хеш не входит
+    (нужен только в режиме доработки, и там его отсутствие — ошибка
+    рендера)."""
+    path = Path(prompts_dir) / REVISE_PROMPT
+    return path.read_text(encoding="utf-8") if path.is_file() else None
 
 
 def _read_prompt_inputs(
@@ -172,7 +222,10 @@ class CacheEntry:
 
     `input_parts`/`prompt_parts` — хеши по частям (`compute_input_parts`/
     `compute_prompt_parts`), только для объяснения, что изменилось; `None` у
-    записей, сделанных до их появления. `accepted` — запись сделана
+    записей, сделанных до их появления. `input_values` — сам вход по частям
+    (`compute_input_values`): что изменилось с прошлого прогона, показывается
+    модели в режиме доработки; `None` у записей, сделанных до его появления.
+    `accepted` — запись сделана
     `llm accept` (текущие файлы приняты без вызова модели), а не
     генерацией.
     """
@@ -184,6 +237,7 @@ class CacheEntry:
     timestamp: str
     input_parts: Optional[dict[str, str]] = None
     prompt_parts: Optional[dict[str, str]] = None
+    input_values: Optional[dict[str, Any]] = None
     accepted: bool = False
 
 

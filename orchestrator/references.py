@@ -28,12 +28,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
+from orchestrator.problem_paths import is_removed_mark
 from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 
 # Что каждый шаг берёт из каталога-референса: пути относительно каталога,
 # запись с `*` — glob (файлы в отсортированном порядке). `spec.yaml`
 # прикладывается, только если из каталога взят хотя бы один другой файл —
-# спек без результата образцом не служит.
+# спек без результата образцом не служит. Файлы, помеченные шагом как
+# удалённые (`<имя>.removed`), под glob не попадают.
 REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [SPEC_FILENAME, "statement/*.tex"],
     "constraints_pick": [SPEC_FILENAME, "constraints.yaml", "validator.cpp"],
@@ -137,7 +139,11 @@ def _directory_files(
             spec_file = candidate if candidate.is_file() else None
             continue
         if "*" in entry:
-            matches = sorted(path for path in directory.glob(entry) if path.is_file())
+            matches = sorted(
+                path
+                for path in directory.glob(entry)
+                if path.is_file() and not is_removed_mark(path)
+            )
         else:
             matches = [directory / entry] if (directory / entry).is_file() else []
         files.extend(

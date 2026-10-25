@@ -65,6 +65,23 @@ def test_directory_gives_only_files_of_the_step(spec, tmp_path):
     ]
 
 
+def test_files_marked_removed_are_not_references(spec, tmp_path):
+    directory = _reference_dir(tmp_path)
+    _write(directory / "solutions" / "ok_cpp_main_draft.cpp")
+    _write(directory / "solutions" / "wa_cpp_old_draft.cpp.removed")
+    _write(directory / "generators" / "gen_old.cpp.removed")
+
+    common = _with_common(spec, [directory])
+
+    assert str(directory / "generators" / "gen_old.cpp.removed") not in reference_documents(
+        "generators_and_script", common
+    )
+    assert reference_documents("solutions_draft", common) == [
+        str(directory / "spec.yaml"),
+        str(directory / "solutions" / "ok_cpp_main_draft.cpp"),
+    ]
+
+
 def test_common_directory_without_files_for_the_step_is_skipped(spec, tmp_path):
     # Нет checker.cpp — шагу checker_draft этот каталог ничего не даёт, и
     # spec.yaml без результата тоже не прикладывается.

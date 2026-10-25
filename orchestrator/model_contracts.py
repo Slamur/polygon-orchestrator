@@ -24,12 +24,21 @@ class ModelResponse:
     `artifacts` — словарь "имя файла" -> "содержимое" (может быть пустым или
     частичным при `status == "uncertain"`).
     `notes` — список заметок вида {"field", "kind", "explanation"}, где
-    `kind` — "proposed" | "uncertain".
+    `kind` — "proposed" | "uncertain" | "changed".
+
+    `unchanged`/`removed`/`renamed` — только для режима доработки, когда
+    модели показаны текущие файлы шага (`orchestrator/steps/base.py`):
+    имена файлов, оставленных как есть; файлы, которые модель предлагает
+    удалить (`{"filename", "reason"}`), и переименования
+    (`{"from", "to", "reason"}`). Без текущих файлов — пустые.
     """
 
     status: str
     artifacts: dict[str, str] = field(default_factory=dict)
     notes: list[dict[str, Any]] = field(default_factory=list)
+    unchanged: list[str] = field(default_factory=list)
+    removed: list[dict[str, str]] = field(default_factory=list)
+    renamed: list[dict[str, str]] = field(default_factory=list)
 
 
 # JSON Schema ответа по контракту status/artifacts/notes (`docs/PROMPTS.md`)
@@ -55,7 +64,10 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
         },
         "artifacts": {
             "type": "array",
-            "description": "Список файлов-артефактов: пары 'имя файла' + 'содержимое'.",
+            "description": (
+                "Список файлов-артефактов: пары 'имя файла' + 'содержимое'. "
+                "В режиме доработки — только новые и изменённые файлы."
+            ),
             "items": {
                 "type": "object",
                 "properties": {
@@ -81,7 +93,11 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
                     },
                     "kind": {
                         "type": "string",
-                        "enum": ["proposed", "uncertain"],
+                        "enum": ["proposed", "uncertain", "changed"],
+                        "description": (
+                            "changed — только в режиме доработки: что и "
+                            "почему изменено в файле (field — имя файла)."
+                        ),
                     },
                     "explanation": {"type": "string"},
                 },
@@ -89,8 +105,51 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
                 "additionalProperties": False,
             },
         },
+        "unchanged": {
+            "type": "array",
+            "description": (
+                "Режим доработки: имена текущих файлов шага, оставленных как "
+                "есть (в artifacts их не повторять). Иначе — пустой список."
+            ),
+            "items": {"type": "string"},
+        },
+        "removed": {
+            "type": "array",
+            "description": (
+                "Режим доработки: текущие файлы шага, которые больше не нужны. "
+                "Оркестратор их не удаляет, а помечает для автора. Иначе — "
+                "пустой список."
+            ),
+            "items": {
+                "type": "object",
+                "properties": {
+                    "filename": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["filename", "reason"],
+                "additionalProperties": False,
+            },
+        },
+        "renamed": {
+            "type": "array",
+            "description": (
+                "Режим доработки: переименования текущих файлов шага. Если "
+                "меняется и содержимое — файл кладётся в artifacts под новым "
+                "именем `to`. Иначе — пустой список."
+            ),
+            "items": {
+                "type": "object",
+                "properties": {
+                    "from": {"type": "string"},
+                    "to": {"type": "string"},
+                    "reason": {"type": "string"},
+                },
+                "required": ["from", "to", "reason"],
+                "additionalProperties": False,
+            },
+        },
     },
-    "required": ["status", "artifacts", "notes"],
+    "required": ["status", "artifacts", "notes", "unchanged", "removed", "renamed"],
     "additionalProperties": False,
 }
 
@@ -105,4 +164,7 @@ def model_response_from_payload(payload: dict[str, Any]) -> ModelResponse:
         status=payload["status"],
         artifacts=artifacts,
         notes=list(payload.get("notes") or []),
+        unchanged=list(payload.get("unchanged") or []),
+        removed=list(payload.get("removed") or []),
+        renamed=list(payload.get("renamed") or []),
     )

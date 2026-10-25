@@ -45,6 +45,19 @@ PROBLEM_MARKERS = (SPEC_FILENAME, POLYGON_STATE_FILENAME)
 
 EXAMPLE_ID_SEPARATOR = "--"
 
+# Суффикс файла задачи, который генеративный шаг в режиме доработки
+# предложил удалить (`orchestrator/steps/base.py`): файл не удаляется, а
+# переименовывается в `<имя>.removed`, чтобы автор посмотрел и удалил сам.
+# Такие файлы — уже не часть задачи: их не видят ни шаги, ни Polygon-шаги,
+# ни референсы (`is_removed_mark`).
+REMOVED_SUFFIX = ".removed"
+
+
+def is_removed_mark(path: Path | str) -> bool:
+    """Файл помечен шагом как удалённый (`REMOVED_SUFFIX`)."""
+    return Path(path).name.endswith(REMOVED_SUFFIX)
+
+
 # Компонент пути задачи: ASCII-буквы/цифры/'-'/'_', без '-' по краям — иначе
 # склейка компонентов примеров через `--` перестала бы быть однозначной.
 _COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?$")

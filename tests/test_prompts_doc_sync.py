@@ -45,3 +45,14 @@ def test_prompts_doc_matches_prompt_file(step_name, filename):
     assert blocks[(step_name, filename)] == prompt_text.rstrip("\n"), (
         f"docs/PROMPTS.md is out of sync with prompts/{step_name}/{filename}"
     )
+
+
+def test_prompts_doc_matches_revise_prompt():
+    section = PROMPTS_DOC.read_text(encoding="utf-8").split("## Режим доработки", 1)
+    assert len(section) == 2, "docs/PROMPTS.md has no 'Режим доработки' section"
+    block = re.search(r"\n`````\n(.*?)\n`````\n", section[1], re.S)
+    assert block, "docs/PROMPTS.md has no revise.md.j2 block in 'Режим доработки'"
+    prompt_text = (PROMPTS_DIR / "revise.md.j2").read_text(encoding="utf-8")
+    assert block.group(1) == prompt_text.rstrip("\n"), (
+        "docs/PROMPTS.md is out of sync with prompts/revise.md.j2"
+    )

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.cache import compute_input_parts
+from orchestrator.cache import compute_input_values
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, split_solution_stem
 from orchestrator.steps.base import (
@@ -16,6 +16,8 @@ from orchestrator.steps.base import (
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepResult,
+    StepRevision,
+    directory_artifacts,
     artifact_filename,
     run_generative_step,
     statement_io_section,
@@ -88,7 +90,7 @@ def hash_inputs(
 ) -> tuple[Any, Optional[dict[str, Any]]]:
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_parts`), чтобы они не разошлись."""
+    (`cache.compute_input_values`), чтобы они не разошлись."""
     _require_solutions_section(problem_id, spec)
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     return _build_context_sections(spec), {CONSTRAINTS_ARTIFACT: constraints_yaml}
@@ -103,6 +105,15 @@ def primary_artifact_path(
     считает кэш валидным, только если каталог существует и не пуст.
     """
     return Path(problems_dir) / problem_id / "solutions"
+
+
+def current_artifacts(
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
+) -> dict[str, Path]:
+    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
+    модель) -> путь — для режима доработки (`base.StepRevision`). Все файлы
+    `solutions/`, кроме помеченных как удалённые."""
+    return directory_artifacts(Path(problems_dir) / problem_id / SOLUTIONS_SUBDIR)
 
 
 def extra_context_documents(
@@ -142,6 +153,7 @@ def run_step(
     spec: ProblemSpec,
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
+    revision: Optional[StepRevision] = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -185,7 +197,7 @@ def run_step(
         "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
-    input_parts = compute_input_parts(*hash_inputs(problem_id, spec, upstream_artifacts))
+    input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
         return (
@@ -204,7 +216,8 @@ def run_step(
         problem_id=problem_id,
         context=context,
         input_hash=input_hash,
-        input_parts=input_parts,
+        input_values=input_values,
+        revision=revision,
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
         prompts_dir=prompts_dir,

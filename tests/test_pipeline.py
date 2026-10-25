@@ -476,7 +476,10 @@ def test_model_change_invalidates_cache(spec_file, tmp_path):
 
     assert [c.args[0] for c in mock_call.call_args_list] == ["statement_draft"]
     outcome = result.outcomes[0]
-    assert outcome.detail == "regenerated: model changed (medium-model -> strong-model)"
+    assert outcome.detail == (
+        "regenerated: model changed (medium-model -> strong-model); "
+        "revising 5 current file(s)"
+    )
 
 
 def test_accept_makes_stale_step_a_cache_hit_without_calling_model(spec_file, tmp_path):

@@ -61,7 +61,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import digest, solution_key
-from orchestrator.problem_paths import problem_address
+from orchestrator.problem_paths import is_removed_mark, problem_address
 from orchestrator.spec import split_solution_stem
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,8 @@ def _items(solutions: list[tuple[str, bytes]]) -> dict[str, str]:
 
 def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
     """[(имя, содержимое), ...] для всех файлов `solutions/` по алфавиту
-    имён. Нет каталога или он пуст — `PolygonStepError`."""
+    имён, кроме помеченных шагом как удалённые (`is_removed_mark`). Нет
+    каталога или он пуст — `PolygonStepError`."""
     solutions_dir = Path(problems_dir) / problem_id / "solutions"
     if not solutions_dir.is_dir():
         address = problem_address(problems_dir, problem_id)
@@ -159,7 +160,10 @@ def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, byte
             f"run the generative step solutions_draft (`orchestrator {address} llm generate "
             f"--step solutions_draft`)"
         )
-    paths = sorted((p for p in solutions_dir.iterdir() if p.is_file()), key=lambda p: p.name)
+    paths = sorted(
+        (p for p in solutions_dir.iterdir() if p.is_file() and not is_removed_mark(p)),
+        key=lambda p: p.name,
+    )
     if not paths:
         raise PolygonStepError(f"'{problem_id}': no files in {solutions_dir}")
     return [(path.name, path.read_bytes()) for path in paths]
