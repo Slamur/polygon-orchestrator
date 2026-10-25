@@ -116,7 +116,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── revise.md.j2              # общий блок режима доработки (текущие файлы шага + что изменилось во входе)
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|status|accept, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; без тяжёлых импортов
 │   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/spec.yaml против SPEC_FORMAT.md; черновик спека для init
@@ -157,7 +157,8 @@ Python-оркестратор, который берёт структуриро�
         │   ├── constraints_pick.json
         │   ├── generators_and_script.json
         │   ├── solutions_draft.json
-        │   └── checker_draft.json
+        │   ├── checker_draft.json
+        │   └── <step>.response.json        # ответ модели, не прошедший проверку (до `llm apply` или нового прогона шага)
         ├── llm_generation.log      # лог `orchestrator <задача> llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
         ├── polygon.log             # лог `orchestrator <задача> polygon push` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256, stamps: файл -> отметка его версии на Polygon); не в .cache/ — это факт состояния на Polygon, не кэш шага
@@ -330,6 +331,18 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   У `stale` указано, что именно изменилось (поле спека, upstream-артефакт,
   промпт или приложенный документ, модель) — по хешам частей входа,
   которые кэш хранит рядом с общими хешами.
+- `orchestrator <задача> llm apply [--step NAME]` — без вызовов
+  модели: применяет ответы, сохранённые упавшим `llm generate`. Ответ
+  модели (кроме `uncertain`) сохраняется в `.cache/<step>.response.json`
+  до проверки и записи файлов и удаляется, когда применён; если ответ не
+  прошёл проверку (`ValueError` шага: набор файлов, имена, режим
+  доработки), в `problems/` ничего не пишется, пайплайн останавливается
+  с ошибкой шага (а не traceback), а ответ остаётся — после правки
+  оркестратора `llm apply` применяет его заново, не тратя новый вызов.
+  Ответ применяется, только если получен на текущий вход шага (те же
+  хеши, что у кэша) и в том же режиме (доработка/с нуля); иначе — ошибка
+  с предложением `llm generate`. `llm status` показывает неприменённые
+  ответы.
 - `orchestrator <задача> llm accept [--step NAME]` — без вызовов
   модели: принимает текущие артефакты `stale`-шагов как актуальные
   (перезаписывает их кэш текущими хешами, `accepted: true`). Для случаев,
@@ -734,6 +747,8 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 Разрешено без спроса (к модели не обращается):
 - `orchestrator <задача> llm status` — читает только кэш и файлы, в сеть не ходит;
+- `orchestrator <задача> llm apply` — применяет уже полученный ответ модели, к модели
+  не обращается (но пишет файлы задачи — запускать по просьбе автора);
 - `orchestrator <задача> llm accept` — пишет только `problems/<путь задачи>/.cache/`, к модели
   не обращается (но меняет кэш автора — запускать по его просьбе);
 - `pytest` (integration-тесты по умолчанию выключены `-m 'not integration'`
