@@ -547,8 +547,12 @@ def test_pipeline_revises_stale_step_with_spec_diff(spec_file, tmp_path):
     result, mock_call = _run_pipeline(problems_dir, responses)
 
     assert result.ok
-    # Легенда — вход и statement_draft, и solutions_draft.
-    assert [c.args[0] for c in mock_call.call_args_list] == ["statement_draft", "solutions_draft"]
+    # Легенда — вход statement_draft, generators_and_script и solutions_draft.
+    assert [c.args[0] for c in mock_call.call_args_list] == [
+        "statement_draft",
+        "generators_and_script",
+        "solutions_draft",
+    ]
     assert result.outcomes[0].detail.endswith("; revising 5 current file(s)")
     prompt = _user_prompt(mock_call, "statement_draft")
     assert "#### `spec: legend_sketch`" in prompt
