@@ -152,6 +152,19 @@ def test_uploads_each_solution_with_its_tag(problems_dir, spec):
     assert "ok_py_main_draft.py=MA" in message
 
 
+def test_solutions_marked_removed_are_not_uploaded(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(
+        problems_dir,
+        {"ok_cpp_alt_draft.cpp": b"int main() {}\n", "wa_cpp_old_draft.cpp.removed": b""},
+    )
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "MA"}
+
+
 def test_main_falls_back_to_cpp_without_py_ok(problems_dir, spec):
     _link(problems_dir)
     _write_solutions(

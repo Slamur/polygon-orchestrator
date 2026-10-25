@@ -140,6 +140,7 @@ from orchestrator.problem_paths import (
     SPEC_FILENAME,
     ProblemPathError,
     check_new_problem_location,
+    is_removed_mark,
     problem_id_for,
 )
 from orchestrator.steps.base import PROBLEM_LIB_FILENAME
@@ -791,12 +792,13 @@ class _Puller:
             self.add(name, ITEM_ABSENT, detail)
 
     def _local_only(self, subdir: str, remote_names: set[str], *, pattern: str) -> list[str]:
-        """Файлы `subdir/` (по `pattern`), которых нет на Polygon, — "local only"."""
+        """Файлы `subdir/` (по `pattern`), которых нет на Polygon, — "local only".
+        Помеченные шагом как удалённые (`is_removed_mark`) — не часть задачи."""
         directory = self.problem_dir / subdir
         names = sorted(
             path.name
             for path in (directory.glob(pattern) if directory.is_dir() else [])
-            if path.is_file() and path.name not in remote_names
+            if path.is_file() and not is_removed_mark(path) and path.name not in remote_names
         )
         for filename in names:
             self._missing_on_polygon(f"{subdir}/{filename}")
