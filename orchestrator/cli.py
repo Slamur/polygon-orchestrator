@@ -1,7 +1,7 @@
 """Входная точка оркестратора. Все команды имеют вид
 `orchestrator <адрес задачи> <pipeline> <command> [аргументы]` (CLAUDE.md,
 "Запуск"): `init` — каталог задачи с черновиком спека,
-`llm generate|status|accept` — генеративные шаги,
+`llm generate|apply|status|accept` — генеративные шаги,
 `polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
 Адрес задачи — путь её каталога с корнем (`problems/contest/2026/round-1/my-task`,
 `examples/array/prefix-sums`, см. `orchestrator/problem_paths.py`) — идёт
@@ -116,6 +116,16 @@ def build_parser() -> argparse.ArgumentParser:
         "(implies --force)",
     )
     generate_parser.set_defaults(handler="cmd_llm_generate")
+
+    apply_parser = llm_commands.add_parser(
+        "apply",
+        help="apply model responses saved by a failed 'llm generate' (the response did not pass "
+        "the checks) without calling the model",
+    )
+    apply_parser.add_argument(
+        "--step", choices=STEP_ORDER, default=None, help="apply only one step"
+    )
+    apply_parser.set_defaults(handler="cmd_llm_apply")
 
     llm_status_parser = llm_commands.add_parser(
         "status", help="table step -> cache hit / stale / not run / uncertain, without calling the model"

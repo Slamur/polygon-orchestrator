@@ -1,4 +1,4 @@
-"""Реализация команд CLI: `init`, `llm generate|status|accept`, `polygon push|status|pull`.
+"""Реализация команд CLI: `init`, `llm generate|apply|status|accept`, `polygon push|status|pull`.
 
 Парсер аргументов и входная точка — в `cli.py`; этот модуль он импортирует
 только после разбора аргументов, потому что отсюда тянутся оба пайплайна (а
@@ -17,6 +17,8 @@ from typing import Iterator
 from orchestrator.pipeline import (
     OUTCOME_CACHE_HIT,
     OUTCOME_CONFIRMED,
+    OUTCOME_ERROR,
+    OUTCOME_NO_PENDING,
     OUTCOME_PROPOSED,
     OUTCOME_SKIPPED_OPTIONAL,
     OUTCOME_UNCERTAIN,
@@ -44,7 +46,8 @@ _OUTCOME_LABELS = {
     OUTCOME_PROPOSED: "proposed (PROPOSED, REVIEW ME)",
     OUTCOME_UNCERTAIN: "uncertain",
     OUTCOME_SKIPPED_OPTIONAL: "skipped (optional)",
-    "error": "error",
+    OUTCOME_NO_PENDING: "nothing to apply",
+    OUTCOME_ERROR: "error",
 }
 
 # Логгер пакета — на него вешается и консольный вывод (см.
@@ -205,6 +208,16 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
 
 
 def cmd_llm_generate(args: argparse.Namespace) -> int:
+    return _run_llm_pipeline(args, force=args.force, fresh=args.fresh)
+
+
+def cmd_llm_apply(args: argparse.Namespace) -> int:
+    return _run_llm_pipeline(args, apply_pending=True)
+
+
+def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
+    """`llm generate` / `llm apply`: прогон шагов с логом в
+    `llm_generation.log`; `mode` — режим `run_pipeline`."""
     logger = _configure_console_logging()
 
     if args.step is not None and args.step not in STEP_ORDER:
@@ -217,8 +230,7 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
         try:
             result = run_pipeline(
                 args.problem_id,
-                force=args.force,
-                fresh=args.fresh,
+                **mode,
                 only_step=args.step,
                 prompts_dir=args.prompts_dir,
                 problems_dir=args.problems_dir,

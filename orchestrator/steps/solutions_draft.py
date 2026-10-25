@@ -9,6 +9,7 @@ from typing import Any, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
+from orchestrator.model_contracts import ModelResponse
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, split_solution_stem
 from orchestrator.steps.base import (
@@ -154,6 +155,7 @@ def run_step(
     upstream_artifacts: Optional[dict[str, Any]] = None,
     *,
     revision: Optional[StepRevision] = None,
+    saved_response: Optional[ModelResponse] = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -218,6 +220,7 @@ def run_step(
         input_hash=input_hash,
         input_values=input_values,
         revision=revision,
+        saved_response=saved_response,
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
         prompts_dir=prompts_dir,
