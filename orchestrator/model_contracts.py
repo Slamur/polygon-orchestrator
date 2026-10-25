@@ -24,7 +24,7 @@ class ModelResponse:
     `artifacts` — словарь "имя файла" -> "содержимое" (может быть пустым или
     частичным при `status == "uncertain"`).
     `notes` — список заметок вида {"field", "kind", "explanation"}, где
-    `kind` — "proposed" | "uncertain" | "changed".
+    `kind` — "proposed" | "uncertain" | "changed" | "suggestion".
 
     `unchanged`/`removed`/`renamed` — только для режима доработки, когда
     модели показаны текущие файлы шага (`orchestrator/steps/base.py`):
@@ -93,10 +93,13 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
                     },
                     "kind": {
                         "type": "string",
-                        "enum": ["proposed", "uncertain", "changed"],
+                        "enum": ["proposed", "uncertain", "changed", "suggestion"],
                         "description": (
                             "changed — только в режиме доработки: что и "
-                            "почему изменено в файле (field — имя файла)."
+                            "почему изменено в файле (field — имя файла). "
+                            "suggestion — идея модели сверх спека (своё "
+                            "решение, тест, лучшая асимптотика), не замена "
+                            "решений автора."
                         ),
                     },
                     "explanation": {"type": "string"},

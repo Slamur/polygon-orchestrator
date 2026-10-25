@@ -1,5 +1,16 @@
 Спек задачи (problem_id: {{ problem_id }}):
 
+## Легенда (черновик автора — для понимания задачи и своих идей тестов, см.
+## пункт D системного сообщения)
+{{ statement.legend_sketch }}
+
+## Идея решения автора (из секции solutions, если она задана)
+{% if solutions.algorithm_hint %}
+{{ solutions.algorithm_hint }}
+{% else %}
+(секция solutions отсутствует — идея решения не указана)
+{% endif %}
+
 ## Формат входных данных (из statement_draft спека)
 {{ statement.formal_input_sketch }}
 

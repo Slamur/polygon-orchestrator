@@ -58,39 +58,49 @@ _SOLUTIONS_LIST_FIELDS = ["known_wrong_approaches"]
 
 
 def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
-    """`solutions.known_wrong_approaches` — источник adversarial-тестов для
-    user.md.j2 (см. CLAUDE.md, "Роль каждого генеративного шага", п.3). В
-    отличие от `solutions_draft`, секция `solutions` здесь может отсутствовать
-    целиком (она опциональна по SPEC_FORMAT.md) — в этом случае считаем
-    `known_wrong_approaches` пустым списком, а не падаем и не пропускаем шаг:
-    механические генераторы по `generator_ideas`/ограничениям всё равно
-    должны быть выданы. Остальные поля секции не возвращаются: они входят в
-    хеш кэша (`_build_context_sections`), и правка, например,
-    `algorithm_hint` не должна инвалидировать генераторы.
+    """Из секции `solutions` — то, что нужно для дизайна тестов (CLAUDE.md,
+    "Роль каждого генеративного шага", п.3): `known_wrong_approaches` —
+    источник adversarial-тестов, `algorithm_hint` — идея авторского решения,
+    по которой модель может предложить свои тесты сверх заказанных автором
+    (`kind: suggestion`). В отличие от `solutions_draft`, секция `solutions`
+    здесь может отсутствовать целиком (она опциональна по SPEC_FORMAT.md) —
+    в этом случае `known_wrong_approaches` — пустой список, `algorithm_hint`
+    — `None`, а не падаем и не пропускаем шаг: механические генераторы по
+    `generator_ideas`/ограничениям всё равно должны быть выданы. Остальные
+    поля секции не возвращаются: они входят в хеш кэша
+    (`_build_context_sections`), и правка, например, `languages` не должна
+    инвалидировать генераторы.
     """
     if spec.solutions is None:
-        return {"known_wrong_approaches": []}
+        return {"algorithm_hint": None, "known_wrong_approaches": []}
     section_data = with_default_lists(
         spec.solutions.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _SOLUTIONS_LIST_FIELDS
     )
-    return {"known_wrong_approaches": section_data["known_wrong_approaches"]}
+    return {
+        "algorithm_hint": section_data["algorithm_hint"],
+        "known_wrong_approaches": section_data["known_wrong_approaches"],
+    }
 
 
 def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
     """Секции спека для рендера промпта И для входа хеша кэша — единая точка
     сборки, чтобы они не могли разойтись (CLAUDE.md, "Кэширование по хешу
-    спека"): секция `generation`, `solutions.known_wrong_approaches` (см.
-    `_solutions_section_data`) и формат ввода из `statement_draft`
-    (`formal_input_sketch`, `indexing`, input примеров —
-    `base.statement_io_section`). Отдельного поля формы входа в `generation`
-    нет, чтобы не дублировать её вручную в двух местах спека.
+    спека"): секция `generation`, `solutions.known_wrong_approaches` и
+    `solutions.algorithm_hint` (см. `_solutions_section_data`), формат ввода
+    из `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
+    `base.statement_io_section`) и легенда (`legend_sketch`) — без сути
+    задачи модель не может предложить свои тесты под вероятные ошибки.
+    Отдельного поля формы входа в `generation` нет, чтобы не дублировать её
+    вручную в двух местах спека.
     """
+    statement = statement_io_section(spec, include_output_and_legend=False)
+    statement["legend_sketch"] = spec.statement_draft.legend_sketch
     return {
         "generation": with_default_lists(
             spec.generation.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
         ),
         "solutions": _solutions_section_data(spec),
-        "statement": statement_io_section(spec, include_output_and_legend=False),
+        "statement": statement,
     }
 
 
@@ -194,7 +204,9 @@ def compute_input_hash(
     - `solutions.known_wrong_approaches` (если секция `solutions` задана) —
       правка списка неверных подходов должна инвалидировать кэш этого шага,
       даже если секция `generation` не менялась (CLAUDE.md, "Кэширование по
-      хешу спека").
+      хешу спека");
+    - легенда и `solutions.algorithm_hint` — по ним модель предлагает свои
+      тесты сверх заказанных автором.
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 

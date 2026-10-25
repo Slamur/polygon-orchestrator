@@ -257,16 +257,17 @@ def test_build_context_sections_takes_input_format_from_statement_draft(spec):
     assert statement["sample_examples"] == [
         {"input": ex.input} for ex in spec.statement_draft.sample_examples
     ]
-    # вывод и легенда генераторам не нужны
+    # легенда — для своих тестов модели, формат вывода генераторам не нужен
+    assert statement["legend_sketch"] == spec.statement_draft.legend_sketch
     assert "formal_output_sketch" not in statement
-    assert "legend_sketch" not in statement
 
 
-def test_build_context_sections_takes_only_known_wrong_approaches_from_solutions(spec):
+def test_build_context_sections_takes_hint_and_wrong_approaches_from_solutions(spec):
     sections = _build_context_sections(spec)
 
     assert sections["solutions"] == {
-        "known_wrong_approaches": spec.solutions.known_wrong_approaches
+        "algorithm_hint": spec.solutions.algorithm_hint,
+        "known_wrong_approaches": spec.solutions.known_wrong_approaches,
     }
 
 
@@ -335,14 +336,18 @@ def test_compute_input_hash_changes_when_specific_test_ideas_change(spec):
     assert h1 != h2
 
 
-def test_compute_input_hash_treats_missing_solutions_as_empty_list(spec):
+def test_compute_input_hash_treats_missing_solutions_as_empty(spec):
     upstream = {"constraints.yaml": "n_max: 100000"}
     spec_no_solutions = spec.model_copy(update={"solutions": None})
 
     h_missing = compute_input_hash("valid-spec", spec_no_solutions, upstream)
 
     spec_empty_wrong = spec.model_copy(
-        update={"solutions": spec.solutions.model_copy(update={"known_wrong_approaches": []})}
+        update={
+            "solutions": spec.solutions.model_copy(
+                update={"algorithm_hint": None, "known_wrong_approaches": []}
+            )
+        }
     )
     h_empty = compute_input_hash("valid-spec", spec_empty_wrong, upstream)
 
@@ -389,7 +394,7 @@ def test_compute_input_hash_changes_when_sample_input_changes(spec):
     assert h1 != h2
 
 
-def test_compute_input_hash_ignores_algorithm_hint(spec):
+def test_compute_input_hash_changes_when_algorithm_hint_changes(spec):
     upstream = {"constraints.yaml": "n_max: 100000"}
     h1 = compute_input_hash("valid-spec", spec, upstream)
 
@@ -397,6 +402,18 @@ def test_compute_input_hash_ignores_algorithm_hint(spec):
         update={"solutions": spec.solutions.model_copy(update={"algorithm_hint": "другая идея"})}
     )
     h2 = compute_input_hash("valid-spec", spec_other_hint, upstream)
+
+    assert h1 != h2
+
+
+def test_compute_input_hash_ignores_solution_languages(spec):
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    h1 = compute_input_hash("valid-spec", spec, upstream)
+
+    spec_other_languages = spec.model_copy(
+        update={"solutions": spec.solutions.model_copy(update={"languages": ["py"]})}
+    )
+    h2 = compute_input_hash("valid-spec", spec_other_languages, upstream)
 
     assert h1 == h2
 
