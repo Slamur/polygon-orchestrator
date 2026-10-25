@@ -123,6 +123,37 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(problems_dir, tmp_path, ca
     assert "нет точности" in out
 
 
+def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tmp_path, capsys):
+    _write_spec(problems_dir, "p1")
+    argv = _base_args(problems_dir) + ["problems/p1", "llm"]
+
+    def reject(expected):
+        def validate(artifacts):
+            raise ValueError("the set of files does not match")
+
+        return validate
+
+    with patch(
+        "orchestrator.steps.statement_draft._validate_statement_artifacts", reject
+    ), patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        rc = cli.main(argv + ["generate", "--step", "statement_draft"])
+
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "statement_draft: error — the set of files does not match" in out
+    assert "llm apply --step statement_draft" in out
+
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        rc = cli.main(argv + ["apply"])
+
+    mock_call.assert_not_called()
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "statement_draft: confirmed — saved model response applied" in out
+    assert "constraints_pick: nothing to apply" in out
+    assert (problems_dir / "p1" / "statement" / "legend.tex").is_file()
+
+
 def test_status_reports_not_run_before_any_run(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
 

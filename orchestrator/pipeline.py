@@ -25,6 +25,7 @@ from types import ModuleType
 from typing import Any, Optional
 
 from orchestrator import model_router
+from orchestrator.model_contracts import ModelResponse
 from orchestrator.cache import (
     UNCERTAIN_STATUS,
     CacheEntry,
@@ -33,8 +34,10 @@ from orchestrator.cache import (
     compute_prompt_hash,
     compute_prompt_parts,
     describe_changed_parts,
+    PendingResponse,
     is_cache_valid,
     load_cache_entry,
+    load_pending_response,
     save_cache_entry,
 )
 from orchestrator.problem_paths import is_removed_mark, problem_address
@@ -79,6 +82,8 @@ OUTCOME_CONFIRMED = "confirmed"
 OUTCOME_PROPOSED = "proposed"
 OUTCOME_UNCERTAIN = "uncertain"
 OUTCOME_SKIPPED_OPTIONAL = "skipped_optional"
+OUTCOME_ERROR = "error"
+OUTCOME_NO_PENDING = "no_pending_response"
 
 
 @dataclass
@@ -264,11 +269,108 @@ def _revision_for_step(
     )
 
 
+def _pending_revision(
+    pending: PendingResponse,
+    module: ModuleType,
+    problem_id: str,
+    spec: Any,
+    cache_entry: Optional[CacheEntry],
+    hashes: _StepHashes,
+    problems_dir: Path,
+) -> tuple[Optional[StepRevision], Optional[str]]:
+    """Режим, в котором применяется сохранённый ответ (`_revision_for_step`,
+    если ответ получен в режиме доработки), или почему его нельзя применить
+    к текущему входу шага: `(revision, None)` или `(None, причина)`."""
+    try:
+        ModelResponse(**pending.response)
+    except TypeError as exc:
+        return None, f"the saved response is malformed ({exc})"
+    entry = pending.cache_entry
+    if not is_cache_valid(entry, hashes.input_hash, hashes.prompt_hash, hashes.model):
+        return None, (
+            "the saved response was received for a different input of the step "
+            f"({_stale_reason(entry, hashes)})"
+        )
+    if not pending.revised:
+        return None, None
+    revision = _revision_for_step(module, problem_id, spec, cache_entry, hashes, problems_dir)
+    if revision is None:
+        return None, (
+            "the saved response revises the current files of the step, "
+            "but there are none on disk now"
+        )
+    return revision, None
+
+
+def _run_step_into(
+    result: PipelineResult,
+    module: ModuleType,
+    step_name: str,
+    problem_id: str,
+    spec: Any,
+    upstream_artifacts: dict[str, Any],
+    *,
+    revision: Optional[StepRevision],
+    saved_response: Optional[ModelResponse],
+    detail: str,
+    prompts_dir: Path,
+    problems_dir: Path,
+    templates_dir: Path,
+) -> bool:
+    """Запускает шаг и дописывает его исход в `result`. `False` — пайплайн
+    остановлен (`uncertain` или ответ модели не прошёл проверку)."""
+    try:
+        step_result = module.run_step(
+            problem_id,
+            spec,
+            dict(upstream_artifacts) or None,
+            revision=revision,
+            saved_response=saved_response,
+            prompts_dir=prompts_dir,
+            problems_dir=problems_dir,
+            templates_dir=templates_dir,
+        )
+    except StepUncertainError as exc:
+        result.outcomes.append(
+            StepOutcome(step_name, OUTCOME_UNCERTAIN, str(exc), notes=exc.notes)
+        )
+        result.stopped_uncertain = True
+        return False
+    except ValueError as exc:
+        # Ответ модели не прошёл проверку — в `problems/` ничего не записано.
+        # Сам ответ сохранён (`PendingResponse`): после правки причины его
+        # можно применить без нового вызова модели.
+        message = str(exc)
+        if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
+            message += (
+                " — nothing written; the model response is saved, "
+                f"'orchestrator {problem_address(problems_dir, problem_id)} "
+                f"llm apply --step {step_name}' applies it without calling the model"
+            )
+        result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, message))
+        result.stopped_uncertain = True
+        return False
+
+    result.outcomes.append(
+        StepOutcome(
+            step_name,
+            step_result.status,
+            detail,
+            notes=step_result.notes,
+            removed=step_result.removed,
+            renamed=step_result.renamed,
+            backup_dir=step_result.backup_dir,
+        )
+    )
+    return True
+
+
 def run_pipeline(
     problem_id: str,
     *,
     force: bool = False,
     fresh: bool = False,
+    apply_pending: bool = False,
     only_step: Optional[str] = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
@@ -291,9 +393,16 @@ def run_pipeline(
     без `force` из-за устаревшего кэша, в `StepOutcome.detail` — что именно
     изменилось (`_stale_reason`).
 
+    `apply_pending=True` (`llm apply`) — модель не вызывается вовсе: шаги с
+    сохранённым неприменённым ответом (`cache.PendingResponse` — ответ, не
+    прошедший проверку) применяют его, если он получен на текущий вход шага
+    (те же хеши, что у кэша) и в том же режиме (доработка или с нуля);
+    остальные шаги пропускаются.
+
     Останавливается (не бросая исключение) на первом `StepUncertainError` —
     `result.stopped_uncertain=True`, `result.outcomes` содержит всё, что
-    успело отработать. Ошибка валидации спека (`SpecValidationError`) тоже не
+    успело отработать. Так же — на ответе модели, не прошедшем проверку
+    (`ValueError` шага; ответ сохранён для `apply_pending`). Ошибка валидации спека (`SpecValidationError`) тоже не
     прокидывается наружу — записывается в `result.spec_error`, и CLI печатает
     её вместо результатов шагов.
     """
@@ -316,6 +425,17 @@ def run_pipeline(
             result.outcomes.append(StepOutcome(step_name, OUTCOME_SKIPPED_OPTIONAL, skip_detail))
             continue
 
+        pending = None
+        if apply_pending:
+            pending = load_pending_response(problem_id, step_name, problems_dir=problems_dir)
+            if pending is None:
+                result.outcomes.append(
+                    StepOutcome(
+                        step_name, OUTCOME_NO_PENDING, "no saved model response — nothing to apply"
+                    )
+                )
+                continue
+
         _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
 
         try:
@@ -332,7 +452,7 @@ def run_pipeline(
             # запускался успешно), SpecReferenceError — референс спека не
             # найден: спек или запуск нужно поправить. Это не uncertain, но
             # пайплайн останавливается так же — с сообщением, а не traceback.
-            result.outcomes.append(StepOutcome(step_name, "error", str(exc)))
+            result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, str(exc)))
             result.stopped_uncertain = True
             return result
 
@@ -340,15 +460,44 @@ def run_pipeline(
         primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
         artifact_present = _artifact_present(primary_path)
 
-        cache_hit = (
+        if pending is not None:
+            revision, problem = _pending_revision(
+                pending, module, problem_id, spec, cache_entry, hashes, problems_dir
+            )
+            if problem is not None:
+                result.outcomes.append(
+                    StepOutcome(
+                        step_name,
+                        OUTCOME_ERROR,
+                        f"{problem} — run "
+                        f"'orchestrator {problem_address(problems_dir, problem_id)} "
+                        f"llm generate --step {step_name}'",
+                    )
+                )
+                result.stopped_uncertain = True
+                return result
+            if not _run_step_into(
+                result,
+                module,
+                step_name,
+                problem_id,
+                spec,
+                upstream_artifacts,
+                revision=revision,
+                saved_response=ModelResponse(**pending.response),
+                detail="saved model response applied, model not called",
+                prompts_dir=prompts_dir,
+                problems_dir=problems_dir,
+                templates_dir=templates_dir,
+            ):
+                return result
+        elif (
             not (force or fresh)
             and is_cache_valid(
                 cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model
             )
             and artifact_present
-        )
-
-        if cache_hit:
+        ):
             result.outcomes.append(
                 StepOutcome(
                     step_name,
@@ -379,34 +528,21 @@ def run_pipeline(
                 rerun_reason = f"{rerun_reason}; {mode}" if rerun_reason else mode
             if rerun_reason:
                 logger.info("[%s] %s", step_name, rerun_reason)
-            try:
-                step_result = module.run_step(
-                    problem_id,
-                    spec,
-                    dict(upstream_artifacts) or None,
-                    revision=revision,
-                    prompts_dir=prompts_dir,
-                    problems_dir=problems_dir,
-                    templates_dir=templates_dir,
-                )
-            except StepUncertainError as exc:
-                result.outcomes.append(
-                    StepOutcome(step_name, OUTCOME_UNCERTAIN, str(exc), notes=exc.notes)
-                )
-                result.stopped_uncertain = True
+            if not _run_step_into(
+                result,
+                module,
+                step_name,
+                problem_id,
+                spec,
+                upstream_artifacts,
+                revision=revision,
+                saved_response=None,
+                detail=rerun_reason,
+                prompts_dir=prompts_dir,
+                problems_dir=problems_dir,
+                templates_dir=templates_dir,
+            ):
                 return result
-
-            result.outcomes.append(
-                StepOutcome(
-                    step_name,
-                    step_result.status,
-                    rerun_reason,
-                    notes=step_result.notes,
-                    removed=step_result.removed,
-                    renamed=step_result.renamed,
-                    backup_dir=step_result.backup_dir,
-                )
-            )
 
         if step_name == "constraints_pick":
             upstream_artifacts[CONSTRAINTS_ARTIFACT] = primary_path.read_text(encoding="utf-8")
@@ -573,6 +709,23 @@ def _status_of_step(
     hashes: _StepHashes,
     artifact_present: bool,
     problems_dir: Path,
+) -> StepStatus:
+    status = _cache_status_of_step(step_name, cache_entry, hashes, artifact_present)
+    if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
+        hint = (
+            "a saved model response is not applied — "
+            f"'orchestrator {problem_address(problems_dir, problem_id)} "
+            f"llm apply --step {step_name}'"
+        )
+        status.detail = f"{status.detail}; {hint}" if status.detail else hint
+    return status
+
+
+def _cache_status_of_step(
+    step_name: str,
+    cache_entry: Optional[CacheEntry],
+    hashes: _StepHashes,
+    artifact_present: bool,
 ) -> StepStatus:
     if cache_entry is None:
         return StepStatus(step_name, STATUS_NOT_RUN)

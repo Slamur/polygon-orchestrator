@@ -575,3 +575,141 @@ def test_accept_refuses_uncertain_step(spec_file, tmp_path):
     assert load_cache_entry("p1", "statement_draft", problems_dir=problems_dir).status == (
         UNCERTAIN_STATUS
     )
+
+
+# --- Неприменённый ответ модели и `llm apply` ---
+
+
+def _failing_statement_check(expected):
+    """Проверка набора файлов условия, которая отвергает любой ответ, — как
+    ошибка в коде оркестратора, которую потом исправят."""
+
+    def validate(artifacts):
+        raise ValueError("the set of files does not match")
+
+    return validate
+
+
+def _run_with_failing_statement_check(problems_dir, **kwargs):
+    with patch(
+        "orchestrator.steps.statement_draft._validate_statement_artifacts",
+        _failing_statement_check,
+    ), patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        result = _run(problems_dir, **kwargs)
+    return result, mock_call
+
+
+def _apply(problems_dir, **kwargs):
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        result = _run(problems_dir, apply_pending=True, **kwargs)
+    mock_call.assert_not_called()
+    return result
+
+
+def test_rejected_response_stops_pipeline_without_writing_and_is_saved(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    result, mock_call = _run_with_failing_statement_check(problems_dir)
+
+    assert not result.ok
+    assert mock_call.call_count == 1
+    [outcome] = result.outcomes
+    assert outcome.step_name == "statement_draft"
+    assert outcome.status == pipeline.OUTCOME_ERROR
+    assert "the set of files does not match" in outcome.detail
+    assert "llm apply --step statement_draft" in outcome.detail
+    problem_dir = problems_dir / "p1"
+    assert not (problem_dir / "statement").exists()
+    assert not (problem_dir / ".cache" / "statement_draft.json").exists()
+    assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
+    status = _statuses(problems_dir)["statement_draft"]
+    assert status.state == pipeline.STATUS_NOT_RUN
+    assert "llm apply --step statement_draft" in status.detail
+
+
+def test_apply_writes_saved_response_without_calling_model(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    _run_with_failing_statement_check(problems_dir)
+
+    result = _apply(problems_dir)
+
+    assert result.ok
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    assert statuses["statement_draft"] == "confirmed"
+    assert statuses["constraints_pick"] == pipeline.OUTCOME_NO_PENDING
+    problem_dir = problems_dir / "p1"
+    assert (problem_dir / "statement" / "legend.tex").read_text(encoding="utf-8") == "tex"
+    assert not (problem_dir / ".cache" / "statement_draft.response.json").exists()
+    status = _statuses(problems_dir)["statement_draft"]
+    assert (status.state, status.detail) == (pipeline.STATUS_CACHE_HIT, "")
+
+
+def test_apply_refuses_response_received_for_another_input(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    _run_with_failing_statement_check(problems_dir)
+    _edit_legend(spec_file)
+
+    result = _apply(problems_dir)
+
+    assert not result.ok
+    [outcome] = result.outcomes
+    assert outcome.status == pipeline.OUTCOME_ERROR
+    assert "different input" in outcome.detail
+    assert "spec: legend_sketch" in outcome.detail
+    assert not (problems_dir / "p1" / "statement").exists()
+    assert (problems_dir / "p1" / ".cache" / "statement_draft.response.json").is_file()
+
+
+def test_apply_revises_current_files_like_the_failed_run(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(problems_dir)
+    _edit_legend(spec_file)
+    revised = ModelResponse(
+        status="confirmed",
+        artifacts={"legend.tex": "new tex"},
+        notes=[],
+        unchanged=[
+            "input_format.tex", "output_format.tex", "notes.tex", "examples/example_1.txt"
+        ],
+    )
+    with patch(
+        "orchestrator.steps.statement_draft._validate_statement_artifacts",
+        _failing_statement_check,
+    ), patch("orchestrator.model_router.call_model", return_value=revised):
+        _run(problems_dir, only_step="statement_draft")
+
+    result = _apply(problems_dir, only_step="statement_draft")
+
+    assert result.ok
+    statement_dir = problems_dir / "p1" / "statement"
+    assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == "new tex"
+    assert (statement_dir / "notes.tex").read_text(encoding="utf-8") == "tex"
+
+
+def test_apply_refuses_revision_when_current_files_are_gone(spec_file, tmp_path):
+    import shutil
+
+    problems_dir = tmp_path / "problems"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        _run(problems_dir)
+    _edit_legend(spec_file)
+    _run_with_failing_statement_check(problems_dir, only_step="statement_draft")
+    shutil.rmtree(problems_dir / "p1" / "statement")
+
+    result = _apply(problems_dir, only_step="statement_draft")
+
+    assert not result.ok
+    assert "there are none on disk now" in result.outcomes[0].detail
+
+
+def test_apply_without_saved_responses_has_nothing_to_do(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    result = _apply(problems_dir)
+
+    assert result.ok
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    assert {s for s, v in statuses.items() if v != pipeline.OUTCOME_SKIPPED_OPTIONAL} == {
+        s for s in pipeline.STEP_ORDER if s != "checker_draft"
+    }
+    assert set(statuses.values()) <= {pipeline.OUTCOME_NO_PENDING, pipeline.OUTCOME_SKIPPED_OPTIONAL}
