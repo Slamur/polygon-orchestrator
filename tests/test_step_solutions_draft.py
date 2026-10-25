@@ -321,26 +321,24 @@ def test_solution_name_with_solutions_prefix_is_not_nested(spec, tmp_path):
     assert not (solutions_dir / "solutions").exists()
 
 
-def test_solution_name_with_foreign_path_raises_and_writes_nothing(spec, tmp_path):
+def test_solution_name_with_foreign_path_is_set_aside_and_the_rest_applied(spec, tmp_path):
     response = ModelResponse(
         status="confirmed",
         artifacts={"ok_py_main_draft.py": "print(1)\n", "generators/ok_cpp_x_draft.cpp": ""},
         notes=[],
     )
     with patch("orchestrator.model_router.call_model", return_value=response):
-        with pytest.raises(ValueError, match="not a plain file name"):
-            run_step(
-                "valid-spec",
-                spec,
-                {"constraints.yaml": "n_max: 1"},
-                prompts_dir=PROMPTS_DIR,
-                problems_dir=tmp_path,
-                templates_dir=TEMPLATES_DIR,
-            )
+        result = run_step(
+            "valid-spec",
+            spec,
+            {"constraints.yaml": "n_max: 1"},
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
 
-    problem_dir = tmp_path / "valid-spec"
-    # Записан только неприменённый ответ модели (для `llm apply`).
-    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
-        ".cache",
-        ".cache/solutions_draft.response.json",
-    ]
+    solutions_dir = tmp_path / "valid-spec" / "solutions"
+    assert [p.name for p in solutions_dir.iterdir()] == ["ok_py_main_draft.py"]
+    [(filename, reason)] = result.conflicts
+    assert filename == "generators/ok_cpp_x_draft.cpp"
+    assert "not a plain file name" in reason

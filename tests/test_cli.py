@@ -140,7 +140,9 @@ def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tm
 
     assert rc == 1
     out = capsys.readouterr().out
-    assert "statement_draft: error — the set of files does not match" in out
+    assert "statement_draft: conflict — 5 part(s) of the response not applied" in out
+    assert "not applied: legend.tex — not applied: the set of files does not match" in out
+    assert "model versions of not applied files: " in out
     assert "llm apply --step statement_draft" in out
 
     with patch("orchestrator.model_router.call_model") as mock_call:

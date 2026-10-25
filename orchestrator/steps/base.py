@@ -19,12 +19,22 @@
 получает их вместе с тем, что изменилось во входе шага с прошлого прогона
 (`prompts/revise.md.j2`), и дорабатывает их, а не пишет с нуля. Каждый
 текущий файл в ответе — ровно в одном из: `artifacts` (изменён),
-`unchanged`, `removed`, `renamed[].from` (`_plan_revision`). Удалённые
+`unchanged`, `removed`, `renamed[].from` (`_plan_response`). Удалённые
 файлы не удаляются, а переименовываются в `<имя>.removed`
 (`REMOVED_SUFFIX`) — автор посмотрит и удалит сам; переименования
 применяются сразу. Прежние версии перезаписанных и переименованных файлов
 (в любом режиме) — в `.llm_backup/<время>/` каталога задачи
 (`problems/` вне git, истории у файлов задачи нет).
+
+Ответ применяется как `git merge`: то, что применить нельзя (недопустимое
+имя файла, текущий файл сразу в нескольких местах ответа, переименование в
+занятое имя), — конфликт: файл задачи остаётся как был, версия модели
+откладывается в `.llm_conflicts/<шаг>-<время>/` с отчётом `CONFLICTS.md`, а
+остальное применяется. Шаги, файлы которых связаны друг с другом
+(`partial_apply=False`), и ответ, не прошедший `validate_artifacts`,
+применяются только целиком: при конфликте не применяется ничего. Запись
+кэша с конфликтами — не cache hit, пока автор их не разберёт и не сделает
+`llm accept`.
 
 Этот модуль реализует шаги 1-5 один раз (`run_generative_step`); конкретные
 модули в `orchestrator/steps/*.py` только знают, какую секцию спека читать,
@@ -36,6 +46,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import re
 import shutil
 from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
@@ -71,6 +82,12 @@ TEMPLATES_DIR = Path("templates")
 # Каталог (в каталоге задачи) с прежними версиями файлов, которые шаг
 # перезаписал или переименовал: `.llm_backup/<время>/<путь в каталоге задачи>`.
 LLM_BACKUP_DIRNAME = ".llm_backup"
+# Каталог (в каталоге задачи) с тем, что из ответа модели не применено:
+# `.llm_conflicts/<шаг>-<время>/` — версии файлов от модели и отчёт
+# `CONFLICTS_REPORT`; файлы с недопустимыми именами — в `INVALID_NAMES_SUBDIR`.
+LLM_CONFLICTS_DIRNAME = ".llm_conflicts"
+CONFLICTS_REPORT = "CONFLICTS.md"
+INVALID_NAMES_SUBDIR = "invalid_names"
 # Учебные задачи-образцы `examples/` (`EXAMPLES_DIR`), каждая в раскладке
 # `problems/<problem_id>/` плюс свой спек `spec.yaml` (как задачи раскладываются
 # по вложенным каталогам — см. `orchestrator/problem_paths.py`). Сами по себе к
@@ -182,6 +199,10 @@ class StepResult:
     # Куда легли прежние версии перезаписанных/переименованных файлов;
     # `None` — ничего не перезаписано.
     backup_dir: Optional[Path] = None
+    # Что из ответа модели не применено (имя файла, причина) и каталог, куда
+    # отложены версии модели (`_write_conflicts`); `None` — всё применено.
+    conflicts: list[tuple[str, str]] = field(default_factory=list)
+    conflicts_dir: Optional[Path] = None
 
 
 @dataclass
@@ -472,84 +493,203 @@ def directory_artifacts(directory: Path, pattern: str = "*") -> dict[str, Path]:
 
 
 @dataclass
-class _RevisionPlan:
-    """Проверенный ответ модели в режиме доработки — что сделать с файлами."""
+class _Conflict:
+    """Часть ответа модели, которая не применена: версия файла от модели
+    (`content`, если есть) откладывается в каталог конфликтов
+    (`LLM_CONFLICTS_DIRNAME`), файл задачи остаётся как был."""
 
-    # Итоговый набор файлов шага: имя -> содержимое (то, что останется после
-    # применения ответа; его проверяет `validate_artifacts`).
+    filename: str
+    reason: str
+    content: Optional[str] = None
+
+
+@dataclass
+class _ApplyPlan:
+    """Что сделать с файлами шага по ответу модели.
+
+    `artifacts` — новые и изменённые файлы к записи; `final_artifacts` —
+    итоговый набор файлов шага (его проверяет `validate_artifacts`):
+    записанные + оставшиеся как есть + переименованные, без удалённых;
+    `conflicts` — что из ответа не применено; `notes` — что применено не
+    буквально (например, текущий файл, о котором ответ молчит, оставлен как
+    есть)."""
+
+    artifacts: dict[str, str]
     final_artifacts: dict[str, str]
-    removed: list[tuple[Path, str]]
-    renamed: list[tuple[Path, Path, str]]
+    removed: list[tuple[Path, str]] = field(default_factory=list)
+    renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
+    conflicts: list[_Conflict] = field(default_factory=list)
+    notes: list[dict[str, Any]] = field(default_factory=list)
 
 
-def _plan_revision(
-    step_name: str,
+def _note(field_name: str, kind: str, explanation: str) -> dict[str, Any]:
+    return {"field": field_name, "kind": kind, "explanation": explanation}
+
+
+def _plan_response(
     response: Any,
-    revision: StepRevision,
+    revision: Optional[StepRevision],
     resolve_path: Callable[[str], Path],
-) -> _RevisionPlan:
-    """Проверяет, что каждый текущий файл шага в ответе модели ровно в
-    одном из `artifacts`/`unchanged`/`removed`/`renamed[].from`, а новые
-    имена переименований свободны. Файлы сопоставляются по пути
-    (`resolve_path`), а не по строке имени: `generators/gen.cpp` и `gen.cpp`
-    — один файл. Любая проблема — `ValueError` со всеми проблемами сразу, до
-    записи на диск."""
-    current_by_path = {path.resolve(): name for name, path in revision.current_paths.items()}
-    problems: list[str] = []
-    seen: dict[str, list[str]] = {name: [] for name in revision.current_paths}
+) -> _ApplyPlan:
+    """Раскладывает ответ модели на то, что можно применить, и конфликты —
+    как `git merge`: применимое применяется, остальное откладывается автору.
 
-    def current_name(filename: str, where: str) -> Optional[str]:
-        name = current_by_path.get(resolve_path(filename).resolve())
-        if name is None:
-            problems.append(f"{where} '{filename}' is not a current file of the step")
+    Файл с недопустимым именем (`resolve_path` бросает `ValueError`) —
+    конфликт. В режиме доработки каждый текущий файл шага должен быть ровно
+    в одном из `artifacts`/`unchanged`/`removed`/`renamed[].from` (файлы
+    сопоставляются по пути, а не по строке имени: `generators/gen.cpp` и
+    `gen.cpp` — один файл):
+    - ни в одном — оставляется как есть (заметка `kept`);
+    - в нескольких — конфликт: текущий файл не трогается, версия модели
+      откладывается;
+    - неизвестное имя в `unchanged`/`removed`/`renamed[].from` —
+      игнорируется (заметка `ignored`);
+    - переименование в занятое или повторяющееся имя — конфликт: файл не
+      переименовывается, его новая версия (если есть) откладывается."""
+    plan = _ApplyPlan(artifacts={}, final_artifacts={})
+    for filename, content in response.artifacts.items():
+        try:
+            resolve_path(filename)
+        except ValueError as exc:
+            plan.conflicts.append(_Conflict(filename, str(exc), content))
         else:
-            seen[name].append(where)
-        return name
+            plan.artifacts[filename] = content
 
-    for filename in response.artifacts:
-        name = current_by_path.get(resolve_path(filename).resolve())
+    if revision is None:
+        if response.unchanged or response.removed or response.renamed:
+            plan.notes.append(_note(
+                "response",
+                "ignored",
+                "модель вернула unchanged/removed/renamed, хотя текущие файлы ей "
+                "не показывались (генерация с нуля), — проигнорировано",
+            ))
+        plan.final_artifacts = dict(plan.artifacts)
+        return plan
+
+    current_paths = revision.current_paths
+    current_by_path = {path.resolve(): name for name, path in current_paths.items()}
+
+    def current_name(filename: str) -> Optional[str]:
+        try:
+            return current_by_path.get(resolve_path(filename).resolve())
+        except ValueError:
+            return None
+
+    def ignored(where: str, filename: str) -> None:
+        plan.notes.append(_note(
+            filename, "ignored", f"{where}: not a current file of the step — ignored"
+        ))
+
+    places: dict[str, list[str]] = {name: [] for name in current_paths}
+    modified: dict[str, str] = {}  # текущее имя -> имя в artifacts ответа
+    for filename in plan.artifacts:
+        name = current_name(filename)
         if name is not None:
-            seen[name].append("artifacts")
-    unchanged = [
-        name for filename in response.unchanged
-        if (name := current_name(filename, "unchanged")) is not None
-    ]
-    removed: list[tuple[Path, str]] = []
+            places[name].append("artifacts")
+            modified[name] = filename
+    unchanged: list[str] = []
+    for filename in response.unchanged:
+        name = current_name(filename)
+        if name is None:
+            ignored("unchanged", filename)
+        else:
+            places[name].append("unchanged")
+            unchanged.append(name)
+    removed: list[tuple[str, str]] = []
     for entry in response.removed:
-        name = current_name(entry["filename"], "removed")
-        if name is not None:
-            removed.append((revision.current_paths[name], entry["reason"]))
-    renamed: list[tuple[Path, Path, str]] = []
-    targets: set[Path] = set()
+        name = current_name(entry["filename"])
+        if name is None:
+            ignored("removed", entry["filename"])
+        else:
+            places[name].append("removed")
+            removed.append((name, entry["reason"]))
+    renamed: list[tuple[str, dict[str, str]]] = []
     for entry in response.renamed:
-        name = current_name(entry["from"], "renamed.from")
-        target = resolve_path(entry["to"])
-        if target.resolve() in current_by_path or target.exists():
-            problems.append(f"renamed.to '{entry['to']}' is already taken")
-        elif target.resolve() in targets:
-            problems.append(f"renamed.to '{entry['to']}' is used twice")
+        name = current_name(entry["from"])
+        if name is None:
+            ignored("renamed.from", entry["from"])
+        else:
+            places[name].append("renamed.from")
+            renamed.append((name, entry))
+
+    contested = {name for name, where in places.items() if len(where) > 1}
+    for name in sorted(contested):
+        filename = modified.pop(name, name)
+        plan.conflicts.append(_Conflict(
+            filename,
+            f"in several places of the response ({', '.join(places[name])}) "
+            "— the current file is kept as is",
+            plan.artifacts.pop(filename, None),
+        ))
+    for name, where in places.items():
+        if not where:
+            plan.notes.append(_note(
+                name, "kept", "not mentioned in the response — kept as is"
+            ))
+
+    gone: set[str] = set(modified)
+    for name, reason in removed:
+        if name not in contested:
+            plan.removed.append((current_paths[name], reason))
+            gone.add(name)
+    targets: set[Path] = set()
+    renamed_contents: dict[str, str] = {}
+    for name, entry in renamed:
+        to = entry["to"]
+        if name in contested:
+            problem = f"new name of '{name}', which is in several places of the response"
+        else:
+            try:
+                target = resolve_path(to)
+            except ValueError as exc:
+                problem = str(exc)
+            else:
+                if target.resolve() in current_by_path or target.exists():
+                    problem = f"'{name}' -> '{to}': the new name is already taken"
+                elif target.resolve() in targets:
+                    problem = f"'{name}' -> '{to}': the new name is used twice"
+                else:
+                    problem = None
+        if problem is not None:
+            if name not in contested:
+                problem += f" — '{name}' is not renamed"
+            plan.conflicts.append(_Conflict(to, problem, plan.artifacts.pop(to, None)))
+            continue
         targets.add(target.resolve())
-        if name is not None:
-            renamed.append((revision.current_paths[name], target, entry["reason"]))
+        plan.renamed.append((current_paths[name], target, entry["reason"]))
+        renamed_contents[to] = current_paths[name].read_text(encoding="utf-8")
+        gone.add(name)
 
-    for name, places in seen.items():
-        if not places:
-            problems.append(f"current file '{name}' is missing from the response")
-        elif len(places) > 1:
-            problems.append(f"current file '{name}' is in several places: {', '.join(places)}")
-    if problems:
-        raise ValueError(
-            f"Step '{step_name}': the revision response does not account for the "
-            f"current files ({'; '.join(problems)})"
-        )
-
-    final_artifacts = {
-        name: revision.current_paths[name].read_text(encoding="utf-8") for name in unchanged
+    plan.final_artifacts = {
+        name: path.read_text(encoding="utf-8")
+        for name, path in current_paths.items()
+        if name not in gone
     }
-    for entry, (old_path, _, _) in zip(response.renamed, renamed):
-        final_artifacts[entry["to"]] = old_path.read_text(encoding="utf-8")
-    final_artifacts.update(response.artifacts)
-    return _RevisionPlan(final_artifacts=final_artifacts, removed=removed, renamed=renamed)
+    plan.final_artifacts.update(renamed_contents)
+    plan.final_artifacts.update(plan.artifacts)
+    return plan
+
+
+def _whole_step_conflict(response: Any, plan: _ApplyPlan, reason: str) -> _ApplyPlan:
+    """Ответ не применяется целиком: все файлы модели и её предложения
+    удалить/переименовать — в конфликты, файлы шага не трогаются."""
+    conflicts = list(plan.conflicts)
+    set_aside = {conflict.filename for conflict in conflicts if conflict.content is not None}
+    for filename, content in response.artifacts.items():
+        if filename not in set_aside:
+            conflicts.append(_Conflict(filename, f"not applied: {reason}", content))
+    for entry in response.removed:
+        conflicts.append(_Conflict(
+            entry["filename"], f"proposed removal not applied ({entry['reason']}): {reason}"
+        ))
+    for entry in response.renamed:
+        conflicts.append(_Conflict(
+            entry["from"],
+            f"proposed rename to '{entry['to']}' not applied ({entry['reason']}): {reason}",
+        ))
+    return _ApplyPlan(
+        artifacts={}, final_artifacts={}, conflicts=conflicts, notes=plan.notes
+    )
 
 
 class _Backup:
@@ -591,7 +731,51 @@ def _write_artifacts(
     return written
 
 
-def _apply_removals_and_renames(plan: _RevisionPlan, backup: _Backup) -> list[tuple[Path, str]]:
+def _safe_filename(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]", "_", name).lstrip(".") or "file"
+
+
+def _write_conflicts(
+    step_name: str,
+    conflicts: list[_Conflict],
+    problem_dir: Path,
+    resolve_path: Callable[[str], Path],
+    whole_step_reason: Optional[str],
+) -> Path:
+    """Каталог `.llm_conflicts/<шаг>-<время>/`: версии файлов от модели (по
+    их путям в каталоге задачи; файлы с недопустимыми именами — в
+    `INVALID_NAMES_SUBDIR`) и `CONFLICTS_REPORT` — что и почему не
+    применено."""
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    directory = problem_dir / LLM_CONFLICTS_DIRNAME / f"{step_name}-{stamp}"
+    lines = [f"# Not applied: {step_name}", ""]
+    if whole_step_reason is not None:
+        lines += [f"Nothing of the response is applied: {whole_step_reason}.", ""]
+    for conflict in conflicts:
+        line = f"- `{conflict.filename}` — {conflict.reason}"
+        if conflict.content is not None:
+            try:
+                relative = resolve_path(conflict.filename).relative_to(problem_dir)
+            except ValueError:
+                relative = Path(INVALID_NAMES_SUBDIR) / _safe_filename(conflict.filename)
+            target = directory / relative
+            while target.exists():
+                target = target.with_name(target.name + "_")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(conflict.content, encoding="utf-8")
+            line += f"; model version: `{target.relative_to(directory).as_posix()}`"
+        lines.append(line)
+    lines += [
+        "",
+        "The files of the step are left as they were for everything above. Resolve "
+        f"by hand, delete this directory, then run `llm accept --step {step_name}`.",
+    ]
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / CONFLICTS_REPORT).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return directory
+
+
+def _apply_removals_and_renames(plan: _ApplyPlan, backup: _Backup) -> list[tuple[Path, str]]:
     """Помечает удалённые файлы (`<имя>.removed`; прежняя пометка с тем же
     именем — в бэкап) и переименовывает файлы (старая версия — в бэкап).
     Возвращает `(путь пометки, причина)` удалённых."""
@@ -627,6 +811,7 @@ def run_generative_step(
         Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]] | None
     ) = None,
     saved_response: ModelResponse | None = None,
+    partial_apply: bool = False,
 ) -> StepResult:
     """Общий цикл шага: рендер промптов, вызов модели, запись результата.
 
@@ -646,8 +831,8 @@ def run_generative_step(
 
     `revision` — режим доработки (см. докстринг модуля): к user-промпту
     дописывается `prompts/revise.md.j2` с текущими файлами шага и
-    изменениями входа; ответ проверяется `_plan_revision`, удалённые файлы
-    помечаются `.removed`, переименования применяются. `None` — модель
+    изменениями входа; ответ раскладывается `_plan_response`, удалённые
+    файлы помечаются `.removed`, переименования применяются. `None` — модель
     пишет файлы с нуля (текущие файлы шага, которых нет в ответе, остаются
     на диске как есть).
 
@@ -669,9 +854,13 @@ def run_generative_step(
     (изменённые + `unchanged` + переименованные, без удалённых). Вызывается
     только при `confirmed`/`proposed` (при
     `uncertain` `artifacts` по контракту может быть пустым/частичным) и
-    строго ДО записи на диск: если она бросает `ValueError`, исключение
-    всплывает из этой функции как есть, в `problems/` не пишется ни один
-    файл и `CacheEntry` не сохраняется.
+    строго ДО записи на диск: если она бросает `ValueError`, из ответа не
+    применяется ничего — всё уходит в конфликты (см. докстринг модуля), а
+    сохранённый ответ остаётся для `llm apply`.
+
+    `partial_apply` — файлы шага независимы друг от друга: при конфликте в
+    части файлов остальные применяются. `False` — при любом конфликте ответ
+    не применяется целиком.
 
     `postprocess_artifacts(artifacts)` — необязательная механическая
     доработка артефактов после `validate_artifacts` и до записи на диск:
@@ -681,7 +870,8 @@ def run_generative_step(
 
     Ответ модели (кроме `uncertain` — применять нечего) сохраняется
     (`cache.PendingResponse`) до проверок ответа и записи файлов и удаляется,
-    когда применён: если проверка ответа упала, вызов не потерян. `saved_response` — такой
+    когда применён (хотя бы частично): если ответ не применён целиком, вызов
+    не потерян. `saved_response` — такой
     сохранённый ответ: применяется вместо вызова модели (`llm apply`);
     совпадение его входа с текущим и режим доработки проверяет вызывающий
     код (`pipeline.py`).
@@ -690,8 +880,9 @@ def run_generative_step(
     `problems/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
     записанные `.cpp`-файлы через `compile_check` (без запуска — см.
     CLAUDE.md, "Минимальная страховка вместо судящего контура") и сохраняет
-    `CacheEntry` с этим `input_hash`, актуальным хешем промптов и моделью
-    шага из `model_router.STEP_TO_MODEL`.
+    `CacheEntry` с этим `input_hash`, актуальным хешем промптов, моделью
+    шага из `model_router.STEP_TO_MODEL` и каталогом конфликтов, если они
+    есть.
     """
     input_values = input_values or {}
     if saved_response is None:
@@ -748,39 +939,40 @@ def run_generative_step(
         )
 
     notes = list(response.notes)
-    plan: Optional[_RevisionPlan] = None
-    if revision is not None:
-        plan = _plan_revision(step_name, response, revision, resolve_artifact_path)
-    elif response.unchanged or response.removed or response.renamed:
-        notes.append({
-            "field": "response",
-            "kind": "ignored",
-            "explanation": (
-                "модель вернула unchanged/removed/renamed, хотя текущие файлы ей "
-                "не показывались (генерация с нуля), — проигнорировано"
-            ),
-        })
+    plan = _plan_response(response, revision, resolve_artifact_path)
+    notes.extend(plan.notes)
+    whole_step_reason: Optional[str] = None
+    if plan.conflicts and not partial_apply:
+        whole_step_reason = "the files of this step are applied only all together"
+    elif validate_artifacts is not None:
+        try:
+            validate_artifacts(plan.final_artifacts)
+        except ValueError as exc:
+            whole_step_reason = str(exc)
+    if whole_step_reason is not None:
+        plan = _whole_step_conflict(response, plan, whole_step_reason)
 
-    if validate_artifacts is not None:
-        validate_artifacts(plan.final_artifacts if plan is not None else response.artifacts)
-
-    artifacts = response.artifacts
-    if postprocess_artifacts is not None:
+    artifacts = plan.artifacts
+    if postprocess_artifacts is not None and artifacts:
         artifacts, extra_notes = postprocess_artifacts(artifacts)
         notes.extend(extra_notes)
 
-    backup = _Backup(Path(problems_dir) / problem_id)
-    marks: list[tuple[Path, str]] = []
-    renamed: list[tuple[Path, Path, str]] = []
-    if plan is not None:
-        marks = _apply_removals_and_renames(plan, backup)
-        renamed = plan.renamed
+    problem_dir = Path(problems_dir) / problem_id
+    backup = _Backup(problem_dir)
+    marks = _apply_removals_and_renames(plan, backup)
+    renamed = plan.renamed
     artifact_paths = _write_artifacts(
         artifacts,
         resolve_artifact_path,
         backup,
         skip_backup={new_path for _, new_path, _ in renamed},
     )
+    conflicts_dir: Optional[Path] = None
+    if plan.conflicts:
+        conflicts_dir = _write_conflicts(
+            step_name, plan.conflicts, problem_dir, resolve_artifact_path, whole_step_reason
+        )
+        cache_entry.conflicts = conflicts_dir.relative_to(problem_dir).as_posix()
 
     to_compile = dict(artifact_paths)
     for _, new_path, _ in renamed:
@@ -798,7 +990,10 @@ def run_generative_step(
 
     cache_entry.timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     save_cache_entry(problem_id, step_name, cache_entry, problems_dir=problems_dir)
-    discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
+    if whole_step_reason is None:
+        # Не применённый целиком ответ остаётся: после правки причины
+        # `llm apply` применит его без нового вызова модели.
+        discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
 
     return StepResult(
         step_name=step_name,
@@ -811,4 +1006,6 @@ def run_generative_step(
         removed=marks,
         renamed=renamed,
         backup_dir=backup.directory,
+        conflicts=[(conflict.filename, conflict.reason) for conflict in plan.conflicts],
+        conflicts_dir=conflicts_dir,
     )

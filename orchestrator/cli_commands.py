@@ -17,6 +17,7 @@ from typing import Iterator
 from orchestrator.pipeline import (
     OUTCOME_CACHE_HIT,
     OUTCOME_CONFIRMED,
+    OUTCOME_CONFLICT,
     OUTCOME_ERROR,
     OUTCOME_NO_PENDING,
     OUTCOME_PROPOSED,
@@ -48,6 +49,7 @@ _OUTCOME_LABELS = {
     OUTCOME_SKIPPED_OPTIONAL: "skipped (optional)",
     OUTCOME_NO_PENDING: "nothing to apply",
     OUTCOME_ERROR: "error",
+    OUTCOME_CONFLICT: "conflict",
 }
 
 # Логгер пакета — на него вешается и консольный вывод (см.
@@ -202,6 +204,10 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
             logger.info(f"      renamed: {old_path} -> {new_path} — {reason}")
         if outcome.backup_dir is not None:
             logger.info(f"      previous versions of overwritten files: {outcome.backup_dir}")
+        for filename, reason in outcome.conflicts:
+            logger.info(f"      not applied: {filename} — {reason}")
+        if outcome.conflicts_dir is not None:
+            logger.info(f"      model versions of not applied files: {outcome.conflicts_dir}")
 
     if result.stopped_uncertain:
         logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")

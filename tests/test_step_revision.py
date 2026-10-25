@@ -13,10 +13,14 @@ from orchestrator.cache import (
     changed_input_values,
     compute_input_values,
     load_cache_entry,
+    load_pending_response,
 )
 from orchestrator.model_router import ModelResponse
 from orchestrator.steps.base import (
+    CONFLICTS_REPORT,
+    INVALID_NAMES_SUBDIR,
     LLM_BACKUP_DIRNAME,
+    LLM_CONFLICTS_DIRNAME,
     REVISE_PROMPT,
     StepRevision,
     run_generative_step,
@@ -278,50 +282,162 @@ def test_validate_artifacts_gets_final_set_of_files(problem_dir, prompts_dir):
     assert seen == {"a.py": "a", "e.py": "c", "d.py": "d"}
 
 
-# --- проверка ответа ----------------------------------------------------------
+# --- конфликты в ответе --------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    "response_kwargs, message",
-    [
-        ({"unchanged": ["a.py"]}, "current file 'b.py' is missing from the response"),
-        (
-            {"artifacts": {"a.py": "x"}, "unchanged": ["a.py", "b.py"]},
-            "current file 'a.py' is in several places: artifacts, unchanged",
-        ),
-        (
-            {"unchanged": ["a.py", "b.py", "zzz.py"]},
-            "unchanged 'zzz.py' is not a current file of the step",
-        ),
-        (
-            {
-                "unchanged": ["a.py"],
-                "renamed": [{"from": "b.py", "to": "a.py", "reason": "r"}],
-            },
-            "renamed.to 'a.py' is already taken",
-        ),
-        (
-            {
-                "artifacts": {"b.py": "x"},
-                "renamed": [{"from": "b.py", "to": "c.py", "reason": "r"}],
-                "unchanged": ["a.py"],
-            },
-            "current file 'b.py' is in several places: artifacts, renamed.from",
-        ),
-    ],
-)
-def test_inconsistent_revision_response_writes_nothing(
-    problem_dir, prompts_dir, response_kwargs, message
-):
+def _solution_files(problem_dir: Path) -> dict[str, str]:
+    return {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted((problem_dir / "solutions").iterdir())
+    }
+
+
+def _conflict_files(result) -> dict[str, str]:
+    """Отложенные версии модели (без отчёта) — путь в каталоге конфликтов -> содержимое."""
+    assert result.conflicts_dir is not None
+    return {
+        path.relative_to(result.conflicts_dir).as_posix(): path.read_text(encoding="utf-8")
+        for path in sorted(result.conflicts_dir.rglob("*"))
+        if path.is_file() and path.name != CONFLICTS_REPORT
+    }
+
+
+def test_current_file_missing_from_response_is_kept(problem_dir, prompts_dir):
     paths = _write_current(problem_dir, {"a.py": "a", "b.py": "b"})
 
-    with pytest.raises(ValueError, match="does not account for the current files") as error:
-        _run(problem_dir, prompts_dir, _response(**response_kwargs), StepRevision(current_paths=paths))
+    result, _ = _run(
+        problem_dir,
+        prompts_dir,
+        _response(artifacts={"a.py": "x"}),
+        StepRevision(current_paths=paths),
+        partial_apply=True,
+    )
 
-    assert message in str(error.value)
-    assert sorted(path.name for path in (problem_dir / "solutions").iterdir()) == ["a.py", "b.py"]
-    assert (problem_dir / "solutions" / "a.py").read_text() == "a"
-    assert load_cache_entry("p1", "solutions_draft", problems_dir=problem_dir.parent) is None
+    assert _solution_files(problem_dir) == {"a.py": "x", "b.py": "b"}
+    assert result.conflicts == [] and result.conflicts_dir is None
+    assert {"field": "b.py", "kind": "kept", "explanation": "not mentioned in the response — kept as is"} in result.notes
+
+
+def test_unknown_names_in_response_are_ignored(problem_dir, prompts_dir):
+    paths = _write_current(problem_dir, {"a.py": "a"})
+
+    result, _ = _run(
+        problem_dir,
+        prompts_dir,
+        _response(
+            unchanged=["a.py", "zzz.py"],
+            removed=[{"filename": "yyy.py", "reason": "r"}],
+            renamed=[{"from": "xxx.py", "to": "c.py", "reason": "r"}],
+        ),
+        StepRevision(current_paths=paths),
+        partial_apply=True,
+    )
+
+    assert _solution_files(problem_dir) == {"a.py": "a"}
+    assert result.conflicts == []
+    ignored = {note["field"] for note in result.notes if note["kind"] == "ignored"}
+    assert ignored == {"zzz.py", "yyy.py", "xxx.py"}
+
+
+def test_file_in_several_places_is_a_conflict_and_the_rest_is_applied(problem_dir, prompts_dir):
+    paths = _write_current(problem_dir, {"a.py": "a", "b.py": "b"})
+
+    result, _ = _run(
+        problem_dir,
+        prompts_dir,
+        _response(artifacts={"a.py": "x", "b.py": "y"}, unchanged=["a.py"]),
+        StepRevision(current_paths=paths),
+        partial_apply=True,
+    )
+
+    assert _solution_files(problem_dir) == {"a.py": "a", "b.py": "y"}
+    [(filename, reason)] = result.conflicts
+    assert filename == "a.py"
+    assert "in several places of the response (artifacts, unchanged)" in reason
+    assert _conflict_files(result) == {"solutions/a.py": "x"}
+    report = (result.conflicts_dir / CONFLICTS_REPORT).read_text(encoding="utf-8")
+    assert "`a.py`" in report and "model version: `solutions/a.py`" in report
+    assert "llm accept --step solutions_draft" in report
+    entry = load_cache_entry("p1", "solutions_draft", problems_dir=problem_dir.parent)
+    assert entry.conflicts == result.conflicts_dir.relative_to(problem_dir).as_posix()
+    assert entry.conflicts.startswith(LLM_CONFLICTS_DIRNAME + "/solutions_draft-")
+    # Ответ применён частично — сохранённый ответ больше не нужен.
+    assert load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is None
+
+
+def test_rename_to_taken_name_is_a_conflict(problem_dir, prompts_dir):
+    paths = _write_current(problem_dir, {"a.py": "a", "b.py": "b"})
+
+    result, _ = _run(
+        problem_dir,
+        prompts_dir,
+        _response(
+            artifacts={"a.py": "new b"},
+            renamed=[{"from": "b.py", "to": "a.py", "reason": "r"}],
+        ),
+        StepRevision(current_paths=paths),
+        partial_apply=True,
+    )
+
+    assert _solution_files(problem_dir) == {"a.py": "a", "b.py": "b"}
+    reasons = dict(result.conflicts)
+    assert "the new name is already taken — 'b.py' is not renamed" in reasons["a.py"]
+    # Новая версия под занятым именем отложена, а не записана поверх a.py.
+    assert _conflict_files(result) == {"solutions/a.py": "new b"}
+
+
+def test_renamed_file_also_in_artifacts_is_a_conflict(problem_dir, prompts_dir):
+    paths = _write_current(problem_dir, {"a.py": "a", "b.py": "b"})
+
+    result, _ = _run(
+        problem_dir,
+        prompts_dir,
+        _response(
+            artifacts={"b.py": "x"},
+            renamed=[{"from": "b.py", "to": "c.py", "reason": "r"}],
+            unchanged=["a.py"],
+        ),
+        StepRevision(current_paths=paths),
+        partial_apply=True,
+    )
+
+    assert _solution_files(problem_dir) == {"a.py": "a", "b.py": "b"}
+    assert [filename for filename, _ in result.conflicts] == ["b.py", "c.py"]
+    assert _conflict_files(result) == {"solutions/b.py": "x"}
+
+
+def test_invalid_name_is_a_conflict_and_set_aside(problem_dir, prompts_dir):
+    result, _ = _run(
+        problem_dir,
+        prompts_dir,
+        _response(artifacts={"ok.py": "ok", "sub/x.py": "x"}),
+        partial_apply=True,
+    )
+
+    assert _solution_files(problem_dir) == {"ok.py": "ok"}
+    assert result.conflicts == [("sub/x.py", "bad name sub/x.py")]
+    assert _conflict_files(result) == {f"{INVALID_NAMES_SUBDIR}/sub_x.py": "x"}
+
+
+def test_step_applied_only_as_a_whole_applies_nothing_on_conflict(problem_dir, prompts_dir):
+    paths = _write_current(problem_dir, {"a.py": "a", "b.py": "b"})
+
+    result, _ = _run(
+        problem_dir,
+        prompts_dir,
+        _response(
+            artifacts={"a.py": "x", "b.py": "y"},
+            unchanged=["a.py"],
+        ),
+        StepRevision(current_paths=paths),
+    )
+
+    assert _solution_files(problem_dir) == {"a.py": "a", "b.py": "b"}
+    assert _conflict_files(result) == {"solutions/a.py": "x", "solutions/b.py": "y"}
+    report = (result.conflicts_dir / CONFLICTS_REPORT).read_text(encoding="utf-8")
+    assert "Nothing of the response is applied: the files of this step are applied only all together" in report
+    # Не применено ничего — ответ остаётся для `llm apply`.
+    assert load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is not None
 
 
 # --- кэш ---------------------------------------------------------------------

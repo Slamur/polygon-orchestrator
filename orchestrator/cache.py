@@ -228,7 +228,10 @@ class CacheEntry:
     модели в режиме доработки; `None` у записей, сделанных до его появления.
     `accepted` — запись сделана
     `llm accept` (текущие файлы приняты без вызова модели), а не
-    генерацией.
+    генерацией. `conflicts` — часть ответа модели не применена: каталог
+    конфликтов относительно каталога задачи (`steps.base._write_conflicts`);
+    такая запись — не cache hit, пока автор не разберёт конфликты и не
+    сделает `llm accept`.
     """
 
     input_hash: str
@@ -240,6 +243,7 @@ class CacheEntry:
     prompt_parts: Optional[dict[str, str]] = None
     input_values: Optional[dict[str, Any]] = None
     accepted: bool = False
+    conflicts: Optional[str] = None
 
 
 def _cache_file_path(
@@ -306,7 +310,7 @@ def is_cache_valid(
     """
     if entry is None:
         return False
-    if entry.status == UNCERTAIN_STATUS:
+    if entry.status == UNCERTAIN_STATUS or entry.conflicts is not None:
         return False
     if current_model is not None and entry.model != current_model:
         return False

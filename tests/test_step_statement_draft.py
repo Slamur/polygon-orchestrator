@@ -84,27 +84,27 @@ def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
     assert "example_3" not in expected_list
 
 
-def test_mismatched_artifacts_raise_and_write_nothing(spec, tmp_path):
+def test_mismatched_artifacts_are_not_applied_at_all(spec, tmp_path):
     artifacts = _full_artifacts(1)
     del artifacts["notes.tex"]
     response = ModelResponse(status="confirmed", artifacts=artifacts, notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response):
-        with pytest.raises(ValueError, match="notes.tex"):
-            run_step(
-                "valid-spec",
-                spec,
-                None,
-                prompts_dir=PROMPTS_DIR,
-                problems_dir=tmp_path,
-                templates_dir=TEMPLATES_DIR,
-            )
+        result = run_step(
+            "valid-spec",
+            spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
 
     problem_dir = tmp_path / "valid-spec"
-    # Записан только неприменённый ответ модели (для `llm apply`).
-    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
-        ".cache",
-        ".cache/statement_draft.response.json",
-    ]
+    assert not (problem_dir / "statement").exists()
+    assert result.artifact_paths == {}
+    assert all("missing: ['notes.tex']" in reason for _, reason in result.conflicts)
+    assert (result.conflicts_dir / "statement" / "legend.tex").is_file()
+    # Не применено ничего — ответ остаётся для `llm apply`.
+    assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
 
 
 def test_primary_artifact_path_is_statement_dir(spec, tmp_path):

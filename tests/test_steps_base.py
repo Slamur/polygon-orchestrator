@@ -6,6 +6,7 @@ import pytest
 from orchestrator.cache import load_cache_entry, load_pending_response
 from orchestrator.model_router import ModelResponse
 from orchestrator.steps.base import (
+    CONFLICTS_REPORT,
     STEP_CONTEXT_DOCUMENTS,
     StepUncertainError,
     ensure_problem_lib,
@@ -265,7 +266,7 @@ def test_run_generative_step_unknown_status_raises_value_error(tmp_path):
     assert not problems_dir.exists() or list(problems_dir.rglob("*")) == []
 
 
-def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path):
+def test_run_generative_step_validate_artifacts_mismatch_applies_nothing(tmp_path):
     prompts_dir = tmp_path / "prompts"
     problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
@@ -284,26 +285,33 @@ def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path
         raise ValueError("набор файлов не совпадает")
 
     with patch("orchestrator.model_router.call_model", return_value=response):
-        with pytest.raises(ValueError, match="набор файлов не совпадает"):
-            run_generative_step(
-                step_name="statement_draft",
-                problem_id="p1",
-                context={},
-                input_hash="h",
-                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
-                prompts_dir=prompts_dir,
-                problems_dir=problems_dir,
-                validate_artifacts=validate,
-            )
+        result = run_generative_step(
+            step_name="statement_draft",
+            problem_id="p1",
+            context={},
+            input_hash="h",
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
+            prompts_dir=prompts_dir,
+            problems_dir=problems_dir,
+            validate_artifacts=validate,
+        )
 
     assert seen == [{"a.tex": "a", "sub/b.txt": "b"}]
     problem_dir = problems_dir / "p1"
-    # Записан только неприменённый ответ модели (для `llm apply`).
-    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
-        ".cache",
+    assert result.artifact_paths == {}
+    conflicts_dir = result.conflicts_dir.relative_to(problem_dir).as_posix()
+    # Файлы шага не записаны — версии модели отложены в каталог конфликтов.
+    assert sorted(
+        p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*") if p.is_file()
+    ) == sorted([
+        ".cache/statement_draft.json",
         ".cache/statement_draft.response.json",
-    ]
-    assert load_cache_entry("p1", "statement_draft", problems_dir=problems_dir) is None
+        f"{conflicts_dir}/{CONFLICTS_REPORT}",
+        f"{conflicts_dir}/a.tex",
+        f"{conflicts_dir}/sub/b.txt",
+    ])
+    entry = load_cache_entry("p1", "statement_draft", problems_dir=problems_dir)
+    assert entry.conflicts == conflicts_dir
 
 
 def test_run_generative_step_validate_artifacts_pass_writes_files(tmp_path):
@@ -476,7 +484,7 @@ def test_run_generative_step_applies_saved_response_without_calling_model(tmp_pa
     assert load_pending_response("p1", "statement_draft", problems_dir=problems_dir) is None
 
 
-def test_run_generative_step_saves_rejected_response_with_its_cache_entry(tmp_path):
+def test_run_generative_step_keeps_response_not_applied_with_its_cache_entry(tmp_path):
     prompts_dir = tmp_path / "prompts"
     problems_dir = tmp_path / "problems"
     _write_prompt(prompts_dir, "statement_draft", "x")
@@ -486,18 +494,17 @@ def test_run_generative_step_saves_rejected_response_with_its_cache_entry(tmp_pa
         raise ValueError("rejected")
 
     with patch("orchestrator.model_router.call_model", return_value=response):
-        with pytest.raises(ValueError, match="rejected"):
-            run_generative_step(
-                step_name="statement_draft",
-                problem_id="p1",
-                context={},
-                input_hash="h",
-                input_values={"spec": {"x": 1}},
-                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
-                prompts_dir=prompts_dir,
-                problems_dir=problems_dir,
-                validate_artifacts=reject,
-            )
+        run_generative_step(
+            step_name="statement_draft",
+            problem_id="p1",
+            context={},
+            input_hash="h",
+            input_values={"spec": {"x": 1}},
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
+            prompts_dir=prompts_dir,
+            problems_dir=problems_dir,
+            validate_artifacts=reject,
+        )
 
     pending = load_pending_response("p1", "statement_draft", problems_dir=problems_dir)
     assert pending.revised is False
