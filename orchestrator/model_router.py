@@ -50,12 +50,17 @@ __all__ = [
 # если на практике `custom_comparison_notes` часто оказывается недостаточно
 # точным и шаг слишком часто уходит в uncertain, следующий шаг эскалации —
 # до сильной модели, как у constraints_pick/solutions_draft.
+# spec_from_draft — не шаг пайплайна, а `init --draft` (спек по черновику
+# автора, `orchestrator/spec_from_draft.py`): спек — вход всех шагов, и
+# ошибка в нём (или незаметно домысленное значение) расходится по всем —
+# поэтому сильная модель.
 STEP_TO_MODEL: dict[str, str] = {
     "statement_draft": "medium-model",
     "constraints_pick": "strong-model",
     "generators_and_script": "medium-model",
     "solutions_draft": "strong-model",
     "checker_draft": "medium-model",
+    "spec_from_draft": "strong-model",
 }
 
 # Уровень effort на шаг (общее для вендоров, поддерживающих такую ручку;
@@ -64,13 +69,14 @@ STEP_TO_MODEL: dict[str, str] = {
 # high из-за дизайна adversarial-тестов; checker_draft — high по той же
 # причине, что и класс модели: цена ошибки в сравнении ответов высока даже
 # при формально механической реализации; statement_draft — medium, это
-# оформление, а не рассуждение.
+# оформление, а не рассуждение; spec_from_draft — high, как и класс модели.
 STEP_TO_EFFORT: dict[str, str] = {
     "statement_draft": "medium",
     "constraints_pick": "high",
     "generators_and_script": "high",
     "solutions_draft": "high",
     "checker_draft": "high",
+    "spec_from_draft": "high",
 }
 
 _client: LLMClient | None = None

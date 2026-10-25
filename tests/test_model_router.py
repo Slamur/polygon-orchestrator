@@ -34,19 +34,21 @@ def _reset_client():
     model_router._client = None
 
 
-def test_step_to_model_covers_all_five_steps():
+def test_step_to_model_covers_all_steps_and_spec_from_draft():
     assert set(STEP_TO_MODEL) == {
         "statement_draft",
         "constraints_pick",
         "generators_and_script",
         "solutions_draft",
         "checker_draft",
+        "spec_from_draft",
     }
 
 
 def test_critical_steps_use_strong_model():
     assert STEP_TO_MODEL["constraints_pick"] == "strong-model"
     assert STEP_TO_MODEL["solutions_draft"] == "strong-model"
+    assert STEP_TO_MODEL["spec_from_draft"] == "strong-model"
 
 
 def test_generators_and_script_uses_medium_model():
