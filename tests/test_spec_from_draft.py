@@ -330,3 +330,23 @@ def test_spec_from_draft_prompt_renders_for_both_bases(base_dir):
             prompts_dir=PROMPTS_DIR,
         )
         assert init.base_text.rstrip("\n") in text
+
+
+def test_spec_review_marks_finds_mark_comments_only(tmp_path):
+    from orchestrator.spec import spec_review_marks
+
+    path = tmp_path / SPEC_FILENAME
+    path.write_text(
+        "problem_id: p\n"
+        "title:\n"
+        '  ru: "x"  # PROPOSED, REVIEW ME: from the legend\n'
+        "legend_sketch: |  # SUGGESTION: shorter\n"
+        "  text about a SUGGESTION without a comment\n",
+        encoding="utf-8",
+    )
+
+    assert spec_review_marks(path) == [
+        (3, 'ru: "x"  # PROPOSED, REVIEW ME: from the legend'),
+        (4, "legend_sketch: |  # SUGGESTION: shorter"),
+    ]
+    assert spec_review_marks(tmp_path / "missing.yaml") == []

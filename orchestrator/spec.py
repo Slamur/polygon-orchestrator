@@ -559,6 +559,26 @@ def create_spec_draft(
     return write_spec(init, init.base_text)
 
 
+# Пометки, которыми `init --draft` отмечает в спеке значения не из черновика
+# автора (`prompts/spec_from_draft/system.md`), — YAML-комментарии.
+_REVIEW_MARK = re.compile(r"#\s*(?:PROPOSED, REVIEW ME|SUGGESTION)\b")
+
+
+def spec_review_marks(path: Path) -> list[tuple[int, str]]:
+    """Непроверенные пометки `init --draft` в спеке: (номер строки, строка).
+    Шаги считают спек решениями автора, поэтому `llm generate` и
+    `llm status` о них предупреждают. Нет файла — пустой список."""
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    return [
+        (number, line.strip())
+        for number, line in enumerate(lines, start=1)
+        if _REVIEW_MARK.search(line)
+    ]
+
+
 def spec_validation_errors(path: Path, *, expected_id: str) -> list[str]:
     """Ошибки валидации спека (`load_spec`); пустой список — спек валиден.
     Для `init`: созданный спек — черновик и может быть ещё не заполнен."""

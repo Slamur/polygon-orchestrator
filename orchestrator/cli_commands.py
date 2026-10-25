@@ -43,6 +43,8 @@ from orchestrator.problem_paths import EXAMPLES_DIR
 from orchestrator.spec import (
     SpecInitError,
     prepare_spec_init,
+    spec_path,
+    spec_review_marks,
     spec_validation_errors,
     write_spec,
 )
@@ -220,6 +222,29 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
         logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")
 
 
+# Сколько строк с пометками `init --draft` показывать в предупреждении.
+_REVIEW_MARKS_SHOWN = 10
+
+
+def _review_marks_warning(args: argparse.Namespace) -> list[str]:
+    """Предупреждение о непроверенных пометках `init --draft` в спеке
+    (`spec.spec_review_marks`) — строками; пусто, если пометок нет. Не
+    останавливает команду: проверять ли каждую — решает автор."""
+    path = spec_path(args.problem_id, problems_dir=args.problems_dir)
+    marks = spec_review_marks(path)
+    if not marks:
+        return []
+    lines = [
+        f"warning: {path} still has {len(marks)} PROPOSED / SUGGESTION mark(s) from "
+        "init --draft — the steps take the spec as the author's decisions: review these "
+        "values and remove the marks"
+    ]
+    lines += [f"  line {number}: {line}" for number, line in marks[:_REVIEW_MARKS_SHOWN]]
+    if len(marks) > _REVIEW_MARKS_SHOWN:
+        lines.append(f"  ... and {len(marks) - _REVIEW_MARKS_SHOWN} more")
+    return lines
+
+
 def cmd_llm_generate(args: argparse.Namespace) -> int:
     return _run_llm_pipeline(args, force=args.force, fresh=args.fresh)
 
@@ -240,6 +265,9 @@ def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
     with _problem_log_handler(
         logger, args.problems_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
     ) as file_handler:
+        if not mode.get("apply_pending"):
+            for line in _review_marks_warning(args):
+                logger.warning(line)
         try:
             result = run_pipeline(
                 args.problem_id,
@@ -282,6 +310,8 @@ def cmd_llm_status(args: argparse.Namespace) -> int:
         templates_dir=args.templates_dir,
     )
     any_error = _print_step_statuses(args.problem_id, statuses, spec_error)
+    for line in _review_marks_warning(args):
+        print(line)
     return 1 if any_error else 0
 
 
