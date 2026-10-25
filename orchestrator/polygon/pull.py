@@ -59,8 +59,11 @@ Polygon равна записанной в базе (с последней си�
 - TL/ML (`problem.info`) -> `constraints.yaml`, только секция `limits`.
   Это НЕ результат `constraints_pick`: диапазонов переменных, групп и
   секции `validator` в нём нет (см. `_CONSTRAINTS_HEADER`). Сравниваются
-  только TL/ML; результат `constraints_pick` не перезаписывается и с
-  `--overwrite` — расходящиеся TL/ML нужно поправить в нём руками;
+  только TL/ML. Результат `constraints_pick` целиком не перезаписывается
+  никогда: с `--overwrite` в нём заменяются только значения
+  `time_limit_seconds`/`memory_limit_mb` (`_replace_limits`), остальное —
+  диапазоны, группы, `validator`, комментарии — остаётся как было.
+  Обоснование TL/ML (`limits.rationale`) при этом не правится;
 - валидатор (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
 - чекер (`problem.checker`) -> `checker.cpp`, если он не стандартный
   (`std::...` — скачивать нечего);
@@ -91,9 +94,12 @@ from __future__ import annotations
 
 import datetime
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
+
+import yaml
 
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import (
@@ -103,7 +109,12 @@ from orchestrator.polygon.state import (
     update_sync,
 )
 from orchestrator.polygon.steps.base import PolygonStepError
-from orchestrator.polygon.steps.set_constraints import read_limits
+from orchestrator.polygon.steps.set_constraints import (
+    _MEMORY_KEY,
+    _TIME_KEY,
+    _extract_limits,
+    read_limits,
+)
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
 from orchestrator.polygon.steps.upload_statement import NAME_FILENAME
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES, normalize_script
@@ -468,11 +479,15 @@ class _Puller:
             return
         remote = (int(time_limit_ms), int(memory_limit_mb))
         seconds = time_limit_ms / 1000
+        values = {
+            _TIME_KEY: str(int(seconds) if seconds.is_integer() else seconds),
+            _MEMORY_KEY: str(memory_limit_mb),
+        }
         content = (
             f"{_CONSTRAINTS_HEADER}"
             "limits:\n"
-            f"  time_limit_seconds: {int(seconds) if seconds.is_integer() else seconds}\n"
-            f"  memory_limit_mb: {memory_limit_mb}\n"
+            f"  {_TIME_KEY}: {values[_TIME_KEY]}\n"
+            f"  {_MEMORY_KEY}: {values[_MEMORY_KEY]}\n"
         ).encode("utf-8")
 
         path = self.problem_dir / _CONSTRAINTS_FILENAME
@@ -493,16 +508,25 @@ class _Puller:
 
         differs = f"TL/ML differ: local {_describe_limits(local)}, Polygon {_describe_limits(remote)}"
         is_pulled = path.read_bytes().startswith(_CONSTRAINTS_HEADER.encode("utf-8"))
-        if self.overwrite and is_pulled:
-            self._backup(_CONSTRAINTS_FILENAME)
-            self._write(_CONSTRAINTS_FILENAME, content)
-            self.add(_CONSTRAINTS_FILENAME, ITEM_OVERWRITTEN, differs)
-            self.synced[LIMITS_KEY] = limits_digest(*remote)
-            return
         if self.overwrite:
+            if is_pulled:
+                replaced, detail = content, differs
+            else:
+                text = _replace_limits(path.read_text(encoding="utf-8"), values, remote)
+                replaced = text.encode("utf-8") if text is not None else None
+                detail = (
+                    f"{differs} — only the limits were replaced in the constraints_pick "
+                    "result, check limits.rationale"
+                )
+            if replaced is not None:
+                self._backup(_CONSTRAINTS_FILENAME)
+                self._write(_CONSTRAINTS_FILENAME, replaced)
+                self.add(_CONSTRAINTS_FILENAME, ITEM_OVERWRITTEN, detail)
+                self.synced[LIMITS_KEY] = limits_digest(*remote)
+                return
             differs += (
-                " — constraints.yaml is a constraints_pick result and is never "
-                "overwritten, fix the limits in it manually"
+                f" — could not replace {_TIME_KEY}/{_MEMORY_KEY} in constraints.yaml "
+                "automatically, fix the limits in it manually"
             )
         self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_KEPT_DETAIL}")
         self.synced[LIMITS_KEY] = None
@@ -821,6 +845,40 @@ def _same(local: bytes, remote: bytes) -> bool:
 
 def _join(detail: str, suffix: str) -> str:
     return f"{detail}; {suffix}" if detail else suffix
+
+
+_LIMIT_LINE = re.compile(
+    rf"^(?P<head>[ \t]*(?:{_TIME_KEY}|{_MEMORY_KEY})[ \t]*:[ \t]*)"
+    r"(?P<value>[^#\n]*?)(?P<tail>[ \t]*(?:#[^\n]*)?)$",
+    re.MULTILINE,
+)
+
+
+def _replace_limits(
+    text: str, values: dict[str, str], expected: tuple[int, int]
+) -> str | None:
+    """`text` (результат `constraints_pick`) с заменёнными значениями
+    `time_limit_seconds`/`memory_limit_mb` — построчно, чтобы сохранить
+    остальное содержимое и комментарии. Заменяются все вхождения ключей
+    (`read_limits` ищет пару и в `limits`, и в корне). None, если после
+    замены `read_limits` не прочитал бы ровно `expected` (ключи в
+    flow-стиле, многострочные значения и т.п.) — тогда файл не трогаем.
+    """
+
+    def substitute(match: re.Match) -> str:
+        key = match["head"].split(":", 1)[0].strip()
+        return f"{match['head']}{values[key]}{match['tail']}"
+
+    replaced = _LIMIT_LINE.sub(substitute, text)
+    try:
+        data = yaml.safe_load(replaced)
+        if not isinstance(data, dict):
+            return None
+        time_limit_seconds, memory_limit_mb = _extract_limits(data)
+        actual = (round(time_limit_seconds * 1000), round(memory_limit_mb))
+    except (yaml.YAMLError, PolygonStepError, TypeError):
+        return None
+    return replaced if actual == expected else None
 
 
 def _describe_limits(limits: tuple[int, int] | None) -> str:
