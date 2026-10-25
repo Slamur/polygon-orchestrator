@@ -7,7 +7,8 @@
 промпт-шаблонов, ни модель из `model_router.py`.
 
 Этот модуль только считает хеши и читает/пишет `problems/<id>/.cache/<step>.json`
-— решение о том, вызывать ли модель, принимает `pipeline.py`.
+(и неприменённый ответ модели `.cache/<step>.response.json`, см.
+`PendingResponse`) — решение о том, вызывать ли модель, принимает `pipeline.py`.
 """
 
 from __future__ import annotations
@@ -312,6 +313,75 @@ def is_cache_valid(
     return (
         entry.input_hash == current_input_hash
         and entry.prompt_hash == current_prompt_hash
+    )
+
+
+@dataclass
+class PendingResponse:
+    """Содержимое `problems/<problem_id>/.cache/<step>.response.json` — ответ
+    модели, который ещё не применён к файлам задачи.
+
+    Пишется сразу после вызова модели, до проверки ответа и записи файлов, и
+    удаляется, когда ответ применён (или оказался `uncertain`): если ответ
+    не прошёл проверку, оплаченный вызов не теряется — после правки
+    оркестратора его можно применить заново без модели (`llm apply`).
+
+    `cache_entry` — запись кэша, которая сохраняется при успешном применении
+    (её хеши — вход, на который получен ответ); `revised` — ответ получен в
+    режиме доработки (модели показаны текущие файлы шага); `response` —
+    поля `ModelResponse`.
+    """
+
+    cache_entry: CacheEntry
+    revised: bool
+    response: dict[str, Any]
+
+
+def _pending_response_path(
+    problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
+) -> Path:
+    return Path(problems_dir) / problem_id / ".cache" / f"{step_name}.response.json"
+
+
+def save_pending_response(
+    problem_id: str,
+    step_name: str,
+    pending: PendingResponse,
+    *,
+    problems_dir: Path = PROBLEMS_DIR,
+) -> None:
+    path = _pending_response_path(problem_id, step_name, problems_dir=problems_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(asdict(pending), ensure_ascii=False, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def load_pending_response(
+    problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
+) -> Optional[PendingResponse]:
+    """Неприменённый ответ шага; `None` — его нет (или файл битый — как у
+    `load_cache_entry`)."""
+    path = _pending_response_path(problem_id, step_name, problems_dir=problems_dir)
+    if not path.exists():
+        return None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return PendingResponse(
+            cache_entry=CacheEntry(**raw["cache_entry"]),
+            revised=bool(raw["revised"]),
+            response=dict(raw["response"]),
+        )
+    except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def discard_pending_response(
+    problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
+) -> None:
+    _pending_response_path(problem_id, step_name, problems_dir=problems_dir).unlink(
+        missing_ok=True
     )
 
 

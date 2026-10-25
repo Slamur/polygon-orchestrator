@@ -99,7 +99,12 @@ def test_mismatched_artifacts_raise_and_write_nothing(spec, tmp_path):
                 templates_dir=TEMPLATES_DIR,
             )
 
-    assert not (tmp_path / "valid-spec").exists()
+    problem_dir = tmp_path / "valid-spec"
+    # Записан только неприменённый ответ модели (для `llm apply`).
+    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
+        ".cache",
+        ".cache/statement_draft.response.json",
+    ]
 
 
 def test_primary_artifact_path_is_statement_dir(spec, tmp_path):

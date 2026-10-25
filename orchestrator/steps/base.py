@@ -37,7 +37,7 @@ from __future__ import annotations
 import datetime
 import json
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Optional
 
@@ -48,13 +48,17 @@ from orchestrator import model_router
 from orchestrator.cache import (
     REVISE_PROMPT,
     CacheEntry,
+    PendingResponse,
     changed_input_values,
     compute_prompt_hash,
     compute_prompt_parts,
+    discard_pending_response,
     input_parts_from_values,
     save_cache_entry,
+    save_pending_response,
 )
 from orchestrator.checks.compile_check import CompileResult, compile_check
+from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import EXAMPLES_DIR, PROBLEMS_DIR, REMOVED_SUFFIX, is_removed_mark
 
 PROMPTS_DIR = Path("prompts")
@@ -622,6 +626,7 @@ def run_generative_step(
     postprocess_artifacts: (
         Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]] | None
     ) = None,
+    saved_response: ModelResponse | None = None,
 ) -> StepResult:
     """Общий цикл шага: рендер промптов, вызов модели, запись результата.
 
@@ -674,6 +679,13 @@ def run_generative_step(
     `notes` ответа модели, чтобы автор видел, что файл правила не модель).
     В режиме доработки получает только новые и изменённые файлы.
 
+    Ответ модели (кроме `uncertain` — применять нечего) сохраняется
+    (`cache.PendingResponse`) до проверок ответа и записи файлов и удаляется,
+    когда применён: если проверка ответа упала, вызов не потерян. `saved_response` — такой
+    сохранённый ответ: применяется вместо вызова модели (`llm apply`);
+    совпадение его входа с текущим и режим доработки проверяет вызывающий
+    код (`pipeline.py`).
+
     При `status: uncertain` бросает `StepUncertainError` и не пишет ничего в
     `problems/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
     записанные `.cpp`-файлы через `compile_check` (без запуска — см.
@@ -682,18 +694,36 @@ def run_generative_step(
     шага из `model_router.STEP_TO_MODEL`.
     """
     input_values = input_values or {}
-    system_prompt = read_system_prompt(step_name, prompts_dir=prompts_dir)
-    user_prompt = render_user_prompt(step_name, context, prompts_dir=prompts_dir)
-    if revision is not None:
-        user_prompt = user_prompt.rstrip("\n") + "\n\n" + render_revision_prompt(
-            revision, input_values, prompts_dir=prompts_dir
+    if saved_response is None:
+        system_prompt = read_system_prompt(step_name, prompts_dir=prompts_dir)
+        user_prompt = render_user_prompt(step_name, context, prompts_dir=prompts_dir)
+        if revision is not None:
+            user_prompt = user_prompt.rstrip("\n") + "\n\n" + render_revision_prompt(
+                revision, input_values, prompts_dir=prompts_dir
+            )
+        context_documents = load_context_documents(
+            step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
         )
-    context_documents = load_context_documents(
-        step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
-    )
+        response = model_router.call_model(
+            step_name, system_prompt, user_prompt, context_documents=context_documents
+        )
+    else:
+        response = saved_response
 
-    response = model_router.call_model(
-        step_name, system_prompt, user_prompt, context_documents=context_documents
+    prompt_kwargs = dict(
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        extra_context_documents=extra_context_documents,
+    )
+    cache_entry = CacheEntry(
+        input_hash=input_hash,
+        prompt_hash=compute_prompt_hash(step_name, **prompt_kwargs),
+        model=model_router.STEP_TO_MODEL[step_name],
+        status=response.status,
+        timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        input_parts=input_parts_from_values(input_values),
+        prompt_parts=compute_prompt_parts(step_name, **prompt_kwargs),
+        input_values=input_values,
     )
 
     if response.status not in _VALID_STATUSES:
@@ -703,7 +733,19 @@ def run_generative_step(
         )
 
     if response.status == STATUS_UNCERTAIN:
+        # Применять нечего; прежний неприменённый ответ того же шага устарел.
+        discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
         raise StepUncertainError(step_name, problem_id, response.notes)
+
+    if saved_response is None:
+        save_pending_response(
+            problem_id,
+            step_name,
+            PendingResponse(
+                cache_entry=cache_entry, revised=revision is not None, response=asdict(response)
+            ),
+            problems_dir=problems_dir,
+        )
 
     notes = list(response.notes)
     plan: Optional[_RevisionPlan] = None
@@ -754,33 +796,9 @@ def run_generative_step(
         if path.suffix == ".cpp"
     }
 
-    prompt_hash = compute_prompt_hash(
-        step_name,
-        prompts_dir=prompts_dir,
-        templates_dir=templates_dir,
-        extra_context_documents=extra_context_documents,
-    )
-    prompt_parts = compute_prompt_parts(
-        step_name,
-        prompts_dir=prompts_dir,
-        templates_dir=templates_dir,
-        extra_context_documents=extra_context_documents,
-    )
-    save_cache_entry(
-        problem_id,
-        step_name,
-        CacheEntry(
-            input_hash=input_hash,
-            prompt_hash=prompt_hash,
-            model=model_router.STEP_TO_MODEL[step_name],
-            status=response.status,
-            timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
-            input_parts=input_parts_from_values(input_values),
-            prompt_parts=prompt_parts,
-            input_values=input_values,
-        ),
-        problems_dir=problems_dir,
-    )
+    cache_entry.timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    save_cache_entry(problem_id, step_name, cache_entry, problems_dir=problems_dir)
+    discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
 
     return StepResult(
         step_name=step_name,

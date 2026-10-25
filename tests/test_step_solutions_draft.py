@@ -338,4 +338,9 @@ def test_solution_name_with_foreign_path_raises_and_writes_nothing(spec, tmp_pat
                 templates_dir=TEMPLATES_DIR,
             )
 
-    assert not (tmp_path / "valid-spec").exists()
+    problem_dir = tmp_path / "valid-spec"
+    # Записан только неприменённый ответ модели (для `llm apply`).
+    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
+        ".cache",
+        ".cache/solutions_draft.response.json",
+    ]

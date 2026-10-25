@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from orchestrator.cache import load_cache_entry
+from orchestrator.cache import load_cache_entry, load_pending_response
 from orchestrator.model_router import ModelResponse
 from orchestrator.steps.base import (
     STEP_CONTEXT_DOCUMENTS,
@@ -277,8 +277,10 @@ def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path
 
     def validate(artifacts):
         seen.append(dict(artifacts))
-        # к моменту валидации на диске ещё ничего нет
-        assert not problems_dir.exists() or list(problems_dir.rglob("*")) == []
+        # к моменту валидации на диске только неприменённый ответ модели
+        assert [p.name for p in problems_dir.rglob("*") if p.is_file()] == [
+            "statement_draft.response.json"
+        ]
         raise ValueError("набор файлов не совпадает")
 
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -295,7 +297,12 @@ def test_run_generative_step_validate_artifacts_mismatch_writes_nothing(tmp_path
             )
 
     assert seen == [{"a.tex": "a", "sub/b.txt": "b"}]
-    assert not problems_dir.exists() or list(problems_dir.rglob("*")) == []
+    problem_dir = problems_dir / "p1"
+    # Записан только неприменённый ответ модели (для `llm apply`).
+    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
+        ".cache",
+        ".cache/statement_draft.response.json",
+    ]
     assert load_cache_entry("p1", "statement_draft", problems_dir=problems_dir) is None
 
 
@@ -441,3 +448,60 @@ def test_ensure_problem_lib_does_not_overwrite_existing_copy(tmp_path):
 def test_ensure_problem_lib_without_template(tmp_path):
     with pytest.raises(FileNotFoundError, match="problem_lib.h"):
         ensure_problem_lib("p1", problems_dir=tmp_path / "problems", templates_dir=tmp_path)
+
+
+def test_run_generative_step_applies_saved_response_without_calling_model(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    problems_dir = tmp_path / "problems"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+    saved = ModelResponse(status="proposed", artifacts={"a.tex": "a"}, notes=[])
+
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        result = run_generative_step(
+            step_name="statement_draft",
+            problem_id="p1",
+            context={},
+            input_hash="h",
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
+            prompts_dir=prompts_dir,
+            problems_dir=problems_dir,
+            saved_response=saved,
+        )
+
+    mock_call.assert_not_called()
+    assert result.status == "proposed"
+    assert (problems_dir / "p1" / "a.tex").read_text(encoding="utf-8") == "a"
+    entry = load_cache_entry("p1", "statement_draft", problems_dir=problems_dir)
+    assert (entry.input_hash, entry.status) == ("h", "proposed")
+    assert load_pending_response("p1", "statement_draft", problems_dir=problems_dir) is None
+
+
+def test_run_generative_step_saves_rejected_response_with_its_cache_entry(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    problems_dir = tmp_path / "problems"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+    response = ModelResponse(status="confirmed", artifacts={"a.tex": "a"}, notes=[])
+
+    def reject(artifacts):
+        raise ValueError("rejected")
+
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        with pytest.raises(ValueError, match="rejected"):
+            run_generative_step(
+                step_name="statement_draft",
+                problem_id="p1",
+                context={},
+                input_hash="h",
+                input_values={"spec": {"x": 1}},
+                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
+                prompts_dir=prompts_dir,
+                problems_dir=problems_dir,
+                validate_artifacts=reject,
+            )
+
+    pending = load_pending_response("p1", "statement_draft", problems_dir=problems_dir)
+    assert pending.revised is False
+    assert ModelResponse(**pending.response) == response
+    assert pending.cache_entry.input_hash == "h"
+    assert pending.cache_entry.input_values == {"spec": {"x": 1}}
+    assert pending.cache_entry.status == "confirmed"

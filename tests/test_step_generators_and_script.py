@@ -509,4 +509,9 @@ def test_artifact_name_with_foreign_path_raises_and_writes_nothing(spec, tmp_pat
     with pytest.raises(ValueError, match="not a plain file name"):
         _run_with_artifacts(spec, tmp_path, {"test_script_groups": SCRIPT_FUNCTIONS, bad_name: "x"})
 
-    assert not (tmp_path / "valid-spec").exists()
+    problem_dir = tmp_path / "valid-spec"
+    # Записан только неприменённый ответ модели (для `llm apply`).
+    assert sorted(p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*")) == [
+        ".cache",
+        ".cache/generators_and_script.response.json",
+    ]
