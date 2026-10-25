@@ -5,7 +5,8 @@
 # orchestrator/problem_paths.py; группирующие каталоги вроде года или раунда не
 # проверяются — иначе короткие имена давали бы ложные срабатывания), — и имя
 # любого каталога в outputs/ (прежнее имя каталога задач, на случай оставшейся
-# локальной копии). См. "Конфиденциальность problems/" в CLAUDE.md.
+# локальной копии), и имя (без расширения) любого черновика в drafts/
+# (`init --draft`). См. "Конфиденциальность problems/" в CLAUDE.md.
 #
 # Подключение (один раз после клонирования): git config core.hooksPath githooks
 
@@ -27,6 +28,11 @@ fi
 shopt -s nullglob
 for legacy_dir in "$repo_root"/outputs/*/; do
     problem_ids+=("$(basename "$legacy_dir")")
+done
+for draft in "$repo_root"/drafts/*; do
+    [ -f "$draft" ] || continue
+    draft_name="$(basename "$draft")"
+    problem_ids+=("${draft_name%.*}")
 done
 shopt -u nullglob
 
