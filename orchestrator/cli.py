@@ -1,6 +1,7 @@
 """Входная точка оркестратора. Все команды имеют вид
 `orchestrator <адрес задачи> <pipeline> <command> [аргументы]` (CLAUDE.md,
-"Запуск"): `init` — каталог задачи с черновиком спека,
+"Запуск"): `init` — каталог задачи с черновиком спека (из шаблона, по
+спеку задачи-основы `--ref` и/или моделью по черновику автора `--draft`),
 `llm generate|apply|status|accept` — генеративные шаги,
 `polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
 Адрес задачи — путь её каталога с корнем (`problems/contest/2026/round-1/my-task`,
@@ -14,7 +15,7 @@
 на каждое нажатие Tab shell запускает этот модуль целиком, чтобы получить
 кандидатов, и импорт пайплайнов (pydantic, requests) делал бы каждое нажатие
 заметно медленным. Поэтому на верхнем уровне этого модуля не должно быть
-импортов тяжелее `cache`/`step_order`/`problem_paths`.
+импортов тяжелее `cache`/`step_order`/`problem_paths`/`drafts`.
 
 Сделано на стандартном `argparse`, а не на `click`/`typer`: команд у нас
 немного, с небольшим набором флагов, и `argparse` из стандартной библиотеки
@@ -30,6 +31,7 @@ import sys
 from pathlib import Path
 
 from orchestrator.cache import PROMPTS_DIR, TEMPLATES_DIR
+from orchestrator.drafts import DRAFTS_DIR, draft_names
 from orchestrator.problem_paths import (
     PROBLEM_ROOTS,
     ProblemPathError,
@@ -58,6 +60,13 @@ def _complete_problem_addresses(
         for root in PROBLEM_ROOTS
         for path in problem_paths(base_dir / root)
     ]
+
+
+def _complete_draft_names(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
+    """Кандидаты Tab-дополнения `init --draft`: имена файлов в `drafts/`
+    (с учётом `--base-dir`), читаются при каждом нажатии Tab."""
+    base_dir = Path(getattr(parsed_args, "base_dir", None) or ".")
+    return draft_names(base_dir / DRAFTS_DIR)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -92,9 +101,27 @@ def build_parser() -> argparse.ArgumentParser:
 
     init_parser = pipelines.add_parser(
         "init",
-        help="create the problem directory with a draft spec.yaml from "
-        "templates/spec_template.yaml (never overwrites an existing spec)",
+        help="create the problem directory with a draft spec.yaml: from "
+        "templates/spec_template.yaml, from the spec of another problem (--ref) and/or "
+        "written by the model from the author's draft (--draft, calls the model); "
+        "never overwrites an existing spec",
     )
+    init_parser.add_argument(
+        "--draft",
+        metavar="NAME",
+        default=None,
+        help="free-form description of the problem in drafts/ (file name with or without "
+        "extension): the model writes the spec from it (calls the model), the draft is "
+        "copied into the problem directory",
+    ).completer = _complete_draft_names
+    init_parser.add_argument(
+        "--ref",
+        metavar="PROBLEM",
+        default=None,
+        help="base the spec on the spec of this problem (problems/<path> or "
+        "examples/<path>) and add it to the spec references; without --draft the spec "
+        "is copied with the new problem_id",
+    ).completer = _complete_problem_addresses
     init_parser.set_defaults(handler="cmd_init")
 
     llm_parser = pipelines.add_parser("llm", help="generative steps (calls the model via API)")

@@ -21,8 +21,9 @@ def _doc_blocks() -> dict[tuple[str, str], str]:
     blocks: dict[tuple[str, str], str] = {}
     # Делим по заголовкам шагов, а не по любому `## `: строки с `## ` есть и
     # внутри самих user.md.j2.
-    for section in re.split(r"(?m)^(?=## Шаг \d)", PROMPTS_DOC.read_text(encoding="utf-8")):
-        heading = re.match(r"## Шаг \d+[^\n]*`(\w+)`", section)
+    headings = r"## (?:Шаг \d+|Спек по черновику)"
+    for section in re.split(rf"(?m)^(?={headings})", PROMPTS_DOC.read_text(encoding="utf-8")):
+        heading = re.match(headings + r"[^\n]*?`(\w+)`", section)
         if not heading:
             continue
         for filename in PROMPT_FILES:
@@ -34,7 +35,7 @@ def _doc_blocks() -> dict[tuple[str, str], str]:
     return blocks
 
 
-@pytest.mark.parametrize("step_name", STEP_ORDER)
+@pytest.mark.parametrize("step_name", [*STEP_ORDER, "spec_from_draft"])
 @pytest.mark.parametrize("filename", PROMPT_FILES)
 def test_prompts_doc_matches_prompt_file(step_name, filename):
     blocks = _doc_blocks()

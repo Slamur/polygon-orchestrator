@@ -223,3 +223,40 @@ def test_all_is_not_supported(problems_dir, tmp_path):
     with pytest.raises(SystemExit) as exc_info:
         cli.main(_base_args(problems_dir) + ["--all", "llm", "generate"])
     assert exc_info.value.code == 2
+
+
+def _mark_spec(problems_dir: Path, problem_id: str) -> None:
+    """Пометки `init --draft` в спеке — как их оставляет модель."""
+    spec_path = problems_dir / problem_id / "spec.yaml"
+    text = spec_path.read_text(encoding="utf-8")
+    spec_path.write_text(
+        text + "# PROPOSED, REVIEW ME: inferred\n#   SUGGESTION: idea\n", encoding="utf-8"
+    )
+
+
+def test_generate_warns_about_review_marks_but_still_runs(problems_dir, capsys):
+    _write_spec(problems_dir, "p1")
+    _mark_spec(problems_dir, "p1")
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "2 PROPOSED / SUGGESTION mark(s)" in out
+    assert "# PROPOSED, REVIEW ME: inferred" in out
+    assert "statement_draft: confirmed" in out
+    log = (problems_dir / "p1" / "llm_generation.log").read_text(encoding="utf-8")
+    assert "PROPOSED / SUGGESTION mark(s)" in log
+
+
+def test_status_warns_about_review_marks_only_when_present(problems_dir, capsys):
+    _write_spec(problems_dir, "p1")
+    cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
+    assert "mark(s)" not in capsys.readouterr().out
+
+    _mark_spec(problems_dir, "p1")
+    rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
+
+    assert rc == 0
+    assert "2 PROPOSED / SUGGESTION mark(s)" in capsys.readouterr().out

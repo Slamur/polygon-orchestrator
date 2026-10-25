@@ -38,7 +38,16 @@ from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pull import ITEM_ERROR as PULL_ITEM_ERROR
 from orchestrator.polygon.pull import pull_problem
 from orchestrator.polygon.steps.base import PolygonStepError
-from orchestrator.spec import SpecInitError, create_spec_draft
+from orchestrator.drafts import DRAFTS_DIR, DraftError, find_draft
+from orchestrator.problem_paths import EXAMPLES_DIR
+from orchestrator.spec import (
+    SpecInitError,
+    prepare_spec_init,
+    spec_path,
+    spec_review_marks,
+    spec_validation_errors,
+    write_spec,
+)
 from orchestrator.step_order import STEP_ORDER
 
 _OUTCOME_LABELS = {
@@ -213,6 +222,29 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
         logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")
 
 
+# Сколько строк с пометками `init --draft` показывать в предупреждении.
+_REVIEW_MARKS_SHOWN = 10
+
+
+def _review_marks_warning(args: argparse.Namespace) -> list[str]:
+    """Предупреждение о непроверенных пометках `init --draft` в спеке
+    (`spec.spec_review_marks`) — строками; пусто, если пометок нет. Не
+    останавливает команду: проверять ли каждую — решает автор."""
+    path = spec_path(args.problem_id, problems_dir=args.problems_dir)
+    marks = spec_review_marks(path)
+    if not marks:
+        return []
+    lines = [
+        f"warning: {path} still has {len(marks)} PROPOSED / SUGGESTION mark(s) from "
+        "init --draft — the steps take the spec as the author's decisions: review these "
+        "values and remove the marks"
+    ]
+    lines += [f"  line {number}: {line}" for number, line in marks[:_REVIEW_MARKS_SHOWN]]
+    if len(marks) > _REVIEW_MARKS_SHOWN:
+        lines.append(f"  ... and {len(marks) - _REVIEW_MARKS_SHOWN} more")
+    return lines
+
+
 def cmd_llm_generate(args: argparse.Namespace) -> int:
     return _run_llm_pipeline(args, force=args.force, fresh=args.fresh)
 
@@ -233,6 +265,9 @@ def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
     with _problem_log_handler(
         logger, args.problems_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
     ) as file_handler:
+        if not mode.get("apply_pending"):
+            for line in _review_marks_warning(args):
+                logger.warning(line)
         try:
             result = run_pipeline(
                 args.problem_id,
@@ -275,6 +310,8 @@ def cmd_llm_status(args: argparse.Namespace) -> int:
         templates_dir=args.templates_dir,
     )
     any_error = _print_step_statuses(args.problem_id, statuses, spec_error)
+    for line in _review_marks_warning(args):
+        print(line)
     return 1 if any_error else 0
 
 
@@ -395,14 +432,77 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    """Создаёт каталог задачи с черновиком `spec.yaml` (см.
-    `spec.create_spec_draft`). Ни модель, ни Polygon не вызываются."""
+    """Создаёт каталог задачи со спеком (см. `spec.prepare_spec_init`): из
+    шаблона, копией спека задачи-основы (`--ref`) или — с `--draft` — моделью
+    по черновику автора (`orchestrator/spec_from_draft.py`, единственный
+    вариант `init`, который вызывает модель). Polygon не вызывается."""
     try:
-        spec_path = create_spec_draft(
-            args.problem_id, problems_dir=args.problems_dir, templates_dir=args.templates_dir
+        draft_path = (
+            None if args.draft is None else find_draft(args.base_dir / DRAFTS_DIR, args.draft)
         )
-    except SpecInitError as exc:
+        init = prepare_spec_init(
+            args.problem_id,
+            problems_dir=args.problems_dir,
+            templates_dir=args.templates_dir,
+            reference=args.ref,
+        )
+    except (DraftError, SpecInitError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
-    print(f"created {spec_path} — fill it in (format: docs/SPEC_FORMAT.md)")
+
+    if draft_path is None:
+        spec_path = write_spec(init, init.base_text)
+        if init.reference is None:
+            print(f"created {spec_path} — fill it in (format: docs/SPEC_FORMAT.md)")
+        else:
+            print(f"created {spec_path} as a copy of the spec of {init.reference} — edit it")
+            _print_spec_validation_errors(
+                spec_validation_errors(spec_path, expected_id=init.problem_id), print
+            )
+        return 0
+    return _init_from_draft(args, init, draft_path)
+
+
+def _print_spec_validation_errors(errors: list[str], output) -> None:
+    if errors:
+        output("the spec does not pass validation yet (docs/SPEC_FORMAT.md):")
+        for error in errors:
+            output(f"  - {error}")
+
+
+def _init_from_draft(args: argparse.Namespace, init, draft_path: Path) -> int:
+    """`init --draft`: спек пишет модель, лог — в `llm_generation.log` задачи."""
+    from orchestrator.spec_from_draft import generate_spec_from_draft
+
+    logger = _configure_console_logging()
+    with _problem_log_handler(
+        logger, args.problems_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
+    ) as file_handler:
+        try:
+            result = generate_spec_from_draft(
+                init,
+                draft_path,
+                prompts_dir=args.prompts_dir,
+                templates_dir=args.templates_dir,
+                examples_dir=args.base_dir / EXAMPLES_DIR,
+            )
+        except Exception:
+            _log_traceback_to_file(
+                file_handler, f"unhandled error while writing the spec of '{args.problem_id}'"
+            )
+            raise
+
+        label = _OUTCOME_LABELS.get(result.status, result.status)
+        logger.info(f"=== {init.problem_id}: spec from draft {draft_path} — {label} ===")
+        for note in result.notes:
+            kind = note.get("kind", "?")
+            field_name = note.get("field", "?")
+            explanation = note.get("explanation", "")
+            logger.info(f"      [{kind}] {field_name}: {explanation}")
+        if result.path is None:
+            logger.info("  ! no spec written — see the notes above, fix the draft and run again")
+            return 1
+        logger.info(f"created {result.path} — review the PROPOSED / SUGGESTION marks")
+        logger.info(f"draft copied to {result.draft_copy}")
+        _print_spec_validation_errors(result.validation_errors, logger.info)
     return 0
