@@ -208,8 +208,9 @@ def build_parser() -> argparse.ArgumentParser:
     polygon_pull_parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="replace local files that differ from Polygon (old versions go to "
-        "<PROBLEM>/.pull_backup/)",
+        help="also replace local files changed both locally and on Polygon since the last "
+        "sync, or with no sync record (files changed only on Polygon are replaced without "
+        "it; old versions go to <PROBLEM>/.pull_backup/)",
     )
     polygon_pull_parser.set_defaults(handler="cmd_polygon_pull")
 

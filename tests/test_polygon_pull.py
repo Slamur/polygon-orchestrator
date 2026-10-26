@@ -9,12 +9,14 @@ from orchestrator.polygon import pull as pull_module
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pull import (
     ITEM_ABSENT,
+    ITEM_CONFLICT,
     ITEM_DOWNLOADED,
     ITEM_ERROR,
     ITEM_KEPT,
     ITEM_LOCAL_ONLY,
     ITEM_OVERWRITTEN,
     ITEM_SAME,
+    ITEM_UPDATED,
     pull_problem,
 )
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
@@ -499,12 +501,45 @@ def test_overwrite_keeps_constraints_pick_result_it_cannot_edit(problems_dir, po
     assert "limits" not in _synced(problems_dir)
 
 
-def test_pulled_constraints_file_is_overwritten(problems_dir, polygon):
+def test_limits_changed_only_on_polygon_are_updated_without_overwrite(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
 
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["constraints.yaml"] == ITEM_UPDATED
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
+
+
+def test_limits_changed_only_locally_are_kept_even_with_overwrite(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _write(
+        problems_dir / PROBLEM_ID,
+        "constraints.yaml",
+        "limits:\n  time_limit_seconds: 5\n  memory_limit_mb: 256\n",
+    )
+
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
+    assert _statuses(result)["constraints.yaml"] == ITEM_KEPT
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (5000, 256)
+    assert _synced(problems_dir).get("limits") is None
+
+
+def test_limits_changed_on_both_sides_are_a_conflict(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _write(
+        problems_dir / PROBLEM_ID,
+        "constraints.yaml",
+        "limits:\n  time_limit_seconds: 5\n  memory_limit_mb: 256\n",
+    )
+    polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    assert _statuses(result)["constraints.yaml"] == ITEM_CONFLICT
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (5000, 256)
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
     assert _statuses(result)["constraints.yaml"] == ITEM_OVERWRITTEN
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
 
@@ -841,7 +876,7 @@ def test_cli_pull_overwrite_reports_backup_dir(problems_dir, polygon, capsys, mo
     out = capsys.readouterr().out
     assert exit_code == 0
     assert "  validator.cpp: overwritten" in out
-    assert "overwritten local files are backed up in" in out
+    assert "replaced local files are backed up in" in out
 
 
 # --- Инкрементальный pull: отметки версий файлов на Polygon ---
@@ -906,10 +941,11 @@ def test_pull_downloads_only_files_changed_on_polygon(problems_dir, polygon):
     polygon.mtimes["ok_cpp_main_author.cpp"] = 200
     polygon.calls.clear()
 
-    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
-    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_OVERWRITTEN
+    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_UPDATED
+    assert (result.backup_dir / "solutions" / "ok_cpp_main_author.cpp").read_bytes() == b"// ok\n"
     solution = problems_dir / PROBLEM_ID / "solutions" / "ok_cpp_main_author.cpp"
     assert solution.read_bytes() == b"// ok, fixed on Polygon\n"
     assert _state(problems_dir).stamps["solutions/ok_cpp_main_author.cpp"].endswith(":200:24")
@@ -933,7 +969,7 @@ def test_locally_changed_file_unchanged_on_polygon_is_kept_without_download(
     assert "generators/gen_rand.cpp" in state.stamps
 
 
-def test_overwrite_downloads_only_locally_changed_files(problems_dir, polygon):
+def test_overwrite_keeps_file_changed_only_locally(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     _bump_revision(polygon)
     _write(problems_dir / PROBLEM_ID, "generators/gen_rand.cpp", "// local edit\n")
@@ -941,10 +977,71 @@ def test_overwrite_downloads_only_locally_changed_files(problems_dir, polygon):
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
-    assert polygon.downloads() == ["gen_rand.cpp"]
+    assert polygon.downloads() == []
+    assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_KEPT
+    gen = problems_dir / PROBLEM_ID / "generators" / "gen_rand.cpp"
+    assert gen.read_text() == "// local edit\n"
+    assert result.backup_dir is None
+
+
+def test_file_changed_on_both_sides_is_a_conflict_replaced_only_with_overwrite(
+    problems_dir, polygon
+):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    _write(problems_dir / PROBLEM_ID, "generators/gen_rand.cpp", "// local edit\n")
+    polygon.source_files["gen_rand.cpp"] = b"// polygon edit\n"
+    polygon.mtimes["gen_rand.cpp"] = 200
+    gen = problems_dir / PROBLEM_ID / "generators" / "gen_rand.cpp"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_CONFLICT
+    assert gen.read_text() == "// local edit\n"
+    # В базе — версия с Polygon: push загрузит локальную поверх неё.
+    assert _synced(problems_dir)["generators/gen_rand.cpp"] == pull_module.digest(
+        b"// polygon edit\n"
+    )
+
+    # База теперь — версия с Polygon, так что для следующего pull правка
+    # только локальная; конфликт решает --overwrite до этого pull.
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+    assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_KEPT
+
+
+def test_overwrite_replaces_file_changed_on_both_sides(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    _write(problems_dir / PROBLEM_ID, "generators/gen_rand.cpp", "// local edit\n")
+    polygon.source_files["gen_rand.cpp"] = b"// polygon edit\n"
+    polygon.mtimes["gen_rand.cpp"] = 200
+
+    result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
+
     assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_OVERWRITTEN
-    assert (problems_dir / PROBLEM_ID / "generators" / "gen_rand.cpp").read_bytes() == b"// gen\n"
+    gen = problems_dir / PROBLEM_ID / "generators" / "gen_rand.cpp"
+    assert gen.read_bytes() == b"// polygon edit\n"
     assert (result.backup_dir / "generators" / "gen_rand.cpp").read_text() == "// local edit\n"
+
+
+def test_polygon_and_local_changes_to_different_files_are_both_kept(problems_dir, polygon):
+    # Условие поправили на Polygon, test-script — локально: pull берёт
+    # условие с Polygon, а push после него загружает только test-script.
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _bump_revision(polygon)
+    polygon.statements["russian"]["legend"] = "L, edited on Polygon"
+    _write(problems_dir / PROBLEM_ID, "test_script", "gen_rand 2 > $\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    statuses = _statuses(result)
+    assert statuses["statement/legend.tex"] == ITEM_UPDATED
+    assert statuses["test_script"] == ITEM_KEPT
+    problem_dir = problems_dir / PROBLEM_ID
+    assert (problem_dir / "statement" / "legend.tex").read_text() == "L, edited on Polygon"
+    assert (problem_dir / "test_script").read_text() == "gen_rand 2 > $\n"
+    synced = _synced(problems_dir)
+    assert synced["statement/legend.tex"] == pull_module.digest(b"L, edited on Polygon")
+    assert synced["test_script"] == pull_module.digest(normalize_script(polygon.script))
 
 
 def test_missing_local_file_is_downloaded_even_if_unchanged_on_polygon(problems_dir, polygon):
@@ -1062,4 +1159,4 @@ def test_failed_listing_keeps_previous_pairs_valid(problems_dir, polygon):
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
     assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
-    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_OVERWRITTEN
+    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_UPDATED
