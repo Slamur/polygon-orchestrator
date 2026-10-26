@@ -5,7 +5,7 @@ import pytest
 
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
-from orchestrator.steps.base import StepUncertainError
+from orchestrator.steps.base import MissingArtifactsError, StepUncertainError
 from orchestrator.steps.statement_draft import (
     _expected_artifact_names,
     _validate_statement_artifacts,
@@ -25,16 +25,23 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-def _full_artifacts(n_examples: int) -> dict[str, str]:
-    artifacts = {
+def _model_artifacts() -> dict[str, str]:
+    """Файлы, которые возвращает модель (input примеров пишет оркестратор)."""
+    return {
         "legend.tex": "legend",
         "input_format.tex": "input",
         "output_format.tex": "output",
         "notes.tex": "notes",
     }
-    for i in range(1, n_examples + 1):
-        artifacts[f"examples/example_{i}.txt"] = f"example {i}\n"
-    return artifacts
+
+
+def _example_names(n_examples: int) -> set[str]:
+    return {f"examples/example_{i}.txt" for i in range(1, n_examples + 1)}
+
+
+def _all_files(n_examples: int) -> dict[str, str]:
+    """Итоговый набор файлов шага: файлы модели + input примеров."""
+    return {**_model_artifacts(), **{name: "x\n" for name in _example_names(n_examples)}}
 
 
 def _with_examples(spec, n: int):
@@ -51,7 +58,7 @@ def test_extra_context_documents_is_none(spec):
 
 def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
     spec2 = _with_examples(spec, 2)
-    artifacts = _full_artifacts(2)
+    artifacts = _model_artifacts()
     response = ModelResponse(status="confirmed", artifacts=artifacts, notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = run_step(
@@ -66,29 +73,33 @@ def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
     assert result.status == "confirmed"
     statement_dir = tmp_path / "valid-spec" / "statement"
     # и плоские имена, и вложенные examples/... раскладываются под statement/
-    assert result.artifact_paths == {name: statement_dir / name for name in artifacts}
+    assert result.artifact_paths == {
+        name: statement_dir / name for name in [*artifacts, *_example_names(2)]
+    }
     assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == "legend"
-    assert (statement_dir / "examples" / "example_1.txt").read_text(encoding="utf-8") == "example 1\n"
-    assert (statement_dir / "examples" / "example_2.txt").read_text(encoding="utf-8") == "example 2\n"
+    # input примеров — копия из спека, его пишет оркестратор, а не модель
+    assert (statement_dir / "examples" / "example_1.txt").read_text(encoding="utf-8") == "1\n"
+    assert (statement_dir / "examples" / "example_2.txt").read_text(encoding="utf-8") == "2\n"
     assert not (tmp_path / "valid-spec" / "statement.tex").exists()
 
     # user.md.j2 реально отрендерился из секции statement_draft спека
     user_prompt = mock_call.call_args.args[2]
     assert "Есть граф городов и дорог" in user_prompt
     assert "1-indexed" in user_prompt
-    # и явно перечисляет ожидаемые имена файлов с правильным N
+    # и явно перечисляет ожидаемые от модели имена файлов — без input примеров
     expected_list = user_prompt.split("Ожидаемые файлы в artifacts:")[1].split("Задача:")[0]
-    for name in ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex",
-                 "examples/example_1.txt", "examples/example_2.txt"]:
+    for name in ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]:
         assert f"- {name}" in expected_list
-    assert "example_3" not in expected_list
+    assert "example_" not in expected_list
 
 
 def test_mismatched_artifacts_are_not_applied_at_all(spec, tmp_path):
-    artifacts = _full_artifacts(1)
+    artifacts = _model_artifacts()
     del artifacts["notes.tex"]
     response = ModelResponse(status="confirmed", artifacts=artifacts, notes=[])
-    with patch("orchestrator.model_router.call_model", return_value=response):
+    # и дозапрос не вернул недостающий файл
+    retry = ModelResponse(status="confirmed", artifacts={}, notes=[])
+    with patch("orchestrator.model_router.call_model", side_effect=[response, retry]):
         result = run_step(
             "valid-spec",
             spec,
@@ -101,7 +112,10 @@ def test_mismatched_artifacts_are_not_applied_at_all(spec, tmp_path):
     problem_dir = tmp_path / "valid-spec"
     assert not (problem_dir / "statement").exists()
     assert result.artifact_paths == {}
-    assert all("missing: ['notes.tex']" in reason for _, reason in result.conflicts)
+    assert "missing files: ['notes.tex']" in result.not_applied_reason
+    assert all(
+        reason == "the response is not applied as a whole" for _, reason in result.conflicts
+    )
     assert (result.conflicts_dir / "statement" / "legend.tex").is_file()
     # Не применено ничего — ответ остаётся для `llm apply`.
     assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
@@ -116,22 +130,22 @@ def test_primary_artifact_path_is_statement_dir(spec, tmp_path):
 def test_expected_names_exact_match_passes(spec):
     spec2 = _with_examples(spec, 2)
     expected = _expected_artifact_names(spec2)
-    assert expected == set(_full_artifacts(2))
-    _validate_statement_artifacts(expected)(_full_artifacts(2))
+    assert expected == set(_all_files(2))
+    _validate_statement_artifacts(expected)(_all_files(2))
 
 
 def test_validate_reports_missing_file(spec):
     validate = _validate_statement_artifacts(_expected_artifact_names(spec))
-    artifacts = _full_artifacts(1)
+    artifacts = _all_files(1)
     del artifacts["notes.tex"]
-    with pytest.raises(ValueError, match="missing.*notes.tex"):
+    with pytest.raises(MissingArtifactsError, match="missing.*notes.tex"):
         validate(artifacts)
 
 
 def test_validate_reports_extra_example(spec):
     validate = _validate_statement_artifacts(_expected_artifact_names(_with_examples(spec, 2)))
     with pytest.raises(ValueError, match="unexpected.*examples/example_3.txt"):
-        validate(_full_artifacts(3))
+        validate(_all_files(3))
 
 
 def test_expected_names_without_sample_examples(spec):
@@ -163,7 +177,7 @@ def test_preserve_legend_verbatim_true_includes_instruction(spec, tmp_path):
     spec_verbatim = spec.model_copy(
         update={"statement_draft": spec.statement_draft.model_copy(update={"preserve_legend_verbatim": True})}
     )
-    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(1), notes=[])
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts(), notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         run_step(
             "valid-spec",
@@ -180,7 +194,7 @@ def test_preserve_legend_verbatim_true_includes_instruction(spec, tmp_path):
 
 
 def test_preserve_legend_verbatim_false_uses_default_instruction(spec, tmp_path):
-    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(1), notes=[])
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts(), notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         run_step(
             "valid-spec",
@@ -200,7 +214,7 @@ def test_renders_without_crashing_when_known_ambiguities_is_null(spec, tmp_path)
     spec_no_ambiguities = spec.model_copy(
         update={"statement_draft": spec.statement_draft.model_copy(update={"known_ambiguities": None})}
     )
-    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(1), notes=[])
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts(), notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response):
         result = run_step(
             "valid-spec",
@@ -222,7 +236,7 @@ def test_prompt_marks_missing_sample_output_and_keeps_given_one(spec, tmp_path):
     spec_mixed = spec.model_copy(
         update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
     )
-    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(2), notes=[])
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts(), notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         run_step(
             "valid-spec",
@@ -247,7 +261,7 @@ def interactive_spec():
 
 
 def _interactive_artifacts(n_examples: int) -> dict[str, str]:
-    artifacts = {**_full_artifacts(n_examples), "interaction.tex": "protocol"}
+    artifacts = {**_model_artifacts(), "interaction.tex": "protocol"}
     for i in range(1, n_examples + 1):
         artifacts[f"examples/example_{i}.input_for_statement.txt"] = "10\n\n<\n"
         artifacts[f"examples/example_{i}.output_for_statement.txt"] = "\n? 5\n\n"
@@ -255,7 +269,9 @@ def _interactive_artifacts(n_examples: int) -> dict[str, str]:
 
 
 def test_interactive_expected_names_include_protocol_and_dialogues(interactive_spec):
-    assert _expected_artifact_names(interactive_spec) == set(_interactive_artifacts(1))
+    assert _expected_artifact_names(interactive_spec) == (
+        set(_interactive_artifacts(1)) | _example_names(1)
+    )
 
 
 def test_interactive_extra_context_documents_has_interactive_rules(interactive_spec):
@@ -288,8 +304,9 @@ def test_interactive_writes_protocol_and_dialogues(interactive_spec, tmp_path):
 
 
 def test_interactive_without_dialogues_is_not_applied(interactive_spec, tmp_path):
-    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(1))
-    with patch("orchestrator.model_router.call_model", return_value=response):
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    retry = ModelResponse(status="confirmed", artifacts={})
+    with patch("orchestrator.model_router.call_model", side_effect=[response, retry]):
         result = run_step(
             "interactive-spec",
             interactive_spec,
@@ -301,11 +318,11 @@ def test_interactive_without_dialogues_is_not_applied(interactive_spec, tmp_path
 
     assert result.artifact_paths == {}
     assert not (tmp_path / "interactive-spec" / "statement").exists()
-    assert all("interaction.tex" in reason for _, reason in result.conflicts)
+    assert "interaction.tex" in result.not_applied_reason
 
 
 def test_plain_problem_prompt_has_no_protocol(spec, tmp_path):
-    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(1))
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         run_step(
             "valid-spec",
@@ -328,3 +345,117 @@ def test_plain_problem_hash_input_has_no_interaction_field(spec):
 
     section, _ = hash_inputs("valid-spec", spec)
     assert "interaction_sketch" not in section
+
+
+def _run(spec, problem_id, tmp_path, **kwargs):
+    return run_step(
+        problem_id,
+        spec,
+        None,
+        prompts_dir=PROMPTS_DIR,
+        problems_dir=tmp_path,
+        templates_dir=TEMPLATES_DIR,
+        **kwargs,
+    )
+
+
+def test_missing_files_are_asked_for_once_and_applied(interactive_spec, tmp_path):
+    full = _interactive_artifacts(1)
+    dialogues = {name: content for name, content in full.items() if "for_statement" in name}
+    first = ModelResponse(
+        status="confirmed",
+        artifacts={name: content for name, content in full.items() if name not in dialogues},
+    )
+    retry = ModelResponse(
+        status="proposed",
+        artifacts={**dialogues, "legend.tex": "rewritten"},
+        notes=[{"field": "dialogues", "kind": "proposed", "explanation": "built by the model"}],
+    )
+    with patch("orchestrator.model_router.call_model", side_effect=[first, retry]) as mock_call:
+        result = _run(interactive_spec, "interactive-spec", tmp_path)
+
+    assert mock_call.call_count == 2
+    retry_prompt = mock_call.call_args_list[1].args[2]
+    assert retry_prompt.startswith(mock_call.call_args_list[0].args[2].rstrip("\n"))
+    assert "## Дозапрос" in retry_prompt
+    for name in dialogues:
+        assert f"- `{name}`" in retry_prompt
+    assert "#### `interaction.tex`\n\n````\nprotocol\n````" in retry_prompt
+
+    assert result.status == "proposed"
+    assert result.not_applied_reason is None
+    statement_dir = tmp_path / "interactive-spec" / "statement"
+    for name, content in dialogues.items():
+        assert (statement_dir / name).read_text(encoding="utf-8") == content
+    # из дозапроса берутся только недостающие файлы
+    assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == "legend"
+    kinds = [note["kind"] for note in result.notes]
+    assert "proposed" in kinds and "retried" in kinds and "ignored" in kinds
+    assert not (tmp_path / "interactive-spec" / ".cache" / "statement_draft.response.json").exists()
+
+
+def test_uncertain_follow_up_stops_the_step(interactive_spec, tmp_path):
+    first = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    retry = ModelResponse(
+        status="uncertain",
+        notes=[{"field": "interaction_sketch", "kind": "uncertain", "explanation": "no protocol"}],
+    )
+    with patch("orchestrator.model_router.call_model", side_effect=[first, retry]):
+        with pytest.raises(StepUncertainError, match="no protocol"):
+            _run(interactive_spec, "interactive-spec", tmp_path)
+
+    problem_dir = tmp_path / "interactive-spec"
+    assert not (problem_dir / "statement").exists()
+    assert not (problem_dir / ".cache" / "statement_draft.response.json").exists()
+
+
+def test_saved_response_is_not_completed_by_a_follow_up(spec, tmp_path):
+    incomplete = _model_artifacts()
+    del incomplete["notes.tex"]
+    saved = ModelResponse(status="confirmed", artifacts=incomplete)
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        result = _run(spec, "valid-spec", tmp_path, saved_response=saved)
+
+    mock_call.assert_not_called()
+    assert "notes.tex" in result.not_applied_reason
+
+
+def test_example_input_from_the_model_is_replaced_by_the_spec(spec, tmp_path):
+    response = ModelResponse(
+        status="confirmed",
+        artifacts={**_model_artifacts(), "examples/example_1.txt": "changed by the model\n"},
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        result = _run(spec, "valid-spec", tmp_path)
+
+    assert mock_call.call_count == 1
+    example = tmp_path / "valid-spec" / "statement" / "examples" / "example_1.txt"
+    assert example.read_text(encoding="utf-8") == spec.statement_draft.sample_examples[0].input
+    assert any(
+        note["kind"] == "ignored" and note["field"] == "examples/example_1.txt"
+        for note in result.notes
+    )
+
+
+def test_example_inputs_no_longer_in_the_spec_are_marked_removed(spec, tmp_path):
+    examples_dir = tmp_path / "valid-spec" / "statement" / "examples"
+    examples_dir.mkdir(parents=True)
+    for i in (1, 2, 3):
+        (examples_dir / f"example_{i}.txt").write_text(f"old {i}\n", encoding="utf-8")
+
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = _run(_with_examples(spec, 1), "valid-spec", tmp_path)
+
+    assert (examples_dir / "example_1.txt").read_text(encoding="utf-8") == "1\n"
+    assert sorted(path.name for path in examples_dir.iterdir()) == [
+        "example_1.txt",
+        "example_2.txt.removed",
+        "example_3.txt.removed",
+    ]
+    assert [mark.name for mark, _ in result.removed] == [
+        "example_2.txt.removed",
+        "example_3.txt.removed",
+    ]
+    # прежняя версия перезаписанного input — в бэкапе
+    assert (result.backup_dir / "statement" / "examples" / "example_1.txt").is_file()

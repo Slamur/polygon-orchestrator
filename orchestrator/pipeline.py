@@ -365,15 +365,24 @@ def _run_step_into(
     conflicts_dir = step_result.conflicts_dir
     if conflicts_dir is not None:
         address = problem_address(problems_dir, problem_id)
+        if step_result.not_applied_reason is not None:
+            what = (
+                f"{step_result.not_applied_reason} — nothing of the response is applied "
+                f"(status: {step_result.status})"
+            )
+        else:
+            what = (
+                f"{len(step_result.conflicts)} part(s) of the response not applied "
+                f"(status: {step_result.status})"
+            )
         resolve = (
-            f"{len(step_result.conflicts)} part(s) of the response not applied "
-            f"(status: {step_result.status}) — see {conflicts_dir / CONFLICTS_REPORT}; "
+            f"{what} — see {conflicts_dir / CONFLICTS_REPORT}; "
             "resolve by hand, delete the directory and run "
             f"'orchestrator {address} llm accept --step {step_name}'"
         )
         if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
             resolve += (
-                " (nothing is applied and the response is saved: after fixing the cause "
+                " (the response is saved: after fixing the cause "
                 f"'orchestrator {address} llm apply --step {step_name}' applies it)"
             )
         detail = f"{detail}; {resolve}" if detail else resolve

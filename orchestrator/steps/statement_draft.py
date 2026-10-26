@@ -18,8 +18,10 @@ from orchestrator.steps.base import (
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
+    GeneratedArtifacts,
     StepResult,
     StepRevision,
+    check_artifact_names,
     existing_artifacts,
     run_generative_step,
     with_default_lists,
@@ -53,10 +55,11 @@ def dialogue_filenames(number: int) -> tuple[str, str]:
 
 
 def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
-    """Ровно тот набор имён файлов, который `prompts/statement_draft/`
-    требует от модели: 4 фиксированных tex-файла + по одному
-    `examples/example_<N>.txt` на каждый `sample_examples[N-1]`; у
+    """Ровно тот набор имён файлов шага: 4 фиксированных tex-файла + по
+    одному `examples/example_<N>.txt` на каждый `sample_examples[N-1]`; у
     интерактивной задачи — ещё `interaction.tex` и диалог каждого примера.
+    `example_<N>.txt` пишет оркестратор (`_example_inputs`), остальное —
+    модель (`prompts/statement_draft/`).
     """
     n = len(spec.statement_draft.sample_examples)
     names = set(_FIXED_STATEMENT_FILES) | {
@@ -81,21 +84,35 @@ def _section_data(spec: ProblemSpec) -> dict[str, Any]:
     )
 
 
+def _example_inputs(spec: ProblemSpec) -> dict[str, str]:
+    """`examples/example_<N>.txt` — input `sample_examples[N-1]` как есть.
+    Это копия из спека, а не текст условия, поэтому её пишет оркестратор, а
+    не модель: модель могла пропустить файл или изменить input."""
+    return {
+        f"examples/example_{i}.txt": example.input
+        for i, example in enumerate(spec.statement_draft.sample_examples, start=1)
+    }
+
+
+def _stale_example_inputs(
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path
+) -> dict[str, Path]:
+    """`example_<N>.txt` на диске, которых больше нет в `sample_examples`
+    (примеров стало меньше), — их пометят `.removed`."""
+    examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / "examples"
+    if not examples_dir.is_dir():
+        return {}
+    n = len(spec.statement_draft.sample_examples)
+    return {
+        f"examples/{path.name}": path
+        for path in sorted(examples_dir.glob("example_*.txt"))
+        if (match := _EXAMPLE_NAME.match(path.name)) and int(match.group(1)) > n
+    }
+
+
 def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str]], None]:
     def _validate(artifacts: dict[str, str]) -> None:
-        actual = set(artifacts.keys())
-        missing = expected - actual
-        extra = actual - expected
-        if missing or extra:
-            parts = []
-            if missing:
-                parts.append(f"missing: {sorted(missing)}")
-            if extra:
-                parts.append(f"unexpected: {sorted(extra)}")
-            raise ValueError(
-                f"Step '{STEP_NAME}': the set of files from the model does not match "
-                f"the expected one ({'; '.join(parts)})"
-            )
+        check_artifact_names(STEP_NAME, expected, artifacts)
 
     return _validate
 
@@ -142,8 +159,10 @@ def current_artifacts(
 ) -> dict[str, Path]:
     """Текущие файлы шага на диске: имя артефакта (как его вернула бы
     модель) -> путь — для режима доработки (`base.StepRevision`).
-    4 tex-файла, `interaction.tex` и `examples/example_<N>.txt` с диалогами
-    примеров (по возрастанию N); `name.txt` — не артефакт шага (его пишут
+    4 tex-файла, `interaction.tex` и диалоги примеров
+    `examples/example_<N>.{input,output}_for_statement.txt` (по возрастанию
+    N). Не артефакты модели: `examples/example_<N>.txt` (их пишет
+    оркестратор из спека, `_example_inputs`) и `name.txt` (его пишут
     `polygon push`/`pull`)."""
     statement_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR
     candidates = {
@@ -154,7 +173,7 @@ def current_artifacts(
     numbered = sorted(
         (int(match.group(1)), path.name, path)
         for path in examples
-        if (match := _EXAMPLE_NAME.match(path.name) or _DIALOGUE_NAME.match(path.name))
+        if (match := _DIALOGUE_NAME.match(path.name))
     )
     candidates.update({f"examples/{name}": path for _, name, path in numbered})
     return existing_artifacts(candidates)
@@ -210,13 +229,16 @@ def run_step(
     При успехе пишет в `problems/<problem_id>/statement/` 4 фиксированных
     файла (`legend.tex`, `input_format.tex`, `output_format.tex`,
     `notes.tex`) и по одному `examples/example_<N>.txt` на каждый элемент
-    `sample_examples` (только input примера); у интерактивной задачи
+    `sample_examples` (только input примера — копия из спека, её пишет
+    оркестратор, а не модель); у интерактивной задачи
     (`spec.interactive`) — ещё `interaction.tex` (протокол взаимодействия)
     и диалог каждого примера (`example_<N>.input_for_statement.txt`,
     `example_<N>.output_for_statement.txt`). Набор имён файлов из ответа
     модели проверяется ДО записи на диск (`_validate_statement_artifacts`):
-    при любой недостаче/лишнем файле бросается `ValueError`, и ни один файл
-    не пишется.
+    недостающие файлы дозапрашиваются у модели один раз, а если их всё равно
+    нет или есть лишние — ответ не применяется целиком (конфликт), ни один
+    файл не пишется. `example_<N>.txt`, которых больше нет в спеке,
+    помечаются `.removed`.
 
     `upstream_artifacts` не используется: `statement_draft` не зависит от
     результатов других шагов (см. CLAUDE.md, "Кэширование по хешу спека" —
@@ -249,4 +271,9 @@ def run_step(
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
         validate_artifacts=_validate_statement_artifacts(expected),
+        generated_artifacts=GeneratedArtifacts(
+            artifacts=_example_inputs(spec),
+            stale=_stale_example_inputs(problem_id, spec, problems_dir=problems_dir),
+            reason="the input of a sample is copied from the spec by the orchestrator",
+        ),
     )

@@ -37,6 +37,11 @@
 кэша с конфликтами — не cache hit, пока автор их не разберёт и не сделает
 `llm accept`.
 
+Неполный ответ — без части файлов, которые шаг обязан вернуть
+(`MissingArtifactsError` из `validate_artifacts`), — модель один раз
+дописывает отдельным вызовом (`MISSING_ARTIFACTS_PROMPT`): ей показываются
+уже возвращённые файлы, и она возвращает только недостающие.
+
 Этот модуль реализует шаги 1-5 один раз (`run_generative_step`); конкретные
 модули в `orchestrator/steps/*.py` только знают, какую секцию спека читать,
 как разложить артефакты по каталогам `problems/<id>/...` и что входит в
@@ -49,7 +54,7 @@ import datetime
 import json
 import re
 import shutil
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Optional
 
@@ -80,6 +85,13 @@ TEMPLATES_DIR = Path("templates")
 # user-промпта режима доработки (относительно prompts_dir): дописывается к
 # `prompts/<step>/user.md.j2`, когда модели показаны текущие файлы шага.
 
+# Общий для всех шагов блок user-промпта дозапроса недостающих файлов
+# (относительно prompts_dir): дописывается к user-промпту первого вызова,
+# если его ответ не содержал части обязательных файлов. В хеш промпта шага
+# не входит: результат шага он не задаёт — только просит дописать то, что
+# основной промпт и так требовал.
+MISSING_ARTIFACTS_PROMPT = "missing_artifacts.md.j2"
+
 # Каталог (в каталоге задачи) с прежними версиями файлов, которые шаг
 # перезаписал или переименовал: `.llm_backup/<время>/<путь в каталоге задачи>`.
 LLM_BACKUP_DIRNAME = ".llm_backup"
@@ -88,6 +100,9 @@ LLM_BACKUP_DIRNAME = ".llm_backup"
 # `CONFLICTS_REPORT`; файлы с недопустимыми именами — в `INVALID_NAMES_SUBDIR`.
 LLM_CONFLICTS_DIRNAME = ".llm_conflicts"
 CONFLICTS_REPORT = "CONFLICTS.md"
+# Причина конфликта у частей ответа, не применённого целиком: сама причина
+# одна на весь ответ (`StepResult.not_applied_reason`), у файлов не повторяется.
+WHOLE_RESPONSE_NOT_APPLIED = "the response is not applied as a whole"
 INVALID_NAMES_SUBDIR = "invalid_names"
 # Учебные задачи-образцы `examples/` (`EXAMPLES_DIR`), каждая в раскладке
 # `problems/<problem_id>/` плюс свой спек `spec.yaml` (как задачи раскладываются
@@ -186,6 +201,50 @@ class StepUncertainError(Exception):
         )
 
 
+class MissingArtifactsError(ValueError):
+    """Ответ модели неполон: в нём нет части файлов, которые шаг обязан
+    вернуть (`missing` — их имена, как их вернула бы модель). Бросается из
+    `validate_artifacts` шага (`check_artifact_names`); `run_generative_step`
+    один раз дозапрашивает эти файлы у модели."""
+
+    def __init__(self, message: str, missing: list[str]):
+        super().__init__(message)
+        self.missing = missing
+
+
+def check_artifact_names(step_name: str, expected: set[str], artifacts: dict[str, str]) -> None:
+    """Проверка набора имён файлов шага: ровно `expected`. Недостача —
+    `MissingArtifactsError` (её можно дозапросить), только лишние файлы —
+    `ValueError`."""
+    actual = set(artifacts)
+    missing = sorted(expected - actual)
+    extra = sorted(actual - expected)
+    if missing:
+        message = f"Step '{step_name}': incomplete response — missing files: {missing}"
+        if extra:
+            message += f"; unexpected files: {extra}"
+        raise MissingArtifactsError(message, missing)
+    if extra:
+        raise ValueError(f"Step '{step_name}': unexpected files in the response: {extra}")
+
+
+@dataclass
+class GeneratedArtifacts:
+    """Файлы шага, которые пишет оркестратор, а не модель (например, input
+    примеров условия — копия из спека): модель их не возвращает, а если
+    вернула — её версия отбрасывается (заметка `ignored`).
+
+    `artifacts` — имя (как его вернула бы модель) -> содержимое; входят в
+    набор, который проверяет `validate_artifacts`, и пишутся вместе с
+    ответом модели — только если он применён. `stale` — такие же файлы
+    прошлых прогонов, которых больше нет (имя -> путь): помечаются
+    `.removed`, как удалённые моделью."""
+
+    artifacts: dict[str, str]
+    stale: dict[str, Path] = field(default_factory=dict)
+    reason: str = "written by the orchestrator from the spec"
+
+
 @dataclass
 class StepResult:
     """Результат успешного (`confirmed`/`proposed`) прогона шага.
@@ -214,6 +273,9 @@ class StepResult:
     # отложены версии модели (`_write_conflicts`); `None` — всё применено.
     conflicts: list[tuple[str, str]] = field(default_factory=list)
     conflicts_dir: Optional[Path] = None
+    # Почему ответ не применён целиком (не прошёл `validate_artifacts` или
+    # конфликт в шаге, применяемом только целиком); `None` — применён.
+    not_applied_reason: Optional[str] = None
 
 
 @dataclass
@@ -350,6 +412,20 @@ def render_revision_prompt(
         "other_changes": revision.other_changes,
     }
     return _jinja_env(prompts_dir).get_template(REVISE_PROMPT).render(**context)
+
+
+def render_missing_artifacts_prompt(
+    missing: list[str], returned: dict[str, str], *, prompts_dir: Path = PROMPTS_DIR
+) -> str:
+    """Блок дозапроса (`MISSING_ARTIFACTS_PROMPT`): каких файлов не было в
+    ответе и что модель уже вернула."""
+    context = {
+        "missing": missing,
+        "returned_files": [
+            {"name": name, "content": content.rstrip("\n")} for name, content in returned.items()
+        ],
+    }
+    return _jinja_env(prompts_dir).get_template(MISSING_ARTIFACTS_PROMPT).render(**context)
 
 
 def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> str:
@@ -684,22 +760,126 @@ def _plan_response(
     return plan
 
 
-def _whole_step_conflict(response: Any, plan: _ApplyPlan, reason: str) -> _ApplyPlan:
+def _add_generated_artifacts(
+    plan: _ApplyPlan, generated: GeneratedArtifacts, resolve_path: Callable[[str], Path]
+) -> set[str]:
+    """Файлы оркестратора — в итоговый набор файлов шага; их версии от
+    модели отбрасываются (возвращаются их имена в ответе)."""
+    dropped: set[str] = set()
+    generated_paths = {resolve_path(name).resolve() for name in generated.artifacts}
+    for filename in list(plan.artifacts):
+        if resolve_path(filename).resolve() in generated_paths:
+            del plan.artifacts[filename]
+            plan.final_artifacts.pop(filename, None)
+            dropped.add(filename)
+            plan.notes.append(_note(
+                filename, "ignored", f"returned by the model — ignored: {generated.reason}"
+            ))
+    plan.final_artifacts.update(generated.artifacts)
+    return dropped
+
+
+def _plan_and_check(
+    response: Any,
+    revision: Optional[StepRevision],
+    resolve_path: Callable[[str], Path],
+    generated: Optional[GeneratedArtifacts],
+    validate_artifacts: Optional[Callable[[dict[str, str]], None]],
+    partial_apply: bool,
+) -> tuple[_ApplyPlan, Optional[str], list[str]]:
+    """`_plan_response` + проверка итогового набора файлов шага. Возвращает
+    план, причину, по которой ответ не применяется целиком (`None` —
+    применяется), и недостающие файлы (`MissingArtifactsError`)."""
+    plan = _plan_response(response, revision, resolve_path)
+    dropped: set[str] = set()
+    if generated is not None:
+        dropped = _add_generated_artifacts(plan, generated, resolve_path)
+    reason: Optional[str] = None
+    missing: list[str] = []
+    if plan.conflicts and not partial_apply:
+        reason = "the files of this step are applied only all together"
+    elif validate_artifacts is not None:
+        try:
+            validate_artifacts(plan.final_artifacts)
+        except MissingArtifactsError as exc:
+            reason, missing = str(exc), exc.missing
+        except ValueError as exc:
+            reason = str(exc)
+    if reason is not None:
+        plan = _whole_step_conflict(response, plan, ignored=dropped)
+    return plan, reason, missing
+
+
+def _merge_missing_artifacts(
+    response: ModelResponse,
+    retry: ModelResponse,
+    missing: list[str],
+    resolve_path: Callable[[str], Path],
+) -> ModelResponse:
+    """Ответ с файлами из дозапроса: из него берутся только недостающие
+    файлы (остальные — заметкой `ignored`), заметки обоих ответов
+    складываются, статус — худший из двух."""
+
+    def resolved(filename: str) -> Optional[Path]:
+        try:
+            return resolve_path(filename).resolve()
+        except ValueError:
+            return None
+
+    wanted = {resolved(name) for name in missing} - {None}
+    added = {
+        filename: content
+        for filename, content in retry.artifacts.items()
+        if resolved(filename) in wanted
+    }
+    notes = [
+        *response.notes,
+        *retry.notes,
+        _note(
+            "response",
+            "retried",
+            f"the response lacked {missing} — asked for them in a separate call; "
+            f"returned: {sorted(added) or 'none of them'}",
+        ),
+    ]
+    ignored = sorted(set(retry.artifacts) - set(added))
+    if ignored:
+        notes.append(_note(
+            "response", "ignored", f"files from the follow-up call that were not asked for: {ignored}"
+        ))
+    statuses = {response.status, retry.status}
+    if retry.status not in _VALID_STATUSES or STATUS_UNCERTAIN in statuses:
+        status = retry.status
+    elif STATUS_PROPOSED in statuses:
+        status = STATUS_PROPOSED
+    else:
+        status = STATUS_CONFIRMED
+    return replace(
+        response, status=status, artifacts={**response.artifacts, **added}, notes=notes
+    )
+
+
+def _whole_step_conflict(
+    response: Any, plan: _ApplyPlan, *, ignored: set[str] = frozenset()
+) -> _ApplyPlan:
     """Ответ не применяется целиком: все файлы модели и её предложения
-    удалить/переименовать — в конфликты, файлы шага не трогаются."""
+    удалить/переименовать — в конфликты, файлы шага не трогаются. Причина —
+    одна на весь ответ (`StepResult.not_applied_reason`, начало
+    `CONFLICTS.md`), у файлов она не повторяется. `ignored` — файлы ответа,
+    отброшенные и при применении (`GeneratedArtifacts`)."""
     conflicts = list(plan.conflicts)
     set_aside = {conflict.filename for conflict in conflicts if conflict.content is not None}
     for filename, content in response.artifacts.items():
-        if filename not in set_aside:
-            conflicts.append(_Conflict(filename, f"not applied: {reason}", content))
+        if filename not in set_aside | ignored:
+            conflicts.append(_Conflict(filename, WHOLE_RESPONSE_NOT_APPLIED, content))
     for entry in response.removed:
         conflicts.append(_Conflict(
-            entry["filename"], f"proposed removal not applied ({entry['reason']}): {reason}"
+            entry["filename"], f"proposed removal ({entry['reason']}): {WHOLE_RESPONSE_NOT_APPLIED}"
         ))
     for entry in response.renamed:
         conflicts.append(_Conflict(
             entry["from"],
-            f"proposed rename to '{entry['to']}' not applied ({entry['reason']}): {reason}",
+            f"proposed rename to '{entry['to']}' ({entry['reason']}): {WHOLE_RESPONSE_NOT_APPLIED}",
         ))
     return _ApplyPlan(
         artifacts={}, final_artifacts={}, conflicts=conflicts, notes=plan.notes
@@ -826,6 +1006,7 @@ def run_generative_step(
     ) = None,
     saved_response: ModelResponse | None = None,
     partial_apply: bool = False,
+    generated_artifacts: GeneratedArtifacts | None = None,
 ) -> StepResult:
     """Общий цикл шага: рендер промптов, вызов модели, запись результата.
 
@@ -870,7 +1051,14 @@ def run_generative_step(
     `uncertain` `artifacts` по контракту может быть пустым/частичным) и
     строго ДО записи на диск: если она бросает `ValueError`, из ответа не
     применяется ничего — всё уходит в конфликты (см. докстринг модуля), а
-    сохранённый ответ остаётся для `llm apply`.
+    сохранённый ответ остаётся для `llm apply`. `MissingArtifactsError`
+    (неполный ответ) после вызова модели — один дозапрос недостающих файлов
+    (`MISSING_ARTIFACTS_PROMPT`), они добавляются к ответу (заметка
+    `retried`), и проверка повторяется; у сохранённого ответа (`llm apply`)
+    дозапроса нет.
+
+    `generated_artifacts` — файлы шага, которые пишет оркестратор, а не
+    модель (`GeneratedArtifacts`).
 
     `partial_apply` — файлы шага независимы друг от друга: при конфликте в
     части файлов остальные применяются. `False` — при любом конфликте ответ
@@ -931,18 +1119,28 @@ def run_generative_step(
         input_values=input_values,
     )
 
-    if response.status not in _VALID_STATUSES:
-        raise ValueError(
-            f"Step '{step_name}': the model returned an unknown status "
-            f"'{response.status}' (expected one of {sorted(_VALID_STATUSES)})"
+    def check_status(response: ModelResponse) -> None:
+        if response.status not in _VALID_STATUSES:
+            raise ValueError(
+                f"Step '{step_name}': the model returned an unknown status "
+                f"'{response.status}' (expected one of {sorted(_VALID_STATUSES)})"
+            )
+        if response.status == STATUS_UNCERTAIN:
+            # Применять нечего; прежний неприменённый ответ того же шага устарел.
+            discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
+            raise StepUncertainError(step_name, problem_id, response.notes)
+
+    def plan_and_check(response: ModelResponse) -> tuple[_ApplyPlan, Optional[str], list[str]]:
+        return _plan_and_check(
+            response,
+            revision,
+            resolve_artifact_path,
+            generated_artifacts,
+            validate_artifacts,
+            partial_apply,
         )
 
-    if response.status == STATUS_UNCERTAIN:
-        # Применять нечего; прежний неприменённый ответ того же шага устарел.
-        discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
-        raise StepUncertainError(step_name, problem_id, response.notes)
-
-    if saved_response is None:
+    def save_pending(response: ModelResponse) -> None:
         save_pending_response(
             problem_id,
             step_name,
@@ -952,24 +1150,38 @@ def run_generative_step(
             problems_dir=problems_dir,
         )
 
+    check_status(response)
+    if saved_response is None:
+        save_pending(response)
+    plan, whole_step_reason, missing = plan_and_check(response)
+    if missing and saved_response is None:
+        # Неполный ответ: недостающие файлы — одним дозапросом, а не новым
+        # вызовом целиком (`MISSING_ARTIFACTS_PROMPT`).
+        retry_prompt = user_prompt.rstrip("\n") + "\n\n" + render_missing_artifacts_prompt(
+            missing, response.artifacts, prompts_dir=prompts_dir
+        )
+        retry = model_router.call_model(
+            step_name, system_prompt, retry_prompt, context_documents=context_documents
+        )
+        response = _merge_missing_artifacts(response, retry, missing, resolve_artifact_path)
+        cache_entry.status = response.status
+        check_status(response)
+        save_pending(response)
+        plan, whole_step_reason, _ = plan_and_check(response)
+
     notes = list(response.notes)
-    plan = _plan_response(response, revision, resolve_artifact_path)
     notes.extend(plan.notes)
-    whole_step_reason: Optional[str] = None
-    if plan.conflicts and not partial_apply:
-        whole_step_reason = "the files of this step are applied only all together"
-    elif validate_artifacts is not None:
-        try:
-            validate_artifacts(plan.final_artifacts)
-        except ValueError as exc:
-            whole_step_reason = str(exc)
-    if whole_step_reason is not None:
-        plan = _whole_step_conflict(response, plan, whole_step_reason)
 
     artifacts = plan.artifacts
     if postprocess_artifacts is not None and artifacts:
         artifacts, extra_notes = postprocess_artifacts(artifacts)
         notes.extend(extra_notes)
+    if generated_artifacts is not None and whole_step_reason is None:
+        artifacts = {**artifacts, **generated_artifacts.artifacts}
+        plan.removed.extend(
+            (path, "no longer produced from the spec")
+            for path in generated_artifacts.stale.values()
+        )
 
     problem_dir = Path(problems_dir) / problem_id
     backup = _Backup(problem_dir)
@@ -1022,4 +1234,5 @@ def run_generative_step(
         backup_dir=backup.directory,
         conflicts=[(conflict.filename, conflict.reason) for conflict in plan.conflicts],
         conflicts_dir=conflicts_dir,
+        not_applied_reason=whole_step_reason,
     )

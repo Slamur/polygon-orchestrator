@@ -1,4 +1,4 @@
-"""Реализация команд CLI: `init`, `llm generate|apply|status|accept`, `polygon push|status|pull`.
+"""Реализация команд CLI: `init`, `llm generate|apply|status|accept`, `polygon push|status|check|pull`.
 
 Парсер аргументов и входная точка — в `cli.py`; этот модуль он импортирует
 только после разбора аргументов, потому что отсюда тянутся оба пайплайна (а
@@ -38,6 +38,12 @@ from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pull import ITEM_ERROR as PULL_ITEM_ERROR
 from orchestrator.polygon.pull import pull_problem
 from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
+from orchestrator.checks.test_script_check import (
+    ScriptCheckUnavailable,
+    ScriptRenderError,
+    check_script,
+)
 from orchestrator.drafts import DRAFTS_DIR, DraftError, find_draft
 from orchestrator.problem_paths import EXAMPLES_DIR
 from orchestrator.spec import (
@@ -213,8 +219,13 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
             logger.info(f"      renamed: {old_path} -> {new_path} — {reason}")
         if outcome.backup_dir is not None:
             logger.info(f"      previous versions of overwritten files: {outcome.backup_dir}")
+        # Одна строка на причину: у ответа, не применённого целиком, она
+        # общая для всех его файлов.
+        by_reason: dict[str, list[str]] = {}
         for filename, reason in outcome.conflicts:
-            logger.info(f"      not applied: {filename} — {reason}")
+            by_reason.setdefault(reason, []).append(filename)
+        for reason, filenames in by_reason.items():
+            logger.info(f"      not applied: {', '.join(filenames)} — {reason}")
         if outcome.conflicts_dir is not None:
             logger.info(f"      model versions of not applied files: {outcome.conflicts_dir}")
 
@@ -388,6 +399,38 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
         compute_polygon_step_statuses(args.problem_id, problems_dir=args.problems_dir)
     )
     return 0
+
+
+def cmd_polygon_check(args: argparse.Namespace) -> int:
+    """Раскрывает test-script(ы) задачи и печатает одинаковые строки с
+    указанием строк скрипта, которые их напечатали
+    (`orchestrator/checks/test_script_check.py`). Спек не нужен — проверяются
+    все существующие файлы из `SCRIPT_FILENAMES`."""
+    problem_dir = Path(args.problems_dir) / args.problem_id
+    scripts = [problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()]
+    if not scripts:
+        print(
+            f"no test script in {problem_dir} (expected one of: {', '.join(SCRIPT_FILENAMES)})",
+            file=sys.stderr,
+        )
+        return 1
+    failed = False
+    for script in scripts:
+        try:
+            result = check_script(script.read_text(encoding="utf-8"), script.name)
+        except ScriptCheckUnavailable as exc:
+            print(f"{script.name}: check unavailable — {exc}", file=sys.stderr)
+            return 1
+        except ScriptRenderError as exc:
+            print(f"{script.name}: FreeMarker failed to expand the script:\n{exc}")
+            failed = True
+            continue
+        if result.duplicates:
+            print(result.report)
+            failed = True
+        else:
+            print(f"{script.name}: ok, no identical lines")
+    return 1 if failed else 0
 
 
 def cmd_polygon_pull(args: argparse.Namespace) -> int:

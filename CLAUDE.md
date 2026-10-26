@@ -132,10 +132,11 @@ Python-оркестратор, который берёт структуриро�
 │   ├── spec_from_draft/          # не шаг пайплайна: спек по черновику автора для `init --draft`
 │   │   ├── system.md
 │   │   └── user.md.j2
-│   └── revise.md.j2              # общий блок режима доработки (текущие файлы шага + что изменилось во входе)
+│   ├── revise.md.j2              # общий блок режима доработки (текущие файлы шага + что изменилось во входе)
+│   └── missing_artifacts.md.j2   # общий блок дозапроса файлов, которых не было в ответе (см. "Конфликты")
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|check|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; без тяжёлых импортов
 │   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
@@ -169,7 +170,9 @@ Python-оркестратор, который берёт структуриро�
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
-│   │   └── run_with_timeout.py    # запуск бинаря с жёстким timeout
+│   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
+│   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker и поиск одинаковых строк (polygon check, upload_test_script)
+│   │   └── FreemarkerRender.java  # рендер FreeMarker для test_script_check (java без сборки; jar — в ~/.cache/polygon-orchestrator/)
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 ├── drafts/                       # черновики задач в свободной форме для `init --draft` (плоско, любое расширение); в .gitignore, как problems/
 └── problems/
@@ -208,10 +211,13 @@ Python-оркестратор, который берёт структуриро�
 
 1. **`statement_draft`** — вход: секция `statement_draft` спека. Выход:
    черновик условия в `problems/<путь задачи>/statement/` — отдельные `.tex` на
-   легенду/ввод/вывод/примечание + input каждого примера в
-   `examples/example_<N>.txt` (набор имён проверяется до записи на диск),
-   следующий структуре и стилистическим правилам из
-   `templates/tutorials/statement.md`.
+   легенду/ввод/вывод/примечание (набор имён проверяется до записи на
+   диск), следующий структуре и стилистическим правилам из
+   `templates/tutorials/statement.md`. Input каждого примера в
+   `examples/example_<N>.txt` — копия из `sample_examples`: его пишет
+   оркестратор, а не модель (`GeneratedArtifacts` в
+   `orchestrator/steps/base.py`); файлы примеров, которых больше нет в
+   спеке, помечаются `.removed`.
 2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
    очередь `intended_complexity` и `complexity_reasoning`, + формат ввода из
    `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
@@ -344,7 +350,12 @@ git). `llm generate --fresh` — генерация с нуля, без теку
 конфликтом останавливает пайплайн; пока автор не разберёт конфликты
 (удалит их каталог) и не сделает `llm accept`, `llm generate` модель для
 этого шага не вызывает (`--force` — вызывает заново), `llm status`
-показывает `conflict`. Не применённый целиком ответ остаётся и для
+показывает `conflict`. Неполный ответ — без части файлов, которые шаг
+обязан вернуть (`MissingArtifactsError`), — модель один раз дописывает
+отдельным вызовом (`prompts/missing_artifacts.md.j2`: ей показываются
+уже возвращённые файлы, берутся только недостающие; в хеш промпта шага
+этот блок не входит); если файлов не хватает и после него — конфликт, как
+выше. Не применённый целиком ответ остаётся и для
 `llm apply`.
 
 ## Запуск
@@ -469,6 +480,17 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   синхронизации — тем, что последний push загрузил или pull увидел на
   Polygon). Правки на Polygon после последней синхронизации отсюда не
   видны — их замечает только `polygon push`/`pull`.
+- `orchestrator <задача> polygon check` — без обращения к Polygon:
+  раскрывает test-script(ы) задачи настоящим FreeMarker (нужна `java`;
+  jar FreeMarker при первом запуске скачивается с Maven Central в
+  `~/.cache/polygon-orchestrator/`) и печатает одинаковые строки — с
+  ними Polygon не генерирует тесты — с указанием, какая строка скрипта
+  и при каких значениях переменных `<#list>` напечатала каждую. Та же
+  проверка — перед загрузкой в `upload_test_script`: дубли
+  останавливают push до сети; если проверку выполнить нельзя или
+  FreeMarker не раскрыл скрипт — только предупреждение
+  (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
+  докстринге `orchestrator/checks/test_script_check.py`.
 
 - `orchestrator <задача> polygon pull [--polygon-id N] [--overwrite]` —
   обратное направление: привязывает задачу к уже существующей на
