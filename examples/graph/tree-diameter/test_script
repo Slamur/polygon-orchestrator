@@ -1,0 +1,145 @@
+<#assign desc = "Functions"/>
+<#function div a b>
+    <#return (a / b)?long>
+</#function>
+<#function ceil a b>
+    <#return div(a - 1, b) + 1/>
+</#function>
+<#function min a b>
+    <#return [a, b]?sort?first>
+</#function>
+<#function max a b>
+    <#return [a, b]?sort?last>
+</#function>
+<#function pow base power>
+    <#assign res = 1/>
+    <#list 0..<power as it>
+        <#assign res = res * base/>
+    </#list>
+    <#return res>
+</#function>
+<#function fact n>
+    <#assign res = 1/>
+    <#list 0..<n as it>
+        <#assign res = res * (it + 1)/>
+    </#list>
+    <#return res>
+</#function>
+<#function contains items value>
+    <#list items as item>
+        <#if item == value>
+            <#return true/>
+        </#if>
+    </#list>
+    <#return false/>
+</#function>
+
+<#-- extra helper functions used only by this script, appended after the
+     mandatory block above -->
+<#function isqrt n>
+    <#assign result = 0/>
+    <#list 0..n as i>
+        <#if (i * i) lte n>
+            <#assign result = i/>
+        <#else>
+            <#break/>
+        </#if>
+    </#list>
+    <#return result/>
+</#function>
+<#function log2ceil n>
+    <#assign result = 0/>
+    <#assign value = 1/>
+    <#list 0..200 as i>
+        <#if value gte n>
+            <#assign result = i/>
+            <#break/>
+        </#if>
+        <#assign value = value * 2/>
+    </#list>
+    <#return result/>
+</#function>
+
+<#assign genRand = "gen_tree_rand"/>
+<#assign genPalm = "gen_palm"/>
+<#assign genJungle = "gen_jungle"/>
+<#assign genBalanced = "gen_tree_balanced"/>
+<#assign shuffle = "upd_tree_shuffle"/>
+<#assign attachBranch = "upd_attach_branch_reroot"/>
+
+<#assign minN = 2/>
+<#assign maxN = 3 * pow(10, 5)/>
+<#assign smallMaxN = 10/>
+
+<#assign starH = 1/>
+<#assign starK = 1/>
+
+<#assign palmBaseH = div(maxN, 2)/>
+<#assign palmBaseK = 1/>
+
+<#assign palmLongLeavesH = div(maxN, 2)/>
+<#assign palmLongLeavesK = palmLongLeavesH/>
+
+<#assign jungleFewPalmsH = div(maxN, 10)/>
+<#assign jungleFewPalmsK = 1/>
+<#assign jungleFewPalmsCount = 2/>
+
+<#assign jungleManyPalmsH = 10/>
+<#assign jungleManyPalmsK = 1/>
+<#assign jungleManyPalmsCounts = [10, 100, isqrt(maxN)]/>
+
+<#assign balancedK = log2ceil(maxN)/>
+
+<#-- N for the "jungle + attached branch" test below is slightly less than
+     maxN to leave room for the small attached branch while keeping the
+     total at (close to) maxN -->
+<#assign attachBranchK = smallMaxN/>
+<#assign attachJungleN = maxN - attachBranchK/>
+<#assign attachJungleH = div(attachJungleN, 10)/>
+<#assign attachJungleK = 1/>
+<#assign attachJunglePalms = jungleFewPalmsCount/>
+
+<#-- Small tests: a random tree for every N from minN to smallMaxN -->
+<#assign description = "Small random trees, N = minN..smallMaxN"/>
+<#list minN..smallMaxN as n>
+    ${genRand} -n=${n} > $
+</#list>
+
+<#-- Maximal tests: N = maxN, one shape per idea from the spec, each also
+     shuffled to break the implicit 'root is vertex 1' / 'p_i < i' pattern
+     that the deterministic shape-generators produce by construction -->
+<#assign description = "Bamboo (chain) at N = maxN: maximal depth, catches recursive DFS stack overflow"/>
+${genPalm} -n=${maxN} -h=${maxN} -k=1 > $
+${genPalm} -n=${maxN} -h=${maxN} -k=1 | ${shuffle} > $
+
+<#assign description = "Star at N = maxN: every vertex is a direct child of the root (diameter 2)"/>
+${genPalm} -n=${maxN} -h=${starH} -k=${starK} > $
+${genPalm} -n=${maxN} -h=${starH} -k=${starK} | ${shuffle} > $
+
+<#assign description = "Basic palm at N = maxN: H = N / 2, K = 1"/>
+${genPalm} -n=${maxN} -h=${palmBaseH} -k=${palmBaseK} > $
+${genPalm} -n=${maxN} -h=${palmBaseH} -k=${palmBaseK} | ${shuffle} > $
+
+<#assign description = "Palm with long leaves (K of the order of H): diameter does not pass through the root"/>
+${genPalm} -n=${maxN} -h=${palmLongLeavesH} -k=${palmLongLeavesK} > $
+${genPalm} -n=${maxN} -h=${palmLongLeavesH} -k=${palmLongLeavesK} | ${shuffle} > $
+
+<#assign description = "Jungle: 2 palms sharing one root (diameter passes through the root)"/>
+${genJungle} -n=${maxN} -h=${jungleFewPalmsH} -k=${jungleFewPalmsK} -palms=${jungleFewPalmsCount} > $
+${genJungle} -n=${maxN} -h=${jungleFewPalmsH} -k=${jungleFewPalmsK} -palms=${jungleFewPalmsCount} | ${shuffle} > $
+
+<#assign description = "Jungle: many palms (10, 100, sqrt(N)) sharing one root"/>
+<#list jungleManyPalmsCounts as palmsCount>
+    ${genJungle} -n=${maxN} -h=${jungleManyPalmsH} -k=${jungleManyPalmsK} -palms=${palmsCount} > $
+    ${genJungle} -n=${maxN} -h=${jungleManyPalmsH} -k=${jungleManyPalmsK} -palms=${palmsCount} | ${shuffle} > $
+</#list>
+
+<#assign description = "Balanced tree at N = maxN with small K (K = ceil(log2(N)), binary-like)"/>
+${genBalanced} -n=${maxN} -k=${balancedK} > $
+${genBalanced} -n=${maxN} -k=${balancedK} | ${shuffle} > $
+
+<#assign description = "Fully random tree at N = maxN (already randomly labeled, no shuffle needed)"/>
+${genRand} -n=${maxN} > $
+
+<#assign description = "Jungle (N slightly less than maxN) with a small random branch attached to its (unshuffled) root; the global root is then placed somewhere inside this branch, so the tree keeps its jungle shape but the declared root is far from the structurally interesting part"/>
+${genJungle} -n=${attachJungleN} -h=${attachJungleH} -k=${attachJungleK} -palms=${attachJunglePalms} | ${attachBranch} -k=${attachBranchK} > $
