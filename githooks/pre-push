@@ -6,7 +6,8 @@
 # проверяются — иначе короткие имена давали бы ложные срабатывания), — и имя
 # любого каталога в outputs/ (прежнее имя каталога задач, на случай оставшейся
 # локальной копии), и имя (без расширения) любого черновика в drafts/
-# (`init --draft`). См. "Конфиденциальность problems/" в CLAUDE.md.
+# (`init --draft`), кроме черновиков учебных задач из examples/ — они
+# публичны. См. "Конфиденциальность problems/" в CLAUDE.md.
 #
 # Подключение (один раз после клонирования): git config core.hooksPath githooks
 
@@ -29,10 +30,27 @@ shopt -s nullglob
 for legacy_dir in "$repo_root"/outputs/*/; do
     problem_ids+=("$(basename "$legacy_dir")")
 done
+shopt -u nullglob
+
+# Черновики учебных задач из examples/ (публичных) не проверяются: черновик
+# с именем задачи examples/ — её имя каталога или problem_id (путь через "--").
+example_names=" "
+if [ -d "$repo_root/examples" ]; then
+    while IFS= read -r -d '' marker; do
+        example_dir="$(dirname "$marker")"
+        example_rel="${example_dir#"$repo_root/examples/"}"
+        example_names+="$(basename "$example_dir") ${example_rel//\//--} "
+    done < <(find "$repo_root/examples" -mindepth 1 -name '.*' -prune -o \
+        -type f \( -name spec.yaml -o -name polygon_state.json \) -print0)
+fi
+
+shopt -s nullglob
 for draft in "$repo_root"/drafts/*; do
     [ -f "$draft" ] || continue
     draft_name="$(basename "$draft")"
-    problem_ids+=("${draft_name%.*}")
+    draft_name="${draft_name%.*}"
+    [[ "$example_names" == *" $draft_name "* ]] && continue
+    problem_ids+=("$draft_name")
 done
 shopt -u nullglob
 
