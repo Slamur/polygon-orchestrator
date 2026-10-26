@@ -1,7 +1,7 @@
 problem_id: graph--tree-diameter 
 title:
   ru: "Диаметр дерева"
-  en: "Tree diameter"                # PROPOSED, REVIEW ME: перевод названия из черновика
+  en: "Tree diameter"                
 references: []
 
 # ---------------------------------------------------------------------------
