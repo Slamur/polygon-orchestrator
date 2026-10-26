@@ -534,7 +534,7 @@ def test_model_change_invalidates_cache(spec_file, tmp_path):
     outcome = result.outcomes[0]
     assert outcome.detail == (
         "regenerated: model changed (medium-model -> strong-model); "
-        "revising 5 current file(s)"
+        "revising 4 current file(s)"
     )
 
 
@@ -671,7 +671,10 @@ def test_rejected_response_stops_pipeline_with_conflict_and_is_saved(spec_file, 
     [outcome] = result.outcomes
     assert outcome.step_name == "statement_draft"
     assert outcome.status == pipeline.OUTCOME_CONFLICT
-    assert all("the set of files does not match" in reason for _, reason in outcome.conflicts)
+    assert all(
+        reason == "the response is not applied as a whole" for _, reason in outcome.conflicts
+    )
+    assert "the set of files does not match — nothing of the response is applied" in outcome.detail
     assert "llm accept --step statement_draft" in outcome.detail
     assert "llm apply --step statement_draft" in outcome.detail
     problem_dir = problems_dir / "p1"

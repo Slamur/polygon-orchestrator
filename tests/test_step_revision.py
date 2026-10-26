@@ -553,7 +553,7 @@ def test_pipeline_revises_stale_step_with_spec_diff(spec_file, tmp_path):
         "generators_and_script",
         "solutions_draft",
     ]
-    assert result.outcomes[0].detail.endswith("; revising 5 current file(s)")
+    assert result.outcomes[0].detail.endswith("; revising 4 current file(s)")
     prompt = _user_prompt(mock_call, "statement_draft")
     assert "#### `spec: legend_sketch`" in prompt
     assert "Edited." in prompt
@@ -622,7 +622,7 @@ def _touch(path: Path, content: str = "x") -> Path:
     return path
 
 
-def test_statement_current_artifacts_skip_name_and_sort_examples_numerically(tmp_path):
+def test_statement_current_artifacts_skip_name_and_example_inputs(tmp_path):
     from orchestrator.steps import statement_draft
 
     statement = tmp_path / "p1" / "statement"
@@ -633,12 +633,24 @@ def test_statement_current_artifacts_skip_name_and_sort_examples_numerically(tmp
 
     current = statement_draft.current_artifacts("p1", _spec(), problems_dir=tmp_path)
 
+    # Input примеров пишет оркестратор из спека — модели они не показываются.
+    assert list(current) == ["legend.tex", "notes.tex"]
+
+
+def test_statement_current_artifacts_sort_dialogues_numerically(tmp_path):
+    from orchestrator.steps import statement_draft
+
+    examples = tmp_path / "p1" / "statement" / "examples"
+    for number in (10, 2, 1):
+        for name in statement_draft.dialogue_filenames(number):
+            _touch(examples / name)
+
+    current = statement_draft.current_artifacts("p1", _spec(), problems_dir=tmp_path)
+
     assert list(current) == [
-        "legend.tex",
-        "notes.tex",
-        "examples/example_1.txt",
-        "examples/example_2.txt",
-        "examples/example_10.txt",
+        f"examples/{name}"
+        for number in (1, 2, 10)
+        for name in statement_draft.dialogue_filenames(number)
     ]
 
 
