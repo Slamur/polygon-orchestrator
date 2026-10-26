@@ -1,0 +1,44 @@
+problem_id: interactive-spec
+title:
+  ru: "Угадай число"
+
+statement_draft:
+  legend_sketch: |
+    Жюри загадало число от 1 до N, его нужно угадать.
+  formal_input_sketch: |
+    Тест: два числа N и X — граница и загаданное число.
+  formal_output_sketch: |
+    Итоговый ответ — загаданное число, см. протокол.
+  indexing: "irrelevant"
+  sample_examples:
+    - input: |
+        10 3
+      note_hint: "показать ответы < и >"
+  interaction_sketch: |
+    В начале решение читает N. Запрос "? y" — интерактор отвечает "<", ">"
+    или "=". Не больше 30 запросов. Ответ "! x", после него решение
+    завершается.
+
+constraints:
+  intended_complexity: "O(log N)"
+  complexity_reasoning: |
+    Двоичный поиск по ответу.
+  variables:
+    - name: "N"
+      min: 1
+      max: 1000000000
+      description: "граница"
+  time_limit_seconds: 1.0
+  memory_limit_mb: 256
+
+generation:
+  script_style: "flat"
+
+checker:
+  standard: "wcmp"
+  custom_needed: false
+
+interactor:
+  behavior_notes: |
+    Неадаптивный: X берётся из теста. Больше 30 запросов или неверный
+    итоговый ответ — WA. В tout — итоговый ответ решения.

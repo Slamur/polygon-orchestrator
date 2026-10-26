@@ -103,7 +103,14 @@ class StatementDraft(BaseModel):
     sample_examples: list[SampleExample] = Field(min_length=1)
     known_ambiguities: Optional[list[str]] = None
     preserve_legend_verbatim: bool = False
+    # Протокол взаимодействия — только у интерактивной задачи (есть секция
+    # `interactor`, см. `ProblemSpec._check_interactive`).
+    interaction_sketch: Optional[str] = None
     references: Optional[list[str]] = None
+
+    @property
+    def has_interaction(self) -> bool:
+        return bool(self.interaction_sketch and self.interaction_sketch.strip())
 
     @model_validator(mode="after")
     def _check_non_blank(self) -> "StatementDraft":
@@ -241,6 +248,20 @@ class Checker(BaseModel):
         return self
 
 
+class Interactor(BaseModel):
+    """Секция интерактивной задачи: есть секция — задача интерактивная."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    behavior_notes: str
+    references: Optional[list[str]] = None
+
+    @model_validator(mode="after")
+    def _check_non_blank(self) -> "Interactor":
+        _non_blank(self.behavior_notes, "interactor.behavior_notes")
+        return self
+
+
 class ProblemSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -252,6 +273,11 @@ class ProblemSpec(BaseModel):
     generation: Generation
     solutions: Optional[Solutions] = None
     checker: Checker
+    interactor: Optional[Interactor] = None
+
+    @property
+    def interactive(self) -> bool:
+        return self.interactor is not None
 
     @model_validator(mode="after")
     def _check_problem_id(self) -> "ProblemSpec":
@@ -259,6 +285,24 @@ class ProblemSpec(BaseModel):
             raise ValueError(
                 f"problem_id '{self.problem_id}' must be ASCII "
                 "(letters/digits/'-'/'_', starting with a letter), see SPEC_FORMAT.md"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _check_interactive(self) -> "ProblemSpec":
+        # Протокол взаимодействия — часть условия, поведение интерактора —
+        # вход шага interactor_draft: одно без другого смысла не имеет.
+        has_protocol = self.statement_draft.has_interaction
+        if self.interactive and not has_protocol:
+            raise ValueError(
+                "statement_draft.interaction_sketch is required when the spec has an "
+                "'interactor' section (interactive problem), see SPEC_FORMAT.md"
+            )
+        if not self.interactive and has_protocol:
+            raise ValueError(
+                "statement_draft.interaction_sketch is set, but the spec has no "
+                "'interactor' section — add it for an interactive problem or remove "
+                "the field, see SPEC_FORMAT.md"
             )
         return self
 

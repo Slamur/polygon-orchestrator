@@ -248,3 +248,77 @@ def test_split_solution_stem_keeps_combined_verdict_whole():
     assert split_solution_stem("tl_ok_cpp_linear_draft") == ["tl_ok", "cpp", "linear", "draft"]
     assert split_solution_stem("tl_cpp_linear_draft") == ["tl", "cpp", "linear", "draft"]
     assert split_solution_stem("ok_py_main_draft") == ["ok", "py", "main", "draft"]
+
+
+def test_interactive_spec_loads():
+    spec = load_spec(FIXTURES_DIR / "interactive-spec.yaml")
+
+    assert spec.interactive
+    assert "Неадаптивный" in spec.interactor.behavior_notes
+    assert spec.statement_draft.has_interaction
+
+
+def test_plain_spec_is_not_interactive():
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+
+    assert not spec.interactive
+    assert spec.interactor is None
+
+
+def _without_block(text: str, header: str) -> str:
+    """Текст спека без строки `header` и её блочного значения под ней."""
+    lines = text.splitlines()
+    start = lines.index(header)
+    end = start + 1
+    while end < len(lines) and lines[end].startswith(" " * (len(header) - len(header.lstrip()) + 2)):
+        end += 1
+    return "\n".join(lines[:start] + lines[end:]) + "\n"
+
+
+def test_interactor_section_without_protocol_raises(tmp_path):
+    text = (FIXTURES_DIR / "interactive-spec.yaml").read_text(encoding="utf-8")
+    path = tmp_path / "interactive-spec.yaml"
+    path.write_text(_without_block(text, "  interaction_sketch: |"), encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert "statement_draft.interaction_sketch is required" in str(exc_info.value)
+
+
+def test_interactor_section_with_blank_behavior_raises(tmp_path):
+    text = (FIXTURES_DIR / "interactive-spec.yaml").read_text(encoding="utf-8")
+    text = _without_block(text, "  behavior_notes: |") + '  behavior_notes: ""\n'
+    path = tmp_path / "interactive-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert "interactor.behavior_notes" in str(exc_info.value)
+
+
+def test_protocol_without_interactor_section_raises(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace(
+        '  indexing: "1-indexed"\n',
+        '  indexing: "1-indexed"\n  interaction_sketch: "запросы ? v"\n',
+    )
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert "no 'interactor' section" in str(exc_info.value)
+
+
+def test_blank_protocol_without_interactor_section_is_accepted(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace(
+        '  indexing: "1-indexed"\n', '  indexing: "1-indexed"\n  interaction_sketch: ""\n'
+    )
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    assert not load_spec(path).interactive
