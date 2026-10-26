@@ -70,7 +70,7 @@ STEP_NAME = "upload_solutions"
 
 # Приоритет выбора Main correct — именно в этом порядке. Значения — языки
 # после нормализации через `_LANGUAGE_ALIASES`.
-_MAIN_LANGUAGE_PRIORITY = ["py", "cpp", "java"]
+_MAIN_LANGUAGE_PRIORITY = ["cpp", "java", "py"]
 
 # Варианты написания языка в имени файла -> имя из `_MAIN_LANGUAGE_PRIORITY`.
 _LANGUAGE_ALIASES = {

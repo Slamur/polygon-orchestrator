@@ -135,8 +135,8 @@ def test_uploads_each_solution_with_its_tag(problems_dir, spec):
     message = _run(spec, problems_dir, client)
 
     expected = {
-        "ok_cpp_alt_draft.cpp": "OK",
-        "ok_py_main_draft.py": "MA",
+        "ok_cpp_alt_draft.cpp": "MA",
+        "ok_py_main_draft.py": "OK",
         "tl_cpp_bad_draft.cpp": "TL",
         "tl_py_slow_draft.py": "TL",
         "wa_cpp_offbyone_draft.cpp": "WA",
@@ -149,7 +149,7 @@ def test_uploads_each_solution_with_its_tag(problems_dir, spec):
         for name, tag in sorted(expected.items())
     ]
     assert "5 solution(s)" in message
-    assert "ok_py_main_draft.py=MA" in message
+    assert "ok_cpp_alt_draft.cpp=MA" in message
 
 
 def test_solutions_marked_removed_are_not_uploaded(problems_dir, spec):
@@ -165,27 +165,54 @@ def test_solutions_marked_removed_are_not_uploaded(problems_dir, spec):
     assert _tags(client) == {"ok_cpp_alt_draft.cpp": "MA"}
 
 
-def test_main_falls_back_to_cpp_without_py_ok(problems_dir, spec):
+def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
     _link(problems_dir)
     _write_solutions(
-        problems_dir, {"ok_java_main_draft.java": b"", "ok_cpp_alt_draft.cpp": b""}
+        problems_dir,
+        {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b"", "ok_cpp_alt_draft.cpp": b""},
     )
     client = MagicMock()
 
     _run(spec, problems_dir, client)
 
-    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "MA", "ok_java_main_draft.java": "OK"}
+    assert _tags(client) == {
+        "ok_cpp_alt_draft.cpp": "MA",
+        "ok_java_main_draft.java": "OK",
+        "ok_py_main_draft.py": "OK",
+    }
 
 
-@pytest.mark.parametrize("py_name", ["ok_python_main_draft.py", "ok_python3_main_draft.py"])
-def test_python_language_aliases_win_main_over_cpp(problems_dir, spec, py_name):
+def test_main_falls_back_to_java_without_cpp_ok(problems_dir, spec):
     _link(problems_dir)
-    _write_solutions(problems_dir, {py_name: b"", "ok_cpp_alt_draft.cpp": b""})
+    _write_solutions(
+        problems_dir, {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b""}
+    )
     client = MagicMock()
 
     _run(spec, problems_dir, client)
 
-    assert _tags(client) == {py_name: "MA", "ok_cpp_alt_draft.cpp": "OK"}
+    assert _tags(client) == {"ok_java_main_draft.java": "MA", "ok_py_main_draft.py": "OK"}
+
+
+@pytest.mark.parametrize("py_name", ["ok_python_main_draft.py", "ok_python3_main_draft.py"])
+def test_python_language_aliases_win_main_over_unprioritized(problems_dir, spec, py_name):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {py_name: b"", "ok_pascal_alt_draft.pas": b""})
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {py_name: "MA", "ok_pascal_alt_draft.pas": "OK"}
+
+
+def test_cpp_language_alias_wins_main_over_java(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {"ok_c++_main_draft.cpp": b"", "ok_java_alt_draft.java": b""})
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_c++_main_draft.cpp": "MA", "ok_java_alt_draft.java": "OK"}
 
 
 def test_no_ok_solution_is_an_error(problems_dir, spec):
@@ -286,7 +313,7 @@ def test_incremental_run_uploads_only_changed_solution_with_its_tag(problems_dir
     _run(spec, problems_dir, client, incremental=True)
 
     assert [(c.args[1]["name"], c.args[1]["tag"]) for c in client.call.call_args_list] == [
-        ("ok_py_main_draft.py", "MA")
+        ("ok_py_main_draft.py", "OK")
     ]
 
 
