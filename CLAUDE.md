@@ -35,6 +35,9 @@ Python-оркестратор, который берёт структуриро�
   `checker.custom_needed: true` в спеке; если используется стандартный
   чекер (`checker.standard`) — этот шаг не запускается, генерировать
   нечего;
+- интерактивные задачи (секция `interactor` в спеке): протокол
+  взаимодействия в условии (`interaction.tex`, диалоги примеров) и
+  черновик интерактора (C++/testlib), только если задача интерактивная;
 - создание задачи на Polygon по `problem_id` из спека через Polygon API
   (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
   хранится в `problems/<путь задачи>/polygon_state.json`) и перенос TL/ML из
@@ -45,6 +48,9 @@ Python-оркестратор, который берёт структуриро�
   (`upload_validator`), назначение чекера (`upload_checker`: для
   `checker.custom_needed: true` — загрузка `problems/<путь задачи>/checker.cpp`,
   иначе — стандартный чекер из `checker.standard` без загрузки файла),
+  загрузка `problems/<путь задачи>/interactor.cpp` и назначение его
+  интерактором (`upload_interactor`, только у интерактивной задачи; флаг
+  интерактивности выставляет `set_constraints`),
   загрузка `problems/<путь задачи>/spec.yaml` как есть в раздел Attachments
   (aux-файл, `upload_spec`) — чтобы `polygon pull` восстанавливал задачу
   вместе со спеком.
@@ -93,6 +99,7 @@ Python-оркестратор, который берёт структуриро�
 │       ├── freemarker.md         # правила по FreeMarker-скриптам (generators_and_script)
 │       ├── solutions.md          # правила по решениям (solutions_draft)
 │       ├── checker.md            # правила по чекеру (checker_draft)
+│       ├── interactive.md        # правила интерактивных задач (interactor_draft; statement_draft и solutions_draft — только у интерактивной задачи)
 │       └── polygon.md            # справка по интерфейсу Polygon — шагам не прикладывается
 ├── examples/                     # учебные задачи-образцы, по каталогу на задачу
 │   └── <вид-входа>/<суть>/       # например array/prefix-sums; раскладка как у problems/<путь задачи>/
@@ -119,6 +126,9 @@ Python-оркестратор, который берёт структуриро�
 │   ├── checker_draft/
 │   │   ├── system.md
 │   │   └── user.md.j2
+│   ├── interactor_draft/
+│   │   ├── system.md
+│   │   └── user.md.j2
 │   ├── spec_from_draft/          # не шаг пайплайна: спек по черновику автора для `init --draft`
 │   │   ├── system.md
 │   │   └── user.md.j2
@@ -137,7 +147,8 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── constraints_pick.py
 │   │   ├── generators_and_script.py
 │   │   ├── solutions_draft.py
-│   │   └── checker_draft.py
+│   │   ├── checker_draft.py
+│   │   └── interactor_draft.py
 │   ├── model_router.py            # маршрутизация по классу модели/effort — вендоронезависимо,
 │   │                               # делегирует в LLMClient (см. ниже)
 │   ├── llm_client.py               # Protocol LLMClient — единственная точка подмены вендора
@@ -153,7 +164,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
 │   │   ├── sync.py                 # база синхронизации: ключи элементов задачи, sha256, fetch_revision (ревизия задачи на Polygon)
 │   │   ├── pull.py                 # pull_problem — привязка к существующей задаче, сравнение с ней и выгрузка (обратное направление к steps/)
-│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_spec, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_statement, upload_generators, upload_test_script, upload_solutions
+│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_spec, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_interactor, upload_statement, upload_generators, upload_test_script, upload_solutions
 │   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
@@ -171,6 +182,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── generators_and_script.json
         │   ├── solutions_draft.json
         │   ├── checker_draft.json
+        │   ├── interactor_draft.json
         │   └── <step>.response.json        # ответ модели, ещё не применённый (до `llm apply`, `llm accept` или нового прогона шага)
         ├── llm_generation.log      # лог `orchestrator <задача> llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
         ├── polygon.log             # лог `orchestrator <задача> polygon push` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
@@ -178,9 +190,9 @@ Python-оркестратор, который берёт структуриро�
         ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull`
         ├── .llm_backup/<время>/    # прежние версии файлов, перезаписанных или переименованных `llm generate`
         ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
-        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex
+        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи)
         │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
-        │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based
+        │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ диалог example_<N>.{input,output}_for_statement.txt у интерактивной задачи)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
@@ -188,6 +200,7 @@ Python-оркестратор, который берёт структуриро�
         ├── test_script(_groups)
         ├── solutions/*.cpp
         ├── checker.cpp             # только если checker.custom_needed: true в спеке
+        ├── interactor.cpp          # только у интерактивной задачи (секция interactor в спеке)
         └── **/<имя>.removed        # файлы, которые шаг в режиме доработки предложил удалить: автор смотрит и удаляет сам
 ```
 
@@ -273,6 +286,20 @@ Python-оркестратор, который берёт структуриро�
    чекера — ошибка здесь особенно дорога: чекер, который слишком мягко или
    слишком строго сравнивает ответы, может пропустить неверное решение или
    забраковать верное.
+6. **`interactor_draft`** (опциональный) — запускается, только если задача
+   интерактивная (в спеке есть секция `interactor`). Вход:
+   `interactor.behavior_notes` (адаптивность, проверка итогового ответа,
+   ошибки решения, что писать в `tout` для чекера) + из `statement_draft`
+   формат теста (`formal_input_sketch`, `indexing`, input примеров — в
+   интерактивной задаче это вход интерактора, а не решения) и протокол
+   `interaction_sketch`. Выход: `interactor.cpp` (testlib,
+   `registerInteraction`). Как и у чекера, модель реализует ровно
+   описанное поведение; чего не хватает — `uncertain`. Протокол
+   интерактивной задачи также получают `statement_draft` (пишет
+   `interaction.tex` и диалог каждого примера — что решение прочитало и
+   что вывело, для "input/output for statements" на Polygon) и
+   `solutions_draft`; правила — `templates/tutorials/interactive.md`,
+   которые эти два шага получают только у интерактивной задачи.
 
 Каждый шаг — чистая функция от (спек + результаты предыдущих шагов) к
 артефакту(-ам) + отчёту о неуверенности. Шаги идемпотентны: повторный запуск
@@ -517,7 +544,9 @@ status|pull` спек не нужен, а команда на момент до�
   этого шага, не только правка `generation`); `solutions_draft` → секция
   `solutions` + `constraints.intended_complexity` + ввод-вывод из
   `statement_draft` (формат ввода и вывода, `indexing`, примеры с ответами,
-  легенда) + `constraints.yaml`). Сборка этой части `statement_draft` —
+  легенда, у интерактивной задачи — протокол) + `constraints.yaml`;
+  `interactor_draft` → секция `interactor` + формат ввода и протокол из
+  `statement_draft`). Сборка этой части `statement_draft` —
   `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
   трёх шагов;
 - хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +
@@ -558,7 +587,7 @@ status|pull` спек не нужен, а команда на момент до�
 
 ## Правило эскалации при неуверенности
 
-Это правило применяется к промптам всех четырёх шагов (см. `prompts/*/system.md`):
+Это правило применяется к промптам всех шагов (см. `prompts/*/system.md`):
 
 - Если для ответа не хватает данных, явно заданных автором в спеке (в первую
   очередь — asymптотика, точность вещественного ответа, поведение на
@@ -603,9 +632,9 @@ status|pull` спек не нужен, а команда на момент до�
   проходит, полезные группы.
 
 Файлы с идеями модели начинаются с комментария `SUGGESTION: ...` — автор
-видит их и в каталоге задачи, и на Polygon. `statement_draft` и
-`checker_draft` своего не предлагают: условие и правило сравнения задаёт
-только автор.
+видит их и в каталоге задачи, и на Polygon. `statement_draft`,
+`checker_draft` и `interactor_draft` своего не предлагают: условие,
+правило сравнения и поведение интерактора задаёт только автор.
 
 Спек по черновику (`init --draft`) — место, где автор только формулирует
 свои решения, поэтому там модель дозаполняет и их (асимптотику, идею
@@ -627,6 +656,7 @@ status|pull` спек не нужен, а команда на момент до�
 | `checker_draft`              | высокая (при неполном `custom_comparison_notes`) | средняя модель |
 | `statement_draft` (LaTeX)   | средняя     | средняя модель              |
 | `generators_and_script`     | средняя     | средняя модель             |
+| `interactor_draft`          | высокая — протокол целиком, ошибка ломает все тесты | сильная модель |
 | `spec_from_draft` (`init --draft`) | высокая — спек вход всех шагов | сильная модель |
 
 `checker_draft` формально механический, когда `custom_comparison_notes`
