@@ -25,6 +25,9 @@ def solve():
         return 0
 
     ans = get_ans()
+    # Fast output: the whole answer in one print call. Several values are
+    # converted to strings and joined first, e.g.
+    # print(' '.join(map(str, ans))) or print('\n'.join(map(str, ans))).
     print(ans)
 
 

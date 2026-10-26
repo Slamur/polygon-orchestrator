@@ -99,7 +99,11 @@ def test_extra_context_documents_without_references_attaches_language_templates(
     )
 
     # Скелета для kotlin нет — язык просто остаётся без него.
-    assert documents == [str(SOLUTION_TEMPLATES / "ok.cpp"), str(SOLUTION_TEMPLATES / "ok.py")]
+    assert documents == [
+        str(SOLUTION_TEMPLATES / "ok.cpp"),
+        str(SOLUTION_TEMPLATES / "ok.py"),
+        str(SOLUTION_TEMPLATES / "tl_ok_slowio.py"),
+    ]
 
 
 def test_extra_context_documents_attaches_all_templates_of_a_language(spec):
@@ -154,8 +158,9 @@ def test_cpp_solution_template_compiles():
     assert result.success, result.stderr
 
 
-def test_python_solution_template_compiles(tmp_path):
-    py_compile.compile(str(SOLUTION_TEMPLATES / "ok.py"), cfile=str(tmp_path / "ok.pyc"), doraise=True)
+@pytest.mark.parametrize("name", ["ok.py", "tl_ok_slowio.py"])
+def test_python_solution_templates_compile(name, tmp_path):
+    py_compile.compile(str(SOLUTION_TEMPLATES / name), cfile=str(tmp_path / f"{name}c"), doraise=True)
 
 
 def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_path):

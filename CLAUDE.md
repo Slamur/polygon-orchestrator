@@ -83,7 +83,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── spec_template.yaml        # черновик спека для `orchestrator <задача> init` (и основа для `init --draft`); шагам не прикладывается
 │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
 │   ├── testlib.h
-│   ├── solutions/                # скелеты решений (<verdict>_<description>.<language>: ok.cpp, ok.java, ok.py, tl_ok_slowio.java) —
+│   ├── solutions/                # скелеты решений (<verdict>_<description>.<language>: ok.cpp, ok.java, ok.py, tl_ok_slowio.java, tl_ok_slowio.py) —
 │   │                             # ввод-вывод и структура без алгоритма; solutions_draft получает их для языков без ok-образца в референсах
 │   └── tutorials/
 │       ├── statement.md          # правила по условию (statement_draft)
