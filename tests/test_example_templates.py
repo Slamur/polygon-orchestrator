@@ -24,7 +24,11 @@ from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
 from orchestrator.spec import load_spec
 from orchestrator.references import SPEC_FILENAME
 from orchestrator.steps.base import EXAMPLES_DIR
-from orchestrator.steps.generators_and_script import SCRIPT_FUNCTIONS_FILENAME, SCRIPT_NAMES
+from orchestrator.steps.generators_and_script import (
+    SCRIPT_FUNCTIONS_FILENAME,
+    SCRIPT_NAMES,
+    fix_script_comparisons,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 TEMPLATES_DIR = REPO_ROOT / "templates"
@@ -132,6 +136,17 @@ def test_example_test_scripts_contain_standard_functions(example_dir):
         script_path = example_dir / name
         if script_path.exists():
             assert functions in script_path.read_text(encoding="utf-8"), script_path
+
+
+@examples
+def test_example_test_scripts_have_no_comparison_signs_in_directives(example_dir):
+    # `>` внутри тега FreeMarker закрывает тег — Polygon такой скрипт не
+    # сохраняет (templates/tutorials/freemarker.md, "Сравнения").
+    for name in SCRIPT_NAMES:
+        script_path = example_dir / name
+        if script_path.exists():
+            _, fixed = fix_script_comparisons(script_path.read_text(encoding="utf-8"))
+            assert fixed == 0, script_path
 
 
 def _compile(cpp_path: Path) -> str | None:

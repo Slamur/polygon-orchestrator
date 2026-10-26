@@ -159,12 +159,60 @@ def restore_script_functions(script: str, functions_block: str) -> tuple[str, li
     return script[:insert_at] + block + script[insert_at:], names
 
 
+# Директива FreeMarker, занимающая хвост строки: `<#if value >= n>`. Внутри
+# тега `>` закрывает тег (`<#if value>` + текст `= n>`), поэтому сравнения
+# пишутся словами (`gt`/`gte`/`lt`/`lte`, templates/tutorials/freemarker.md),
+# но модель время от времени пишет знаки. Границы выражения берутся по концу
+# строки, а не по первому `>`, — иначе его не восстановить.
+_DIRECTIVE_LINE_RE = re.compile(
+    r"(<#(?:if|elseif|assign|local|global|return)\s)((?:(?!<[#/@]).)*?)(\s*/?>[ \t]*)$", re.M
+)
+_STRING_RE = re.compile(r"\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'")
+# `->` (лямбда) и `..<` (диапазон) — не сравнения.
+_COMPARISON_RE = re.compile(r"\s*(?<![-.])(>=|<=|>|<)\s*")
+_COMPARISON_WORDS = {">=": "gte", "<=": "lte", ">": "gt", "<": "lt"}
+
+
+def _replace_comparisons(expression: str) -> tuple[str, int]:
+    parts: list[str] = []
+    count = 0
+    position = 0
+    for string in [*_STRING_RE.finditer(expression), None]:
+        end = string.start() if string else len(expression)
+        code, replaced = _COMPARISON_RE.subn(
+            lambda m: f" {_COMPARISON_WORDS[m.group(1)]} ", expression[position:end]
+        )
+        parts.append(code)
+        count += replaced
+        if string:
+            parts.append(string.group(0))
+            position = string.end()
+    return "".join(parts), count
+
+
+def fix_script_comparisons(script: str) -> tuple[str, int]:
+    """Заменяет знаки сравнения в директивах скрипта на `gt`/`gte`/`lt`/`lte`
+    (см. `_DIRECTIVE_LINE_RE`). Только директивы, которые заканчиваются в
+    конце своей строки; строковые литералы не трогает. Возвращает новый
+    скрипт и число замен."""
+    total = 0
+
+    def replace(match: re.Match[str]) -> str:
+        nonlocal total
+        expression, count = _replace_comparisons(match.group(2))
+        total += count
+        return match.group(1) + expression + match.group(3)
+
+    return _DIRECTIVE_LINE_RE.sub(replace, script), total
+
+
 def _restore_functions_in_artifacts(
     functions_block: str,
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
     """`postprocess_artifacts` для `run_generative_step`: прогоняет каждый
-    test-script ответа через `restore_script_functions` и оставляет заметку
-    по каждому, куда что-то дописано."""
+    test-script ответа через `fix_script_comparisons` и
+    `restore_script_functions` и оставляет заметку по каждому, где что-то
+    исправлено или дописано."""
 
     def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
         result = dict(artifacts)
@@ -172,6 +220,16 @@ def _restore_functions_in_artifacts(
         for name in SCRIPT_NAMES:
             if name not in result:
                 continue
+            result[name], fixed = fix_script_comparisons(result[name])
+            if fixed:
+                notes.append({
+                    "field": name,
+                    "kind": "restored",
+                    "explanation": (
+                        f"знаки сравнения внутри директив FreeMarker ({fixed} шт.) заменены "
+                        "оркестратором на gt/gte/lt/lte: `>` внутри тега закрывает тег"
+                    ),
+                })
             result[name], restored = restore_script_functions(result[name], functions_block)
             if restored:
                 notes.append({
