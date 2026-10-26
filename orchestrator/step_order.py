@@ -14,12 +14,14 @@ from __future__ import annotations
 # каждый следующий шаг может зависеть от артефактов предыдущих. `checker_draft`
 # ни от чего не зависит (в отличие от соседей по порядку), но держится рядом
 # с `generators_and_script` — логически это тоже часть тестовой инфраструктуры
-# задачи, а не решений (CLAUDE.md, пункт 5).
+# задачи, а не решений (CLAUDE.md, пункт 5). `interactor_draft` — туда же и по
+# той же причине (CLAUDE.md, пункт 6).
 STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
     "generators_and_script",
     "checker_draft",
+    "interactor_draft",
     "solutions_draft",
 ]
 

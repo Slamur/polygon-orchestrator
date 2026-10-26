@@ -14,6 +14,7 @@ from orchestrator.model_contracts import ModelResponse
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
+    INTERACTIVE_TUTORIAL,
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -34,16 +35,50 @@ STATEMENT_SUBDIR = "statement"
 _FIXED_STATEMENT_FILES = ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]
 _EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 
+# Интерактивная задача (`spec.interactive`): протокол взаимодействия —
+# отдельный блок условия (Interaction в Polygon), а пример в условии —
+# диалог решения с интерактором, а не вход теста (его читает интерактор):
+# что решение прочитало (`input_for_statement`) и что вывело
+# (`output_for_statement`), см. `upload_statement`.
+INTERACTION_FILE = "interaction.tex"
+_DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$")
+
+
+def dialogue_filenames(number: int) -> tuple[str, str]:
+    """Имена файлов диалога `number`-го примера (без `examples/`)."""
+    return (
+        f"example_{number}.input_for_statement.txt",
+        f"example_{number}.output_for_statement.txt",
+    )
+
 
 def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
     """Ровно тот набор имён файлов, который `prompts/statement_draft/`
     требует от модели: 4 фиксированных tex-файла + по одному
-    `examples/example_<N>.txt` на каждый `sample_examples[N-1]`.
+    `examples/example_<N>.txt` на каждый `sample_examples[N-1]`; у
+    интерактивной задачи — ещё `interaction.tex` и диалог каждого примера.
     """
     n = len(spec.statement_draft.sample_examples)
-    return set(_FIXED_STATEMENT_FILES) | {
+    names = set(_FIXED_STATEMENT_FILES) | {
         f"examples/example_{i}.txt" for i in range(1, n + 1)
     }
+    if spec.interactive:
+        names.add(INTERACTION_FILE)
+        for i in range(1, n + 1):
+            names.update(f"examples/{name}" for name in dialogue_filenames(i))
+    return names
+
+
+def _section_data(spec: ProblemSpec) -> dict[str, Any]:
+    """Секция `statement_draft` для промпта и хеша. `interaction_sketch`
+    только у интерактивной задачи — у обычной поля в хеше нет, как и до его
+    появления (иначе его добавление инвалидировало бы кэш всех задач)."""
+    exclude = set(SPEC_REFERENCES_FIELD)
+    if not spec.interactive:
+        exclude.add("interaction_sketch")
+    return with_default_lists(
+        spec.statement_draft.model_dump(mode="json", exclude=exclude), _LIST_FIELDS
+    )
 
 
 def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str]], None]:
@@ -75,7 +110,7 @@ def compute_input_hash(
     (CLAUDE.md, "Кэширование по хешу спека"). `problem_id`/`upstream_artifacts`
     здесь не используются (шаг от них не зависит) — присутствуют только ради
     единой сигнатуры `compute_input_hash(problem_id, spec, upstream_artifacts)`
-    у всех пяти шагов.
+    у всех шагов.
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
@@ -88,10 +123,7 @@ def hash_inputs(
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
     (`cache.compute_input_values`), чтобы они не разошлись."""
-    section_data = with_default_lists(
-        spec.statement_draft.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
-    )
-    return section_data, None
+    return _section_data(spec), None
 
 
 def primary_artifact_path(
@@ -110,18 +142,21 @@ def current_artifacts(
 ) -> dict[str, Path]:
     """Текущие файлы шага на диске: имя артефакта (как его вернула бы
     модель) -> путь — для режима доработки (`base.StepRevision`).
-    4 tex-файла и `examples/example_<N>.txt` (по возрастанию N); `name.txt`
-    — не артефакт шага (его пишут `polygon push`/`pull`)."""
+    4 tex-файла, `interaction.tex` и `examples/example_<N>.txt` с диалогами
+    примеров (по возрастанию N); `name.txt` — не артефакт шага (его пишут
+    `polygon push`/`pull`)."""
     statement_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR
-    candidates = {name: statement_dir / name for name in _FIXED_STATEMENT_FILES}
+    candidates = {
+        name: statement_dir / name for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
+    }
     examples_dir = statement_dir / "examples"
     examples = examples_dir.glob("example_*.txt") if examples_dir.is_dir() else []
     numbered = sorted(
-        (int(match.group(1)), path)
+        (int(match.group(1)), path.name, path)
         for path in examples
-        if (match := _EXAMPLE_NAME.match(path.name))
+        if (match := _EXAMPLE_NAME.match(path.name) or _DIALOGUE_NAME.match(path.name))
     )
-    candidates.update({f"examples/{path.name}": path for _, path in numbered})
+    candidates.update({f"examples/{name}": path for _, name, path in numbered})
     return existing_artifacts(candidates)
 
 
@@ -132,8 +167,14 @@ def extra_context_documents(
     референсы спека (общие `references` и `statement_draft.references`, см.
     `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
     `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково.
+
+    Интерактивной задаче — ещё правила `INTERACTIVE_TUTORIAL` (перед
+    референсами): обычным задачам они не нужны, и их правка не трогает кэш
+    условия обычных задач.
     """
-    return reference_documents(STEP_NAME, spec)
+    references = reference_documents(STEP_NAME, spec) or []
+    rules = [str(Path(templates_dir) / INTERACTIVE_TUTORIAL)] if spec.interactive else []
+    return [*rules, *references] or None
 
 
 def run_step(
@@ -169,7 +210,10 @@ def run_step(
     При успехе пишет в `problems/<problem_id>/statement/` 4 фиксированных
     файла (`legend.tex`, `input_format.tex`, `output_format.tex`,
     `notes.tex`) и по одному `examples/example_<N>.txt` на каждый элемент
-    `sample_examples` (только input примера). Набор имён файлов из ответа
+    `sample_examples` (только input примера); у интерактивной задачи
+    (`spec.interactive`) — ещё `interaction.tex` (протокол взаимодействия)
+    и диалог каждого примера (`example_<N>.input_for_statement.txt`,
+    `example_<N>.output_for_statement.txt`). Набор имён файлов из ответа
     модели проверяется ДО записи на диск (`_validate_statement_artifacts`):
     при любой недостаче/лишнем файле бросается `ValueError`, и ни один файл
     не пишется.
@@ -178,12 +222,9 @@ def run_step(
     результатов других шагов (см. CLAUDE.md, "Кэширование по хешу спека" —
     для этого шага апстрим-артефактов в хеше нет). Параметр присутствует
     только ради общей сигнатуры `run_step(problem_id, spec,
-    upstream_artifacts)` у всех пяти шагов.
+    upstream_artifacts)` у всех шагов.
     """
-    section_data = with_default_lists(
-        spec.statement_draft.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _LIST_FIELDS
-    )
-    context = {"problem_id": problem_id, "statement_draft": section_data}
+    context = {"problem_id": problem_id, "statement_draft": _section_data(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 

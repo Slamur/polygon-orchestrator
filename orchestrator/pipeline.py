@@ -1,4 +1,4 @@
-"""Прогон 5 шагов для одного `problem_id`, с учётом кэша (CLAUDE.md,
+"""Прогон генеративных шагов для одного `problem_id`, с учётом кэша (CLAUDE.md,
 "Запуск", "Кэширование по хешу спека"), статус кэша шагов
 (`compute_step_statuses`) и принятие текущих файлов без вызова модели
 (`accept_steps`).
@@ -49,6 +49,7 @@ from orchestrator.steps import (
     checker_draft,
     constraints_pick,
     generators_and_script,
+    interactor_draft,
     solutions_draft,
     statement_draft,
 )
@@ -68,6 +69,7 @@ _STEP_MODULES: dict[str, ModuleType] = {
     "constraints_pick": constraints_pick,
     "generators_and_script": generators_and_script,
     "checker_draft": checker_draft,
+    "interactor_draft": interactor_draft,
     "solutions_draft": solutions_draft,
 }
 
@@ -155,6 +157,8 @@ def _optional_skip_detail(step_name: str, spec: Any) -> Optional[str]:
         return "spec has no 'solutions' section — solution drafts were not requested by the author"
     if step_name == "checker_draft" and spec.checker.custom_needed is False:
         return "checker.custom_needed=false — a standard checker is used, no draft requested"
+    if step_name == "interactor_draft" and not spec.interactive:
+        return "spec has no 'interactor' section — the problem is not interactive"
     return None
 
 

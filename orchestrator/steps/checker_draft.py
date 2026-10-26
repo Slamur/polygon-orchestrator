@@ -44,7 +44,7 @@ def compute_input_hash(
     `checker.custom_needed: true` в спеке. `upstream_artifacts` не
     используется — шаг ни от чего не зависит, кроме
     `checker.custom_comparison_notes`, присутствует ради единой сигнатуры
-    у всех пяти шагов.
+    у всех шагов.
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 

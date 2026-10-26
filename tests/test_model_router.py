@@ -41,6 +41,7 @@ def test_step_to_model_covers_all_steps_and_spec_from_draft():
         "generators_and_script",
         "solutions_draft",
         "checker_draft",
+        "interactor_draft",
         "spec_from_draft",
     }
 
@@ -49,6 +50,7 @@ def test_critical_steps_use_strong_model():
     assert STEP_TO_MODEL["constraints_pick"] == "strong-model"
     assert STEP_TO_MODEL["solutions_draft"] == "strong-model"
     assert STEP_TO_MODEL["spec_from_draft"] == "strong-model"
+    assert STEP_TO_MODEL["interactor_draft"] == "strong-model"
 
 
 def test_generators_and_script_uses_medium_model():
@@ -70,6 +72,7 @@ def test_step_to_effort_covers_all_five_steps():
     assert STEP_TO_EFFORT["generators_and_script"] == "high"
     assert STEP_TO_EFFORT["statement_draft"] == "medium"
     assert STEP_TO_EFFORT["checker_draft"] == "high"
+    assert STEP_TO_EFFORT["interactor_draft"] == "high"
 
 
 def test_model_response_defaults():

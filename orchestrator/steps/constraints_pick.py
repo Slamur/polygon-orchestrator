@@ -56,7 +56,7 @@ def compute_input_hash(
     формат ввода из `statement_draft` (см. `_build_context_sections`): правка
     формата входа должна инвалидировать и `validator.cpp`.
     `problem_id`/`upstream_artifacts` не используются, присутствуют ради
-    единой сигнатуры у всех пяти шагов.
+    единой сигнатуры у всех шагов.
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 

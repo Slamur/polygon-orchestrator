@@ -1,7 +1,8 @@
 """Общий цикл одного генеративного шага.
 
-Каждый из пяти шагов (`statement_draft`, `constraints_pick`,
-`generators_and_script`, `solutions_draft`, `checker_draft`, см. CLAUDE.md,
+Каждый из шагов (`statement_draft`, `constraints_pick`,
+`generators_and_script`, `solutions_draft`, `checker_draft`,
+`interactor_draft`, см. CLAUDE.md,
 "Роль каждого генеративного шага") — это одна и та же последовательность
 действий над разными данными:
 
@@ -102,6 +103,12 @@ INVALID_NAMES_SUBDIR = "invalid_names"
 # Polygon. К вызову модели прикладывается шаблон (`STEP_CONTEXT_DOCUMENTS`).
 PROBLEM_LIB_FILENAME = "problem_lib.h"
 
+# Правила для интерактивных задач (`spec.interactive`): `interactor_draft`
+# получает их всегда, `statement_draft` и `solutions_draft` — только для
+# интерактивной задачи (через `extra_context_documents`), чтобы их правка не
+# инвалидировала кэш этих шагов у обычных задач.
+INTERACTIVE_TUTORIAL = "tutorials/interactive.md"
+
 # Обязательные документы контекста на шаг (пути относительно templates_dir),
 # см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
 # это правила, а не справочный материал. Правила разбиты по темам, и шаг
@@ -141,6 +148,10 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     ],
     "checker_draft": [
         "tutorials/checker.md",
+        "problem_lib.h",
+    ],
+    "interactor_draft": [
+        INTERACTIVE_TUTORIAL,
         "problem_lib.h",
     ],
 }
@@ -266,7 +277,8 @@ def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[
     повод так сделать в промпте не нужен. `True` — дополнительно
     `formal_output_sketch`, `legend_sketch` и output примеров (`null`, если
     автор его не указал) — для решений, которым нужно и читать вход, и
-    печатать ответ.
+    печатать ответ, — и у интерактивной задачи протокол взаимодействия
+    (`interaction_sketch`; у обычной ключа нет, чтобы не менять хеш).
     """
     statement = spec.statement_draft
     section: dict[str, Any] = {
@@ -279,6 +291,8 @@ def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[
         section["sample_examples"] = [
             {"input": ex.input, "output": ex.output} for ex in statement.sample_examples
         ]
+        if statement.has_interaction:
+            section["interaction_sketch"] = statement.interaction_sketch
     else:
         section["sample_examples"] = [{"input": ex.input} for ex in statement.sample_examples]
     return section

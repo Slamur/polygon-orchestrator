@@ -11,6 +11,14 @@
 
 ## Индексация
 {{ statement.indexing }}
+{% if statement.interaction_sketch is defined %}
+
+## Протокол взаимодействия
+Задача интерактивная (правила — interactive.md): решение общается с
+интерактором по протоколу ниже. Формат входных данных выше и input
+примеров — это тест, который читает интерактор, решению он не виден.
+{{ statement.interaction_sketch }}
+{% endif %}
 
 ## Примеры из условия
 {% for ex in statement.sample_examples %}
