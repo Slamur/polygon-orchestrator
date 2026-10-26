@@ -281,3 +281,51 @@ def test_status_stale_when_constraints_yaml_removed(tmp_path, spec):
 
     assert status == "stale"
     assert "constraints_pick" in detail
+
+
+@pytest.fixture
+def interactive_spec():
+    return load_spec(FIXTURES_DIR / "interactive-spec.yaml")
+
+
+def test_interactive_spec_sets_interactive_flag(tmp_path, interactive_spec):
+    _link(tmp_path)
+    _write_constraints(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
+    client = MagicMock()
+
+    message = _run(interactive_spec, tmp_path, client)
+
+    method, params = client.call.call_args.args
+    assert method == "problem.updateInfo"
+    assert params["interactive"] == "true"
+    assert "interactive=true" in message
+    assert "interactive" in load_polygon_state(PROBLEM_ID, problems_dir=tmp_path).synced
+
+
+def test_plain_spec_does_not_record_interactive_flag(tmp_path, spec):
+    # У обычных задач флага в базе нет — как у синхронизированных до его появления.
+    _link(tmp_path)
+    _write_constraints(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
+
+    _run(spec, tmp_path, MagicMock())
+
+    assert "interactive" not in load_polygon_state(PROBLEM_ID, problems_dir=tmp_path).synced
+
+
+def test_switching_interactive_flag_reuploads_with_same_limits(tmp_path, spec, interactive_spec):
+    _link(tmp_path)
+    _write_constraints(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
+    _run(spec, tmp_path, MagicMock())
+
+    client = MagicMock()
+    _run(interactive_spec, tmp_path, client, incremental=True)
+    assert client.call.call_args.args[1]["interactive"] == "true"
+
+    # И обратно: флаг теперь в базе, поэтому снятие тоже замечается.
+    client = MagicMock()
+    _run(spec, tmp_path, client, incremental=True)
+    assert client.call.call_args.args[1]["interactive"] == "false"
+
+    client = MagicMock()
+    _run(spec, tmp_path, client, incremental=True)
+    client.call.assert_not_called()

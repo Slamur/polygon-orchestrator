@@ -574,7 +574,12 @@ def test_full_run_commits_after_every_step_but_create_problem(problems_dir):
         for c in client.call.call_args_list
         if c.args[0] == "problem.commitChanges"
     ]
-    assert commits == [f"orchestrator: {name}" for name in POLYGON_STEP_ORDER[1:]]
+    # upload_interactor у обычной задачи ничего не загружает — коммита нет.
+    assert commits == [
+        f"orchestrator: {name}"
+        for name in POLYGON_STEP_ORDER[1:]
+        if name != "upload_interactor"
+    ]
 
 
 def test_step_order():
@@ -585,6 +590,7 @@ def test_step_order():
         "upload_problem_lib",
         "upload_validator",
         "upload_checker",
+        "upload_interactor",
         "upload_statement",
         "upload_generators",
         "upload_test_script",
@@ -654,6 +660,7 @@ def test_status_not_run_without_state(tmp_path):
         ("upload_problem_lib", "not run"),
         ("upload_validator", "not run"),
         ("upload_checker", "not run"),
+        ("upload_interactor", "done"),
         ("upload_statement", "not run"),
         ("upload_generators", "not run"),
         ("upload_test_script", "not run"),
@@ -677,6 +684,7 @@ def test_status_done_with_state(tmp_path):
         ("upload_problem_lib", "not run"),
         ("upload_validator", "not run"),
         ("upload_checker", "not run"),
+        ("upload_interactor", "done"),
         ("upload_statement", "not run"),
         ("upload_generators", "not run"),
         ("upload_test_script", "not run"),
@@ -702,6 +710,7 @@ def test_status_after_full_run_then_constraints_change(problems_dir):
         ("upload_problem_lib", "done"),
         ("upload_validator", "done"),
         ("upload_checker", "done"),
+        ("upload_interactor", "done"),
         ("upload_statement", "done"),
         ("upload_generators", "done"),
         ("upload_test_script", "done"),

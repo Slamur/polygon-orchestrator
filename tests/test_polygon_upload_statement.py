@@ -277,3 +277,87 @@ def test_status_sees_name_change(problems_dir, spec):
     status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
     assert status == "stale"
     assert "statement/name" in detail
+
+
+@pytest.fixture
+def interactive_spec():
+    return load_spec(FIXTURES_DIR / "interactive-spec.yaml")
+
+
+def _write_interactive(problems_dir: Path) -> None:
+    _write_tex(problems_dir)
+    (_statement_dir(problems_dir) / "interaction.tex").write_text("Протокол.\n", encoding="utf-8")
+    _write_examples(problems_dir, {1: "10 3\n"})
+    examples_dir = _statement_dir(problems_dir) / "examples"
+    (examples_dir / "example_1.input_for_statement.txt").write_text("10\n\n<\n", encoding="utf-8")
+    (examples_dir / "example_1.output_for_statement.txt").write_text("\n? 5\n\n", encoding="utf-8")
+
+
+def _calls(client, method):
+    return [c.args[1] for c in client.call.call_args_list if c.args[0] == method]
+
+
+def test_interactive_uploads_protocol_and_dialogues(problems_dir, interactive_spec):
+    _link(problems_dir)
+    _write_interactive(problems_dir)
+    client = MagicMock()
+
+    _run(interactive_spec, problems_dir, client)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert statement["interaction"] == "Протокол.\n"
+    [test] = _calls(client, "problem.saveTest")
+    assert test["testInput"] == "10 3\n"
+    assert test["testInputForStatements"] == "10\n\n<\n"
+    assert test["testOutputForStatements"] == "\n? 5\n\n"
+
+
+def test_interactive_without_protocol_file_is_named(problems_dir, interactive_spec):
+    _link(problems_dir)
+    _write_interactive(problems_dir)
+    (_statement_dir(problems_dir) / "interaction.tex").unlink()
+    client = MagicMock()
+
+    with pytest.raises(PolygonStepError, match="interaction.tex"):
+        _run(interactive_spec, problems_dir, client)
+
+    client.call.assert_not_called()
+
+
+def test_dialogue_change_reuploads_only_that_example(problems_dir, interactive_spec):
+    _link(problems_dir)
+    _write_interactive(problems_dir)
+    _run(interactive_spec, problems_dir, MagicMock())
+    examples_dir = _statement_dir(problems_dir) / "examples"
+    (examples_dir / "example_1.output_for_statement.txt").write_text("\n? 4\n\n", encoding="utf-8")
+    client = MagicMock()
+
+    _run(interactive_spec, problems_dir, client, incremental=True)
+
+    assert _calls(client, "problem.saveStatement") == []
+    [test] = _calls(client, "problem.saveTest")
+    assert test["testOutputForStatements"] == "\n? 4\n\n"
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_half_a_dialogue_is_an_error(problems_dir, interactive_spec):
+    _link(problems_dir)
+    _write_interactive(problems_dir)
+    (_statement_dir(problems_dir) / "examples" / "example_1.output_for_statement.txt").unlink()
+
+    with pytest.raises(PolygonStepError, match="pair"):
+        _run(interactive_spec, problems_dir, MagicMock())
+
+
+def test_plain_problem_sends_no_interaction(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert "interaction" not in statement
+    [test] = _calls(client, "problem.saveTest")
+    assert "testInputForStatements" not in test

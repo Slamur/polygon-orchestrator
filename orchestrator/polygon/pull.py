@@ -63,11 +63,16 @@ Polygon равна записанной в базе (с последней си�
 - условие (`problem.statements`, язык `russian`) -> `statement/legend.tex`,
   `input_format.tex`, `output_format.tex`, `notes.tex`. Пустой на Polygon
   раздел выгружается пустым файлом — `upload_statement` требует все четыре.
+  Протокол взаимодействия интерактивной задачи -> `statement/interaction.tex`
+  — только если он непуст на Polygon или файл есть локально.
   Название задачи из условия -> `statement/name.txt` (сравнивается без
   окружающих пробелов и переводов строк);
 - тесты с флагом "use in statements" (`problem.tests`, testset `tests`) ->
   `statement/examples/example_<K>.txt`, K — порядковый номер такого теста
-  (1-based), а не его индекс на Polygon;
+  (1-based), а не его индекс на Polygon; диалог примера интерактивной
+  задачи (input/output for statement) -> `example_<K>.input_for_statement.txt`
+  и `example_<K>.output_for_statement.txt` — так же, только если он есть
+  на Polygon или локально;
 - TL/ML (`problem.info`) -> `constraints.yaml`, только секция `limits`.
   Это НЕ результат `constraints_pick`: диапазонов переменных, групп и
   секции `validator` в нём нет (см. `_CONSTRAINTS_HEADER`). Сравниваются
@@ -81,8 +86,13 @@ Polygon равна записанной в базе (с последней си�
 - валидатор (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
 - чекер (`problem.checker`) -> `checker.cpp`, если он не стандартный
   (`std::...` — скачивать нечего);
+- интерактор (`problem.interactor` — только если задача на Polygon
+  интерактивная, по `problem.info`) -> `interactor.cpp`; флаг
+  интерактивности записывается в базу (`INTERACTIVE_KEY`), чтобы push
+  выставил его по спеку, если они расходятся;
 - остальные source-файлы `*.cpp` (`problem.files`) -> `generators/`
-  (`generator_source_names`: всё, что не валидатор и не чекер);
+  (`generator_source_names`: всё, что не валидатор, не чекер и не
+  интерактор);
 - test-script (`problem.script`, testset `tests`) -> `test_script` (или уже
   существующий локально `test_script_groups`); сравнивается без пустых строк
   (`normalize_script`) — Polygon выкидывает их при сохранении;
@@ -130,11 +140,20 @@ from orchestrator.polygon.steps.set_constraints import (
     read_limits,
 )
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
-from orchestrator.polygon.steps.upload_statement import NAME_FILENAME
+from orchestrator.polygon.steps.upload_statement import (
+    INTERACTION_FILENAME,
+    INTERACTION_PARAM,
+    NAME_FILENAME,
+    dialogue_filenames,
+)
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES, normalize_script
 from orchestrator.polygon.sync import (
     CHECKER_FILE_KEY,
     CHECKER_KEY,
+    INTERACTIVE_KEY,
+    INTERACTOR_FILE_KEY,
+    INTERACTOR_FILENAME,
+    INTERACTOR_KEY,
     LIMITS_KEY,
     PROBLEM_LIB_KEY,
     SCRIPT_KEY,
@@ -146,6 +165,7 @@ from orchestrator.polygon.sync import (
     digest,
     fetch_revision,
     generator_source_names,
+    interactive_digest,
     limits_digest,
     remote_stamps,
 )
@@ -303,6 +323,7 @@ def pull_problem(
         (PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
         (_VALIDATOR_FILENAME, puller.pull_validator),
         (_CHECKER_FILENAME, puller.pull_checker),
+        (INTERACTOR_FILENAME, puller.pull_interactor),
         ("generators", puller.pull_generators),
         ("test_script", puller.pull_script),
         ("solutions", puller.pull_solutions),
@@ -417,6 +438,7 @@ class _Puller:
     _solutions: list | None = None
     _assigned: dict[str, str | None] = field(default_factory=dict)
     _remote_stamps: dict[str, str] | None = None
+    _problem_info: dict | None = None
 
     def add(self, name: str, status: str, detail: str = "") -> None:
         item = PullItem(name, status, detail)
@@ -442,12 +464,21 @@ class _Puller:
             self._missing_on_polygon(
                 name_file, f"no {_LANG!r} statement on Polygon", key=STATEMENT_NAME_KEY
             )
+            self._missing_if_local(
+                f"statement/{INTERACTION_FILENAME}", f"no {_LANG!r} statement on Polygon"
+            )
             return
         for field_name, filename in _STATEMENT_FILES.items():
             self._sync_file(
                 f"statement/{filename}",
                 lambda field_name=field_name: (statement.get(field_name) or "").encode("utf-8"),
             )
+        interaction = statement.get(INTERACTION_PARAM) or ""
+        interaction_file = f"statement/{INTERACTION_FILENAME}"
+        if interaction:
+            self._sync_file(interaction_file, lambda: interaction.encode("utf-8"))
+        else:
+            self._missing_if_local(interaction_file, "no interaction protocol on Polygon")
         name = (statement.get("name") or "").strip()
         if not name:
             self._missing_on_polygon(
@@ -482,13 +513,30 @@ class _Puller:
                 ),
                 detail=f"Polygon test {test['index']}",
             )
+            for filename, field_name in zip(
+                dialogue_filenames(number), ("inputForStatement", "outputForStatement")
+            ):
+                value = test.get(field_name) or ""
+                name = f"statement/examples/{filename}"
+                if value:
+                    self._sync_file(
+                        name,
+                        lambda value=value: value.encode("utf-8"),
+                        detail=f"Polygon test {test['index']}",
+                    )
+                else:
+                    self._missing_if_local(name, f"no {field_name} in Polygon test {test['index']}")
 
         examples_dir = self.problem_dir / "statement" / "examples"
+        pulled = {
+            filename
+            for n in range(1, len(statement_tests) + 1)
+            for filename in (f"example_{n}.txt", *dialogue_filenames(n))
+        }
         local_extra = sorted(
             path.name
             for path in (examples_dir.glob("example_*.txt") if examples_dir.is_dir() else [])
-            if path.name
-            not in {f"example_{n}.txt" for n in range(1, len(statement_tests) + 1)}
+            if path.name not in pulled
         )
         for filename in local_extra:
             self._missing_on_polygon(f"statement/examples/{filename}")
@@ -496,7 +544,7 @@ class _Puller:
             self.add("statement/examples", ITEM_ABSENT, "no tests used in statements on Polygon")
 
     def pull_limits(self) -> None:
-        info = self._call("problem.info") or {}
+        info = self._info()
         time_limit_ms, memory_limit_mb = info.get("timeLimit"), info.get("memoryLimit")
         if time_limit_ms is None or memory_limit_mb is None:
             self._missing_on_polygon(
@@ -634,11 +682,41 @@ class _Puller:
                 stamped=True,
             )
 
+    def pull_interactor(self) -> None:
+        interactive = bool(self._info().get("interactive"))
+        # Обычная задача — ключа нет: push сравнивает флаг, только если он
+        # в базе или спек интерактивный (см. `set_constraints`).
+        self.synced[INTERACTIVE_KEY] = interactive_digest(True) if interactive else None
+        if not interactive:
+            self.synced[INTERACTOR_KEY] = None
+            self._missing_if_local(
+                INTERACTOR_FILENAME,
+                "the problem is not interactive on Polygon",
+                key=INTERACTOR_FILE_KEY,
+            )
+            return
+        polygon_name = self._interactor_name()
+        if not polygon_name:
+            self._missing_on_polygon(
+                INTERACTOR_FILENAME, "no interactor set on Polygon", key=INTERACTOR_FILE_KEY
+            )
+            self.synced[INTERACTOR_KEY] = None
+            return
+        self._sync_file(
+            INTERACTOR_FILENAME,
+            lambda: self._view_source(polygon_name),
+            key=INTERACTOR_FILE_KEY,
+            also={INTERACTOR_KEY: digest(polygon_name)},
+            detail=f"Polygon source file {polygon_name}",
+            stamped=True,
+        )
+
     def pull_generators(self) -> None:
         names = generator_source_names(
             self._polygon_files().get("sourceFiles") or [],
             self._assigned_name("problem.validator"),
             self._assigned_name("problem.checker"),
+            self._interactor_name(),
         )
         for polygon_name in names:
             name = f"generators/{polygon_name}"
@@ -817,6 +895,7 @@ class _Puller:
                 self._listing(self._polygon_solutions, []),
                 self._listing(lambda: self._assigned_name("problem.validator"), None),
                 self._listing(lambda: self._assigned_name("problem.checker"), None),
+                self._listing(self._interactor_name, None),
             )
         return self._remote_stamps.get(key)
 
@@ -845,6 +924,15 @@ class _Puller:
             self.add(name, ITEM_LOCAL_ONLY, _join(detail, local_only_detail))
         else:
             self.add(name, ITEM_ABSENT, detail)
+
+    def _missing_if_local(self, name: str, detail: str, *, key: str | None = None) -> None:
+        """Как `_missing_on_polygon`, но для частей, которые есть не у всех
+        задач (протокол и интерактор интерактивной задачи): если локально
+        файла тоже нет, отчёт о нём не печатается."""
+        if (self.problem_dir / name).exists():
+            self._missing_on_polygon(name, detail, key=key)
+        else:
+            self.synced[key or name] = None
 
     def _local_only(self, subdir: str, remote_names: set[str], *, pattern: str) -> list[str]:
         """Файлы `subdir/` (по `pattern`), которых нет на Polygon, — "local only".
@@ -879,6 +967,18 @@ class _Puller:
         if self._solutions is None:
             self._solutions = self._call("problem.solutions") or []
         return self._solutions
+
+    def _info(self) -> dict:
+        if self._problem_info is None:
+            self._problem_info = self._call("problem.info") or {}
+        return self._problem_info
+
+    def _interactor_name(self) -> str | None:
+        """Имя назначенного интерактора; у обычной задачи — `None`, без
+        запроса `problem.interactor` (интерактора у неё нет)."""
+        if not self._info().get("interactive"):
+            return None
+        return self._assigned_name("problem.interactor")
 
     def _assigned_name(self, method_name: str) -> str | None:
         """Имя назначенного валидатора/чекера (`problem.validator`/`problem.checker`)."""

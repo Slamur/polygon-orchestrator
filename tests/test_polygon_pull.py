@@ -23,6 +23,7 @@ from orchestrator.polygon.state import PolygonState, load_polygon_state, save_po
 from orchestrator.polygon.steps import (
     set_constraints,
     upload_generators,
+    upload_interactor,
     upload_problem_lib,
     upload_solutions,
     upload_spec,
@@ -54,6 +55,7 @@ class FakePolygon:
         self.info = {"timeLimit": 2000, "memoryLimit": 256}
         self.validator = "val.cpp"
         self.checker = "std::ncmp.cpp"
+        self.interactor: str | None = None
         self.source_files = {"val.cpp": b"// validator\n", "gen_rand.cpp": b"// gen\n"}
         self.resource_files = {"problem_lib.h": template_problem_lib_path().read_bytes()}
         self.aux_files = {"spec.yaml": b"problem_id: example-problem\n"}
@@ -88,6 +90,7 @@ class FakePolygon:
             "problem.info": lambda: self.info,
             "problem.validator": lambda: self.validator,
             "problem.checker": lambda: self.checker,
+            "problem.interactor": lambda: self.interactor,
             "problem.files": lambda: {
                 "resourceFiles": [self._listed(n, c) for n, c in self.resource_files.items()],
                 "sourceFiles": [self._listed(n, c) for n, c in self.source_files.items()],
@@ -1160,3 +1163,77 @@ def test_failed_listing_keeps_previous_pairs_valid(problems_dir, polygon):
 
     assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
     assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_UPDATED
+
+
+def _make_interactive(polygon: FakePolygon) -> None:
+    polygon.info = {**polygon.info, "interactive": True}
+    polygon.interactor = "inter.cpp"
+    polygon.source_files["inter.cpp"] = b"// interactor\n"
+    polygon.statements["russian"]["interaction"] = "Protocol"
+    polygon.tests[0].update(inputForStatement="10\n\n<\n", outputForStatement="\n? 5\n\n")
+
+
+def test_pull_interactive_problem(problems_dir, polygon):
+    _make_interactive(polygon)
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    problem_dir = problems_dir / PROBLEM_ID
+    examples_dir = problem_dir / "statement" / "examples"
+    assert result.ok
+    assert (problem_dir / "interactor.cpp").read_bytes() == b"// interactor\n"
+    # Интерактор — не генератор, даже с нестандартным именем.
+    assert [p.name for p in (problem_dir / "generators").iterdir()] == ["gen_rand.cpp"]
+    assert (problem_dir / "statement" / "interaction.tex").read_text() == "Protocol"
+    assert (examples_dir / "example_1.input_for_statement.txt").read_text() == "10\n\n<\n"
+    assert (examples_dir / "example_1.output_for_statement.txt").read_text() == "\n? 5\n\n"
+    # У второго примера диалога нет — и файлов нет, и в отчёте он не упомянут.
+    assert not (examples_dir / "example_2.input_for_statement.txt").exists()
+    statuses = _statuses(result)
+    assert "statement/examples/example_2.input_for_statement.txt" not in statuses
+    assert statuses["statement/examples/example_1.txt"] == ITEM_DOWNLOADED
+    synced = _synced(problems_dir)
+    assert {"interactive", "interactor", "interactor.cpp"} <= set(synced)
+
+
+def test_pull_plain_problem_does_not_ask_for_interactor(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert "problem.interactor" not in polygon.methods()
+    statuses = _statuses(result)
+    assert "interactor.cpp" not in statuses
+    assert "statement/interaction.tex" not in statuses
+
+
+def test_pull_plain_problem_reports_local_interactor(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "interactor.cpp", "// local\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["interactor.cpp"] == ITEM_LOCAL_ONLY
+
+
+def test_push_after_pull_of_interactive_problem_uploads_nothing(problems_dir, polygon):
+    # Хеши pull и push для одинакового содержимого совпадают — push после
+    # pull ничего не загружает (спек — интерактивный, как задача на Polygon).
+    # Интерактор с другим именем push перезагрузил бы под `interactor.cpp`,
+    # как и чекер, — здесь он уже под этим именем.
+    _make_interactive(polygon)
+    polygon.interactor = "interactor.cpp"
+    polygon.source_files["interactor.cpp"] = polygon.source_files.pop("inter.cpp")
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    spec = load_spec(FIXTURES_DIR / "interactive-spec.yaml")
+    client = MagicMock()
+
+    for step in (set_constraints, upload_interactor, upload_statement):
+        result = run_step(
+            step.STEP,
+            PROBLEM_ID,
+            spec,
+            problems_dir=problems_dir,
+            client=client,
+            synced=_synced(problems_dir),
+        )
+        assert result.uploaded == {}, step.STEP_NAME
+
+    client.call.assert_not_called()
