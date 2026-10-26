@@ -45,14 +45,18 @@ VALIDATOR_FILE_KEY = "validator.cpp"
 VALIDATOR_KEY = "validator"  # имя файла, назначенного валидатором
 CHECKER_FILE_KEY = "checker.cpp"
 CHECKER_KEY = "checker"  # имя назначенного чекера (`checker.cpp` или `std::...`)
+INTERACTIVE_KEY = "interactive"  # флаг интерактивности задачи (`problem.updateInfo`)
+INTERACTOR_FILE_KEY = "interactor.cpp"
+INTERACTOR_KEY = "interactor"  # имя назначенного интерактора
 STATEMENT_NAME_KEY = "statement/name"
 SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
 SPEC_KEY = "spec.yaml"
 
-# Локальные имена валидатора и чекера: source-файлы с такими именами — не
-# генераторы, даже если не назначены (см. `generator_source_names`).
+# Локальные имена валидатора, чекера и интерактора: source-файлы с такими
+# именами — не генераторы, даже если не назначены (см. `generator_source_names`).
 VALIDATOR_FILENAME = "validator.cpp"
 CHECKER_FILENAME = "checker.cpp"
+INTERACTOR_FILENAME = "interactor.cpp"
 STANDARD_CHECKER_PREFIX = "std::"
 
 
@@ -64,6 +68,18 @@ def example_key(number: int) -> str:
     return f"statement/examples/example_{number}.txt"
 
 
+def dialogue_keys(number: int) -> tuple[str, str]:
+    """Ключи диалога примера интерактивной задачи (input/output for statement)."""
+    return (
+        f"statement/examples/example_{number}.input_for_statement.txt",
+        f"statement/examples/example_{number}.output_for_statement.txt",
+    )
+
+
+def interactive_digest(interactive: bool) -> str:
+    return digest(f"interactive={str(interactive).lower()}")
+
+
 def generator_key(name: str) -> str:
     return f"generators/{name}"
 
@@ -73,13 +89,24 @@ def solution_key(name: str) -> str:
 
 
 def generator_source_names(
-    source_files: list[dict], validator: str | None, checker: str | None
+    source_files: list[dict],
+    validator: str | None,
+    checker: str | None,
+    interactor: str | None = None,
 ) -> list[str]:
     """Имена генераторов среди source-файлов задачи на Polygon. Эвристика:
     Polygon не различает генераторы и прочие source-файлы, поэтому
-    генератор — любой `*.cpp`, кроме валидатора и чекера (назначенных или
-    с локальными именами `validator.cpp`/`checker.cpp`)."""
-    not_generators = {VALIDATOR_FILENAME, CHECKER_FILENAME, validator, checker}
+    генератор — любой `*.cpp`, кроме валидатора, чекера и интерактора
+    (назначенных или с локальными именами `validator.cpp`/`checker.cpp`/
+    `interactor.cpp`)."""
+    not_generators = {
+        VALIDATOR_FILENAME,
+        CHECKER_FILENAME,
+        INTERACTOR_FILENAME,
+        validator,
+        checker,
+        interactor,
+    }
     return sorted(
         file["name"]
         for file in source_files
@@ -89,9 +116,13 @@ def generator_source_names(
 
 def is_stamped_key(key: str) -> bool:
     """Есть ли у ключа отметка в листинге Polygon (см. `remote_stamps`)."""
-    return key in (PROBLEM_LIB_KEY, SPEC_KEY, VALIDATOR_FILE_KEY, CHECKER_FILE_KEY) or (
-        key.startswith(("generators/", "solutions/"))
-    )
+    return key in (
+        PROBLEM_LIB_KEY,
+        SPEC_KEY,
+        VALIDATOR_FILE_KEY,
+        CHECKER_FILE_KEY,
+        INTERACTOR_FILE_KEY,
+    ) or key.startswith(("generators/", "solutions/"))
 
 
 def file_stamp(file: dict) -> str | None:
@@ -104,11 +135,16 @@ def file_stamp(file: dict) -> str | None:
 
 
 def remote_stamps(
-    files: dict, solutions: list[dict], validator: str | None, checker: str | None
+    files: dict,
+    solutions: list[dict],
+    validator: str | None,
+    checker: str | None,
+    interactor: str | None = None,
 ) -> dict[str, str]:
     """Ключ базы -> отметка текущей версии на Polygon, по ответам
     `problem.files`, `problem.solutions`, `problem.validator`,
-    `problem.checker` — для всех файлов, которые сравнивает pull."""
+    `problem.checker`, `problem.interactor` (только у интерактивной задачи)
+    — для всех файлов, которые сравнивает pull."""
     sources = {file["name"]: file for file in files.get("sourceFiles") or []}
     by_key: dict[str, dict] = {}
     for file in files.get("resourceFiles") or []:
@@ -121,7 +157,9 @@ def remote_stamps(
         by_key[VALIDATOR_FILE_KEY] = sources[validator]
     if checker in sources and not checker.startswith(STANDARD_CHECKER_PREFIX):
         by_key[CHECKER_FILE_KEY] = sources[checker]
-    for name in generator_source_names(list(sources.values()), validator, checker):
+    if interactor in sources:
+        by_key[INTERACTOR_FILE_KEY] = sources[interactor]
+    for name in generator_source_names(list(sources.values()), validator, checker, interactor):
         by_key[generator_key(name)] = sources[name]
     for solution in solutions:
         by_key[solution_key(solution["name"])] = solution
@@ -129,14 +167,19 @@ def remote_stamps(
     return {key: stamp for key, stamp in stamps.items() if stamp is not None}
 
 
-def fetch_remote_stamps(client: PolygonClient, polygon_id: int) -> dict[str, str]:
-    """`remote_stamps` для задачи `polygon_id` — четыре запроса."""
+def fetch_remote_stamps(
+    client: PolygonClient, polygon_id: int, *, interactive: bool = False
+) -> dict[str, str]:
+    """`remote_stamps` для задачи `polygon_id` — четыре запроса, у
+    интерактивной задачи пять (`problem.interactor` у обычной задачи не
+    запрашивается: интерактора у неё нет)."""
     params = {"problemId": str(polygon_id)}
     return remote_stamps(
         client.call("problem.files", params) or {},
         client.call("problem.solutions", params) or [],
         client.call("problem.validator", params),
         client.call("problem.checker", params),
+        client.call("problem.interactor", params) if interactive else None,
     )
 
 

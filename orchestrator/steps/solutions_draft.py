@@ -13,6 +13,7 @@ from orchestrator.model_contracts import ModelResponse
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, split_solution_stem
 from orchestrator.steps.base import (
+    INTERACTIVE_TUTORIAL,
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -140,7 +141,9 @@ def extra_context_documents(
     `ok`-решения, вместо образца прикладываются все скелеты решений этого
     языка из `templates/solutions/*.<language>` (если они есть): то, как
     автор хочет видеть ввод-вывод на этом языке, задаётся и без
-    референсов. Скелеты — перед файлами референсов. Если секции `solutions` нет — `None`: шаг
+    референсов. Скелеты — перед файлами референсов. Интерактивной задаче
+    первыми прикладываются правила `INTERACTIVE_TUTORIAL` (как у
+    `statement_draft`). Если секции `solutions` нет — `None`: шаг
     всё равно не запускается.
     """
     if spec.solutions is None:
@@ -153,6 +156,7 @@ def extra_context_documents(
             return True
         return _solution_parts(Path(rel_path))[1] in languages
 
+    rules = [str(Path(templates_dir) / INTERACTIVE_TUTORIAL)] if spec.interactive else []
     references = reference_documents(STEP_NAME, spec, keep=keep) or []
     covered = {
         language
@@ -164,7 +168,7 @@ def extra_context_documents(
         for language in sorted(languages - covered)
         for path in sorted((Path(templates_dir) / SOLUTION_TEMPLATES_SUBDIR).glob(f"*.{language}"))
     ]
-    return [*templates, *references] or None
+    return [*rules, *templates, *references] or None
 
 
 def _solution_parts(path: Path) -> tuple[Optional[str], Optional[str]]:

@@ -35,7 +35,14 @@ _RESPONSES = {
     "checker_draft": ModelResponse(
         status="confirmed", artifacts={"checker.cpp": "int main(){}"}, notes=[]
     ),
+    "interactor_draft": ModelResponse(
+        status="confirmed", artifacts={"interactor.cpp": "int main(){}"}, notes=[]
+    ),
 }
+
+# Опциональные шаги, которые спек-фикстура не заказывает: стандартный чекер
+# (checker.custom_needed: false) и обычная, не интерактивная задача.
+_SKIPPED_STEPS = {"checker_draft", "interactor_draft"}
 
 
 def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
@@ -75,10 +82,11 @@ def test_first_run_calls_model_for_every_step_in_order(spec_file, tmp_path):
     assert [o.step_name for o in result.outcomes] == pipeline.STEP_ORDER
     statuses = {o.step_name: o.status for o in result.outcomes}
     assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
-    called_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    assert statuses["interactor_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    called_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: statuses[s] for s in called_steps} == {s: "confirmed" for s in called_steps}
     assert mock_call.call_count == len(called_steps)
-    # порядок вызовов совпадает с STEP_ORDER (за вычетом пропущенного checker_draft)
+    # порядок вызовов совпадает с STEP_ORDER (за вычетом пропущенных шагов)
     assert [c.args[0] for c in mock_call.call_args_list] == called_steps
 
 
@@ -95,7 +103,7 @@ def test_second_run_is_all_cache_hits_and_does_not_call_model(spec_file, tmp_pat
     # checker_draft остаётся skipped_optional на каждом прогоне, а не
     # cache_hit — он вообще не участвует в кэше при custom_needed=false.
     assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
-    cached_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    cached_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: statuses[s] for s in cached_steps} == {
         s: pipeline.OUTCOME_CACHE_HIT for s in cached_steps
     }
@@ -115,7 +123,7 @@ def test_force_recalls_model_even_when_cached(spec_file, tmp_path):
     # --force не отменяет "шаг вообще не применим для этой задачи" —
     # checker_draft всё равно skipped_optional при custom_needed=false.
     assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
-    forced_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    forced_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: statuses[s] for s in forced_steps} == {s: "confirmed" for s in forced_steps}
     assert mock_call.call_count == len(forced_steps)
 
@@ -204,6 +212,54 @@ def test_checker_draft_runs_when_custom_needed_is_true(spec_file, tmp_path):
     assert (problems_dir / "p1" / "checker.cpp").exists()
 
 
+def test_interactor_draft_skipped_for_non_interactive_problem(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        result = _run(problems_dir)
+
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    assert statuses["interactor_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    assert not (problems_dir / "p1" / "interactor.cpp").exists()
+
+
+def test_interactor_draft_runs_for_interactive_problem(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    content = spec_file.read_text(encoding="utf-8")
+    content = content.replace(
+        '  indexing: "1-indexed"\n',
+        '  indexing: "1-indexed"\n  interaction_sketch: "Решение выводит запрос ? v."\n',
+    )
+    content += 'interactor:\n  behavior_notes: "Неадаптивный, в tout — ответ решения."\n'
+    spec_file.write_text(content, encoding="utf-8")
+    responses = {
+        **_RESPONSES,
+        "statement_draft": ModelResponse(
+            status="confirmed",
+            artifacts={
+                **_RESPONSES["statement_draft"].artifacts,
+                "interaction.tex": "tex",
+                "examples/example_1.input_for_statement.txt": "3\n",
+                "examples/example_1.output_for_statement.txt": "? 1\n",
+            },
+        ),
+    }
+
+    with patch(
+        "orchestrator.model_router.call_model",
+        side_effect=lambda step, *args, **kwargs: responses[step],
+    ) as mock_call:
+        result = _run(problems_dir)
+
+    assert result.ok, [(o.step_name, o.status, o.detail) for o in result.outcomes]
+    statuses = {o.step_name: o.status for o in result.outcomes}
+    assert statuses["interactor_draft"] == "confirmed"
+    assert (problems_dir / "p1" / "interactor.cpp").exists()
+    assert (problems_dir / "p1" / "statement" / "interaction.tex").exists()
+    interactor_call = next(c for c in mock_call.call_args_list if c.args[0] == "interactor_draft")
+    assert "Решение выводит запрос ? v." in interactor_call.args[2]
+    assert "Неадаптивный, в tout — ответ решения." in interactor_call.args[2]
+
+
 def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
@@ -263,7 +319,7 @@ def test_compute_step_statuses_matches_cache_hits_after_full_run(spec_file, tmp_
     assert spec_error is None
     by_name = {s.step_name: s.state for s in statuses}
     assert by_name["checker_draft"] == pipeline.STATUS_SKIPPED_OPTIONAL
-    cached_steps = [s for s in pipeline.STEP_ORDER if s != "checker_draft"]
+    cached_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: by_name[s] for s in cached_steps} == {
         s: pipeline.STATUS_CACHE_HIT for s in cached_steps
     }
@@ -754,6 +810,6 @@ def test_apply_without_saved_responses_has_nothing_to_do(spec_file, tmp_path):
     statuses = {o.step_name: o.status for o in result.outcomes}
     assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
     assert {s for s, v in statuses.items() if v != pipeline.OUTCOME_SKIPPED_OPTIONAL} == {
-        s for s in pipeline.STEP_ORDER if s != "checker_draft"
+        s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS
     }
     assert set(statuses.values()) <= {pipeline.OUTCOME_NO_PENDING, pipeline.OUTCOME_SKIPPED_OPTIONAL}

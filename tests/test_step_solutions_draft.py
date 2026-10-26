@@ -415,3 +415,30 @@ def test_solution_name_with_foreign_path_is_set_aside_and_the_rest_applied(spec,
     [(filename, reason)] = result.conflicts
     assert filename == "generators/ok_cpp_x_draft.cpp"
     assert "not a plain file name" in reason
+
+
+def _interactive_with_solutions():
+    plain = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+    interactive = load_spec(FIXTURES_DIR / "interactive-spec.yaml")
+    return interactive.model_copy(update={"solutions": plain.solutions})
+
+
+def test_interactive_problem_gets_protocol_and_rules():
+    from orchestrator.steps.base import statement_io_section
+
+    spec = _interactive_with_solutions()
+    documents = extra_context_documents(spec, templates_dir=TEMPLATES_DIR)
+    assert documents[0] == str(TEMPLATES_DIR / "tutorials" / "interactive.md")
+    section = statement_io_section(spec, include_output_and_legend=True)
+    assert section["interaction_sketch"] == spec.statement_draft.interaction_sketch
+    # Валидатору и генераторам протокол не нужен: они работают с тестом.
+    assert "interaction_sketch" not in statement_io_section(spec, include_output_and_legend=False)
+
+
+def test_plain_problem_gets_no_protocol_or_rules():
+    from orchestrator.steps.base import statement_io_section
+
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+    documents = extra_context_documents(spec, templates_dir=TEMPLATES_DIR) or []
+    assert not any("interactive.md" in path for path in documents)
+    assert "interaction_sketch" not in statement_io_section(spec, include_output_and_legend=True)

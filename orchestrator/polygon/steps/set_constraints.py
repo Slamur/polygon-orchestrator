@@ -1,6 +1,12 @@
 """Polygon-шаг 2 — перенос TL/ML из `problems/<problem_id>/constraints.yaml`
 (результат генеративного шага `constraints_pick`) в Polygon через
-`problem.updateInfo`.
+`problem.updateInfo` вместе с флагом интерактивности задачи (есть ли в
+спеке секция `interactor`).
+
+Флаг — отдельный элемент базы синхронизации (`INTERACTIVE_KEY`), но
+сравнивается, только если задача интерактивная или флаг уже есть в базе:
+у обычных задач, синхронизированных до его появления, его нет, и push не
+должен из-за этого заново отправлять `problem.updateInfo`.
 
 Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
@@ -24,7 +30,12 @@ from orchestrator.polygon.steps.base import (
     require_polygon_state,
     sync_status,
 )
-from orchestrator.polygon.sync import LIMITS_KEY, limits_digest
+from orchestrator.polygon.sync import (
+    INTERACTIVE_KEY,
+    LIMITS_KEY,
+    interactive_digest,
+    limits_digest,
+)
 from orchestrator.problem_paths import problem_address
 
 STEP_NAME = "set_constraints"
@@ -34,11 +45,14 @@ _MEMORY_KEY = "memory_limit_mb"
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Переносит TL/ML в Polygon (`ctx.spec` не используется), если они
-    отличаются от базы синхронизации."""
+    """Переносит TL/ML и флаг интерактивности в Polygon, если они отличаются
+    от базы синхронизации (`problem.updateInfo` получает их вместе)."""
     polygon_id = require_polygon_state(ctx).polygon_id
     time_limit_ms, memory_limit_mb = read_limits(ctx.problem_id, ctx.problems_dir)
+    interactive = ctx.spec.interactive
     items = {LIMITS_KEY: limits_digest(time_limit_ms, memory_limit_mb)}
+    if interactive or INTERACTIVE_KEY in (ctx.synced or {}):
+        items[INTERACTIVE_KEY] = interactive_digest(interactive)
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
 
@@ -48,17 +62,20 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
         "memoryLimit": str(memory_limit_mb),
         "inputFile": "",
         "outputFile": "",
-        "interactive": "false",
+        "interactive": str(interactive).lower(),
     }
     client.call("problem.updateInfo", params)
     return StepResult(
-        f"set {_describe(time_limit_ms, memory_limit_mb)} on Polygon id={polygon_id}", items
+        f"set {_describe(time_limit_ms, memory_limit_mb)} interactive={params['interactive']} "
+        f"on Polygon id={polygon_id}",
+        items,
     )
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`). Ручные правки TL/ML в UI
-    Polygon отсюда не видны."""
+    Polygon отсюда не видны; флаг интерактивности — тоже (спек здесь
+    недоступен, смену флага в спеке заметит push)."""
 
     def read_items() -> dict[str, str]:
         return {LIMITS_KEY: limits_digest(*read_limits(problem_id, problems_dir))}
@@ -77,11 +94,10 @@ def read_limits(problem_id: str, problems_dir: Path) -> tuple[int, int]:
     отсутствии — с указанием, какой шаг запустить сначала). Нужно и
     `polygon pull` — сравнить локальные TL/ML с Polygon.
 
-    `problem.updateInfo` получает ещё interactive=false, inputFile="",
-    outputFile="" (см. `_execute`): в формате спека (docs/SPEC_FORMAT.md)
-    нет полей для интерактивных задач и файлового ввода/вывода, значения
-    отражают только дефолт "обычная задача, stdin/stdout". Если такие поля
-    появятся — менять нужно там.
+    `problem.updateInfo` получает ещё inputFile="", outputFile="" (см.
+    `_execute`): в формате спека (docs/SPEC_FORMAT.md) нет полей для
+    файлового ввода/вывода, значения отражают дефолт stdin/stdout. Если
+    такие поля появятся — менять нужно там.
 
     Единицы: `time_limit_seconds` x 1000 -> `timeLimit` в миллисекундах;
     `memory_limit_mb` -> `memoryLimit` как есть, в мегабайтах (конвенция

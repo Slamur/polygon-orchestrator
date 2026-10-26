@@ -50,6 +50,7 @@ from orchestrator.polygon.steps import (
     create_problem,
     set_constraints,
     upload_checker,
+    upload_interactor,
     upload_generators,
     upload_problem_lib,
     upload_solutions,
@@ -60,7 +61,12 @@ from orchestrator.polygon.steps import (
 )
 from orchestrator.polygon.state import load_polygon_state, record_stamps, update_sync
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
-from orchestrator.polygon.sync import fetch_remote_stamps, fetch_revision, is_stamped_key
+from orchestrator.polygon.sync import (
+    INTERACTOR_KEY,
+    fetch_remote_stamps,
+    fetch_revision,
+    is_stamped_key,
+)
 from orchestrator.problem_paths import problem_address
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import POLYGON_STEP_ORDER
@@ -74,6 +80,7 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_problem_lib.STEP_NAME: upload_problem_lib.STEP,
     upload_validator.STEP_NAME: upload_validator.STEP,
     upload_checker.STEP_NAME: upload_checker.STEP,
+    upload_interactor.STEP_NAME: upload_interactor.STEP,
     upload_statement.STEP_NAME: upload_statement.STEP,
     upload_generators.STEP_NAME: upload_generators.STEP,
     upload_test_script.STEP_NAME: upload_test_script.STEP,
@@ -332,7 +339,10 @@ def _record_stamps(
     if not committed and not unstamped:
         return
     try:
-        stamps = fetch_remote_stamps(client, state.polygon_id)
+        # Интерактор в базе — задача интерактивная (спека здесь нет).
+        stamps = fetch_remote_stamps(
+            client, state.polygon_id, interactive=state.synced.get(INTERACTOR_KEY) is not None
+        )
         current = fetch_revision(client, state.polygon_id)
     except Exception as exc:  # noqa: BLE001 — оптимизация, push не роняет
         logger.warning("modification times are not recorded: %s", exc)

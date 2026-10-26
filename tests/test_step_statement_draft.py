@@ -239,3 +239,92 @@ def test_prompt_marks_missing_sample_output_and_keeps_given_one(spec, tmp_path):
     assert "автор не указал" in second
     assert "автор не указал" not in first
     assert "None" not in second.split("## Известные")[0].split("Что важно")[0]
+
+
+@pytest.fixture
+def interactive_spec():
+    return load_spec(FIXTURES_DIR / "interactive-spec.yaml")
+
+
+def _interactive_artifacts(n_examples: int) -> dict[str, str]:
+    artifacts = {**_full_artifacts(n_examples), "interaction.tex": "protocol"}
+    for i in range(1, n_examples + 1):
+        artifacts[f"examples/example_{i}.input_for_statement.txt"] = "10\n\n<\n"
+        artifacts[f"examples/example_{i}.output_for_statement.txt"] = "\n? 5\n\n"
+    return artifacts
+
+
+def test_interactive_expected_names_include_protocol_and_dialogues(interactive_spec):
+    assert _expected_artifact_names(interactive_spec) == set(_interactive_artifacts(1))
+
+
+def test_interactive_extra_context_documents_has_interactive_rules(interactive_spec):
+    assert extra_context_documents(interactive_spec, templates_dir=TEMPLATES_DIR) == [
+        str(TEMPLATES_DIR / "tutorials" / "interactive.md")
+    ]
+
+
+def test_interactive_writes_protocol_and_dialogues(interactive_spec, tmp_path):
+    response = ModelResponse(status="proposed", artifacts=_interactive_artifacts(1))
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "interactive-spec",
+            interactive_spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    statement_dir = tmp_path / "interactive-spec" / "statement"
+    assert (statement_dir / "interaction.tex").read_text() == "protocol"
+    assert (statement_dir / "examples" / "example_1.output_for_statement.txt").exists()
+    user_prompt = mock_call.call_args.args[2]
+    assert "## Протокол взаимодействия" in user_prompt
+    assert 'Запрос "? y"' in user_prompt
+    assert "- examples/example_1.input_for_statement.txt" in user_prompt
+    documents = mock_call.call_args.kwargs.get("context_documents") or mock_call.call_args.args[3]
+    assert "tutorials/interactive.md" in documents
+
+
+def test_interactive_without_dialogues_is_not_applied(interactive_spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(1))
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_step(
+            "interactive-spec",
+            interactive_spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert result.artifact_paths == {}
+    assert not (tmp_path / "interactive-spec" / "statement").exists()
+    assert all("interaction.tex" in reason for _, reason in result.conflicts)
+
+
+def test_plain_problem_prompt_has_no_protocol(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts=_full_artifacts(1))
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        run_step(
+            "valid-spec",
+            spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "Протокол взаимодействия" not in user_prompt
+    assert "interaction.tex" not in user_prompt
+
+
+def test_plain_problem_hash_input_has_no_interaction_field(spec):
+    # Поле, которого нет у обычной задачи, не должно менять её хеш входа:
+    # иначе его появление инвалидировало бы кэш условия всех задач.
+    from orchestrator.steps.statement_draft import hash_inputs
+
+    section, _ = hash_inputs("valid-spec", spec)
+    assert "interaction_sketch" not in section

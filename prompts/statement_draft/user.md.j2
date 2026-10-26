@@ -11,6 +11,14 @@
 
 ## Индексация
 {{ statement_draft.indexing }}
+{% if statement_draft.interaction_sketch is defined %}
+
+## Протокол взаимодействия (черновик автора)
+Задача интерактивная (правила — interactive.md). Формальное описание
+ввода выше и input примеров — это тест, который читает интерактор, а не
+решение.
+{{ statement_draft.interaction_sketch }}
+{% endif %}
 
 ## Тестовые примеры
 {% for ex in statement_draft.sample_examples %}
@@ -55,6 +63,13 @@ Output: автор не указал — не вычисляй сам, орие�
 {% for ex in statement_draft.sample_examples %}
 - examples/example_{{ loop.index }}.txt
 {% endfor %}
+{% if statement_draft.interaction_sketch is defined %}
+- interaction.tex
+{% for ex in statement_draft.sample_examples %}
+- examples/example_{{ loop.index }}.input_for_statement.txt
+- examples/example_{{ loop.index }}.output_for_statement.txt
+{% endfor %}
+{% endif %}
 
 Задача: подготовь черновик условия в LaTeX по правилам из системного
 сообщения. Не решай задачу и не выводи асимптотику — только оформление

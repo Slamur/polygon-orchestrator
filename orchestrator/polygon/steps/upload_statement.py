@@ -25,6 +25,14 @@
 Если число примеров уменьшилось с прошлой загрузки, лишние тесты с
 индексами > N на Polygon остаются — шаг их не удаляет.
 
+Интерактивная задача (в спеке есть секция `interactor`): протокол
+взаимодействия `statement/interaction.tex` уходит в `problem.saveStatement`
+параметром `interaction` (без файла — ошибка), а диалог примера
+(`example_<N>.input_for_statement.txt`/`.output_for_statement.txt`, оба или
+ни одного) — в `problem.saveTest` параметрами
+`testInputForStatements`/`testOutputForStatements`: тест примера — вход
+интерактора, а в условии показывается диалог решения с ним.
+
 Название задачи берётся из `statement/name.txt`, а не из спека: `title.ru`
 спека — только начальное значение, которым шаг заполняет `name.txt`, если
 его ещё нет. Иначе название, поменянное на Polygon и выгруженное `polygon
@@ -53,10 +61,12 @@ from orchestrator.polygon.steps.base import (
 )
 from orchestrator.polygon.sync import (
     STATEMENT_NAME_KEY,
+    dialogue_keys,
     digest,
     example_key,
     statement_file_key,
 )
+from orchestrator.steps.statement_draft import INTERACTION_FILE, dialogue_filenames
 
 STEP_NAME = "upload_statement"
 
@@ -75,6 +85,11 @@ _TEX_PARAM_NAMES = {
 _EXAMPLE_PATTERN = re.compile(r"^example_(\d+)\.txt$")
 
 NAME_FILENAME = "name.txt"
+INTERACTION_FILENAME = INTERACTION_FILE
+INTERACTION_PARAM = "interaction"
+
+# Пример: (testIndex, input, диалог (input, output for statement) или None).
+Example = tuple[int, bytes, tuple[bytes, bytes] | None]
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
@@ -87,7 +102,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """
     polygon_id = require_polygon_state(ctx).polygon_id
     statement_dir = _statement_dir(ctx.problem_id, ctx.problems_dir)
-    tex_files = _read_statement_dir(statement_dir)
+    tex_files = _read_statement_dir(statement_dir, interactive=ctx.spec.interactive)
     examples = _read_examples(statement_dir)
     name_path = statement_dir / NAME_FILENAME
     if not name_path.exists():
@@ -107,7 +122,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
                 "lang": _LANG,
                 "name": name,
                 **{
-                    _TEX_PARAM_NAMES[filename]: content.decode("utf-8")
+                    _tex_param(filename): content.decode("utf-8")
                     for filename, content in tex_files.items()
                 },
             },
@@ -117,19 +132,20 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
     changed_examples = changed_items(ctx, example_items)
     sent_examples = 0
-    for test_index, content in examples:
-        if example_key(test_index) not in changed_examples:
+    for test_index, content, dialogue in examples:
+        if not set(_example_keys(test_index, dialogue)) & set(changed_examples):
             continue
-        client.call(
-            "problem.saveTest",
-            {
-                "problemId": str(polygon_id),
-                "testset": _TESTSET,
-                "testIndex": str(test_index),
-                "testInput": content.decode("utf-8"),
-                "testUseInStatements": "true",
-            },
-        )
+        params = {
+            "problemId": str(polygon_id),
+            "testset": _TESTSET,
+            "testIndex": str(test_index),
+            "testInput": content.decode("utf-8"),
+            "testUseInStatements": "true",
+        }
+        if dialogue is not None:
+            params["testInputForStatements"] = dialogue[0].decode("utf-8")
+            params["testOutputForStatements"] = dialogue[1].decode("utf-8")
+        client.call("problem.saveTest", params)
         sent_examples += 1
     if sent_examples:
         uploaded.update(changed_examples)
@@ -146,8 +162,10 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
 
     def read_items() -> dict[str, str]:
         statement_dir = _statement_dir(problem_id, problems_dir)
+        # Спека здесь нет: interaction.tex сравнивается, если он есть.
+        interactive = (statement_dir / INTERACTION_FILENAME).exists()
         items = {
-            **_tex_items(_read_statement_dir(statement_dir)),
+            **_tex_items(_read_statement_dir(statement_dir, interactive=interactive)),
             **_example_items(_read_examples(statement_dir)),
         }
         name_path = statement_dir / NAME_FILENAME
@@ -171,29 +189,46 @@ def _tex_items(tex_files: dict[str, bytes]) -> dict[str, str]:
     return {statement_file_key(name): digest(content) for name, content in tex_files.items()}
 
 
-def _example_items(examples: list[tuple[int, bytes]]) -> dict[str, str]:
-    return {example_key(index): digest(content) for index, content in examples}
+def _tex_param(filename: str) -> str:
+    return INTERACTION_PARAM if filename == INTERACTION_FILENAME else _TEX_PARAM_NAMES[filename]
+
+
+def _example_keys(index: int, dialogue: tuple[bytes, bytes] | None) -> list[str]:
+    return [example_key(index), *(dialogue_keys(index) if dialogue is not None else ())]
+
+
+def _example_items(examples: list[Example]) -> dict[str, str]:
+    items: dict[str, str] = {}
+    for index, content, dialogue in examples:
+        contents = [content, *(dialogue or ())]
+        items.update(
+            {key: digest(data) for key, data in zip(_example_keys(index, dialogue), contents)}
+        )
+    return items
 
 
 def _statement_dir(problem_id: str, problems_dir: Path) -> Path:
     return Path(problems_dir) / problem_id / "statement"
 
 
-def _read_statement_dir(statement_dir: Path) -> dict[str, bytes]:
-    """Содержимое 4 фиксированных tex-файлов (имя файла -> содержимое).
-    Если какого-то нет — `PolygonStepError` с его именем, а не пустая
-    строка вместо содержимого."""
-    missing = [name for name in _TEX_PARAM_NAMES if not (statement_dir / name).exists()]
+def _read_statement_dir(statement_dir: Path, *, interactive: bool = False) -> dict[str, bytes]:
+    """Содержимое 4 фиксированных tex-файлов (имя файла -> содержимое), у
+    интерактивной задачи — ещё `interaction.tex`. Если какого-то нет —
+    `PolygonStepError` с его именем, а не пустая строка вместо содержимого."""
+    names = [*_TEX_PARAM_NAMES, *([INTERACTION_FILENAME] if interactive else [])]
+    missing = [name for name in names if not (statement_dir / name).exists()]
     if missing:
         raise PolygonStepError(
             f"files missing in {statement_dir}: {missing} — first "
             "run the generative step statement_draft"
         )
-    return {filename: (statement_dir / filename).read_bytes() for filename in _TEX_PARAM_NAMES}
+    return {filename: (statement_dir / filename).read_bytes() for filename in names}
 
 
-def _read_examples(statement_dir: Path) -> list[tuple[int, bytes]]:
-    """[(testIndex, input), ...] по возрастанию `testIndex`.
+def _read_examples(statement_dir: Path) -> list[Example]:
+    """[(testIndex, input, диалог), ...] по возрастанию `testIndex`; диалог
+    — (input, output for statement) интерактивной задачи или `None`, если
+    файлов диалога нет (только один из двух — `PolygonStepError`).
 
     Нумерация `example_<N>.txt` должна быть непрерывной 1..N. Набор файлов
     уже проверяет `statement_draft` перед записью, но этот шаг запускается
@@ -221,7 +256,18 @@ def _read_examples(statement_dir: Path) -> list[tuple[int, bytes]]:
             f"1..{len(found)}: found indices {sorted(found)}"
         )
 
-    return sorted(found.items())
+    examples: list[Example] = []
+    for index, content in sorted(found.items()):
+        paths = [examples_dir / name for name in dialogue_filenames(index)]
+        present = [path for path in paths if path.exists()]
+        if present and len(present) != len(paths):
+            raise PolygonStepError(
+                f"example {index} in {examples_dir}: dialogue files must come in a pair, "
+                f"found only {present[0].name}"
+            )
+        dialogue = (paths[0].read_bytes(), paths[1].read_bytes()) if present else None
+        examples.append((index, content, dialogue))
+    return examples
 
 
 STEP = PolygonStep(

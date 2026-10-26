@@ -31,6 +31,9 @@ statement_draft:
       note_hint: ""                  # [optional] что объяснить в пояснении к примеру (не сам текст)
   known_ambiguities: []              # [optional] что в постановке пока не решено
   preserve_legend_verbatim: false    # [optional] true — сохранять фактуру легенды почти дословно
+  interaction_sketch: null           # [required для интерактивной задачи, иначе null] протокол взаимодействия:
+                                     #   что решение получает в начале, формат запросов и ответов,
+                                     #   лимит запросов, итоговый ответ (formal_input_sketch — тест, который читает интерактор)
   references: []                     # [optional] образцы только для этого шага
 
 # ---------------------------------------------------------------------------
@@ -90,3 +93,14 @@ checker:
   custom_needed: false               # [required] true — нужен свой чекер
   custom_comparison_notes: null      # [required при custom_needed: true] формат ответа и правило сравнения
   references: []                     # [optional] образцы только для checker_draft
+
+# ---------------------------------------------------------------------------
+# 6. ИНТЕРАКТОР — шаг interactor_draft (только для интерактивной задачи)
+# Есть секция — задача интерактивная (нужен и statement_draft.interaction_sketch).
+# Для обычной задачи оставьте null; для интерактивной замените null на:
+#   interactor:
+#     behavior_notes: |              # [required] адаптивный ли интерактор, как проверяется итоговый
+#       ...                          #   ответ, что считается ошибкой решения, что писать в tout для чекера
+#     references: []                 # [optional] образцы только для interactor_draft
+# ---------------------------------------------------------------------------
+interactor: null

@@ -50,6 +50,11 @@ __all__ = [
 # если на практике `custom_comparison_notes` часто оказывается недостаточно
 # точным и шаг слишком часто уходит в uncertain, следующий шаг эскалации —
 # до сильной модели, как у constraints_pick/solutions_draft.
+# interactor_draft — опциональный шаг (только интерактивные задачи): в
+# отличие от чекера это не перевод одного правила сравнения в код, а
+# реализация протокола целиком — чтение запросов в режиме недоверия, лимиты,
+# возможно адаптивная стратегия; ошибка молча ломает все тесты задачи —
+# поэтому сильная модель.
 # spec_from_draft — не шаг пайплайна, а `init --draft` (спек по черновику
 # автора, `orchestrator/spec_from_draft.py`): спек — вход всех шагов, и
 # ошибка в нём (или незаметно домысленное значение) расходится по всем —
@@ -60,6 +65,7 @@ STEP_TO_MODEL: dict[str, str] = {
     "generators_and_script": "medium-model",
     "solutions_draft": "strong-model",
     "checker_draft": "medium-model",
+    "interactor_draft": "strong-model",
     "spec_from_draft": "strong-model",
 }
 
@@ -76,6 +82,7 @@ STEP_TO_EFFORT: dict[str, str] = {
     "generators_and_script": "high",
     "solutions_draft": "high",
     "checker_draft": "high",
+    "interactor_draft": "high",
     "spec_from_draft": "high",
 }
 

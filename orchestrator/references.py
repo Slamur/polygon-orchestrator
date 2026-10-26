@@ -48,6 +48,7 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     ],
     "solutions_draft": [SPEC_FILENAME, "solutions/*"],
     "checker_draft": [SPEC_FILENAME, "checker.cpp"],
+    "interactor_draft": [SPEC_FILENAME, "interactor.cpp"],
 }
 
 # Секция спека, в которой лежат шаговые `references` для шага.
@@ -57,6 +58,7 @@ STEP_SECTIONS: dict[str, str] = {
     "generators_and_script": "generation",
     "solutions_draft": "solutions",
     "checker_draft": "checker",
+    "interactor_draft": "interactor",
 }
 
 

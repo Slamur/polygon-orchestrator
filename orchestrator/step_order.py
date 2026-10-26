@@ -14,12 +14,14 @@ from __future__ import annotations
 # каждый следующий шаг может зависеть от артефактов предыдущих. `checker_draft`
 # ни от чего не зависит (в отличие от соседей по порядку), но держится рядом
 # с `generators_and_script` — логически это тоже часть тестовой инфраструктуры
-# задачи, а не решений (CLAUDE.md, пункт 5).
+# задачи, а не решений (CLAUDE.md, пункт 5). `interactor_draft` — туда же и по
+# той же причине (CLAUDE.md, пункт 6).
 STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
     "generators_and_script",
     "checker_draft",
+    "interactor_draft",
     "solutions_draft",
 ]
 
@@ -28,7 +30,8 @@ STEP_ORDER: list[str] = [
 # больше ничего менять не нужно, если новый шаг — такой же `PolygonStep`,
 # запускаемый через `steps.base.run_step`. `upload_spec` идёт сразу после
 # `create_problem`: спек — основа задачи, и он должен оказаться на Polygon,
-# даже если какой-то из следующих шагов упадёт.
+# даже если какой-то из следующих шагов упадёт. `upload_interactor` — после
+# `set_constraints`: тот выставляет флаг интерактивности задачи.
 POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
     "upload_spec",
@@ -36,6 +39,7 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_problem_lib",
     "upload_validator",
     "upload_checker",
+    "upload_interactor",
     "upload_statement",
     "upload_generators",
     "upload_test_script",
