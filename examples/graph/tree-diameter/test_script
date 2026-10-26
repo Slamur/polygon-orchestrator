@@ -39,7 +39,7 @@
 <#function isqrt n>
     <#assign result = 0/>
     <#list 0..n as i>
-        <#if (i * i) <= n>
+        <#if (i * i) lte n>
             <#assign result = i/>
         <#else>
             <#break/>
@@ -51,7 +51,7 @@
     <#assign result = 0/>
     <#assign value = 1/>
     <#list 0..200 as i>
-        <#if value >= n>
+        <#if value gte n>
             <#assign result = i/>
             <#break/>
         </#if>
