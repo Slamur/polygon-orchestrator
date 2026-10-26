@@ -1,0 +1,107 @@
+<#assign desc = "Functions"/>
+<#function div a b>
+    <#return (a / b)?long>
+</#function>
+<#function ceil a b>
+    <#return div(a - 1, b) + 1/>
+</#function>
+<#function min a b>
+    <#return [a, b]?sort?first>
+</#function>
+<#function max a b>
+    <#return [a, b]?sort?last>
+</#function>
+<#function pow base power>
+    <#assign res = 1/>
+    <#list 0..<power as it>
+        <#assign res = res * base/>
+    </#list>
+    <#return res>
+</#function>
+<#function fact n>
+    <#assign res = 1/>
+    <#list 0..<n as it>
+        <#assign res = res * (it + 1)/>
+    </#list>
+    <#return res>
+</#function>
+<#function contains items value>
+    <#list items as item>
+        <#if item == value>
+            <#return true/>
+        </#if>
+    </#list>
+    <#return false/>
+</#function>
+
+<#-- generator names -->
+<#assign fixed = "gen_fixed"/>
+<#assign rand = "gen_rand"/>
+<#assign pow2delta = "gen_pow2_delta"/>
+<#assign worst = "gen_worst_x"/>
+
+<#-- fixed constraints (from constraints_pick) -->
+<#assign minN = 1/>
+<#assign maxN = 1000/>
+<#assign minX = 1/>
+
+<#assign description = "Small tests: exhaustive N and X for every N from minN to 8"/>
+<#list minN..8 as n>
+    <#list minX..n as x>
+${fixed} -n=${n} -x=${x} > $
+    </#list>
+</#list>
+
+<#assign description = "Edge case: smallest possible N, the only possible X"/>
+${fixed} -n=${minN} -x=${minX} > $
+
+<#assign description = "Edge cases: N = 2^p + delta for every p with N in [minN, maxN], X = 1 and X = N"/>
+<#list 0..10 as p>
+    <#list [-1, 0, 1] as delta>
+        <#assign n = pow(2, p) + delta/>
+        <#if n gte minN && n lte maxN>
+${pow2delta} -p=${p} -delta=${delta} -x=${minX} > $
+${pow2delta} -p=${p} -delta=${delta} -x=${n} > $
+        </#if>
+    </#list>
+</#list>
+
+<#assign description = "Maximum tests: N = maxN with explicit boundary/arbitrary X values"/>
+<#assign maxXList = [1, 2, 500, 501, 512, 513, 999, 1000]/>
+<#list maxXList as x>
+${fixed} -n=${maxN} -x=${x} > $
+</#list>
+
+<#assign description = "Maximum tests: N at/near maxN with several random X (bands differ so calls are not duplicate invocations, see notes)"/>
+${rand} -minN=${maxN} -maxN=${maxN} > $
+${rand} -minN=${maxN - 9} -maxN=${maxN} > $
+${rand} -minN=${maxN - 49} -maxN=${maxN} > $
+
+<#assign description = "Specific tests: worst-case X forcing exactly the maximum allowed number of queries; catches solutions that need an 11th query (final separate '=' query after narrowing to one candidate, or off-by-one narrowing)"/>
+<#assign worstNs = [maxN, maxN - 1, 512, 513]/>
+<#list worstNs as n>
+${worst} -n=${n} > $
+</#list>
+
+<#assign description = "Specific tests: random N over the whole domain with random X, several genuinely different bands"/>
+<#assign randBands = [
+    [minN, maxN],
+    [minN, div(maxN, 2)],
+    [div(maxN, 2), maxN],
+    [minN, 20],
+    [maxN - 20, maxN]
+]/>
+<#list randBands as band>
+${rand} -minN=${band[0]} -maxN=${band[1]} > $
+</#list>
+
+<#-- SUGGESTION: lower side of the N=512 power-of-two threshold. The worst_x
+     tests above (N=1000,999,512,513) all check the point where the correct
+     algorithm needs exactly maxQ=10 queries; none checks the symmetric case
+     one step below that transition (N = 2^9 - 1 = 511, needing only 9
+     queries). An implementation whose query-budget formula is off by one in
+     the other direction (e.g. an extra redundant probe before narrowing, or
+     a wrong ceil(log2(.)) computation) could pass every author-requested
+     test yet fail here. -->
+<#assign description = "SUGGESTION: boundary just below the N=512 power-of-two threshold"/>
+${worst} -n=${pow(2, 9) - 1} > $
