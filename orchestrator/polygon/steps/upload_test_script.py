@@ -19,6 +19,15 @@ Polygon при сохранении скрипта выкидывает из н�
 сбрасывал базу, а следующий push загружал бы скрипт заново. Загружается
 при этом исходный файл как есть.
 
+Перед загрузкой скрипт раскрывается локально и проверяется на одинаковые
+строки (`orchestrator/checks/test_script_check.py`, то же делает
+`polygon check`): с ними Polygon не генерирует тесты, поэтому шаг падает до
+обращения к сети, с отчётом, какие строки скрипта их напечатали. Если
+проверку выполнить нельзя (нет `java`, не скачался FreeMarker) или
+FreeMarker не раскрыл скрипт, — только предупреждение в лог: локальное
+раскрытие может разойтись с Polygon, и загрузку оно не блокирует.
+`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает проверку совсем.
+
 По смыслу шаг идёт после `upload_generators` — скрипт ссылается на
 генераторы по имени, — хотя Polygon при сохранении скрипта этого не
 проверяет.
@@ -28,8 +37,16 @@ Polygon при сохранении скрипта выкидывает из н�
 
 from __future__ import annotations
 
+import logging
+import os
 from pathlib import Path
 
+from orchestrator.checks.test_script_check import (
+    SKIP_CHECK_ENV,
+    ScriptCheckUnavailable,
+    ScriptRenderError,
+    check_script,
+)
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.steps.base import (
     NO_CHANGES_MESSAGE,
@@ -49,6 +66,8 @@ from orchestrator.steps.generators_and_script import (
 )
 
 STEP_NAME = "upload_test_script"
+
+logger = logging.getLogger(__name__)
 
 _TESTSET = "tests"
 
@@ -76,6 +95,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
 
+    _check_duplicate_lines(ctx.problem_id, script_path.name, content)
     client.call(
         "problem.saveScript",
         {
@@ -87,6 +107,24 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     return StepResult(
         f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}", items
     )
+
+
+def _check_duplicate_lines(problem_id: str, script_name: str, content: bytes) -> None:
+    """`PolygonStepError` с отчётом, если в раскрытом скрипте есть одинаковые
+    строки (см. докстринг модуля)."""
+    if os.environ.get(SKIP_CHECK_ENV):
+        return
+    try:
+        result = check_script(content.decode("utf-8"), script_name)
+    except (ScriptCheckUnavailable, ScriptRenderError) as exc:
+        logger.warning(
+            "'%s': duplicate line check of %s skipped — %s", problem_id, script_name, exc
+        )
+        return
+    if result.duplicates:
+        raise PolygonStepError(
+            f"'{problem_id}': {result.report}\n(set {SKIP_CHECK_ENV}=1 to upload anyway)"
+        )
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:

@@ -29,6 +29,9 @@ addopts = "-m 'not integration'"
 [tool.setuptools.packages.find]
 include = ["orchestrator*"]
 
+[tool.setuptools.package-data]
+orchestrator = ["checks/*.java"]
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

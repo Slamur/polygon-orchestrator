@@ -136,7 +136,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── missing_artifacts.md.j2   # общий блок дозапроса файлов, которых не было в ответе (см. "Конфликты")
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|check|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; без тяжёлых импортов
 │   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
@@ -170,7 +170,9 @@ Python-оркестратор, который берёт структуриро�
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
-│   │   └── run_with_timeout.py    # запуск бинаря с жёстким timeout
+│   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
+│   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker и поиск одинаковых строк (polygon check, upload_test_script)
+│   │   └── FreemarkerRender.java  # рендер FreeMarker для test_script_check (java без сборки; jar — в ~/.cache/polygon-orchestrator/)
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 ├── drafts/                       # черновики задач в свободной форме для `init --draft` (плоско, любое расширение); в .gitignore, как problems/
 └── problems/
@@ -478,6 +480,17 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   синхронизации — тем, что последний push загрузил или pull увидел на
   Polygon). Правки на Polygon после последней синхронизации отсюда не
   видны — их замечает только `polygon push`/`pull`.
+- `orchestrator <задача> polygon check` — без обращения к Polygon:
+  раскрывает test-script(ы) задачи настоящим FreeMarker (нужна `java`;
+  jar FreeMarker при первом запуске скачивается с Maven Central в
+  `~/.cache/polygon-orchestrator/`) и печатает одинаковые строки — с
+  ними Polygon не генерирует тесты — с указанием, какая строка скрипта
+  и при каких значениях переменных `<#list>` напечатала каждую. Та же
+  проверка — перед загрузкой в `upload_test_script`: дубли
+  останавливают push до сети; если проверку выполнить нельзя или
+  FreeMarker не раскрыл скрипт — только предупреждение
+  (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
+  докстринге `orchestrator/checks/test_script_check.py`.
 
 - `orchestrator <задача> polygon pull [--polygon-id N] [--overwrite]` —
   обратное направление: привязывает задачу к уже существующей на

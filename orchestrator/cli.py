@@ -3,7 +3,8 @@
 "Запуск"): `init` — каталог задачи с черновиком спека (из шаблона, по
 спеку задачи-основы `--ref` и/или моделью по черновику автора `--draft`),
 `llm generate|apply|status|accept` — генеративные шаги,
-`polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него.
+`polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него,
+`polygon check` — локальная проверка того, что push загрузит.
 Адрес задачи — путь её каталога с корнем (`problems/contest/2026/round-1/my-task`,
 `examples/array/prefix-sums`, см. `orchestrator/problem_paths.py`) — идёт
 первым: обычно работа идёт над одной задачей, и разные команды к ней удобнее
@@ -193,6 +194,14 @@ def build_parser() -> argparse.ArgumentParser:
         "status", help="which polygon steps are already done, without network access"
     )
     polygon_status_parser.set_defaults(handler="cmd_polygon_status")
+
+    polygon_check_parser = polygon_commands.add_parser(
+        "check",
+        help="expand the FreeMarker test script locally and report identical lines "
+        "(Polygon refuses to generate tests from them) and the script lines printing them; "
+        "no access to Polygon (needs java; downloads FreeMarker once)",
+    )
+    polygon_check_parser.set_defaults(handler="cmd_polygon_check")
 
     polygon_pull_parser = polygon_commands.add_parser(
         "pull",
