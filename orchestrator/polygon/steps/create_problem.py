@@ -28,6 +28,15 @@ from orchestrator.problem_paths import problem_address, problem_id_for
 
 STEP_NAME = "create_problem"
 
+# Галочку "auto-update" у testlib.h и стандартных чекеров Polygon API не
+# выставляет (нет ни параметра, ни метода, см. `docs/POLYGON_API.md`), поэтому
+# у только что созданной задачи о ней только напоминаем. Найденной по имени
+# задаче не напоминаем: её уже кто-то настраивал.
+_AUTO_UPDATE_REMINDER = (
+    "REMINDER: enable \"auto-update\" for testlib.h and the standard checker "
+    "in the Polygon UI — the API cannot set it"
+)
+
 
 def _check_done(ctx: StepContext) -> str | None:
     """Локальное состояние уже есть — задача привязана, сети не нужно."""
@@ -60,7 +69,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
     polygon_id = _create_polygon_problem(client, name)
     _link(ctx, polygon_id, revision=fetch_revision(client, polygon_id).revision)
-    return StepResult(f"created new Polygon problem (id={polygon_id})")
+    return StepResult(f"created new Polygon problem (id={polygon_id}); {_AUTO_UPDATE_REMINDER}")
 
 
 def _find_polygon_id_by_name(client: PolygonClient, name: str) -> int | None:
