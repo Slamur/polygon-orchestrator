@@ -36,6 +36,21 @@ git config core.hooksPath   # должно вывести: githooks
 (`git branch -m <новое-имя>`) и/или переписать сообщения коммитов
 (`git commit --amend` / `git rebase -i origin/main`).
 
+## Опционально: Java для проверки test-script'а
+
+`orchestrator <задача> polygon check` и проверка скрипта перед загрузкой в
+`polygon push` раскрывают FreeMarker test-script настоящим FreeMarker, поэтому
+нужна `java` (JDK 11+, запуск `.java` без сборки):
+
+```bash
+sudo apt install default-jdk-headless   # или любой другой JDK 11+
+```
+
+jar FreeMarker скачивается с Maven Central при первом запуске в
+`~/.cache/polygon-orchestrator/` (с проверкой sha1); без сети — положить его
+туда руками или указать путь в `ORCHESTRATOR_FREEMARKER_JAR`. Без `java`
+`polygon push` загружает скрипт без проверки, с предупреждением.
+
 ## Опционально: Tab-дополнение команд и адресов задач
 
 `orchestrator` умеет дополнять по Tab имена пайплайнов и команд, значения
