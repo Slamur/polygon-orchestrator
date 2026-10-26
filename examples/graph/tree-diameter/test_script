@@ -65,6 +65,7 @@
 <#assign genJungle = "gen_jungle"/>
 <#assign genBalanced = "gen_tree_balanced"/>
 <#assign shuffle = "upd_tree_shuffle"/>
+<#assign attachBranch = "upd_attach_branch_reroot"/>
 
 <#assign minN = 2/>
 <#assign maxN = 3 * pow(10, 5)/>
@@ -88,6 +89,15 @@
 <#assign jungleManyPalmsCounts = [10, 100, isqrt(maxN)]/>
 
 <#assign balancedK = log2ceil(maxN)/>
+
+<#-- N for the "jungle + attached branch" test below is slightly less than
+     maxN to leave room for the small attached branch while keeping the
+     total at (close to) maxN -->
+<#assign attachBranchK = smallMaxN/>
+<#assign attachJungleN = maxN - attachBranchK/>
+<#assign attachJungleH = div(attachJungleN, 10)/>
+<#assign attachJungleK = 1/>
+<#assign attachJunglePalms = jungleFewPalmsCount/>
 
 <#-- Small tests: a random tree for every N from minN to smallMaxN -->
 <#assign description = "Small random trees, N = minN..smallMaxN"/>
@@ -130,3 +140,6 @@ ${genBalanced} -n=${maxN} -k=${balancedK} | ${shuffle} > $
 
 <#assign description = "Fully random tree at N = maxN (already randomly labeled, no shuffle needed)"/>
 ${genRand} -n=${maxN} > $
+
+<#assign description = "Jungle (N slightly less than maxN) with a small random branch attached to its (unshuffled) root; the global root is then placed somewhere inside this branch, so the tree keeps its jungle shape but the declared root is far from the structurally interesting part"/>
+${genJungle} -n=${attachJungleN} -h=${attachJungleH} -k=${attachJungleK} -palms=${attachJunglePalms} | ${attachBranch} -k=${attachBranchK} > $
