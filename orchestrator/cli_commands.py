@@ -392,7 +392,8 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 
 def cmd_polygon_pull(args: argparse.Namespace) -> int:
     """Привязка к существующей на Polygon задаче, сравнение с ней локальных
-    файлов и выгрузка недостающих / с `--overwrite` — отличающихся (см.
+    файлов и выгрузка недостающих и изменённых только на Polygon / с
+    `--overwrite` — и изменённых с обеих сторон (см.
     `orchestrator/polygon/pull.py`). Спек не нужен.
     Лог — в тот же `polygon.log`, что и у `polygon push`."""
     logger = _configure_console_logging(warnings_only=True)
@@ -427,7 +428,7 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
             return 1
     print(f"  {result.link_detail}, revision {result.revision}")
     if result.backup_dir is not None:
-        print(f"  overwritten local files are backed up in {result.backup_dir}")
+        print(f"  replaced local files are backed up in {result.backup_dir}")
     return 0 if result.ok else 1
 
 
