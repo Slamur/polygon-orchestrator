@@ -136,7 +136,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── missing_artifacts.md.j2   # общий блок дозапроса файлов, которых не было в ответе (см. "Конфликты")
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|check|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|check|fix|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; без тяжёлых импортов
 │   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
@@ -172,6 +172,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
 │   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
 │   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker и поиск одинаковых строк (polygon check, upload_test_script)
+│   │   ├── statement_check.py     # оформление statement/*.tex: Markdown-списки и кавычки не <<…>> (polygon check) и их исправление (polygon fix)
 │   │   └── FreemarkerRender.java  # рендер FreeMarker для test_script_check (java без сборки; jar — в ~/.cache/polygon-orchestrator/)
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 ├── drafts/                       # черновики задач в свободной форме для `init --draft` (плоско, любое расширение); в .gitignore, как problems/
@@ -191,6 +192,7 @@ Python-оркестратор, который берёт структуриро�
         ├── polygon.log             # лог `orchestrator <задача> polygon push` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256, stamps: файл -> отметка его версии на Polygon); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull`
+        ├── .fix_backup/<время>/    # прежние версии файлов условия, исправленных `polygon fix`
         ├── .llm_backup/<время>/    # прежние версии файлов, перезаписанных или переименованных `llm generate`
         ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи)
@@ -481,6 +483,10 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   Polygon). Правки на Polygon после последней синхронизации отсюда не
   видны — их замечает только `polygon push`/`pull`.
 - `orchestrator <задача> polygon check` — без обращения к Polygon:
+  проверяет оформление условия (`statement/*.tex`): списки в стиле
+  Markdown (строки с `- `, `* `, `1. ` вместо `itemize`/`enumerate`) и
+  кавычки, отличные от `<<…>>` (`"`, `“”`, `«»`, ```` ``…'' ````; вне
+  формул и комментариев), — с файлом и строкой каждой находки. Ещё
   раскрывает test-script(ы) задачи настоящим FreeMarker (нужна `java`;
   jar FreeMarker при первом запуске скачивается с Maven Central в
   `~/.cache/polygon-orchestrator/`) и печатает одинаковые строки — с
@@ -491,6 +497,14 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   FreeMarker не раскрыл скрипт — только предупреждение
   (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
   докстринге `orchestrator/checks/test_script_check.py`.
+- `orchestrator <задача> polygon fix` — без обращения к Polygon:
+  исправляет в условии найденное `polygon check`, что исправляется
+  механически, — Markdown-списки в `itemize`/`enumerate` (вложенность —
+  по отступу), кавычки в `<<…>>`; абзац с непарными кавычками не трогает
+  и печатает их для ручной правки (код возврата 1). Прежние версии
+  изменённых файлов — в `.fix_backup/<время>/` каталога задачи; следующий
+  `polygon push` загрузит исправленное как обычную правку. Детали — в
+  докстринге `orchestrator/checks/statement_check.py`.
 
 - `orchestrator <задача> polygon pull [--polygon-id N] [--overwrite]` —
   обратное направление: привязывает задачу к уже существующей на
@@ -748,7 +762,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
   спек `spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
   служебные файлы оркестратора в них — кэш, логи, `polygon_state.json`,
-  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `*.removed` — в `.gitignore`; ожидаемый по нему
+  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `*.removed` — в `.gitignore`; ожидаемый по нему
   результат `constraints_pick` — `constraints.yaml` рядом; при правке
   образцов держать оба согласованными с ними и с `constraints_format.yaml`
   — это проверяет `tests/test_example_templates.py`, там же compile-check

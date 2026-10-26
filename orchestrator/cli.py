@@ -4,7 +4,8 @@
 спеку задачи-основы `--ref` и/или моделью по черновику автора `--draft`),
 `llm generate|apply|status|accept` — генеративные шаги,
 `polygon push|status|pull` — загрузка задачи в Polygon и выгрузка из него,
-`polygon check` — локальная проверка того, что push загрузит.
+`polygon check` — локальная проверка того, что push загрузит, `polygon fix` —
+механическое исправление найденного в условии.
 Адрес задачи — путь её каталога с корнем (`problems/contest/2026/round-1/my-task`,
 `examples/array/prefix-sums`, см. `orchestrator/problem_paths.py`) — идёт
 первым: обычно работа идёт над одной задачей, и разные команды к ней удобнее
@@ -197,11 +198,20 @@ def build_parser() -> argparse.ArgumentParser:
 
     polygon_check_parser = polygon_commands.add_parser(
         "check",
-        help="expand the FreeMarker test script locally and report identical lines "
+        help="check locally what push uploads: Markdown lists and quotes other than <<...>> "
+        "in statement/*.tex; identical lines in the expanded FreeMarker test script "
         "(Polygon refuses to generate tests from them) and the script lines printing them; "
-        "no access to Polygon (needs java; downloads FreeMarker once)",
+        "no access to Polygon (the script check needs java, downloads FreeMarker once)",
     )
     polygon_check_parser.set_defaults(handler="cmd_polygon_check")
+
+    polygon_fix_parser = polygon_commands.add_parser(
+        "fix",
+        help="fix statement/*.tex issues found by 'polygon check': Markdown lists -> "
+        "itemize/enumerate, quotes -> <<...>> (old versions go to <PROBLEM>/.fix_backup/); "
+        "no access to Polygon",
+    )
+    polygon_fix_parser.set_defaults(handler="cmd_polygon_fix")
 
     polygon_pull_parser = polygon_commands.add_parser(
         "pull",
