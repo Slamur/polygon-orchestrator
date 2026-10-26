@@ -25,9 +25,13 @@ def solve():
         return 0
 
     ans = get_ans()
-    # Fast output: the whole answer in one print call. Several values are
-    # converted to strings and joined first, e.g.
-    # print(' '.join(map(str, ans))) or print('\n'.join(map(str, ans))).
+    # Fixed small number of values (one number, a pair, three numbers):
+    # a plain print, e.g. print(a, b, c) — no join and no per-value prints.
+    # Sequence whose length depends on the input (N elements, Q answers):
+    # fast output — convert to strings, join into a separate variable and
+    # print it in one call, e.g.
+    #     ans_str = ' '.join(map(str, ans))  # or '\n'.join(...) for one per line
+    #     print(ans_str)
     print(ans)
 
 

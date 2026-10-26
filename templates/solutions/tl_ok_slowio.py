@@ -25,8 +25,12 @@ def solve():
         return 0
 
     ans = get_ans()
-    # Slow output: a separate print call for every value, without joining, e.g.
-    # for v in ans: print(v)  or, for one line, print(v, end=' ') per value.
+    # Fixed small number of values (one number, a pair, three numbers):
+    # a plain print, e.g. print(a, b, c) — no join and no per-value prints.
+    # Sequence whose length depends on the input (N elements, Q answers):
+    # slow output — a separate print call for every element, without join, e.g.
+    #     for v in ans:
+    #         print(v)  # or print(v, end=' ') for one line
     print(ans)
 
 
