@@ -10,6 +10,7 @@ from orchestrator.steps.generators_and_script import (
     _build_context_sections,
     compute_input_hash,
     extra_context_documents,
+    fix_script_comparisons,
     restore_script_functions,
     run_step,
 )
@@ -488,6 +489,48 @@ def test_run_step_restores_dropped_script_functions_with_note(spec, tmp_path):
         assert f"<#function {name} " in script
     assert [note["field"] for note in result.notes] == ["test_script_groups"]
     assert result.notes[0]["kind"] == "restored"
+
+
+@pytest.mark.parametrize("line, fixed", [
+    ("    <#if value >= n>", "    <#if value gte n>"),
+    ("<#if (i * i) <= n>", "<#if (i * i) lte n>"),
+    ("<#assign big = a > b/>", "<#assign big = a gt b/>"),
+    ("<#elseif a<b >", "<#elseif a lt b >"),
+    ('<#if s == ">=" && a < b>', '<#if s == ">=" && a lt b>'),
+    ("<#assign r = xs?filter(x -> x > 1)/>", "<#assign r = xs?filter(x -> x gt 1)/>"),
+])
+def test_fix_script_comparisons_replaces_signs_in_directives(line, fixed):
+    assert fix_script_comparisons(line + "\nbody\n") == (fixed + "\nbody\n", 1)
+
+
+@pytest.mark.parametrize("line", [
+    "<#list 0..<n as i>",
+    "<#if a gte b>",
+    "<#return (a / b)?long>",
+    "gen -n=${a > b} > $",
+    "<#-- a > b -->",
+])
+def test_fix_script_comparisons_keeps_non_comparisons(line):
+    assert fix_script_comparisons(line) == (line, 0)
+
+
+def test_run_step_fixes_script_comparisons_with_note(spec, tmp_path):
+    script = SCRIPT_FUNCTIONS + "<#if n >= 2>\ngen > $\n</#if>\n"
+    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": script}, notes=[])
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    written = (tmp_path / "valid-spec" / "test_script_groups").read_text(encoding="utf-8")
+    assert "<#if n gte 2>" in written
+    assert [(note["field"], note["kind"]) for note in result.notes] == [("test_script_groups", "restored")]
 
 
 def _run_with_artifacts(spec, tmp_path, artifacts):
