@@ -6,21 +6,33 @@
 Polygon каждую часть задачи, которой пользуется оркестратор, и
 переписывает базу синхронизации (`revision`/`synced`, см.
 `orchestrator/polygon/sync.py`) по тому, что сейчас на Polygon. По
-аналогии с git: без `--overwrite` — `git fetch` (локальные файлы не
-трогаются, кроме отсутствующих), с `--overwrite` — `git fetch && git reset
---hard`.
+аналогии с git — `git pull` с трёхсторонней сверкой: общая база локального
+файла и версии на Polygon — его хеш в базе синхронизации до этого pull
+(`synced[ключ]`, то, что последний push загрузил или pull увидел).
 
 Решение принимается по каждому файлу отдельно:
 
 - локально файла нет — скачивается (`downloaded`);
 - совпадает с Polygon — не трогается (`up to date`);
-- отличается — без `--overwrite` остаётся локальная версия (`kept`), и
-  следующий `polygon push` загрузит её на Polygon (в базу записывается хеш
-  версии с Polygon — push сравнивает с ним локальный); с `--overwrite`
-  локальный файл переносится в `.pull_backup/<время>/` (`problems/` вне git,
-  другой копии у него нет) и заменяется версией с Polygon (`overwritten`);
+- отличается, и локальный файл совпадает с базой — менялся только Polygon:
+  локальный файл заменяется версией с Polygon (`updated`, fast-forward);
+- отличается, и версия на Polygon совпадает с базой — менялся только
+  локальный файл: остаётся локальная версия (`kept`) даже с
+  `--overwrite`, следующий `polygon push` загрузит её (в базу записывается
+  хеш версии с Polygon — push сравнивает с ним локальный);
+- отличается, и обе стороны отличаются от базы — менялись обе (`conflict`),
+  либо базы для файла нет: без `--overwrite` остаётся локальная версия
+  (`conflict`/`kept`), с `--overwrite` — заменяется версией с Polygon
+  (`overwritten`);
 - есть только локально — не трогается (`local only`), и следующий push
   загрузит его; локальные файлы pull никогда не удаляет.
+
+Заменённый локальный файл (`updated`, `overwritten`) сначала переносится в
+`.pull_backup/<время>/` (`problems/` вне git, другой копии у него нет).
+Отличающийся файл, оставленный локальным (`kept`, `conflict`), получает в
+базе хеш версии с Polygon — для следующего pull это уже правка только
+локальная, и `--overwrite` её не заменит. Чтобы отбросить локальную правку
+в этом случае, достаточно удалить файл локально — pull скачает его заново.
 
 Pull отказывается работать, если в рабочей копии задачи на Polygon есть
 незакоммиченные правки: база синхронизации — всегда закоммиченная ревизия.
@@ -35,7 +47,7 @@ Polygon равна записанной в базе (с последней си�
 не коммитили; ревизии на Polygon только растут, поэтому ключи, сверенные
 даже упавшим pull, относятся к той же ревизии). Для известной версии
 локальный файл сравнивается по хешу без скачивания: совпал — `up to date`,
-отличается — `kept`, и скачивается он только с `--overwrite`. Отметки
+отличается — менялся только локальный файл, `kept` без скачивания. Отметки
 записываются вместе с хешами по каждому файлу — частично упавший pull
 оставляет базу, в которой каждая пара "хеш + отметка" верна. Условие,
 примеры, TL/ML и test-script запрашиваются каждый раз — по одному запросу
@@ -60,9 +72,11 @@ Polygon равна записанной в базе (с последней си�
   Это НЕ результат `constraints_pick`: диапазонов переменных, групп и
   секции `validator` в нём нет (см. `_CONSTRAINTS_HEADER`). Сравниваются
   только TL/ML. Результат `constraints_pick` целиком не перезаписывается
-  никогда: с `--overwrite` в нём заменяются только значения
+  никогда: если TL/ML менялись только на Polygon (или с `--overwrite`),
+  в нём заменяются только значения
   `time_limit_seconds`/`memory_limit_mb` (`_replace_limits`), остальное —
-  диапазоны, группы, `validator`, комментарии — остаётся как было.
+  диапазоны, группы, `validator`, комментарии — остаётся как было. База —
+  хеш TL/ML (`LIMITS_KEY`), сверка та же, что у файлов.
   Обоснование TL/ML (`limits.rationale`) при этом не правится;
 - валидатор (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
 - чекер (`problem.checker`) -> `checker.cpp`, если он не стандартный
@@ -150,8 +164,10 @@ logger = logging.getLogger(__name__)
 # Статусы PullItem.status:
 ITEM_DOWNLOADED = "downloaded"  # локально не было — скачан
 ITEM_SAME = "up to date"  # совпадает с Polygon — не тронут
-ITEM_OVERWRITTEN = "overwritten"  # отличался, --overwrite: заменён, старый — в бэкапе
+ITEM_UPDATED = "updated"  # менялся только на Polygon: заменён, старый — в бэкапе
+ITEM_OVERWRITTEN = "overwritten"  # менялся и локально, --overwrite: заменён, старый — в бэкапе
 ITEM_KEPT = "kept"  # отличается от Polygon, оставлена локальная версия
+ITEM_CONFLICT = "conflict"  # менялся и локально, и на Polygon: оставлена локальная версия
 ITEM_LOCAL_ONLY = "local only"  # есть только локально — не тронут
 ITEM_ABSENT = "absent"  # нет ни на Polygon, ни локально
 ITEM_ERROR = "error"
@@ -174,6 +190,15 @@ _CONSTRAINTS_FILENAME = "constraints.yaml"
 _BACKUP_DIRNAME = ".pull_backup"
 
 _KEPT_DETAIL = "differs from Polygon, local version kept — the next push will upload it"
+_LOCAL_CHANGE_DETAIL = (
+    "changed only locally since the last sync, local version kept — the next push will upload it"
+)
+_UPDATED_DETAIL = "changed only on Polygon since the last sync, local file replaced"
+_CONFLICT_DETAIL = (
+    "changed both locally and on Polygon since the last sync, local version kept — "
+    "the next push will upload it over Polygon; to take the Polygon version instead, "
+    "delete the local file and pull again"
+)
 _LOCAL_ONLY_DETAIL = "not on Polygon — the next push will upload it"
 _NOT_DOWNLOADED_DETAIL = "unchanged on Polygon since the last sync, not downloaded"
 
@@ -508,8 +533,17 @@ class _Puller:
             return
 
         differs = f"TL/ML differ: local {_describe_limits(local)}, Polygon {_describe_limits(remote)}"
+        change = _change(
+            self.base_synced.get(LIMITS_KEY),
+            limits_digest(*local) if local is not None else None,
+            limits_digest(*remote),
+        )
+        if change == _LOCAL:
+            self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_LOCAL_CHANGE_DETAIL}")
+            self.synced[LIMITS_KEY] = None
+            return
         is_pulled = path.read_bytes().startswith(_CONSTRAINTS_HEADER.encode("utf-8"))
-        if self.overwrite:
+        if change == _REMOTE or self.overwrite:
             if is_pulled:
                 replaced, detail = content, differs
             else:
@@ -522,14 +556,21 @@ class _Puller:
             if replaced is not None:
                 self._backup(_CONSTRAINTS_FILENAME)
                 self._write(_CONSTRAINTS_FILENAME, replaced)
-                self.add(_CONSTRAINTS_FILENAME, ITEM_OVERWRITTEN, detail)
+                self.add(
+                    _CONSTRAINTS_FILENAME,
+                    ITEM_UPDATED if change == _REMOTE else ITEM_OVERWRITTEN,
+                    detail,
+                )
                 self.synced[LIMITS_KEY] = limits_digest(*remote)
                 return
             differs += (
                 f" — could not replace {_TIME_KEY}/{_MEMORY_KEY} in constraints.yaml "
                 "automatically, fix the limits in it manually"
             )
-        self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_KEPT_DETAIL}")
+        if change == _BOTH:
+            self.add(_CONSTRAINTS_FILENAME, ITEM_CONFLICT, f"{differs}; {_CONFLICT_DETAIL}")
+        else:
+            self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_KEPT_DETAIL}")
         self.synced[LIMITS_KEY] = None
 
     def pull_problem_lib(self) -> None:
@@ -705,10 +746,10 @@ class _Puller:
                 self.add(name, ITEM_SAME, _join(detail, _NOT_DOWNLOADED_DETAIL))
                 self._record(key, known, stamp, also)
                 return False
-            if not self.overwrite:
-                self.add(name, ITEM_KEPT, _join(detail, _KEPT_DETAIL))
-                self._record(key, known, stamp, {k: None for k in also})
-                return False
+            # Версия на Polygon равна базе — менялся только локальный файл.
+            self.add(name, ITEM_KEPT, _join(detail, _LOCAL_CHANGE_DETAIL))
+            self._record(key, known, stamp, {k: None for k in also})
+            return False
 
         try:
             remote = fetch()
@@ -724,15 +765,29 @@ class _Puller:
             written = True
         elif _same(normalize(path.read_bytes()), normalize(remote)):
             self.add(name, ITEM_SAME, detail)
-        elif self.overwrite:
-            self._backup(name)
-            self._write(name, remote)
-            self.add(name, ITEM_OVERWRITTEN, detail)
-            written = True
         else:
-            self.add(name, ITEM_KEPT, _join(detail, _KEPT_DETAIL))
-            self._record(key, digest(normalize(remote)), stamp, {k: None for k in also})
-            return False
+            change = _change(
+                self.base_synced.get(key),
+                digest(normalize(path.read_bytes())),
+                digest(normalize(remote)),
+            )
+            if change == _REMOTE or (change != _LOCAL and self.overwrite):
+                self._backup(name)
+                self._write(name, remote)
+                if change == _REMOTE:
+                    self.add(name, ITEM_UPDATED, _join(detail, _UPDATED_DETAIL))
+                else:
+                    self.add(name, ITEM_OVERWRITTEN, detail)
+                written = True
+            else:
+                if change == _LOCAL:
+                    self.add(name, ITEM_KEPT, _join(detail, _LOCAL_CHANGE_DETAIL))
+                elif change == _BOTH:
+                    self.add(name, ITEM_CONFLICT, _join(detail, _CONFLICT_DETAIL))
+                else:
+                    self.add(name, ITEM_KEPT, _join(detail, _KEPT_DETAIL))
+                self._record(key, digest(normalize(remote)), stamp, {k: None for k in also})
+                return False
 
         self._record(key, digest(normalize(path.read_bytes())), stamp, also)
         return written
@@ -839,6 +894,27 @@ class _Puller:
 
     def _call_raw(self, method_name: str, params: dict[str, str]) -> bytes:
         return self.client.call_raw(method_name, {"problemId": str(self.polygon_id), **params})
+
+
+# Кто менял отличающиеся локальную версию и версию на Polygon с последней
+# синхронизации (`_change`).
+_LOCAL = "local"
+_REMOTE = "remote"
+_BOTH = "both"
+
+
+def _change(base: str | None, local: str | None, remote: str) -> str | None:
+    """Трёхсторонняя сверка отличающихся версий по хешам: `_LOCAL` — от
+    базы отличается только локальная, `_REMOTE` — только версия на Polygon,
+    `_BOTH` — обе; `None` — базы (или локального хеша) нет, кто менял —
+    неизвестно."""
+    if base is None or local is None:
+        return None
+    if local == base:
+        return _REMOTE
+    if remote == base:
+        return _LOCAL
+    return _BOTH
 
 
 def _same(local: bytes, remote: bytes) -> bool:
