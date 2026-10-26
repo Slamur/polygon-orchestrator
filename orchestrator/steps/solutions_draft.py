@@ -38,8 +38,10 @@ _LIST_FIELDS = ["alternative_approaches", "known_wrong_approaches"]
 # Каталог решений внутри каталога-референса, см. `extra_context_documents`.
 SOLUTIONS_SUBDIR = "solutions"
 
-# Скелеты решений по языкам в `templates/` — `<language>.<ext>` (`cpp.cpp`):
-# ввод-вывод и структура решения без алгоритма, см. `extra_context_documents`.
+# Скелеты решений в `templates/` — `<verdict>_<description>.<language>`
+# (`ok.cpp`, `tl_ok_slowio.java`): ввод-вывод и структура решения без
+# алгоритма; язык скелета — его расширение (как и в именах решений, совпадает
+# с языком), см. `extra_context_documents`.
 SOLUTION_TEMPLATES_SUBDIR = "solutions"
 
 # `solutions.languages` — свободные строки; приводим распространённые
@@ -135,10 +137,10 @@ def extra_context_documents(
     тянуть в контекст чужой стиль ввода/вывода.
 
     Заказанному языку, для которого референсы не дали ни одного
-    `ok`-решения, вместо образца прикладывается скелет решения из
-    `templates/solutions/<language>.*` (если он есть): то, как автор хочет
-    видеть ввод-вывод на этом языке, задаётся и без референсов. Скелеты —
-    перед файлами референсов. Если секции `solutions` нет — `None`: шаг
+    `ok`-решения, вместо образца прикладываются все скелеты решений этого
+    языка из `templates/solutions/*.<language>` (если они есть): то, как
+    автор хочет видеть ввод-вывод на этом языке, задаётся и без
+    референсов. Скелеты — перед файлами референсов. Если секции `solutions` нет — `None`: шаг
     всё равно не запускается.
     """
     if spec.solutions is None:
@@ -160,7 +162,7 @@ def extra_context_documents(
     templates = [
         str(path)
         for language in sorted(languages - covered)
-        for path in sorted((Path(templates_dir) / SOLUTION_TEMPLATES_SUBDIR).glob(f"{language}.*"))
+        for path in sorted((Path(templates_dir) / SOLUTION_TEMPLATES_SUBDIR).glob(f"*.{language}"))
     ]
     return [*templates, *references] or None
 

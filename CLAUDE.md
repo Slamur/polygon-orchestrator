@@ -83,7 +83,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── spec_template.yaml        # черновик спека для `orchestrator <задача> init` (и основа для `init --draft`); шагам не прикладывается
 │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
 │   ├── testlib.h
-│   ├── solutions/                # скелеты решений по языкам (<language>.<ext>: cpp.cpp, java.java, py.py) —
+│   ├── solutions/                # скелеты решений (<verdict>_<description>.<language>: ok.cpp, ok.java, ok.py, tl_ok_slowio.java) —
 │   │                             # ввод-вывод и структура без алгоритма; solutions_draft получает их для языков без ok-образца в референсах
 │   └── tutorials/
 │       ├── statement.md          # правила по условию (statement_draft)
@@ -699,14 +699,15 @@ CLI, расход из лимитов подписки, а не с API-бала�
   образцов держать оба согласованными с ними и с `constraints_format.yaml`
   — это проверяет `tests/test_example_templates.py`, там же compile-check
   всех `.cpp` образцов).
-- `templates/solutions/<language>.<ext>` — скелеты решений по языкам:
-  способ ввода-вывода автора, `solve()`, отдельное вычисление ответа и
-  точка входа, без алгоритма. `solutions_draft` прикладывает скелет
-  каждому языку из `solutions.languages`, для которого референсы не дали
-  ни одного `ok`-решения (`extra_context_documents` в
+- `templates/solutions/<verdict>_<description>.<language>` — скелеты
+  решений (`ok.cpp`, `tl_ok_slowio.java`): способ ввода-вывода автора,
+  `solve()`, отдельное вычисление ответа и точка входа, без алгоритма;
+  язык скелета — его расширение. `solutions_draft` прикладывает все
+  скелеты каждого языка из `solutions.languages`, для которого референсы
+  не дали ни одного `ok`-решения (`extra_context_documents` в
   `orchestrator/steps/solutions_draft.py`), — так ввод-вывод задан и без
-  референсов. Новый язык — новый файл `<language>.<ext>` с именем языка как
-  в именах решений, код править не нужно.
+  референсов. Новый язык или вердикт — новый файл с расширением, как язык
+  назван в именах решений (`ok.kt`), код править не нужно.
 - Образцы (файлы других задач) прикладываются к вызову модели только как
   **референсы спека** — поле `references` в корне спека (для всех шагов) и
   в секциях шагов (только для своего шага), см. `docs/SPEC_FORMAT.md`,

@@ -61,8 +61,9 @@
 - `templates/` — общее для всех задач: правила `tutorials/*.md`,
   `problem_lib.h` (шаблон — копируется в `problems/<путь задачи>/problem_lib.h`,
   оттуда загружается в Polygon шагом `upload_problem_lib`), `testlib.h`,
-  скелеты решений `solutions/<language>.<ext>` (`cpp.cpp`, `java.java`,
-  `py.py` — ввод-вывод и структура решения без алгоритма).
+  скелеты решений `solutions/<verdict>_<description>.<language>` (`ok.cpp`,
+  `ok.java`, `ok.py`, `tl_ok_slowio.java` — ввод-вывод и структура решения
+  без алгоритма).
   Этот же каталог — include-путь compile-check (после каталога задачи).
 - `examples/<путь задачи>/` — учебные задачи-образцы. Каждая лежит
   в той же раскладке, что и результат оркестратора `problems/<путь задачи>/`
@@ -86,7 +87,7 @@
 | `statement_draft` | `statement.md` | `spec.yaml`, `statement/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
 | `generators_and_script` | `tests.md`, `freemarker.md`, `problem_lib.h`, `test_script_functions.ftl` | `spec.yaml`, `constraints.yaml`, `generators/*.cpp`, `test_script`, `test_script_groups` |
-| `solutions_draft` | `solutions.md`, `limits.md`; `solutions/<language>.*` — для языков из `solutions.languages` без `ok`-решения в референсах | `spec.yaml`, `solutions/*` на языках из `solutions.languages` |
+| `solutions_draft` | `solutions.md`, `limits.md`; `solutions/*.<language>` — для языков из `solutions.languages` без `ok`-решения в референсах | `spec.yaml`, `solutions/*` на языках из `solutions.languages` |
 | `checker_draft` | `checker.md`, `problem_lib.h` | `spec.yaml`, `checker.cpp` |
 
 `spec.yaml` из каталога прикладывается, только если каталог дал шагу хотя
@@ -763,13 +764,15 @@ script_style: {{ generation.script_style }}
 есть для языков из `languages`), эталон того, КАК автор хочет видеть
 решение, — и spec.yaml той же задачи.
 Для заказанного языка, на котором среди образцов нет ни одного
-`ok`-решения, вместо образца приложен скелет решения
-`solutions/<language>.<ext>` (например, `solutions/cpp.cpp`): каркас
-решения без алгоритма — чтение входа, отдельная функция вычисления ответа,
-вывод, точка входа и функции ввода-вывода, которые автор использует на
-этом языке. Комментарии-заглушки и возвращаемое заглушкой значение в
-скелете — места, которые ты заполняешь по своей задаче; в решение они не
-переносятся.
+`ok`-решения, вместо образцов приложены скелеты решений этого языка —
+`solutions/<verdict>_<description>.<ext>`: `solutions/ok.<ext>` (например,
+`solutions/ok.cpp`) — каркас `ok`-решения без алгоритма: чтение входа,
+отдельная функция вычисления ответа, вывод, точка входа и функции
+ввода-вывода, которые автор использует на этом языке; скелет с другим
+вердиктом (например, `solutions/tl_ok_slowio.java`) — тот же каркас для
+решения с этим вердиктом (`slowio` — медленный ввод-вывод).
+Комментарии-заглушки и возвращаемое заглушкой значение в скелете — места,
+которые ты заполняешь по своей задаче; в решение они не переносятся.
 
 Как пользоваться решениями-образцами.
 Заголовок приложенного документа — путь к файлу: файлы из одного каталога
@@ -888,8 +891,8 @@ script_style: {{ generation.script_style }}
    `ok`-решения, в которой заменён только способ ввода-вывода на
    медленный, а алгоритм оставлен прежним: в Java — `Scanner` и
    `System.out` без своей буферизации, в Python — `input()` по строке и
-   `print` на каждое выводимое значение; если приложен образец с медленным
-   вводом-выводом — как в нём. ПОМЕТЬ его как `proposed` и укажи в
+   `print` на каждое выводимое значение; если приложен образец или скелет
+   с медленным вводом-выводом — как в нём. ПОМЕТЬ его как `proposed` и укажи в
    `notes` оценку объёма ввода-вывода, из-за которой оно добавлено.
 5. Имена файлов — по схеме `<verdict>_<language>_<description>_<author>.<ext>`
    (author можно оставить как `draft`, если явно не задан); вердикт "TL или
