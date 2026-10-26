@@ -1,8 +1,11 @@
+import py_compile
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from orchestrator.checks.compile_check import compile_check
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.references import SpecReferenceError
@@ -16,6 +19,7 @@ from orchestrator.steps.solutions_draft import (
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
+SOLUTION_TEMPLATES = TEMPLATES_DIR / "solutions"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
@@ -85,9 +89,78 @@ def test_extra_context_documents_without_matching_solutions(spec, tmp_path):
         update={"references": [str(reference_dir)]}
     )
     assert extra_context_documents(common_only) is None
-    assert extra_context_documents(_with_solutions(spec, ["cpp"], None)) is None
     spec_no_solutions = spec.model_copy(update={"solutions": None})
     assert extra_context_documents(spec_no_solutions) is None
+
+
+def test_extra_context_documents_without_references_attaches_language_templates(spec):
+    documents = extra_context_documents(
+        _with_solutions(spec, ["Python", "cpp", "kotlin"], None), templates_dir=TEMPLATES_DIR
+    )
+
+    # Скелета для kotlin нет — язык просто остаётся без него.
+    assert documents == [
+        str(SOLUTION_TEMPLATES / "ok.cpp"),
+        str(SOLUTION_TEMPLATES / "ok.py"),
+        str(SOLUTION_TEMPLATES / "tl_ok_slowio.py"),
+    ]
+
+
+def test_extra_context_documents_attaches_all_templates_of_a_language(spec):
+    documents = extra_context_documents(_with_solutions(spec, ["java"], None), templates_dir=TEMPLATES_DIR)
+
+    assert documents == [str(SOLUTION_TEMPLATES / "ok.java"), str(SOLUTION_TEMPLATES / "tl_ok_slowio.java")]
+
+
+def test_extra_context_documents_attaches_template_for_language_without_ok_reference(spec, tmp_path):
+    reference_dir = tmp_path / "old-task"
+    (reference_dir / "solutions").mkdir(parents=True)
+    for name in ["wa_cpp_b_draft.cpp", "ok_java_a_draft.java"]:
+        (reference_dir / "solutions" / name).write_text(f"// {name}", encoding="utf-8")
+
+    documents = extra_context_documents(
+        _with_solutions(spec, ["cpp", "java"], [str(reference_dir)]), templates_dir=TEMPLATES_DIR
+    )
+
+    # У java есть ok-образец — скелеты не нужны; у cpp только wa — нужны.
+    assert documents == [
+        str(SOLUTION_TEMPLATES / "ok.cpp"),
+        str(reference_dir / "solutions" / "ok_java_a_draft.java"),
+        str(reference_dir / "solutions" / "wa_cpp_b_draft.cpp"),
+    ]
+
+
+def test_run_step_attaches_language_template_under_templates_key(spec, tmp_path):
+    response = ModelResponse(status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[])
+    upstream = {"constraints.yaml": "n_max: 100000"}
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        result = run_step(
+            "valid-spec",
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+    for compiled in result.compile_results.values():
+        if compiled.binary_path:
+            compiled.binary_path.unlink(missing_ok=True)
+
+    context_documents = mock_call.call_args.kwargs["context_documents"]
+    assert context_documents["solutions/ok.cpp"] == (SOLUTION_TEMPLATES / "ok.cpp").read_text(encoding="utf-8")
+
+
+@pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
+def test_cpp_solution_template_compiles():
+    result = compile_check(SOLUTION_TEMPLATES / "ok.cpp", [TEMPLATES_DIR])
+    if result.binary_path:
+        result.binary_path.unlink(missing_ok=True)
+    assert result.success, result.stderr
+
+
+@pytest.mark.parametrize("name", ["ok.py", "tl_ok_slowio.py"])
+def test_python_solution_templates_compile(name, tmp_path):
+    py_compile.compile(str(SOLUTION_TEMPLATES / name), cfile=str(tmp_path / f"{name}c"), doraise=True)
 
 
 def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_path):

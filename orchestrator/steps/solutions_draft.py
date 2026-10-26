@@ -38,6 +38,12 @@ _LIST_FIELDS = ["alternative_approaches", "known_wrong_approaches"]
 # Каталог решений внутри каталога-референса, см. `extra_context_documents`.
 SOLUTIONS_SUBDIR = "solutions"
 
+# Скелеты решений в `templates/` — `<verdict>_<description>.<language>`
+# (`ok.cpp`, `tl_ok_slowio.java`): ввод-вывод и структура решения без
+# алгоритма; язык скелета — его расширение (как и в именах решений, совпадает
+# с языком), см. `extra_context_documents`.
+SOLUTION_TEMPLATES_SUBDIR = "solutions"
+
 # `solutions.languages` — свободные строки; приводим распространённые
 # варианты записи к тому, как язык назван в именах файлов шаблонов.
 _LANGUAGE_ALIASES = {"c++": "cpp", "python": "py", "python3": "py"}
@@ -128,8 +134,14 @@ def extra_context_documents(
     `prompts/solutions_draft/system.md`). Язык решения — второй компонент
     имени файла по схеме `<verdict>_<language>_...` (`ok_cpp_prefs_draft.cpp`
     -> `cpp`); решения на незаказанных языках не прикладываются, чтобы не
-    тянуть в контекст чужой стиль ввода/вывода. Если секции `solutions` нет —
-    `None`: шаг всё равно не запускается.
+    тянуть в контекст чужой стиль ввода/вывода.
+
+    Заказанному языку, для которого референсы не дали ни одного
+    `ok`-решения, вместо образца прикладываются все скелеты решений этого
+    языка из `templates/solutions/*.<language>` (если они есть): то, как
+    автор хочет видеть ввод-вывод на этом языке, задаётся и без
+    референсов. Скелеты — перед файлами референсов. Если секции `solutions` нет — `None`: шаг
+    всё равно не запускается.
     """
     if spec.solutions is None:
         return None
@@ -139,14 +151,28 @@ def extra_context_documents(
     def keep(rel_path: str) -> bool:
         if not rel_path.startswith(f"{SOLUTIONS_SUBDIR}/"):
             return True
-        return _template_language(Path(rel_path)) in languages
+        return _solution_parts(Path(rel_path))[1] in languages
 
-    return reference_documents(STEP_NAME, spec, keep=keep)
+    references = reference_documents(STEP_NAME, spec, keep=keep) or []
+    covered = {
+        language
+        for verdict, language in map(_solution_parts, map(Path, references))
+        if verdict == "ok"
+    }
+    templates = [
+        str(path)
+        for language in sorted(languages - covered)
+        for path in sorted((Path(templates_dir) / SOLUTION_TEMPLATES_SUBDIR).glob(f"*.{language}"))
+    ]
+    return [*templates, *references] or None
 
 
-def _template_language(path: Path) -> Optional[str]:
+def _solution_parts(path: Path) -> tuple[Optional[str], Optional[str]]:
+    """(вердикт, язык) по имени решения `<verdict>_<language>_...`
+    (`tl_ok_java_slowio_draft.java` -> `("tl_ok", "java")`); `None` там, где
+    имя схеме не следует."""
     parts = split_solution_stem(path.stem)
-    return parts[1] if len(parts) >= 2 else None
+    return (parts[0] if parts else None), (parts[1] if len(parts) >= 2 else None)
 
 
 def run_step(
