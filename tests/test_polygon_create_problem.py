@@ -52,6 +52,7 @@ def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
 
     assert "created new" in message
     assert "555" in message
+    assert "auto-update" in message
     create_calls = [c for c in client.call.call_args_list if c.args[0] == "problem.create"]
     assert len(create_calls) == 1
     assert create_calls[0].args[1] == {"name": PROBLEM_ID}
@@ -88,6 +89,7 @@ def test_reuses_existing_polygon_problem_found_by_name(tmp_path, spec):
 
     assert "reused" in message
     assert "polygon pull" in message
+    assert "auto-update" not in message
     client.call.assert_called_once_with("problems.list", {"name": PROBLEM_ID})
     state = load_polygon_state(PROBLEM_ID, problems_dir=tmp_path)
     assert state is not None
