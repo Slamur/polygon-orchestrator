@@ -60,9 +60,6 @@ Output: автор не указал — не вычисляй сам, орие�
 - input_format.tex
 - output_format.tex
 - notes.tex
-{% for ex in statement_draft.sample_examples %}
-- examples/example_{{ loop.index }}.txt
-{% endfor %}
 {% if statement_draft.interaction_sketch is defined %}
 - interaction.tex
 {% for ex in statement_draft.sample_examples %}

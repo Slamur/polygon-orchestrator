@@ -57,3 +57,14 @@ def test_prompts_doc_matches_revise_prompt():
     assert block.group(1) == prompt_text.rstrip("\n"), (
         "docs/PROMPTS.md is out of sync with prompts/revise.md.j2"
     )
+
+
+def test_prompts_doc_matches_missing_artifacts_prompt():
+    section = PROMPTS_DOC.read_text(encoding="utf-8").split("## Дозапрос недостающих файлов", 1)
+    assert len(section) == 2, "docs/PROMPTS.md has no 'Дозапрос недостающих файлов' section"
+    block = re.search(r"\n`````\n(.*?)\n`````\n", section[1], re.S)
+    assert block, "docs/PROMPTS.md has no missing_artifacts.md.j2 block"
+    prompt_text = (PROMPTS_DIR / "missing_artifacts.md.j2").read_text(encoding="utf-8")
+    assert block.group(1) == prompt_text.rstrip("\n"), (
+        "docs/PROMPTS.md is out of sync with prompts/missing_artifacts.md.j2"
+    )

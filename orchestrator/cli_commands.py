@@ -213,8 +213,13 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
             logger.info(f"      renamed: {old_path} -> {new_path} — {reason}")
         if outcome.backup_dir is not None:
             logger.info(f"      previous versions of overwritten files: {outcome.backup_dir}")
+        # Одна строка на причину: у ответа, не применённого целиком, она
+        # общая для всех его файлов.
+        by_reason: dict[str, list[str]] = {}
         for filename, reason in outcome.conflicts:
-            logger.info(f"      not applied: {filename} — {reason}")
+            by_reason.setdefault(reason, []).append(filename)
+        for reason, filenames in by_reason.items():
+            logger.info(f"      not applied: {', '.join(filenames)} — {reason}")
         if outcome.conflicts_dir is not None:
             logger.info(f"      model versions of not applied files: {outcome.conflicts_dir}")
 
