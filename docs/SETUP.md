@@ -38,8 +38,8 @@ git config core.hooksPath   # должно вывести: githooks
 
 ## Опционально: Java для проверки test-script'а
 
-`orchestrator <задача> polygon check` и проверка скрипта перед загрузкой в
-`polygon push` раскрывают FreeMarker test-script настоящим FreeMarker, поэтому
+Проверка test-script'а в `orchestrator <задача> polygon check` и перед загрузкой в
+`polygon push` раскрывает FreeMarker test-script настоящим FreeMarker, поэтому
 нужна `java` (JDK 11+, запуск `.java` без сборки):
 
 ```bash

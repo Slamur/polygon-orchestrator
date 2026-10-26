@@ -1,4 +1,5 @@
-"""Реализация команд CLI: `init`, `llm generate|apply|status|accept`, `polygon push|status|check|pull`.
+"""Реализация команд CLI: `init`, `llm generate|apply|status|accept`,
+`polygon push|status|check|fix|pull`.
 
 Парсер аргументов и входная точка — в `cli.py`; этот модуль он импортирует
 только после разбора аргументов, потому что отсюда тянутся оба пайплайна (а
@@ -8,7 +9,9 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import logging
+import shutil
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -39,6 +42,13 @@ from orchestrator.polygon.pull import ITEM_ERROR as PULL_ITEM_ERROR
 from orchestrator.polygon.pull import pull_problem
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
+from orchestrator.checks.statement_check import (
+    FIX_BACKUP_DIRNAME,
+    STATEMENT_DIRNAME,
+    check_text as check_statement_text,
+    fix_text as fix_statement_text,
+    statement_files,
+)
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptRenderError,
@@ -402,19 +412,29 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 
 
 def cmd_polygon_check(args: argparse.Namespace) -> int:
-    """Раскрывает test-script(ы) задачи и печатает одинаковые строки с
-    указанием строк скрипта, которые их напечатали
-    (`orchestrator/checks/test_script_check.py`). Спек не нужен — проверяются
-    все существующие файлы из `SCRIPT_FILENAMES`."""
+    """Без обращения к Polygon проверяет то, что загрузит push: оформление
+    условия (`statement/*.tex`: списки в стиле Markdown, кавычки не `<<…>>` —
+    `orchestrator/checks/statement_check.py`) и test-script(ы) — раскрывает
+    их и печатает одинаковые строки с указанием строк скрипта, которые их
+    напечатали (`orchestrator/checks/test_script_check.py`). Спек не нужен —
+    проверяются все существующие файлы условия и из `SCRIPT_FILENAMES`."""
     problem_dir = Path(args.problems_dir) / args.problem_id
+    tex_files = statement_files(problem_dir)
     scripts = [problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()]
-    if not scripts:
+    if not tex_files and not scripts:
         print(
-            f"no test script in {problem_dir} (expected one of: {', '.join(SCRIPT_FILENAMES)})",
+            f"nothing to check in {problem_dir}: no {STATEMENT_DIRNAME}/*.tex and no test script "
+            f"(expected one of: {', '.join(SCRIPT_FILENAMES)})",
             file=sys.stderr,
         )
         return 1
     failed = False
+    if tex_files:
+        failed = not _check_statement(problem_dir, tex_files)
+    else:
+        print(f"no statement ({STATEMENT_DIRNAME}/*.tex) — skipped")
+    if not scripts:
+        print(f"no test script (expected one of: {', '.join(SCRIPT_FILENAMES)}) — skipped")
     for script in scripts:
         try:
             result = check_script(script.read_text(encoding="utf-8"), script.name)
@@ -431,6 +451,65 @@ def cmd_polygon_check(args: argparse.Namespace) -> int:
         else:
             print(f"{script.name}: ok, no identical lines")
     return 1 if failed else 0
+
+
+def _check_statement(problem_dir: Path, tex_files: list[Path]) -> bool:
+    issues = [
+        issue
+        for path in tex_files
+        for issue in check_statement_text(
+            path.read_text(encoding="utf-8"), path.relative_to(problem_dir).as_posix()
+        )
+    ]
+    if not issues:
+        print(f"{STATEMENT_DIRNAME}: ok, no Markdown lists, all quotes are <<...>>")
+        return True
+    print(f"{STATEMENT_DIRNAME}: {len(issues)} formatting issue(s):")
+    for issue in issues:
+        print(f"  {issue.format()}")
+    if any(issue.fixable for issue in issues):
+        print(f"run 'polygon fix' to fix them (old versions go to {FIX_BACKUP_DIRNAME}/)")
+    return False
+
+
+def cmd_polygon_fix(args: argparse.Namespace) -> int:
+    """Исправляет в условии то, что `polygon check` находит и что можно
+    исправить механически: списки в стиле Markdown -> `itemize`/`enumerate`,
+    кавычки -> `<<…>>`. Прежние версии изменённых файлов — в
+    `.fix_backup/<время>/` каталога задачи. Без обращения к Polygon; push
+    загрузит изменённые файлы как обычно. Код возврата 1 — если остались
+    проблемы, которые нужно исправить руками (непарные кавычки)."""
+    problem_dir = Path(args.problems_dir) / args.problem_id
+    tex_files = statement_files(problem_dir)
+    if not tex_files:
+        print(f"no statement in {problem_dir / STATEMENT_DIRNAME} (*.tex)", file=sys.stderr)
+        return 1
+    stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    backup_dir = problem_dir / FIX_BACKUP_DIRNAME / stamp
+    changed = False
+    remaining = []
+    for path in tex_files:
+        name = path.relative_to(problem_dir).as_posix()
+        text = path.read_text(encoding="utf-8")
+        fixed = fix_statement_text(text)
+        if fixed != text:
+            target = backup_dir / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, target)
+            path.write_text(fixed, encoding="utf-8")
+            changed = True
+            print(f"  {name}: fixed")
+        remaining.extend(check_statement_text(fixed, name))
+    if changed:
+        print(f"old versions: {backup_dir}")
+    else:
+        print(f"{STATEMENT_DIRNAME}: nothing to fix")
+    if remaining:
+        print("not fixed, fix by hand:")
+        for issue in remaining:
+            print(f"  {issue.format()}")
+        return 1
+    return 0
 
 
 def cmd_polygon_pull(args: argparse.Namespace) -> int:
