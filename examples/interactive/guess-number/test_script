@@ -52,16 +52,15 @@ ${fixed} -n=${n} -x=${x} > $
     </#list>
 </#list>
 
-<#assign description = "Edge case: smallest possible N, the only possible X"/>
-${fixed} -n=${minN} -x=${minX} > $
-
 <#assign description = "Edge cases: N = 2^p + delta for every p with N in [minN, maxN], X = 1 and X = N"/>
 <#list 0..10 as p>
     <#list [-1, 0, 1] as delta>
         <#assign n = pow(2, p) + delta/>
         <#if n gte minN && n lte maxN>
 ${pow2delta} -p=${p} -delta=${delta} -x=${minX} > $
+            <#if n gt minX>
 ${pow2delta} -p=${p} -delta=${delta} -x=${n} > $
+            </#if>
         </#if>
     </#list>
 </#list>
