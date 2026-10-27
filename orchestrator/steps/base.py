@@ -76,7 +76,14 @@ from orchestrator.cache import (
 )
 from orchestrator.checks.compile_check import CompileResult, compile_check
 from orchestrator.model_contracts import ModelResponse
-from orchestrator.problem_paths import EXAMPLES_DIR, PROBLEMS_DIR, REMOVED_SUFFIX, is_removed_mark
+from orchestrator.problem_paths import (
+    AUTHORING_DIRNAME,
+    EXAMPLES_DIR,
+    PROBLEMS_DIR,
+    REMOVED_SUFFIX,
+    is_authoring_name,
+    is_removed_mark,
+)
 
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
@@ -469,11 +476,17 @@ def _context_document_key(path: Path, templates_dir: Path) -> str:
     него), а ключ (он входит в `compute_prompt_hash`) не зависит от того,
     как записан сам `templates_dir` — относительно или абсолютно. Файл вне
     `templates_dir` остаётся под путём как он передан
-    (`examples/<problem_id>/validator.cpp`, `problems/<problem_id>/validator.cpp`).
+    (`examples/<problem_id>/validator.cpp`, `problems/<problem_id>/validator.cpp`),
+    кроме файлов `authoring/` (спек, `constraints.yaml`): они — под путём без
+    `authoring/` (`examples/<problem_id>/constraints.yaml`), под тем же
+    именем, под которым шаг возвращает свой `constraints.yaml`, — и ключ
+    (а с ним хеш промпта) тот же, что до переноса этих файлов в `authoring/`.
     """
     try:
         return path.resolve().relative_to(templates_dir.resolve()).as_posix()
     except ValueError:
+        if path.parent.name == AUTHORING_DIRNAME and is_authoring_name(path.name):
+            return str(path.parent.parent / path.name)
         return str(path)
 
 

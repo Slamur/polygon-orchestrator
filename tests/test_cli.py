@@ -47,7 +47,7 @@ def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
 def _write_spec(problems_dir: Path, problem_id: str) -> None:
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     content = content.replace("problem_id: valid-spec", f"problem_id: {problem_id}")
-    spec_path = problems_dir / problem_id / "spec.yaml"
+    spec_path = problems_dir / problem_id / "authoring" / "spec.yaml"
     spec_path.parent.mkdir(parents=True, exist_ok=True)
     spec_path.write_text(content, encoding="utf-8")
 
@@ -174,6 +174,35 @@ def test_status_reports_not_run_before_any_run(problems_dir, tmp_path, capsys):
     assert "statement_draft: not run" in out
 
 
+def test_problem_in_layout_before_authoring_is_moved_on_first_command(problems_dir, capsys):
+    _write_spec(problems_dir, "p1")
+    problem_dir = problems_dir / "p1"
+    (problem_dir / "authoring" / "spec.yaml").rename(problem_dir / "spec.yaml")
+    (problem_dir / "draft.md").write_text("idea\n", encoding="utf-8")
+    (problem_dir / "authoring").rmdir()
+
+    rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
+
+    assert rc == 0
+    assert "statement_draft: not run" in capsys.readouterr().out
+    assert sorted(path.name for path in (problem_dir / "authoring").iterdir()) == [
+        "draft.md",
+        "spec.yaml",
+    ]
+    assert not (problem_dir / "spec.yaml").exists()
+
+
+def test_problem_with_spec_in_both_layouts_is_an_error(problems_dir, capsys):
+    _write_spec(problems_dir, "p1")
+    (problems_dir / "p1" / "spec.yaml").write_text("old\n", encoding="utf-8")
+
+    rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
+
+    assert rc == 1
+    assert "keep the actual one in authoring/" in capsys.readouterr().err
+    assert (problems_dir / "p1" / "spec.yaml").exists()
+
+
 def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
 
@@ -192,7 +221,7 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
-    (problems_dir / "p1" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
     capsys.readouterr()
 
     with patch("orchestrator.model_router.call_model") as mock_call:
@@ -235,7 +264,7 @@ def test_all_is_not_supported(problems_dir, tmp_path):
 
 def _mark_spec(problems_dir: Path, problem_id: str) -> None:
     """Пометки `init --draft` в спеке — как их оставляет модель."""
-    spec_path = problems_dir / problem_id / "spec.yaml"
+    spec_path = problems_dir / problem_id / "authoring" / "spec.yaml"
     text = spec_path.read_text(encoding="utf-8")
     spec_path.write_text(
         text + "# PROPOSED, REVIEW ME: inferred\n#   SUGGESTION: idea\n", encoding="utf-8"

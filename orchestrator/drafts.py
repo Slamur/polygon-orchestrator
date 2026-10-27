@@ -17,11 +17,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from orchestrator.problem_paths import DRAFT_STEM
+
 DRAFTS_DIR = Path("drafts")
 
 # Под каким именем (без расширения) копия черновика ложится в каталог
-# задачи: `<каталог задачи>/draft<расширение черновика>`.
-PROBLEM_DRAFT_STEM = "draft"
+# задачи: `<каталог задачи>/authoring/draft<расширение черновика>`.
+PROBLEM_DRAFT_STEM = DRAFT_STEM
 
 
 class DraftError(ValueError):

@@ -1,4 +1,4 @@
-"""Загрузка и валидация спека задачи (`problems/<путь задачи>/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
+"""Загрузка и валидация спека задачи (`problems/<путь задачи>/authoring/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
 
 Модуль только парсит и проверяет спек — никаких вызовов модели и никакой
 генерации артефактов здесь нет (см. CLAUDE.md).
@@ -19,7 +19,9 @@ from orchestrator.problem_paths import (
     PROBLEM_ID_PATTERN,
     SPEC_FILENAME,
     ProblemPathError,
+    authoring_path,
     check_new_problem_location,
+    find_authoring_file,
     parse_problem_address,
     problem_address,
     problem_id_for,
@@ -373,8 +375,9 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
     return spec
 
 
-# Спек задачи в её каталоге `SPEC_FILENAME` (`problems/<путь задачи>/spec.yaml`,
-# как у учебных задач `examples/<путь задачи>/spec.yaml`), см.
+# Спек задачи — `SPEC_FILENAME` в `authoring/` её каталога
+# (`problems/<путь задачи>/authoring/spec.yaml`, как у учебных задач
+# `examples/<путь задачи>/authoring/spec.yaml`), см.
 # `orchestrator/problem_paths.py`.
 
 # Шаблон черновика спека для `orchestrator <задача> init` (путь
@@ -514,7 +517,7 @@ def _reference_spec_text(reference: str, *, base_dir: Path) -> tuple[str, str]:
     except ProblemPathError as exc:
         raise SpecInitError(f"--ref: {exc}") from exc
     address = problem_address(root, reference_path)
-    path = spec_path(reference_path, problems_dir=Path(base_dir) / root)
+    path = find_authoring_file(Path(base_dir) / root / reference_path, SPEC_FILENAME)
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -636,8 +639,8 @@ def spec_validation_errors(path: Path, *, expected_id: str) -> list[str]:
 
 
 def spec_path(problem_path: str, *, problems_dir: Path) -> Path:
-    """Путь к спеку задачи: `problems_dir/<problem_path>/spec.yaml`."""
-    return Path(problems_dir) / problem_path / SPEC_FILENAME
+    """Путь к спеку задачи: `problems_dir/<problem_path>/authoring/spec.yaml`."""
+    return authoring_path(Path(problems_dir) / problem_path, SPEC_FILENAME)
 
 
 def load_problem_spec(problem_path: str, *, problems_dir: Path) -> ProblemSpec:

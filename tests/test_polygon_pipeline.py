@@ -28,7 +28,7 @@ def _write_spec(
     if flat_script:
         # upload_test_script отклоняет groups — для полного прогона нужен flat
         content = content.replace('script_style: "groups"', 'script_style: "flat"')
-    spec_path = problems_dir / (dir_name or problem_id) / "spec.yaml"
+    spec_path = problems_dir / (dir_name or problem_id) / "authoring" / "spec.yaml"
     spec_path.parent.mkdir(parents=True, exist_ok=True)
     spec_path.write_text(content, encoding="utf-8")
 
@@ -735,23 +735,24 @@ def _cli_args(problems_dir: Path) -> list[str]:
 
 
 def _write_generated_outputs(problems_dir: Path) -> None:
-    path = problems_dir / PROBLEM_ID / "constraints.yaml"
+    problem_dir = problems_dir / PROBLEM_ID
+    path = problem_dir / "authoring" / "constraints.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n", encoding="utf-8")
-    (path.parent / "limits.yaml").write_text(
+    (problem_dir / "limits.yaml").write_text(
         "time_limit_seconds: 2\nmemory_limit_mb: 256\n", encoding="utf-8"
     )
-    (path.parent / "validator.cpp").write_text("int main() {}\n", encoding="utf-8")
-    statement_dir = path.parent / "statement"
+    (problem_dir / "validator.cpp").write_text("int main() {}\n", encoding="utf-8")
+    statement_dir = problem_dir / "statement"
     (statement_dir / "examples").mkdir(parents=True, exist_ok=True)
     for name in ("legend.tex", "input_format.tex", "output_format.tex", "notes.tex"):
         (statement_dir / name).write_text("text\n", encoding="utf-8")
     (statement_dir / "examples" / "example_1.txt").write_text("1\n", encoding="utf-8")
-    generators_dir = path.parent / "generators"
+    generators_dir = problem_dir / "generators"
     generators_dir.mkdir(parents=True, exist_ok=True)
     (generators_dir / "gen_random.cpp").write_text("int main() {}\n", encoding="utf-8")
-    (path.parent / "test_script").write_text("gen_random 1 > $\n", encoding="utf-8")
-    solutions_dir = path.parent / "solutions"
+    (problem_dir / "test_script").write_text("gen_random 1 > $\n", encoding="utf-8")
+    solutions_dir = problem_dir / "solutions"
     solutions_dir.mkdir(parents=True, exist_ok=True)
     (solutions_dir / "ok_cpp_main_draft.cpp").write_text("int main() {}\n", encoding="utf-8")
 

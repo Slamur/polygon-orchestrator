@@ -35,11 +35,15 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from pathlib import PurePosixPath
 
-from orchestrator.drafts import PROBLEM_DRAFT_STEM
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.problem_paths import (
+    CONSTRAINTS_FILENAME,
+    SPEC_FILENAME,
+    is_authoring_name,
+    is_draft_name,  # noqa: F401 — часть интерфейса модуля (pull, upload_attachments)
+)
 
 LIMITS_KEY = "limits"
 PROBLEM_LIB_KEY = "problem_lib.h"
@@ -52,8 +56,10 @@ INTERACTOR_FILE_KEY = "interactor.cpp"
 INTERACTOR_KEY = "interactor"  # имя назначенного интерактора
 STATEMENT_NAME_KEY = "statement/name"
 SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
-SPEC_KEY = "spec.yaml"
-CONSTRAINTS_KEY = "constraints.yaml"  # файл целиком, в Attachments; TL/ML задачи — `LIMITS_KEY`
+# Attachments — файлы `authoring/` каталога задачи; на Polygon и в базе — по
+# имени файла, без каталога.
+SPEC_KEY = SPEC_FILENAME
+CONSTRAINTS_KEY = CONSTRAINTS_FILENAME  # файл целиком; TL/ML задачи — `LIMITS_KEY`
 
 # Заголовок `constraints.yaml`, который писали прежние версии `polygon pull`,
 # когда на Polygon есть только TL/ML (теперь TL/ML — в `limits.yaml`): такой
@@ -74,17 +80,11 @@ INTERACTOR_FILENAME = "interactor.cpp"
 STANDARD_CHECKER_PREFIX = "std::"
 
 
-def is_draft_name(name: str) -> bool:
-    """Копия черновика автора в каталоге задачи (`draft<расширение>`, см.
-    `orchestrator/drafts.py`)."""
-    return "/" not in name and PurePosixPath(name).stem == PROBLEM_DRAFT_STEM
-
-
 def is_attachment_name(name: str) -> bool:
-    """Файл каталога задачи, который хранится на Polygon в Attachments
-    (aux-файлы, шаг `upload_attachments`): спек, `constraints.yaml`,
-    копия черновика. Ключ в базе синхронизации — само имя."""
-    return name in (SPEC_KEY, CONSTRAINTS_KEY) or is_draft_name(name)
+    """Aux-файл на Polygon, который хранит файл `authoring/` каталога задачи
+    (шаг `upload_attachments`): спек, `constraints.yaml`, копия черновика.
+    Ключ в базе синхронизации — само имя."""
+    return is_authoring_name(name)
 
 
 def statement_file_key(filename: str) -> str:

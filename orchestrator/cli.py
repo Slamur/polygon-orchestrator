@@ -37,6 +37,7 @@ from orchestrator.drafts import DRAFTS_DIR, draft_names
 from orchestrator.problem_paths import (
     PROBLEM_ROOTS,
     ProblemPathError,
+    migrate_to_authoring,
     parse_problem_address,
     problem_address,
     problem_paths,
@@ -269,6 +270,16 @@ def main(argv: list[str] | None = None) -> int:
     except ProblemPathError as exc:
         parser.error(str(exc))
     args.problems_dir = args.base_dir / root
+    # Задача, созданная до `authoring/`, переносится при первой же команде
+    # к ней — дальше все команды видят только новую раскладку.
+    problem_dir = args.problems_dir / args.problem_id
+    try:
+        moves = migrate_to_authoring(problem_dir)
+    except ProblemPathError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    for source, target in moves:
+        print(f"moved {source} -> {target}", file=sys.stderr)
 
     from orchestrator import cli_commands
 

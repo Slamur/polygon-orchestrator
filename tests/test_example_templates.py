@@ -1,6 +1,6 @@
 """Согласованность учебных задач-образцов в `examples/`.
 
-`spec.yaml`, `constraints.yaml` и `validator.cpp` каждой учебной задачи
+`authoring/spec.yaml`, `authoring/constraints.yaml` и `validator.cpp` каждой учебной задачи
 прикладываются к вызовам модели как пара "спек -> ожидаемый результат" (см.
 docs/PROMPTS.md, "Приложенные шаблоны как образцы"). Если образцы разойдутся
 между собой, модель начнёт учиться неверному соответствию — тесты ловят то,
@@ -22,7 +22,7 @@ from orchestrator.checks.compile_check import compile_check
 from orchestrator.limits import extract_limits
 from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
 from orchestrator.spec import load_spec
-from orchestrator.references import SPEC_FILENAME
+from orchestrator.problem_paths import AUTHORING_DIRNAME, SPEC_FILENAME
 from orchestrator.steps.base import EXAMPLES_DIR
 from orchestrator.steps.generators_and_script import (
     SCRIPT_FUNCTIONS_FILENAME,
@@ -46,11 +46,11 @@ examples = pytest.mark.parametrize("example_dir", EXAMPLE_DIRS, ids=_id)
 
 def _example_spec(example_dir: Path):
     expected_id = problem_id_for(EXAMPLES_ROOT, _id(example_dir))
-    return load_spec(example_dir / SPEC_FILENAME, expected_id=expected_id)
+    return load_spec(example_dir / AUTHORING_DIRNAME / SPEC_FILENAME, expected_id=expected_id)
 
 
 def _example_constraints(example_dir: Path) -> dict:
-    return yaml.safe_load((example_dir / "constraints.yaml").read_text(encoding="utf-8"))
+    return yaml.safe_load((example_dir / AUTHORING_DIRNAME / "constraints.yaml").read_text(encoding="utf-8"))
 
 
 def test_examples_exist():

@@ -206,7 +206,7 @@ def test_pull_into_missing_directory_downloads_everything(problems_dir, polygon)
     assert (problem_dir / "solutions" / "ok_cpp_main_author.cpp").read_bytes() == b"// ok\n"
     assert _statuses(result)["checker.cpp"] == ITEM_ABSENT
     assert (problem_dir / "problem_lib.h").read_bytes() == polygon.resource_files["problem_lib.h"]
-    assert (problem_dir / "spec.yaml").read_bytes() == polygon.aux_files["spec.yaml"]
+    assert (problem_dir / "authoring" / "spec.yaml").read_bytes() == polygon.aux_files["spec.yaml"]
     assert result.warnings == []
     assert result.backup_dir is None
 
@@ -467,7 +467,7 @@ def test_overwrite_replaces_limits_and_backs_them_up(problems_dir, polygon):
 
 def test_limits_never_touch_constraints_yaml(problems_dir, polygon):
     original = "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 64\ngroups: []\n"
-    path = _write(problems_dir / PROBLEM_ID, "constraints.yaml", original)
+    path = _write(problems_dir / PROBLEM_ID, "authoring/constraints.yaml", original)
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
@@ -554,21 +554,21 @@ def test_problem_lib_missing_on_polygon(problems_dir, polygon):
 
 
 def test_different_local_spec_is_kept(problems_dir, polygon):
-    _write(problems_dir / PROBLEM_ID, "spec.yaml", "problem_id: example-problem\n# local\n")
+    _write(problems_dir / PROBLEM_ID, "authoring/spec.yaml", "problem_id: example-problem\n# local\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["spec.yaml"] == ITEM_KEPT
+    assert _statuses(result)["authoring/spec.yaml"] == ITEM_KEPT
     assert _synced(problems_dir)["spec.yaml"] == pull_module.digest(polygon.aux_files["spec.yaml"])
 
 
 def test_spec_missing_on_polygon(problems_dir, polygon):
     polygon.aux_files = {}
-    _write(problems_dir / PROBLEM_ID, "spec.yaml", "problem_id: example-problem\n")
+    _write(problems_dir / PROBLEM_ID, "authoring/spec.yaml", "problem_id: example-problem\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["spec.yaml"] == ITEM_LOCAL_ONLY
+    assert _statuses(result)["authoring/spec.yaml"] == ITEM_LOCAL_ONLY
     assert "spec.yaml" not in _synced(problems_dir)
 
 
@@ -587,13 +587,13 @@ def test_attachments_are_downloaded(problems_dir, polygon):
 
     problem_dir = problems_dir / PROBLEM_ID
     assert result.ok
-    assert (problem_dir / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
-    assert (problem_dir / "draft.md").read_text() == "idea\n"
+    assert (problem_dir / "authoring" / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
+    assert (problem_dir / "authoring" / "draft.md").read_text() == "idea\n"
     # Чужие aux-файлы pull не трогает.
     assert not (problem_dir / "other.txt").exists()
     statuses = [(item.name, item.status) for item in result.items]
-    assert ("constraints.yaml", ITEM_DOWNLOADED) in statuses
-    assert ("draft.md", ITEM_DOWNLOADED) in statuses
+    assert ("authoring/constraints.yaml", ITEM_DOWNLOADED) in statuses
+    assert ("authoring/draft.md", ITEM_DOWNLOADED) in statuses
     synced = _synced(problems_dir)
     assert synced["constraints.yaml"] == pull_module.digest(_CONSTRAINTS_PICK)
     assert synced["draft.md"] == pull_module.digest(b"idea\n")
@@ -604,22 +604,22 @@ def test_attachments_are_downloaded(problems_dir, polygon):
 def test_attached_constraints_replace_legacy_pulled_limits_only_file(problems_dir, polygon):
     # Такой файл писали прежние версии pull.
     stub = PULLED_CONSTRAINTS_HEADER + "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n"
-    path = _write(problems_dir / PROBLEM_ID, "constraints.yaml", stub)
+    path = _write(problems_dir / PROBLEM_ID, "authoring/constraints.yaml", stub)
     polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_PICK.encode()
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert path.read_text() == _CONSTRAINTS_PICK
-    assert (result.backup_dir / "constraints.yaml").read_text() == stub
+    assert (result.backup_dir / "authoring" / "constraints.yaml").read_text() == stub
 
 
 def test_legacy_pulled_limits_only_file_is_not_reported_for_push(problems_dir, polygon):
     stub = PULLED_CONSTRAINTS_HEADER + "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n"
-    _write(problems_dir / PROBLEM_ID, "constraints.yaml", stub)
+    _write(problems_dir / PROBLEM_ID, "authoring/constraints.yaml", stub)
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert "constraints.yaml" not in _statuses(result)
+    assert "authoring/constraints.yaml" not in _statuses(result)
 
 
 def test_limits_changed_on_polygon_do_not_change_attached_constraints(problems_dir, polygon):
@@ -630,28 +630,28 @@ def test_limits_changed_on_polygon_do_not_change_attached_constraints(problems_d
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert (problems_dir / PROBLEM_ID / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
-    assert _statuses(result)["constraints.yaml"] == ITEM_DOWNLOADED
+    assert (problems_dir / PROBLEM_ID / "authoring" / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
+    assert _statuses(result)["authoring/constraints.yaml"] == ITEM_DOWNLOADED
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
 
 
 def test_constraints_missing_in_attachments_is_left_for_push(problems_dir, polygon):
-    _write(problems_dir / PROBLEM_ID, "constraints.yaml", _CONSTRAINTS_PICK)
+    _write(problems_dir / PROBLEM_ID, "authoring/constraints.yaml", _CONSTRAINTS_PICK)
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["constraints.yaml"] == ITEM_LOCAL_ONLY
+    assert _statuses(result)["authoring/constraints.yaml"] == ITEM_LOCAL_ONLY
     assert "constraints.yaml" not in _synced(problems_dir)
 
 
 def test_local_draft_missing_on_polygon(problems_dir, polygon):
-    _write(problems_dir / PROBLEM_ID, "draft.txt", "idea\n")
-    _write(problems_dir / PROBLEM_ID, "draft.md.removed", "old\n")
+    _write(problems_dir / PROBLEM_ID, "authoring/draft.txt", "idea\n")
+    _write(problems_dir / PROBLEM_ID, "authoring/draft.md.removed", "old\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["draft.txt"] == ITEM_LOCAL_ONLY
-    assert "draft.md.removed" not in _statuses(result)
+    assert _statuses(result)["authoring/draft.txt"] == ITEM_LOCAL_ONLY
+    assert "authoring/draft.md.removed" not in _statuses(result)
     assert "draft.txt" not in _synced(problems_dir)
 
 
@@ -728,8 +728,8 @@ def test_nested_example_is_searched_by_joined_problem_id(tmp_path, polygon):
 def test_unlinked_problem_with_taken_problem_id_is_an_error_and_writes_nothing(
     problems_dir, polygon
 ):
-    (problems_dir / "2025" / PROBLEM_ID).mkdir(parents=True)
-    (problems_dir / "2025" / PROBLEM_ID / "spec.yaml").write_text("", encoding="utf-8")
+    (problems_dir / "2025" / PROBLEM_ID / "authoring").mkdir(parents=True)
+    (problems_dir / "2025" / PROBLEM_ID / "authoring" / "spec.yaml").write_text("", encoding="utf-8")
 
     with pytest.raises(PolygonStepError, match="already used by"):
         pull_problem(f"2026/{PROBLEM_ID}", problems_dir=problems_dir, client=polygon)

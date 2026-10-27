@@ -53,7 +53,7 @@ Polygon равна записанной в базе (с последней си�
 примеры, TL/ML и test-script запрашиваются каждый раз — по одному запросу
 на часть, времени изменения у них нет.
 
-Локальный спек (`problems/<problem_id>/spec.yaml`) не нужен: команда рассчитана
+Локальный спек (`problems/<problem_id>/authoring/spec.yaml`) не нужен: команда рассчитана
 в том числе на задачи, у которых локально нет вообще ничего. Сам спек
 сравнивается с Polygon как обычный файл (см. ниже), но не разбирается и не
 валидируется.
@@ -74,9 +74,9 @@ Polygon равна записанной в базе (с последней си�
   и `example_<K>.output_for_statement.txt` — так же, только если он есть
   на Polygon или локально;
 - aux-файлы (раздел "Attachments", `problem.files` + `problem.viewFile`;
-  загружает шаг `upload_attachments`) -> `spec.yaml`, `constraints.yaml`
-  (результат `constraints_pick` целиком), копия черновика
-  `draft<расширение>` — каждый сверяется только со своей версией в
+  загружает шаг `upload_attachments`) -> `authoring/spec.yaml`,
+  `authoring/constraints.yaml` (результат `constraints_pick` целиком), копия
+  черновика `authoring/draft<расширение>` — каждый сверяется только со своей версией в
   Attachments; прочие aux-файлы не трогаются. `constraints.yaml` из одних
   TL/ML, который писали прежние версии pull (`PULLED_CONSTRAINTS_HEADER`),
   уступает место версии из Attachments без `--overwrite`;
@@ -168,9 +168,10 @@ from orchestrator.polygon.sync import (
 )
 from orchestrator.limits import LIMITS_FILENAME, render_limits
 from orchestrator.problem_paths import (
+    AUTHORING_DIRNAME,
     PROBLEMS_DIR,
-    SPEC_FILENAME,
     ProblemPathError,
+    authoring_dir,
     check_new_problem_location,
     is_removed_mark,
     problem_id_for,
@@ -733,8 +734,9 @@ class _Puller:
 
     def pull_attachments(self) -> None:
         """Aux-файлы задачи (`is_attachment_name`: спек, `constraints.yaml`,
-        копия черновика), их загружает шаг `upload_attachments`. Прочие
-        aux-файлы на Polygon не трогаются."""
+        копия черновика), их загружает шаг `upload_attachments`; локально они
+        в `authoring/`, ключ базы — имя на Polygon. Прочие aux-файлы на
+        Polygon не трогаются."""
         remote_names = sorted(
             file["name"]
             for file in self._polygon_files().get("auxFiles") or []
@@ -744,38 +746,43 @@ class _Puller:
             if name == CONSTRAINTS_KEY:
                 self._drop_pulled_constraints()
             self._sync_file(
-                name,
+                _authoring_name(name),
                 lambda name=name: self._call_raw("problem.viewFile", {"type": "aux", "name": name}),
+                key=name,
                 stamped=True,
             )
 
         if SPEC_KEY not in remote_names:
-            self._missing_on_polygon(SPEC_FILENAME, "no attachment on Polygon", key=SPEC_KEY)
+            self._missing_on_polygon(
+                _authoring_name(SPEC_KEY), "no attachment on Polygon", key=SPEC_KEY
+            )
         if CONSTRAINTS_KEY not in remote_names:
-            path = self.problem_dir / CONSTRAINTS_KEY
+            path = self.problem_dir / _authoring_name(CONSTRAINTS_KEY)
             if path.exists() and _is_pulled_constraints(path.read_bytes()):
                 # Файл из одних TL/ML от прежних версий pull — не результат
                 # `constraints_pick`, `upload_attachments` его не загружает.
                 self.synced[CONSTRAINTS_KEY] = None
             else:
                 self._missing_on_polygon(
-                    CONSTRAINTS_KEY, "no attachment on Polygon", key=CONSTRAINTS_KEY
+                    _authoring_name(CONSTRAINTS_KEY), "no attachment on Polygon", key=CONSTRAINTS_KEY
                 )
+        directory = authoring_dir(self.problem_dir)
         local_drafts = sorted(
             path.name
-            for path in (self.problem_dir.iterdir() if self.problem_dir.is_dir() else [])
+            for path in (directory.iterdir() if directory.is_dir() else [])
             if path.is_file() and is_draft_name(path.name) and path.name not in remote_names
         )
         for name in local_drafts:
-            self._missing_on_polygon(name, "no attachment on Polygon")
+            self._missing_on_polygon(_authoring_name(name), "no attachment on Polygon", key=name)
 
     def _drop_pulled_constraints(self) -> None:
         """Локальный `constraints.yaml` из одних TL/ML, собранный прежними
         версиями pull, уступает место результату `constraints_pick` из Attachments: в бэкап и
         удаляется, `_sync_file` скачает файл с Polygon."""
-        path = self.problem_dir / CONSTRAINTS_KEY
+        name = _authoring_name(CONSTRAINTS_KEY)
+        path = self.problem_dir / name
         if path.exists() and _is_pulled_constraints(path.read_bytes()):
-            self._backup(CONSTRAINTS_KEY)
+            self._backup(name)
             path.unlink()
 
     def _warn_if_unparseable_solution_name(self, polygon_name: str, tag: object) -> None:
@@ -1014,6 +1021,11 @@ def _change(base: str | None, local: str | None, remote: str) -> str | None:
     if remote == base:
         return _LOCAL
     return _BOTH
+
+
+def _authoring_name(attachment: str) -> str:
+    """Путь файла Attachments в каталоге задачи (`authoring/<имя>`)."""
+    return f"{AUTHORING_DIRNAME}/{attachment}"
 
 
 def _is_pulled_constraints(content: bytes) -> bool:

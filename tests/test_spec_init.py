@@ -5,6 +5,7 @@ import yaml
 from pydantic import BaseModel
 
 from orchestrator import cli
+from orchestrator.problem_paths import AUTHORING_DIRNAME
 from orchestrator.spec import (
     SPEC_FILENAME,
     SPEC_TEMPLATE,
@@ -60,7 +61,7 @@ def test_template_lists_every_spec_field():
 def test_create_spec_draft_fills_problem_id_and_keeps_comments(tmp_path):
     spec_path = create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
 
-    assert spec_path == tmp_path / "my-task" / SPEC_FILENAME
+    assert spec_path == tmp_path / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME
     text = spec_path.read_text(encoding="utf-8")
     assert yaml.safe_load(text)["problem_id"] == "my-task"
     assert "docs/SPEC_FORMAT.md" in text
@@ -104,11 +105,11 @@ def test_create_spec_draft_keeps_existing_dir_and_never_overwrites_spec(tmp_path
     (problem_dir / "validator.cpp").write_text("// pulled", encoding="utf-8")
 
     create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
-    (problem_dir / SPEC_FILENAME).write_text("edited", encoding="utf-8")
+    (problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME).write_text("edited", encoding="utf-8")
 
     with pytest.raises(SpecInitError, match="already exists"):
         create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
-    assert (problem_dir / SPEC_FILENAME).read_text(encoding="utf-8") == "edited"
+    assert (problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME).read_text(encoding="utf-8") == "edited"
     assert (problem_dir / "validator.cpp").read_text(encoding="utf-8") == "// pulled"
 
 
@@ -124,7 +125,7 @@ def test_nested_draft_takes_problem_id_from_leaf_in_problems(tmp_path):
         "contest/2026/my-task", problems_dir=problems, templates_dir=TEMPLATES_DIR
     )
 
-    assert spec_path == problems / "contest" / "2026" / "my-task" / SPEC_FILENAME
+    assert spec_path == problems / "contest" / "2026" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME
     assert yaml.safe_load(spec_path.read_text(encoding="utf-8"))["problem_id"] == "my-task"
 
 
@@ -146,7 +147,7 @@ def test_load_problem_spec_checks_problem_id_derived_from_path(
     tmp_path, root, problem_path, problem_id, wrong_id
 ):
     problems_dir = tmp_path / root
-    spec_path = problems_dir / problem_path / SPEC_FILENAME
+    spec_path = problems_dir / problem_path / AUTHORING_DIRNAME / SPEC_FILENAME
     spec_path.parent.mkdir(parents=True)
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
 
@@ -185,7 +186,7 @@ def test_cli_init_creates_draft_and_fails_on_second_run(tmp_path, capsys):
     ]
 
     assert cli.main(argv) == 0
-    assert (tmp_path / "problems" / "contest" / "my-task" / SPEC_FILENAME).exists()
+    assert (tmp_path / "problems" / "contest" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME).exists()
     assert "created" in capsys.readouterr().out
 
     assert cli.main(argv) == 1

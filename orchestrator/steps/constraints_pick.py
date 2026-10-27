@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
+from orchestrator.problem_paths import authoring_path
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, SpecInitError, set_problem_id
 from orchestrator.steps.base import (
@@ -25,6 +26,7 @@ from orchestrator.steps.base import (
 )
 
 STEP_NAME = "constraints_pick"
+# Имя артефакта в ответе модели; файл — в `authoring/` каталога задачи.
 CONSTRAINTS_ARTIFACT = "constraints.yaml"
 
 # Optional[list[...]]-поля секции constraints, по которым user.md.j2 делает
@@ -108,7 +110,7 @@ def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
     """Путь к основному артефакту шага, см. `statement_draft.primary_artifact_path`."""
-    return Path(problems_dir) / problem_id / "constraints.yaml"
+    return authoring_path(Path(problems_dir) / problem_id, CONSTRAINTS_ARTIFACT)
 
 
 def current_artifacts(
@@ -119,7 +121,10 @@ def current_artifacts(
     `validator.cpp`."""
     problem_dir = Path(problems_dir) / problem_id
     return existing_artifacts(
-        {name: problem_dir / name for name in ("constraints.yaml", "validator.cpp")}
+        {
+            CONSTRAINTS_ARTIFACT: primary_artifact_path(problem_id, spec, problems_dir=problems_dir),
+            "validator.cpp": problem_dir / "validator.cpp",
+        }
     )
 
 
@@ -175,7 +180,7 @@ def run_step(
     останавливает оба файла разом, `validator.cpp` не пишется без
     `constraints.yaml` и наоборот.
 
-    При успехе пишет `problems/<problem_id>/constraints.yaml` и
+    При успехе пишет `problems/<problem_id>/authoring/constraints.yaml` и
     `problems/<problem_id>/validator.cpp`; `validator.cpp` дополнительно
     прогоняется через `compile_check` (как и любой другой `.cpp`-артефакт —
     см. `run_generative_step`).
@@ -188,6 +193,8 @@ def run_step(
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
+        if filename == CONSTRAINTS_ARTIFACT:
+            return primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
         return Path(problems_dir) / problem_id / filename
 
     return run_generative_step(
