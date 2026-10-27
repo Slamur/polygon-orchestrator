@@ -19,7 +19,7 @@ import pytest
 import yaml
 
 from orchestrator.checks.compile_check import compile_check
-from orchestrator.limits import extract_limits
+from orchestrator.limits import LIMITS_FILENAME, extract_limits, parse_limits
 from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
 from orchestrator.spec import load_spec
 from orchestrator.problem_paths import AUTHORING_DIRNAME, SPEC_FILENAME
@@ -106,6 +106,15 @@ def test_example_constraints_limits_are_readable_by_set_constraints(example_dir)
     spec = _example_spec(example_dir)
     limits = extract_limits(_example_constraints(example_dir))
     assert limits == (spec.constraints.time_limit_seconds, spec.constraints.memory_limit_mb)
+
+
+@examples
+def test_example_limits_file_is_readable(example_dir):
+    # С constraints.yaml не сравнивается: актуальные TL/ML могут отличаться от
+    # предложенных constraints_pick (подгонка на Polygon, `polygon pull`).
+    path = example_dir / LIMITS_FILENAME
+    assert path.is_file(), f"{path} is missing"
+    parse_limits(path.read_text(encoding="utf-8"))
 
 
 @examples
