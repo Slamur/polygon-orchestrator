@@ -303,11 +303,41 @@ def test_user_prompt_includes_statement_io(spec, tmp_path):
         assert ex.output.strip() in user_prompt
 
 
-def test_user_prompt_includes_constraints_yaml(spec, tmp_path):
-    constraints_yaml = "variables:\n  n: {min: 1, max: 200000}\nlimits:\n  time_limit_seconds: 2\n"
+def test_user_prompt_includes_constraints_yaml_without_limits(spec, tmp_path):
+    constraints_yaml = (
+        "# комментарий\n"
+        "variables:\n  n: {min: 1, max: 200000}\n"
+        "limits:\n  time_limit_seconds: 7\n  memory_limit_mb: 768\n  rationale: |\n\n    почему\n"
+        "test_groups:\n  - name: g1\n"
+    )
     user_prompt = _run_and_get_user_prompt(spec, tmp_path, {"constraints.yaml": constraints_yaml})
 
-    assert constraints_yaml.strip() in user_prompt
+    assert "# комментарий\nvariables:\n  n: {min: 1, max: 200000}\n" in user_prompt
+    assert "test_groups:\n  - name: g1" in user_prompt
+    assert "time_limit_seconds" not in user_prompt
+    assert "768" not in user_prompt
+    assert "почему" not in user_prompt
+
+
+def test_user_prompt_drops_root_level_limits(spec, tmp_path):
+    constraints_yaml = "n_max: 100000\ntime_limit_seconds: 7\nmemory_limit_mb: 768\n"
+    user_prompt = _run_and_get_user_prompt(spec, tmp_path, {"constraints.yaml": constraints_yaml})
+
+    assert "n_max: 100000" in user_prompt
+    assert "time_limit_seconds" not in user_prompt
+    assert "memory_limit_mb" not in user_prompt
+
+
+def test_compute_input_hash_ignores_limits(spec):
+    def constraints(n_max: int, tl: int) -> dict[str, str]:
+        return {"constraints.yaml": f"n_max: {n_max}\nlimits:\n  time_limit_seconds: {tl}\n"}
+
+    h1 = compute_input_hash("valid-spec", spec, constraints(200000, 1))
+    h2 = compute_input_hash("valid-spec", spec, constraints(200000, 3))
+    h3 = compute_input_hash("valid-spec", spec, constraints(100000, 1))
+
+    assert h1 == h2
+    assert h1 != h3
 
 
 def test_user_prompt_marks_missing_sample_output(spec, tmp_path):

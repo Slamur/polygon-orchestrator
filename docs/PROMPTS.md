@@ -90,7 +90,7 @@ Polygon, шагам не прикладывается. `interactive.md` (пра�
 | `statement_draft` | `statement.md` | `spec.yaml`, `statement/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
 | `generators_and_script` | `tests.md`, `freemarker.md`, `problem_lib.h`, `test_script_functions.ftl` | `spec.yaml`, `constraints.yaml`, `generators/*.cpp`, `test_script`, `test_script_groups` |
-| `solutions_draft` | `solutions.md`, `limits.md`; `solutions/*.<language>` — для языков из `solutions.languages` без `ok`-решения в референсах | `spec.yaml`, `solutions/*` на языках из `solutions.languages` |
+| `solutions_draft` | `solutions.md`; `solutions/*.<language>` — для языков из `solutions.languages` без `ok`-решения в референсах | `spec.yaml`, `solutions/*` на языках из `solutions.languages` |
 | `checker_draft` | `checker.md`, `problem_lib.h` | `spec.yaml`, `checker.cpp` |
 | `interactor_draft` | `interactive.md`, `problem_lib.h` | `spec.yaml`, `interactor.cpp` |
 
@@ -791,8 +791,6 @@ script_style: {{ generation.script_style }}
   Там же, в разделе "Решения в Polygon", — схема именования
   `<verdict><language><description>_<author>.<extension>`.
   Вердикт "TL или OK" в именах файлов записывается как `tl_ok`.
-- limits.md — во сколько раз корректные решения должны укладываться в TL,
-  а неэффективные — превышать его.
 Кроме них могут быть приложены образцы — файлы других задач, которые автор
 указал в спеке как референсы; образцов может не быть вовсе. Для этого шага
 это solutions/* — решения на заказанных языках (приложены только те, что
@@ -946,9 +944,12 @@ script_style: {{ generation.script_style }}
    неоднозначен (например, не сказано, что печатать при отсутствии ответа, или
    точность вещественного числа) — `status: uncertain` с указанием поля
    `statement_draft.formal_output_sketch`, а не домысливание.
-7. Ты не можешь проверить, что решение реально укладывается в TL/ML — это
-   вне скоупа этого шага (только compile-check делает оркестратор). Явно
-   укажи в notes, что данные решения не прогонялись на реальных лимитах и
+7. TL и ML задачи тебе не даны: вердикты по времени и памяти определяются
+   асимптотикой решения относительно `intended_complexity` при максимальных
+   значениях переменных из раздела "Зафиксированные ограничения". Проверить,
+   что решение реально укладывается в лимиты, ты не можешь — это вне
+   скоупа этого шага (только compile-check делает оркестратор). Явно укажи
+   в notes, что данные решения не прогонялись на реальных лимитах и
    требуют ручной проверки автором.
 8. Свои идеи сверх спека. Решения по п. 1, 3 и 4 пишутся так, как их описал
    автор, и твоими не заменяются. Но если ты видишь то, чего в спеке нет,
@@ -961,8 +962,8 @@ script_style: {{ generation.script_style }}
      различались (или не различались) по вердикту так, как задумал автор;
    - вероятную ошибку участников, которой нет в `known_wrong_approaches`
      (неучтённый случай, неверная жадность, переполнение, асимптотика хуже
-     заявленной, которая при зафиксированных ограничениях может уложиться в
-     TL), — отдельным `wa`-, `tl`- или `tl_ok`-решением, устроенным как в
+     заявленной, но пограничная при максимальных значениях переменных),
+     — отдельным `wa`-, `tl`- или `tl_ok`-решением, устроенным как в
      п. 3, на языке, где эта ошибка естественнее всего.
    Первая строка такого файла — комментарий `SUGGESTION: <в чём идея>`
    (синтаксисом комментария языка), и на каждый файл — запись в `notes` с
@@ -1035,7 +1036,7 @@ Output: автор не указал — не вычисляй сам.
 ## Заявленная и зафиксированная асимптотика (из constraints_pick)
 {{ constraints.intended_complexity }}
 
-## Зафиксированные ограничения (результат шага constraints_pick)
+## Зафиксированные ограничения (результат шага constraints_pick, без TL/ML)
 {{ constraints_pick_result.artifacts["constraints.yaml"] }}
 
 ## Нужные вердикты и языки
