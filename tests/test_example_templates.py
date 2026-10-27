@@ -19,7 +19,7 @@ import pytest
 import yaml
 
 from orchestrator.checks.compile_check import compile_check
-from orchestrator.polygon.steps.set_constraints import _extract_limits
+from orchestrator.limits import extract_limits
 from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
 from orchestrator.spec import load_spec
 from orchestrator.references import SPEC_FILENAME
@@ -104,7 +104,7 @@ def test_example_constraints_follow_constraints_format(example_dir):
 @examples
 def test_example_constraints_limits_are_readable_by_set_constraints(example_dir):
     spec = _example_spec(example_dir)
-    limits = _extract_limits(_example_constraints(example_dir))
+    limits = extract_limits(_example_constraints(example_dir))
     assert limits == (spec.constraints.time_limit_seconds, spec.constraints.memory_limit_mb)
 
 

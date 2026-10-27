@@ -483,7 +483,10 @@ _PIPELINE_RESPONSES = {
         },
     ),
     "constraints_pick": ModelResponse(
-        status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}
+        status="confirmed",
+        artifacts={
+            "constraints.yaml": "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
+        },
     ),
     "generators_and_script": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}

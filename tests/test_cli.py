@@ -11,6 +11,8 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+_CONSTRAINTS_YAML = "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
+
 _RESPONSES = {
     "statement_draft": ModelResponse(
         status="confirmed",
@@ -24,7 +26,7 @@ _RESPONSES = {
         notes=[],
     ),
     "constraints_pick": ModelResponse(
-        status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[]
+        status="confirmed", artifacts={"constraints.yaml": _CONSTRAINTS_YAML}, notes=[]
     ),
     "generators_and_script": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
@@ -183,14 +185,14 @@ def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert out.count("cache hit") == 4
+    assert out.count("cache hit") == 5
 
 
 def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
-    (problems_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
+    (problems_dir / "p1" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
     capsys.readouterr()
 
     with patch("orchestrator.model_router.call_model") as mock_call:
@@ -203,7 +205,7 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     assert "upstream: constraints.yaml" in out
 
     cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
-    assert capsys.readouterr().out.count("cache hit") == 4
+    assert capsys.readouterr().out.count("cache hit") == 5
 
 
 def test_accept_before_any_run_exits_nonzero(problems_dir, tmp_path, capsys):

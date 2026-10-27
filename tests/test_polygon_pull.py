@@ -20,6 +20,7 @@ from orchestrator.polygon.pull import (
     pull_problem,
 )
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.sync import PULLED_CONSTRAINTS_HEADER
 from orchestrator.polygon.steps import (
     set_constraints,
     upload_attachments,
@@ -347,8 +348,9 @@ def test_fractional_time_limit(problems_dir, polygon):
 
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    content = (problems_dir / PROBLEM_ID / "constraints.yaml").read_text()
+    content = (problems_dir / PROBLEM_ID / "limits.yaml").read_text()
     assert "time_limit_seconds: 1.5\n" in content
+    assert "memory_limit_mb: 512\n" in content
 
 
 def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir, polygon):
@@ -439,69 +441,39 @@ def test_local_only_files_are_reported_and_kept(problems_dir, polygon):
     )
 
 
-def test_constraints_pick_result_is_kept_without_overwrite(problems_dir, polygon):
-    path = _write(
-        problems_dir / PROBLEM_ID,
-        "constraints.yaml",
-        "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\ngroups: []\n",
-    )
+def test_differing_limits_without_base_are_kept_without_overwrite(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 1\nmemory_limit_mb: 256\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    item = next(item for item in result.items if item.name == "constraints.yaml")
+    item = next(item for item in result.items if item.name == "limits.yaml")
     assert item.status == ITEM_KEPT
     assert "1000ms/256MB" in item.detail and "2000ms/256MB" in item.detail
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (1000, 256)
     assert "limits" not in _synced(problems_dir)
 
 
-def test_overwrite_replaces_only_limits_in_constraints_pick_result(problems_dir, polygon):
-    original = (
-        "# constraints_pick result\n"
-        "limits:\n"
-        "  time_limit_seconds: 1  # tight\n"
-        "  memory_limit_mb: 256\n"
-        "  status: proposed\n"
-        "groups: []\n"
-    )
-    path = _write(problems_dir / PROBLEM_ID, "constraints.yaml", original)
+def test_overwrite_replaces_limits_and_backs_them_up(problems_dir, polygon):
+    original = "# tight\ntime_limit_seconds: 1\nmemory_limit_mb: 256\n"
+    path = _write(problems_dir / PROBLEM_ID, "limits.yaml", original)
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
-    item = next(item for item in result.items if item.name == "constraints.yaml")
-    assert item.status == ITEM_OVERWRITTEN
-    assert "rationale" in item.detail
-    assert path.read_text() == original.replace(
-        "time_limit_seconds: 1  # tight", "time_limit_seconds: 2  # tight"
-    )
-    assert "limits" in _synced(problems_dir)
-    assert (result.backup_dir / "constraints.yaml").read_text() == original
-
-
-def test_overwrite_replaces_limits_at_root_and_in_limits_section(problems_dir, polygon):
-    _write(
-        problems_dir / PROBLEM_ID,
-        "constraints.yaml",
-        "time_limit_seconds: 1\nmemory_limit_mb: 64\n"
-        "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 64\n",
-    )
-
-    pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
-
+    assert _statuses(result)["limits.yaml"] == ITEM_OVERWRITTEN
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (2000, 256)
+    assert "limits" in _synced(problems_dir)
+    assert (result.backup_dir / "limits.yaml").read_text() == original
 
 
-def test_overwrite_keeps_constraints_pick_result_it_cannot_edit(problems_dir, polygon):
-    original = "limits: {time_limit_seconds: 1, memory_limit_mb: 256}\ngroups: []\n"
+def test_limits_never_touch_constraints_yaml(problems_dir, polygon):
+    original = "limits:\n  time_limit_seconds: 1\n  memory_limit_mb: 64\ngroups: []\n"
     path = _write(problems_dir / PROBLEM_ID, "constraints.yaml", original)
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
-    item = next(item for item in result.items if item.name == "constraints.yaml")
-    assert item.status == ITEM_KEPT
-    assert "manually" in item.detail
     assert path.read_text() == original
-    assert "limits" not in _synced(problems_dir)
+    assert _statuses(result)["limits.yaml"] == ITEM_DOWNLOADED
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (2000, 256)
 
 
 def test_limits_changed_only_on_polygon_are_updated_without_overwrite(problems_dir, polygon):
@@ -510,53 +482,41 @@ def test_limits_changed_only_on_polygon_are_updated_without_overwrite(problems_d
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["constraints.yaml"] == ITEM_UPDATED
+    assert _statuses(result)["limits.yaml"] == ITEM_UPDATED
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
 
 
 def test_limits_changed_only_locally_are_kept_even_with_overwrite(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
-    _write(
-        problems_dir / PROBLEM_ID,
-        "constraints.yaml",
-        "limits:\n  time_limit_seconds: 5\n  memory_limit_mb: 256\n",
-    )
+    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 5\nmemory_limit_mb: 256\n")
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["constraints.yaml"] == ITEM_KEPT
+    assert _statuses(result)["limits.yaml"] == ITEM_KEPT
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (5000, 256)
     assert _synced(problems_dir).get("limits") is None
 
 
 def test_limits_changed_on_both_sides_are_a_conflict(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
-    _write(
-        problems_dir / PROBLEM_ID,
-        "constraints.yaml",
-        "limits:\n  time_limit_seconds: 5\n  memory_limit_mb: 256\n",
-    )
+    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 5\nmemory_limit_mb: 256\n")
     polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
-    assert _statuses(result)["constraints.yaml"] == ITEM_CONFLICT
+    assert _statuses(result)["limits.yaml"] == ITEM_CONFLICT
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (5000, 256)
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
-    assert _statuses(result)["constraints.yaml"] == ITEM_OVERWRITTEN
+    assert _statuses(result)["limits.yaml"] == ITEM_OVERWRITTEN
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
 
 
-def test_same_limits_in_constraints_pick_result_are_up_to_date(problems_dir, polygon):
-    _write(
-        problems_dir / PROBLEM_ID,
-        "constraints.yaml",
-        "time_limit_seconds: 2\nmemory_limit_mb: 256\ngroups: []\n",
-    )
+def test_same_limits_are_up_to_date(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 2\nmemory_limit_mb: 256\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["constraints.yaml"] == ITEM_SAME
+    assert _statuses(result)["limits.yaml"] == ITEM_SAME
     assert "limits" in _synced(problems_dir)
 
 
@@ -633,7 +593,6 @@ def test_attachments_are_downloaded(problems_dir, polygon):
     assert not (problem_dir / "other.txt").exists()
     statuses = [(item.name, item.status) for item in result.items]
     assert ("constraints.yaml", ITEM_DOWNLOADED) in statuses
-    assert ("constraints.yaml", ITEM_SAME) in statuses  # TL/ML
     assert ("draft.md", ITEM_DOWNLOADED) in statuses
     synced = _synced(problems_dir)
     assert synced["constraints.yaml"] == pull_module.digest(_CONSTRAINTS_PICK)
@@ -642,11 +601,10 @@ def test_attachments_are_downloaded(problems_dir, polygon):
     assert state.stamps["draft.md"] == "draft.md:100:5"
 
 
-def test_attached_constraints_replace_pulled_limits_only_file(problems_dir, polygon):
-    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
-    path = problems_dir / PROBLEM_ID / "constraints.yaml"
-    stub = path.read_text()
-    assert stub.startswith("# Pulled from Polygon")
+def test_attached_constraints_replace_legacy_pulled_limits_only_file(problems_dir, polygon):
+    # Такой файл писали прежние версии pull.
+    stub = PULLED_CONSTRAINTS_HEADER + "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n"
+    path = _write(problems_dir / PROBLEM_ID, "constraints.yaml", stub)
     polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_PICK.encode()
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
@@ -655,19 +613,26 @@ def test_attached_constraints_replace_pulled_limits_only_file(problems_dir, poly
     assert (result.backup_dir / "constraints.yaml").read_text() == stub
 
 
-def test_limits_changed_on_polygon_after_constraints_were_attached(problems_dir, polygon):
-    # constraints.yaml в Attachments — с TL/ML последнего push, а TL поменяли
-    # на Polygon: свежий клон без базы получает TL/ML задачи.
+def test_legacy_pulled_limits_only_file_is_not_reported_for_push(problems_dir, polygon):
+    stub = PULLED_CONSTRAINTS_HEADER + "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n"
+    _write(problems_dir / PROBLEM_ID, "constraints.yaml", stub)
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert "constraints.yaml" not in _statuses(result)
+
+
+def test_limits_changed_on_polygon_do_not_change_attached_constraints(problems_dir, polygon):
+    # constraints.yaml в Attachments — с TL/ML, которые выбрал constraints_pick,
+    # а TL поменяли на Polygon: он сверяется только с Attachments.
     polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_PICK.encode()
     polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
+    assert (problems_dir / PROBLEM_ID / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
+    assert _statuses(result)["constraints.yaml"] == ITEM_DOWNLOADED
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
-    assert _statuses(result)["constraints.yaml"] == ITEM_UPDATED
-    assert "groups: []" in (problems_dir / PROBLEM_ID / "constraints.yaml").read_text()
-    # Файл теперь отличается от Attachments — следующий push загрузит его.
-    assert _synced(problems_dir)["constraints.yaml"] == pull_module.digest(_CONSTRAINTS_PICK)
 
 
 def test_constraints_missing_in_attachments_is_left_for_push(problems_dir, polygon):
@@ -675,7 +640,7 @@ def test_constraints_missing_in_attachments_is_left_for_push(problems_dir, polyg
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["constraints.yaml"] == ITEM_SAME  # TL/ML
+    assert _statuses(result)["constraints.yaml"] == ITEM_LOCAL_ONLY
     assert "constraints.yaml" not in _synced(problems_dir)
 
 

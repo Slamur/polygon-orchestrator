@@ -4,10 +4,10 @@
 
 - `spec.yaml` — спек задачи, вход генеративных шагов (обязателен);
 - `constraints.yaml` — результат `constraints_pick` целиком (диапазоны,
-  группы, секция `validator`); TL/ML из него отдельно переносит
-  `set_constraints`. Файл, который `polygon pull` собрал из одних TL/ML
-  (`PULLED_CONSTRAINTS_HEADER`), — не результат `constraints_pick` и не
-  загружается;
+  группы, секция `validator`), как его записал шаг; актуальные TL/ML
+  задачи переносит `set_constraints` из `limits.yaml`. Файл, который прежние
+  версии `polygon pull` собирали из одних TL/ML (`PULLED_CONSTRAINTS_HEADER`),
+  — не результат `constraints_pick` и не загружается;
 - `draft<расширение>` — копия черновика автора, по которому
   `init --draft` написал спек.
 

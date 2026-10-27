@@ -40,9 +40,9 @@ Python-оркестратор, который берёт структуриро�
   черновик интерактора (C++/testlib), только если задача интерактивная;
 - создание задачи на Polygon по `problem_id` из спека через Polygon API
   (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
-  хранится в `problems/<путь задачи>/polygon_state.json`) и перенос TL/ML из
-  `problems/<путь задачи>/constraints.yaml` через `problem.updateInfo`
-  (`set_constraints`), загрузка `problems/<путь задачи>/problem_lib.h` как
+  хранится в `problems/<путь задачи>/polygon_state.json`) и перенос
+  актуальных TL/ML из `problems/<путь задачи>/limits.yaml` через
+  `problem.updateInfo` (`set_constraints`), загрузка `problems/<путь задачи>/problem_lib.h` как
   resource-файла (`upload_problem_lib`), загрузка
   `problems/<путь задачи>/validator.cpp` и назначение его валидатором
   (`upload_validator`), назначение чекера (`upload_checker`: для
@@ -139,7 +139,8 @@ Python-оркестратор, который берёт структуриро�
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
 │   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|check|fix|pull; импортируется из cli.py лениво
-│   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER — имена шагов без импорта самих шагов
+│   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER / MECHANICAL_STEPS — имена шагов без импорта самих шагов
+│   ├── limits.py                  # формат limits.yaml (актуальные TL/ML задачи): чтение, запись, TL/ML из constraints.yaml
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; без тяжёлых импортов
 │   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
 │   ├── drafts.py                  # черновики автора в drafts/ для `init --draft`: поиск по имени; без тяжёлых импортов
@@ -148,6 +149,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── steps/
 │   │   ├── statement_draft.py
 │   │   ├── constraints_pick.py
+│   │   ├── limits_from_constraints.py  # механический шаг (без модели): limits.yaml из TL/ML constraints.yaml
 │   │   ├── generators_and_script.py
 │   │   ├── solutions_draft.py
 │   │   ├── checker_draft.py
@@ -202,6 +204,7 @@ Python-оркестратор, который берёт структуриро�
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ диалог example_<N>.{input,output}_for_statement.txt у интерактивной задачи)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
         ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"; на Polygon — в Attachments
+        ├── limits.yaml            # актуальные TL/ML (orchestrator/limits.py): выводит из constraints.yaml шаг limits_from_constraints, когда TL/ML там изменились; push выставляет их на Polygon, pull обновляет с Polygon; можно править руками
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
         ├── generators/*.cpp
         ├── test_script(_groups)
@@ -243,6 +246,15 @@ Python-оркестратор, который берёт структуриро�
    `intended_complexity` пуст, шаг обязан завершиться ошибкой
    "недостаточно данных", а не угадывать; в этом случае `validator.cpp`
    тоже не пишется — весь ответ шага уходит в `uncertain` целиком.
+   После `constraints_pick` идёт механический шаг **`limits_from_constraints`**
+   (без модели, `step_order.MECHANICAL_STEPS`): пишет `limits.yaml` —
+   актуальные TL/ML задачи, которые загружает `polygon push` и обновляет
+   `polygon pull`, — из TL/ML `constraints.yaml`. Его вход — только эти
+   TL/ML, поэтому `limits.yaml` перезаписывается (прежний — в
+   `.llm_backup/`), лишь когда они изменились: TL/ML, поправленные на Polygon
+   или руками, переживают `llm generate`. Если `limits.yaml` уже есть, а шаг
+   ещё не запускался (файл скачал `polygon pull`), файл принимается как есть;
+   `llm generate --step limits_from_constraints --force` выводит его заново.
 3. **`generators_and_script`** — вход: секция `generation` спека +
    формат ввода из `statement_draft` (`formal_input_sketch`, `indexing`,
    input примеров — отдельного поля `generation.input_shape` в спеке нет,
@@ -533,11 +545,10 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   или базы нет — остаётся локальный, с `--overwrite` — заменяется версией
   с Polygon. Заменённые файлы переносятся в `.pull_backup/`. Файлы, которых
   нет на Polygon, явно перечисляются и никогда не удаляются;
-  `constraints.yaml` сверяется с Attachments как обычный файл (файл из
-  одних TL/ML, который pull пишет, если `constraints.yaml` нет нигде, — без
-  `--overwrite`), а TL/ML задачи в нём только заменяются (по той же
-  сверке; если файл совпадает с Attachments — всегда: TL/ML задачи новее)
-  — остальное не трогается (старый файл — тоже в `.pull_backup/`). Отказывается
+  файлы из Attachments (спек, `constraints.yaml`, черновик) сверяются
+  только со своими версиями в Attachments, а TL/ML задачи — только с
+  `limits.yaml` (сверка та же, по значениям TL/ML; `constraints.yaml` они
+  не трогают). Отказывается
   работать, если на Polygon есть незакоммиченные правки. Каталог задачи
   создаётся, если его нет; локальный спек не нужен (сам `spec.yaml`
   сравнивается и скачивается как обычный файл). На Polygon ничего не меняет
@@ -589,7 +600,8 @@ status|pull` спек не нужен, а команда на момент до�
   `statement_draft` (формат ввода и вывода, `indexing`, примеры с ответами,
   легенда, у интерактивной задачи — протокол) + `constraints.yaml` без TL/ML;
   `interactor_draft` → секция `interactor` + формат ввода и протокол из
-  `statement_draft`). Сборка этой части `statement_draft` —
+  `statement_draft`; механический `limits_from_constraints` → только TL/ML
+  из `constraints.yaml`, без промптов и модели). Сборка этой части `statement_draft` —
   `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
   трёх шагов;
 - хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +

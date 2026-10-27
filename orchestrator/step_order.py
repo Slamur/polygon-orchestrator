@@ -15,15 +15,21 @@ from __future__ import annotations
 # ни от чего не зависит (в отличие от соседей по порядку), но держится рядом
 # с `generators_and_script` — логически это тоже часть тестовой инфраструктуры
 # задачи, а не решений (CLAUDE.md, пункт 5). `interactor_draft` — туда же и по
-# той же причине (CLAUDE.md, пункт 6).
+# той же причине (CLAUDE.md, пункт 6). `limits_from_constraints` — сразу
+# после `constraints_pick`, из TL/ML которого выводит `limits.yaml`.
 STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
+    "limits_from_constraints",
     "generators_and_script",
     "checker_draft",
     "interactor_draft",
     "solutions_draft",
 ]
+
+# Шаги из `STEP_ORDER` без вызова модели и без промптов: результат выводится
+# механически из файлов предыдущих шагов.
+MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints"})
 
 # Список расширяется по мере добавления шагов — дописывать новые имена (как
 # правило, в конец) и добавлять запись в `polygon.pipeline._POLYGON_STEPS`;
