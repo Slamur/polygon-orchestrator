@@ -804,7 +804,9 @@ CLI, расход из лимитов подписки, а не с API-бала�
   (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
   спек `authoring/spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
   служебные файлы оркестратора в них — кэш, логи, `polygon_state.json`,
-  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `*.removed` — в `.gitignore`; ожидаемый по нему
+  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `*.removed` — в `.gitignore`;
+  `limits.yaml` коммитится — актуальные TL/ML задачи, после подгонки на
+  Polygon они расходятся с `constraints.yaml`, и это нормально; ожидаемый по нему
   результат `constraints_pick` — `authoring/constraints.yaml` рядом; при правке
   образцов держать оба согласованными с ними и с `constraints_format.yaml`
   — это проверяет `tests/test_example_templates.py`, там же compile-check
