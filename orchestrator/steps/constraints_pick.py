@@ -5,13 +5,13 @@ CLAUDE.md, "Роль каждого генеративного шага", пун
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.references import reference_documents
-from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
+from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, SpecInitError, set_problem_id
 from orchestrator.steps.base import (
     PROBLEMS_DIR,
     PROMPTS_DIR,
@@ -25,6 +25,7 @@ from orchestrator.steps.base import (
 )
 
 STEP_NAME = "constraints_pick"
+CONSTRAINTS_ARTIFACT = "constraints.yaml"
 
 # Optional[list[...]]-поля секции constraints, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
@@ -44,6 +45,37 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
         ),
         "statement": statement_io_section(spec, include_output_and_legend=False),
     }
+
+
+def _set_spec_problem_id(
+    problem_id: str,
+) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
+    """`postprocess_artifacts` для `run_generative_step`: `problem_id` в
+    `constraints.yaml` ставит оркестратор из спека, а не модель — она
+    могла переписать его неверно. Строки `problem_id:` в ответе нет — файл
+    как есть."""
+
+    def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
+        text = artifacts.get(CONSTRAINTS_ARTIFACT)
+        if text is None:
+            return artifacts, []
+        try:
+            fixed = set_problem_id(text, problem_id)
+        except SpecInitError:
+            return artifacts, []
+        if fixed == text:
+            return artifacts, []
+        note = {
+            "field": "problem_id",
+            "kind": "restored",
+            "explanation": (
+                f"problem_id в {CONSTRAINTS_ARTIFACT} заменён оркестратором "
+                f"на '{problem_id}' из спека"
+            ),
+        }
+        return {**artifacts, CONSTRAINTS_ARTIFACT: fixed}, [note]
+
+    return postprocess
 
 
 def compute_input_hash(
@@ -151,7 +183,7 @@ def run_step(
     `upstream_artifacts` не используется: `constraints_pick` зависит только
     от спека (CLAUDE.md, "Кэширование по хешу спека").
     """
-    context = {"problem_id": problem_id, **_build_context_sections(spec)}
+    context = {"problem_id": spec.problem_id, **_build_context_sections(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 
@@ -171,4 +203,5 @@ def run_step(
         problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
+        postprocess_artifacts=_set_spec_problem_id(spec.problem_id),
     )
