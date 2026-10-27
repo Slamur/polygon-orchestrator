@@ -1,0 +1,5 @@
+# Current TL/ML of the problem: polygon push sets them on Polygon, polygon pull
+# updates them from Polygon. Derived from constraints.yaml by the step
+# limits_from_constraints only when the TL/ML there change — edit freely.
+time_limit_seconds: 1
+memory_limit_mb: 256
