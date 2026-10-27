@@ -51,7 +51,7 @@ validator:
     - name: "p_i"
       cpp_type: int
       min: 0
-      max: 300000      # фактическая верхняя граница при чтении — N
+      max: "N"
   checks:
     - "Первая строка: одно число N, затем readEoln()."
     - "Вторая строка: ровно N чисел p_1 ... p_N через один пробел (readInts), каждое в [0, N], затем readEoln() и readEof()."

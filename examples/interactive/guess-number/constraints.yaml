@@ -50,7 +50,7 @@ validator:
     - name: "X"
       cpp_type: int
       min: 1
-      max: 1000            # в валидаторе верхняя граница подставляется как прочитанное N
+      max: "N"
     - name: "Q"
       cpp_type: int
       min: 0
