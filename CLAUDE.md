@@ -3,7 +3,7 @@
 ## Что это за репозиторий
 
 Python-оркестратор, который берёт структурированный спек задачи
-(`problems/<путь задачи>/spec.yaml`, формат — см. `docs/SPEC_FORMAT.md`) и прогоняет
+(`problems/<путь задачи>/authoring/spec.yaml`, формат — см. `docs/SPEC_FORMAT.md`) и прогоняет
 его через последовательность **генеративных шагов**. Каждый шаг — отдельный
 вызов LLM по API (не через Claude Code) плюс минимальная механическая
 проверка результата. Результат — черновики артефактов Polygon-задачи
@@ -51,9 +51,10 @@ Python-оркестратор, который берёт структуриро�
   загрузка `problems/<путь задачи>/interactor.cpp` и назначение его
   интерактором (`upload_interactor`, только у интерактивной задачи; флаг
   интерактивности выставляет `set_constraints`),
-  загрузка `problems/<путь задачи>/spec.yaml`, `constraints.yaml` (результат
-  `constraints_pick` целиком) и копии черновика `draft.<расширение>` как
-  есть в раздел Attachments (aux-файлы, `upload_attachments`) — чтобы
+  загрузка `problems/<путь задачи>/authoring/` — `spec.yaml`,
+  `constraints.yaml` (результат `constraints_pick` целиком) и копии
+  черновика `draft.<расширение>` — как есть в раздел Attachments (по имени
+  файла, без `authoring/`) (aux-файлы, `upload_attachments`) — чтобы
   `polygon pull` восстанавливал задачу вместе со спеком, ограничениями и
   черновиком.
   Шаги загружают только то, что изменилось с последней синхронизации с
@@ -105,8 +106,9 @@ Python-оркестратор, который берёт структуриро�
 │       └── polygon.md            # справка по интерфейсу Polygon — шагам не прикладывается
 ├── examples/                     # учебные задачи-образцы, по каталогу на задачу
 │   └── <вид-входа>/<суть>/       # например array/prefix-sums; раскладка как у problems/<путь задачи>/
-│       ├── spec.yaml             # спек учебной задачи (problem_id = путь через "--": array--prefix-sums) — пара "спек -> результат"
-│       ├── constraints.yaml      # ожидаемый результат constraints_pick для spec.yaml
+│       ├── authoring/
+│       │   ├── spec.yaml         # спек учебной задачи (problem_id = путь через "--": array--prefix-sums) — пара "спек -> результат"
+│       │   └── constraints.yaml  # ожидаемый результат constraints_pick для spec.yaml
 │       ├── validator.cpp
 │       ├── checker.cpp
 │       ├── generators/           # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
@@ -141,8 +143,8 @@ Python-оркестратор, который берёт структуриро�
 │   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, polygon push|status|check|fix|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER / MECHANICAL_STEPS — имена шагов без импорта самих шагов
 │   ├── limits.py                  # формат limits.yaml (актуальные TL/ML задачи): чтение, запись, TL/ML из constraints.yaml
-│   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; без тяжёлых импортов
-│   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
+│   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; файлы authoring/ и перенос в него задач старой раскладки; без тяжёлых импортов
+│   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/authoring/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
 │   ├── drafts.py                  # черновики автора в drafts/ для `init --draft`: поиск по имени; без тяжёлых импортов
 │   ├── spec_from_draft.py         # `init --draft`: спек по черновику через model_router (шаг `spec_from_draft`)
 │   ├── references.py              # референсы спека (`references`): какие файлы каких каталогов получает каждый шаг
@@ -182,8 +184,10 @@ Python-оркестратор, который берёт структуриро�
 ├── drafts/                       # черновики задач в свободной форме для `init --draft` (плоско, любое расширение); в .gitignore, как problems/
 └── problems/
     └── <путь задачи>/              # на любой глубине: <группа>/.../<problem_id>/ (см. "Запуск")
-        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` (из шаблона, по --ref и/или моделью по --draft); на Polygon — в Attachments (upload_attachments / pull)
-        ├── draft.<расширение>      # копия черновика автора, по которому `init --draft` написал спек; на Polygon — в Attachments
+        ├── authoring/              # файлы, с которыми работают только модель и автор; на Polygon — в Attachments (upload_attachments / pull), по имени файла
+        │   ├── spec.yaml           # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` (из шаблона, по --ref и/или моделью по --draft)
+        │   ├── draft.<расширение>  # копия черновика автора, по которому `init --draft` написал спек
+        │   └── constraints.yaml    # результат constraints_pick: выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         ├── .cache/
         │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
         │   ├── constraints_pick.json
@@ -203,7 +207,6 @@ Python-оркестратор, который берёт структуриро�
         │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ диалог example_<N>.{input,output}_for_statement.txt у интерактивной задачи)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
-        ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"; на Polygon — в Attachments
         ├── limits.yaml            # актуальные TL/ML (orchestrator/limits.py): выводит из constraints.yaml шаг limits_from_constraints, когда TL/ML там изменились; push выставляет их на Polygon, pull обновляет с Polygon; можно править руками
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
         ├── generators/*.cpp
@@ -381,12 +384,24 @@ git). `llm generate --fresh` — генерация с нуля, без теку
 
 Задачи в этом проекте независимы друг от друга: всё, что относится к
 задаче, — спек и результаты шагов — лежит в её каталоге (спек —
-`spec.yaml`). Каталоги задач лежат в двух корнях — `problems/` (задачи
+`authoring/spec.yaml`). Каталоги задач лежат в двух корнях — `problems/` (задачи
 автора) и `examples/` (учебные задачи) — на любой глубине: промежуточные
 каталоги только группируют задачи
 (`problems/contest/2026/round-1/my-task`). Каталог задачи — первый каталог
-вниз от корня, в котором есть `spec.yaml` или `polygon_state.json`;
-задачи друг в друга не вкладываются.
+вниз от корня, в котором есть `authoring/spec.yaml` или
+`polygon_state.json`; задачи друг в друга не вкладываются, а каталог с
+именем `authoring` не может быть задачей или группой задач.
+
+Спек, `constraints.yaml` и копия черновика лежат в подкаталоге `authoring/`
+каталога задачи — это файлы, с которыми работают только модель и автор;
+всё остальное, в том числе `limits.yaml`, — в самом каталоге, как на
+Polygon. Задачу, у которой эти файлы ещё лежат прямо в каталоге (раскладка
+до `authoring/`), любая команда к ней сначала переносит в `authoring/`
+(`migrate_to_authoring` в `orchestrator/problem_paths.py`, печатает, что
+перенесено; файл, который есть в обоих местах, — ошибка до любого
+переноса). Пока задачу не перенесли, её находят дополнение и проверки
+`problem_id`, а референсы и `--ref` читают её спек и `constraints.yaml` из
+старого места.
 
 В CLI задача адресуется путём своего каталога вместе с корнем — дальше
 `<задача>`: `problems/<путь задачи>` или `examples/<путь задачи>`, корень
@@ -406,7 +421,7 @@ git). `llm generate --fresh` — генерация с нуля, без теку
 парсер, `orchestrator/cli_commands.py` — сами команды):
 
 - `orchestrator <задача> init [--ref <задача-основа>] [--draft NAME]` —
-  создаёт каталог задачи (если его нет) со `spec.yaml`. Без флагов — из
+  создаёт каталог задачи (если его нет) с `authoring/spec.yaml`. Без флагов — из
   `templates/spec_template.yaml`: `problem_id` (выведенный из пути)
   подставлен, остальные поля пустые, с комментариями-подсказками.
   `--ref` — основа спека не шаблон, а спек другой задачи (адрес с корнем,
@@ -423,7 +438,7 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   `# SUGGESTION: ...` и печатается заметкой. `problem_id` и референс на
   задачу-основу ставит оркестратор поверх ответа. Спек пишется, даже если
   ещё не проходит валидацию (ошибки печатаются), копия черновика — в
-  `draft.<расширение>` каталога задачи, лог — в `llm_generation.log`.
+  `authoring/draft.<расширение>` каталога задачи, лог — в `llm_generation.log`.
   Кэша и режима доработки у `init --draft` нет: существующий `spec.yaml`
   не перезаписывается никогда. Отказывается создавать задачу внутри
   другой задачи, вокруг уже существующих задач и с `problem_id`, который
@@ -592,7 +607,7 @@ status|pull` спек не нужен, а команда на момент до�
   `generation` + тот же формат ввода из `statement_draft` (правка
   формата входа в условии должна инвалидировать кэш генераторов, даже если
   секция `generation` не менялась) + `legend_sketch` +
-  содержимое `problems/<путь задачи>/constraints.yaml`, полученное на шаге 2, +
+  содержимое `problems/<путь задачи>/authoring/constraints.yaml`, полученное на шаге 2, +
   `solutions.known_wrong_approaches` и `solutions.algorithm_hint` (если
   секция `solutions` задана — их правка тоже должна инвалидировать кэш
   этого шага, не только правка `generation`); `solutions_draft` → секция
@@ -779,10 +794,10 @@ CLI, расход из лимитов подписки, а не с API-бала�
   читают следующие шаги и `polygon push`. `examples/` — учебные
   задачи, по каталогу `<вид входных данных>/<суть задачи>` на каждую
   (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
-  спек `spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
+  спек `authoring/spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
   служебные файлы оркестратора в них — кэш, логи, `polygon_state.json`,
   `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `*.removed` — в `.gitignore`; ожидаемый по нему
-  результат `constraints_pick` — `constraints.yaml` рядом; при правке
+  результат `constraints_pick` — `authoring/constraints.yaml` рядом; при правке
   образцов держать оба согласованными с ними и с `constraints_format.yaml`
   — это проверяет `tests/test_example_templates.py`, там же compile-check
   всех `.cpp` образцов).
@@ -805,7 +820,10 @@ CLI, расход из лимитов подписки, а не с API-бала�
   только на языках из `solutions.languages`. Без референсов шаг получает
   только `templates/`. Содержимое референсов входит в хеш промпта
   шага (см. "Кэширование по хешу спека"), сами пути `references` в
-  `input_hash` не входят. Промпты обязаны явно
+  `input_hash` не входят. Спек и `constraints.yaml` референса модель видит
+  под путём без `authoring/` (`examples/<путь задачи>/constraints.yaml`,
+  `_context_document_key` в `orchestrator/steps/base.py`) — под тем же
+  именем, под которым шаг возвращает свой `constraints.yaml`. Промпты обязаны явно
   разделять, что из образца переносить (каркас файла, ввод-вывод, функции
   testlib, композицию генераторов через конвейер), а что нет (формат данных,
   имена переменных и логику задачи-образца), и работать без образцов — см.
@@ -856,7 +874,7 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 ## Конфиденциальность problems/
 
-`problems/` (вместе со спеками задач `problems/<путь задачи>/spec.yaml`) и
+`problems/` (вместе со спеками задач `problems/<путь задачи>/authoring/spec.yaml`) и
 `drafts/` (черновики задач для `init --draft`) — в `.gitignore`
 намеренно: репозиторий
 оркестратора публичный, а сами задачи — нет, пока не опубликованы на

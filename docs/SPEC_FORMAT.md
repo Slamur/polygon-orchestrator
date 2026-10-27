@@ -1,7 +1,9 @@
 # Формат входного спека задачи
 
-Формат — YAML. Один файл на задачу, лежит в её каталоге:
-`problems/<путь задачи>/spec.yaml`.
+Формат — YAML. Один файл на задачу, лежит в подкаталоге `authoring/` её
+каталога: `problems/<путь задачи>/authoring/spec.yaml` (рядом —
+`constraints.yaml`, результат `constraints_pick`, и копия черновика
+`init --draft`; результат остальных шагов — в самом каталоге задачи).
 
 Каталог задачи может лежать на любой глубине — промежуточные каталоги только
 группируют задачи (`problems/contest/2026/round-1/my-task/`). `problem_id` спека
@@ -27,7 +29,7 @@
 задаёт только автор.
 
 Черновик со всеми полями (пустыми, с подсказками в комментариях) создаёт
-`orchestrator <задача> init` — в `problems/<путь задачи>/spec.yaml`, из
+`orchestrator <задача> init` — в `problems/<путь задачи>/authoring/spec.yaml`, из
 шаблона `templates/spec_template.yaml`. Шаблон перечисляет все поля
 формата — это проверяет `tests/test_spec_init.py`, поэтому при правке
 формата шаблон нужно править вместе с ним.
@@ -301,14 +303,14 @@ interactor:
 | Шаг | Файлы из каталога |
 |-----|-------------------|
 | `statement_draft` | `statement/*.tex` (у интерактивной задачи — и `interaction.tex`) |
-| `constraints_pick` | `constraints.yaml`, `validator.cpp` |
-| `generators_and_script` | `constraints.yaml`, `generators/*.cpp`, `test_script`, `test_script_groups` |
+| `constraints_pick` | `authoring/constraints.yaml`, `validator.cpp` |
+| `generators_and_script` | `authoring/constraints.yaml`, `generators/*.cpp`, `test_script`, `test_script_groups` |
 | `solutions_draft` | `solutions/*` на языках из `solutions.languages` |
 | `checker_draft` | `checker.cpp` |
 | `interactor_draft` | `interactor.cpp` |
 
-Если в каталоге есть `spec.yaml` (спек той задачи, как у учебных задач), он
-прикладывается вместе с ними — модель видит пару "спек → результат". Это
+Если в каталоге есть `authoring/spec.yaml` (спек той задачи, как у учебных
+задач), он прикладывается вместе с ними — модель видит пару "спек → результат". Это
 относится и к прошлым задачам автора в `problems/<путь задачи>/`; у задачи,
 выгруженной `polygon pull` без спека, приложен будет только результат.
 
