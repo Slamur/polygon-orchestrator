@@ -115,10 +115,12 @@ def run_step(
     limits = upstream[_LIMITS_INPUT]
     path = primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
     backup = _Backup(Path(problems_dir) / problem_id)
+    created: list[Path] = []
     written = _write_artifacts(
         {LIMITS_FILENAME: render_limits(limits["time_limit_ms"], limits["memory_limit_mb"])},
         lambda filename: path,
         backup,
+        created=created,
     )
 
     input_values = compute_input_values(section, upstream)
@@ -154,6 +156,7 @@ def run_step(
         problem_id=problem_id,
         status=STATUS_CONFIRMED,
         artifact_paths=written,
+        created=created,
         notes=notes,
         backup_dir=backup.directory,
     )

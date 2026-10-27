@@ -110,6 +110,14 @@ class StepOutcome:
     # версии модели (`steps.base.StepResult`).
     conflicts: list[tuple[str, str]] = field(default_factory=list)
     conflicts_dir: Optional[Path] = None
+    # Шаг отработал в этом прогоне (вызвал модель или применил сохранённый
+    # ответ), а не пропущен — только о таком пишется отчёт `llm_reports/`.
+    ran: bool = False
+    # Записанные файлы (имя артефакта -> путь), какие из них новые, и
+    # ошибки compile-check (имя артефакта -> stderr).
+    artifact_paths: dict[str, Path] = field(default_factory=dict)
+    created: list[Path] = field(default_factory=list)
+    compile_errors: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -354,8 +362,15 @@ def _run_step_into(
             templates_dir=templates_dir,
         )
     except StepUncertainError as exc:
+        # Текст заметок — в отчёте шага (`llm_report`), здесь только поля.
+        fields = ", ".join(str(note.get("field", "?")) for note in exc.notes)
+        detail = (
+            f"the model needs more data in the spec ({fields or 'no fields named'}) — "
+            f"fix {problem_address(problems_dir, problem_id)}/authoring/spec.yaml "
+            "and run the step again"
+        )
         result.outcomes.append(
-            StepOutcome(step_name, OUTCOME_UNCERTAIN, str(exc), notes=exc.notes)
+            StepOutcome(step_name, OUTCOME_UNCERTAIN, detail, notes=exc.notes, ran=True)
         )
         result.stopped_uncertain = True
         return False
@@ -370,7 +385,7 @@ def _run_step_into(
                 f"'orchestrator {problem_address(problems_dir, problem_id)} "
                 f"llm apply --step {step_name}' applies it without calling the model"
             )
-        result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, message))
+        result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, message, ran=True))
         result.stopped_uncertain = True
         return False
 
@@ -409,6 +424,14 @@ def _run_step_into(
             backup_dir=step_result.backup_dir,
             conflicts=step_result.conflicts,
             conflicts_dir=conflicts_dir,
+            ran=True,
+            artifact_paths=step_result.artifact_paths,
+            created=step_result.created,
+            compile_errors={
+                filename: compiled.stderr
+                for filename, compiled in step_result.compile_results.items()
+                if not compiled.success
+            },
         )
     )
     if conflicts_dir is not None:

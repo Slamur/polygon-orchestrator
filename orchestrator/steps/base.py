@@ -265,6 +265,8 @@ class StepResult:
     problem_id: str
     status: str
     artifact_paths: dict[str, Path] = field(default_factory=dict)
+    # Пути из `artifact_paths`, которых до записи не было (новые файлы).
+    created: list[Path] = field(default_factory=list)
     notes: list[dict[str, Any]] = field(default_factory=list)
     compile_results: dict[str, CompileResult] = field(default_factory=dict)
     # Режим доработки: файлы, помеченные `.removed` (путь пометки, причина),
@@ -921,10 +923,15 @@ def _write_artifacts(
     backup: _Backup,
     *,
     skip_backup: set[Path] = frozenset(),
+    created: Optional[list[Path]] = None,
 ) -> dict[str, Path]:
+    """Пишет файлы ответа; прежние версии изменённых — в `backup`. В
+    `created` (если задан) — пути файлов, которых до записи не было."""
     written: dict[str, Path] = {}
     for filename, content in artifacts.items():
         path = resolve_path(filename)
+        if created is not None and not path.exists():
+            created.append(path)
         if (
             path.is_file()
             and path not in skip_backup
@@ -1199,11 +1206,13 @@ def run_generative_step(
     backup = _Backup(problem_dir)
     marks = _apply_removals_and_renames(plan, backup)
     renamed = plan.renamed
+    created: list[Path] = []
     artifact_paths = _write_artifacts(
         artifacts,
         resolve_artifact_path,
         backup,
         skip_backup={new_path for _, new_path, _ in renamed},
+        created=created,
     )
     conflicts_dir: Optional[Path] = None
     if plan.conflicts:
@@ -1238,6 +1247,7 @@ def run_generative_step(
         problem_id=problem_id,
         status=response.status,
         artifact_paths=artifact_paths,
+        created=created,
         notes=notes,
         compile_results=compile_results,
         revised=revision is not None,
