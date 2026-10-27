@@ -111,6 +111,28 @@ def test_load_context_documents_appends_extra_paths_after_fixed_list(tmp_path):
     assert documents[str(extra_file)] == "extra content"
 
 
+def test_authoring_files_of_a_reference_are_keyed_without_authoring_dir(tmp_path):
+    # Ключ входит в хеш промпта: перенос спека и constraints.yaml в
+    # authoring/ не должен делать шаги stale.
+    templates_dir = tmp_path / "templates"
+    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
+        _write_template_doc(templates_dir, rel_path, "fixed content")
+    reference = tmp_path / "examples" / "array" / "sums"
+    paths = [
+        _write_template_doc(reference, "authoring/spec.yaml", "spec"),
+        _write_template_doc(reference, "authoring/constraints.yaml", "constraints"),
+        _write_template_doc(reference, "authoring/notes.txt", "not an authoring file"),
+    ]
+
+    documents = load_context_documents(
+        "constraints_pick", templates_dir=templates_dir, extra_paths=[str(path) for path in paths]
+    )
+
+    assert documents[str(reference / "spec.yaml")] == "spec"
+    assert documents[str(reference / "constraints.yaml")] == "constraints"
+    assert documents[str(reference / "authoring" / "notes.txt")] == "not an authoring file"
+
+
 def test_load_context_documents_expands_glob_entries_sorted(tmp_path, monkeypatch):
     monkeypatch.setitem(STEP_CONTEXT_DOCUMENTS, "glob-step", ["examples/*.cpp", "lib.h"])
     for rel_path in ["examples/b.cpp", "examples/a.cpp", "examples/notes.txt", "lib.h"]:

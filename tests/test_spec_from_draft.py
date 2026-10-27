@@ -9,6 +9,7 @@ import yaml
 from orchestrator import cli, model_router
 from orchestrator.drafts import DraftError, draft_names, find_draft
 from orchestrator.model_contracts import ModelResponse
+from orchestrator.problem_paths import AUTHORING_DIRNAME
 from orchestrator.spec import (
     SPEC_FILENAME,
     SpecInitError,
@@ -38,7 +39,8 @@ def base_dir(tmp_path):
     example = tmp_path / "examples" / "array" / "sums"
     example.mkdir(parents=True)
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
-    (example / SPEC_FILENAME).write_text(
+    (example / AUTHORING_DIRNAME).mkdir()
+    (example / AUTHORING_DIRNAME / SPEC_FILENAME).write_text(
         content.replace("problem_id: valid-spec", "problem_id: array--sums"), encoding="utf-8"
     )
     (tmp_path / "problems").mkdir()
@@ -158,7 +160,7 @@ def test_create_spec_draft_copies_reference_spec(base_dir):
 
     data = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
     original = yaml.safe_load(
-        (base_dir / "examples" / "array" / "sums" / SPEC_FILENAME).read_text(encoding="utf-8")
+        (base_dir / "examples" / "array" / "sums" / AUTHORING_DIRNAME / SPEC_FILENAME).read_text(encoding="utf-8")
     )
     assert data["problem_id"] == "my-task"
     assert data["references"] == [*(original.get("references") or []), "examples/array/sums"]
@@ -190,7 +192,7 @@ def test_cli_init_ref_without_draft_does_not_call_the_model(base_dir, fake_model
     assert code == 0
     assert fake.calls == []
     assert "as a copy of the spec of examples/array/sums" in capsys.readouterr().out
-    assert (base_dir / "problems" / "my-task" / SPEC_FILENAME).exists()
+    assert (base_dir / "problems" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME).exists()
 
 
 # --- init --draft ------------------------------------------------------------
@@ -228,12 +230,12 @@ def test_draft_spec_is_written_with_problem_id_and_reference_set_by_orchestrator
     result = _generate(base_dir, _init(base_dir, reference="examples/array/sums"))
 
     problem_dir = base_dir / "problems" / "my-task"
-    assert result.path == problem_dir / SPEC_FILENAME
+    assert result.path == problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME
     data = yaml.safe_load(result.path.read_text(encoding="utf-8"))
     assert data["problem_id"] == "my-task"
     assert "examples/array/sums" in data["references"]
     assert result.validation_errors == []
-    assert result.draft_copy == problem_dir / "draft.md"
+    assert result.draft_copy == problem_dir / AUTHORING_DIRNAME / "draft.md"
     assert result.draft_copy.read_text(encoding="utf-8") == DRAFT_TEXT
 
     (call,) = fake.calls
@@ -299,7 +301,7 @@ def test_cli_init_draft_writes_spec_and_log(base_dir, fake_model, capsys):
     out = capsys.readouterr().out
     problem_dir = base_dir / "problems" / "my-task"
     assert "review the PROPOSED / SUGGESTION marks" in out
-    assert (problem_dir / "draft.md").exists()
+    assert (problem_dir / AUTHORING_DIRNAME / "draft.md").exists()
     assert "init --draft my-idea" in (problem_dir / "llm_generation.log").read_text(encoding="utf-8")
 
 
@@ -311,11 +313,11 @@ def test_cli_init_draft_checks_everything_before_calling_the_model(base_dir, fak
     assert cli.main(["--base-dir", str(base_dir), "problems/my-task", "init", "--draft", "nope"]) == 1
     assert not problem_dir.exists()
 
-    problem_dir.mkdir()
-    (problem_dir / SPEC_FILENAME).write_text("edited", encoding="utf-8")
+    (problem_dir / AUTHORING_DIRNAME).mkdir(parents=True)
+    (problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME).write_text("edited", encoding="utf-8")
     assert _cli_draft(base_dir) == 1
     assert "already exists" in capsys.readouterr().err
-    assert (problem_dir / SPEC_FILENAME).read_text(encoding="utf-8") == "edited"
+    assert (problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME).read_text(encoding="utf-8") == "edited"
     assert fake.calls == []
 
 

@@ -56,7 +56,7 @@ def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
 @pytest.fixture
 def spec_file(tmp_path):
     """Спек задачи `p1` в её каталоге: `<tmp>/problems/p1/spec.yaml`."""
-    path = tmp_path / "problems" / "p1" / "spec.yaml"
+    path = tmp_path / "problems" / "p1" / "authoring" / "spec.yaml"
     path.parent.mkdir(parents=True)
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     content = content.replace("problem_id: valid-spec", "problem_id: p1")
@@ -152,7 +152,7 @@ def test_uncertain_step_stops_pipeline_before_later_steps(spec_file, tmp_path):
     assert result.outcomes[0].status == pipeline.OUTCOME_UNCERTAIN
     assert result.outcomes[0].notes == uncertain_response.notes
     # кроме самого спека в каталоге задачи на диск ничего не записано
-    assert set(problems_dir.rglob("*")) == {spec_file.parent, spec_file}
+    assert set(problems_dir.rglob("*")) == {spec_file.parent.parent, spec_file.parent, spec_file}
 
 
 def test_missing_spec_yields_spec_error_without_raising(spec_file, tmp_path):
@@ -571,7 +571,7 @@ def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(spec
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         _run(problems_dir)
-    (problems_dir / "p1" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
 
     before = _statuses(problems_dir)
     assert before["generators_and_script"].detail == (
@@ -590,7 +590,7 @@ def test_accept_only_step_leaves_other_steps_stale(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         _run(problems_dir)
-    (problems_dir / "p1" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
 
     accepted = _accept(problems_dir, only_step="solutions_draft")
     assert list(accepted) == ["solutions_draft"]

@@ -70,9 +70,9 @@ Polygon, шагам не прикладывается. `interactive.md` (пра�
   Этот же каталог — include-путь compile-check (после каталога задачи).
 - `examples/<путь задачи>/` — учебные задачи-образцы. Каждая лежит
   в той же раскладке, что и результат оркестратора `problems/<путь задачи>/`
-  (`constraints.yaml`, `validator.cpp`, `checker.cpp`, `generators/`,
-  `test_script`, `solutions/`, ...), плюс свой спек в обычном формате
-  (`docs/SPEC_FORMAT.md`) — `spec.yaml`. Путь каталога —
+  (`validator.cpp`, `checker.cpp`, `generators/`, `test_script`,
+  `solutions/`, ..., `authoring/constraints.yaml`), плюс свой спек в обычном
+  формате (`docs/SPEC_FORMAT.md`) — `authoring/spec.yaml`. Путь каталога —
   `<вид входных данных>/<суть задачи>` (`examples/array/prefix-sums`),
   `problem_id` в спеке — тот же путь через `--` (`array--prefix-sums`).
 
@@ -94,7 +94,11 @@ Polygon, шагам не прикладывается. `interactive.md` (пра�
 | `checker_draft` | `checker.md`, `problem_lib.h` | `spec.yaml`, `checker.cpp` |
 | `interactor_draft` | `interactive.md`, `problem_lib.h` | `spec.yaml`, `interactor.cpp` |
 
-`spec.yaml` из каталога прикладывается, только если каталог дал шагу хотя
+Спек и `constraints.yaml` берутся из `authoring/` каталога, но модель видит
+их под путём без `authoring/` (`examples/<путь задачи>/constraints.yaml`) —
+тем же именем, под которым `constraints_pick` возвращает свой
+(`_context_document_key` в `orchestrator/steps/base.py`); имена в таблице —
+такие. `spec.yaml` из каталога прикладывается, только если каталог дал шагу хотя
 бы один другой файл; тогда модель получает пару "спек → ожидаемый
 результат" и видит, из какого поля спека получился каждый образец. У
 `problems/<путь задачи>/` своего `spec.yaml` нет — модель видит только

@@ -10,6 +10,7 @@ from orchestrator.problem_paths import (
     PROBLEMS_DIR,
     ProblemPathError,
     check_new_problem_location,
+    migrate_to_authoring,
     parse_problem_address,
     problem_address,
     problem_id_for,
@@ -107,3 +108,49 @@ def test_new_problem_location_rejects_duplicate_problem_id_in_any_root(tmp_path)
         check_new_problem_location(tmp_path / "problems", "array--prefix-sums")
     with pytest.raises(ProblemPathError, match="already used by problems/2025/my-task"):
         check_new_problem_location(tmp_path / "examples", "my-task")
+
+
+def test_problem_paths_find_problems_in_both_layouts_but_not_authoring_dir(tmp_path):
+    _touch(tmp_path / "new-task" / "authoring" / "spec.yaml")
+    _touch(tmp_path / "old-task" / "spec.yaml")
+    _touch(tmp_path / "old-task" / "authoring" / "spec.yaml")
+
+    assert problem_paths(tmp_path) == ["new-task", "old-task"]
+    check_new_problem_location(tmp_path, "new-task")
+
+
+def test_problem_address_rejects_authoring_component():
+    with pytest.raises(ProblemPathError, match="authoring"):
+        parse_problem_address("problems/my-task/authoring")
+
+
+def test_migrate_to_authoring_moves_spec_constraints_and_draft(tmp_path):
+    problem_dir = tmp_path / "my-task"
+    for name in ("spec.yaml", "constraints.yaml", "draft.md", "limits.yaml", "validator.cpp"):
+        _touch(problem_dir / name)
+
+    moves = migrate_to_authoring(problem_dir)
+
+    assert sorted(target.relative_to(problem_dir).as_posix() for _, target in moves) == [
+        "authoring/constraints.yaml",
+        "authoring/draft.md",
+        "authoring/spec.yaml",
+    ]
+    assert sorted(path.name for path in problem_dir.iterdir()) == [
+        "authoring",
+        "limits.yaml",
+        "validator.cpp",
+    ]
+    assert migrate_to_authoring(problem_dir) == []
+    assert migrate_to_authoring(tmp_path / "missing") == []
+
+
+def test_migrate_to_authoring_refuses_when_file_is_in_both_places(tmp_path):
+    problem_dir = tmp_path / "my-task"
+    _touch(problem_dir / "spec.yaml")
+    _touch(problem_dir / "draft.md")
+    _touch(problem_dir / "authoring" / "spec.yaml")
+
+    with pytest.raises(ProblemPathError, match="spec.yaml"):
+        migrate_to_authoring(problem_dir)
+    assert (problem_dir / "draft.md").exists()

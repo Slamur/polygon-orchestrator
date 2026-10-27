@@ -499,7 +499,7 @@ _PIPELINE_RESPONSES = {
 
 @pytest.fixture
 def spec_file(tmp_path):
-    path = tmp_path / "problems" / "p1" / "spec.yaml"
+    path = tmp_path / "problems" / "p1" / "authoring" / "spec.yaml"
     path.parent.mkdir(parents=True)
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     path.write_text(content.replace("problem_id: valid-spec", "problem_id: p1"), encoding="utf-8")

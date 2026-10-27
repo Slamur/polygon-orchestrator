@@ -1,6 +1,7 @@
 """Polygon-шаг — загрузка файлов задачи, которые нужны только оркестратору и
 автору, в Polygon как aux-файлов (`problem.saveFile`, `type=aux` — раздел
-"Attachments" на странице Files):
+"Attachments" на странице Files) — файлы `authoring/` каталога задачи, на
+Polygon — по имени файла, без каталога:
 
 - `spec.yaml` — спек задачи, вход генеративных шагов (обязателен);
 - `constraints.yaml` — результат `constraints_pick` целиком (диапазоны,
@@ -24,7 +25,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from orchestrator.drafts import PROBLEM_DRAFT_STEM
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.steps.base import (
     NO_CHANGES_MESSAGE,
@@ -44,7 +44,7 @@ from orchestrator.polygon.sync import (
     digest,
     is_draft_name,
 )
-from orchestrator.problem_paths import SPEC_FILENAME
+from orchestrator.problem_paths import DRAFT_STEM, authoring_dir
 
 STEP_NAME = "upload_attachments"
 
@@ -54,13 +54,13 @@ def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, byt
     результат `constraints_pick`), копии черновика по алфавиту. Имя — и имя
     aux-файла на Polygon, и ключ базы синхронизации. Нет спека —
     `PolygonStepError`."""
-    problem_dir = Path(problems_dir) / problem_id
-    spec_path = problem_dir / SPEC_FILENAME
+    directory = authoring_dir(Path(problems_dir) / problem_id)
+    spec_path = directory / SPEC_KEY
     if not spec_path.exists():
         raise PolygonStepError(f"{spec_path} not found")
     attachments = [(SPEC_KEY, spec_path.read_bytes())]
 
-    constraints_path = problem_dir / CONSTRAINTS_KEY
+    constraints_path = directory / CONSTRAINTS_KEY
     if constraints_path.is_file():
         content = constraints_path.read_bytes()
         if not content.startswith(PULLED_CONSTRAINTS_HEADER.encode("utf-8")):
@@ -68,7 +68,7 @@ def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, byt
 
     drafts = sorted(
         path
-        for path in problem_dir.glob(f"{PROBLEM_DRAFT_STEM}*")
+        for path in directory.glob(f"{DRAFT_STEM}*")
         if path.is_file() and is_draft_name(path.name)
     )
     attachments.extend((path.name, path.read_bytes()) for path in drafts)
@@ -104,7 +104,7 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     return sync_status(
         problem_id,
         problems_dir,
-        key_prefix=(SPEC_KEY, CONSTRAINTS_KEY, PROBLEM_DRAFT_STEM),
+        key_prefix=(SPEC_KEY, CONSTRAINTS_KEY, DRAFT_STEM),
         read_items=lambda: _items(read_attachments(problem_id, problems_dir)),
     )
 

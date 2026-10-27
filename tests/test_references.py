@@ -24,8 +24,8 @@ def _write(path: Path, content: str = "x") -> Path:
 def _reference_dir(tmp_path: Path, name: str = "example-problem") -> Path:
     """Каталог в раскладке problems/<problem_id>/ со своим spec.yaml."""
     directory = tmp_path / name
-    _write(directory / "spec.yaml")
-    _write(directory / "constraints.yaml")
+    _write(directory / "authoring" / "spec.yaml")
+    _write(directory / "authoring" / "constraints.yaml")
     _write(directory / "validator.cpp")
     _write(directory / "generators" / "gen_b.cpp")
     _write(directory / "generators" / "gen_a.cpp")
@@ -52,13 +52,30 @@ def test_directory_gives_only_files_of_the_step(spec, tmp_path):
     documents = reference_documents("generators_and_script", _with_common(spec, [directory]))
 
     assert documents == [
-        str(directory / "spec.yaml"),
-        str(directory / "constraints.yaml"),
+        str(directory / "authoring" / "spec.yaml"),
+        str(directory / "authoring" / "constraints.yaml"),
         str(directory / "generators" / "gen_a.cpp"),
         str(directory / "generators" / "gen_b.cpp"),
         str(directory / "test_script"),
     ]
     assert reference_documents("constraints_pick", _with_common(spec, [directory])) == [
+        str(directory / "authoring" / "spec.yaml"),
+        str(directory / "authoring" / "constraints.yaml"),
+        str(directory / "validator.cpp"),
+    ]
+
+
+def test_directory_in_layout_before_authoring_still_gives_spec_and_constraints(spec, tmp_path):
+    # Задача-референс, ещё не перенесённая в authoring/ (её не трогала ни
+    # одна команда после обновления).
+    directory = tmp_path / "old-problem"
+    _write(directory / "spec.yaml")
+    _write(directory / "constraints.yaml")
+    _write(directory / "validator.cpp")
+
+    documents = reference_documents("constraints_pick", _with_common(spec, [directory]))
+
+    assert documents == [
         str(directory / "spec.yaml"),
         str(directory / "constraints.yaml"),
         str(directory / "validator.cpp"),
@@ -77,7 +94,7 @@ def test_files_marked_removed_are_not_references(spec, tmp_path):
         "generators_and_script", common
     )
     assert reference_documents("solutions_draft", common) == [
-        str(directory / "spec.yaml"),
+        str(directory / "authoring" / "spec.yaml"),
         str(directory / "solutions" / "ok_cpp_main_draft.cpp"),
     ]
 
@@ -92,13 +109,13 @@ def test_common_directory_without_files_for_the_step_is_skipped(spec, tmp_path):
 
 def test_directory_without_spec_is_still_a_reference(spec, tmp_path):
     directory = _reference_dir(tmp_path)
-    (directory / "spec.yaml").unlink()
+    (directory / "authoring" / "spec.yaml").unlink()
 
     documents = reference_documents("checker_draft", _with_section(spec, "checker", [directory / "validator.cpp"]))
 
     assert documents == [str(directory / "validator.cpp")]
     assert reference_documents("constraints_pick", _with_common(spec, [directory])) == [
-        str(directory / "constraints.yaml"),
+        str(directory / "authoring" / "constraints.yaml"),
         str(directory / "validator.cpp"),
     ]
 
@@ -110,7 +127,7 @@ def test_common_references_come_before_section_references(spec, tmp_path):
 
     documents = reference_documents("generators_and_script", spec)
 
-    assert documents[0] == str(common / "spec.yaml")
+    assert documents[0] == str(common / "authoring" / "spec.yaml")
     assert documents[-1] == str(section_file)
 
 
@@ -154,8 +171,8 @@ def test_keep_filters_directory_files_only(spec, tmp_path):
     )
 
     assert documents == [
-        str(directory / "spec.yaml"),
-        str(directory / "constraints.yaml"),
+        str(directory / "authoring" / "spec.yaml"),
+        str(directory / "authoring" / "constraints.yaml"),
         str(directory / "test_script"),
         str(file_ref),
     ]

@@ -18,7 +18,8 @@
 (даже не проходящий валидацию или при `status: uncertain` — это черновик,
 который автор всё равно дочитывает), чтобы вызов не пропадал. `problem_id`
 и референс на задачу-основу оркестратор ставит сам, поверх ответа модели.
-Копия черновика ложится в каталог задачи (`drafts.problem_draft_name`).
+Копия черновика ложится рядом со спеком, в `authoring/` каталога задачи
+(`drafts.problem_draft_name`).
 """
 
 from __future__ import annotations
@@ -30,7 +31,13 @@ from typing import Any, Optional
 
 from orchestrator import model_router
 from orchestrator.drafts import problem_draft_name
-from orchestrator.problem_paths import EXAMPLES_DIR, SPEC_FILENAME, problem_address, problem_paths
+from orchestrator.problem_paths import (
+    EXAMPLES_DIR,
+    SPEC_FILENAME,
+    find_authoring_file,
+    problem_address,
+    problem_paths,
+)
 from orchestrator.spec import (
     SPEC_TEMPLATE,
     SpecInit,
@@ -92,7 +99,7 @@ def context_documents(
     }
     for example in problem_paths(examples_dir):
         address = problem_address(examples_dir, example)
-        path = Path(examples_dir) / example / SPEC_FILENAME
+        path = find_authoring_file(Path(examples_dir) / example, SPEC_FILENAME)
         if address != skip_reference and path.is_file():
             documents[f"{address}/{SPEC_FILENAME}"] = path.read_text(encoding="utf-8")
     return documents

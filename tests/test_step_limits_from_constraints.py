@@ -17,7 +17,7 @@ STEP = "limits_from_constraints"
 
 @pytest.fixture
 def problems_dir(tmp_path):
-    path = tmp_path / "problems" / "p1" / "spec.yaml"
+    path = tmp_path / "problems" / "p1" / "authoring" / "spec.yaml"
     path.parent.mkdir(parents=True)
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     path.write_text(content.replace("problem_id: valid-spec", "problem_id: p1"), encoding="utf-8")
@@ -25,7 +25,7 @@ def problems_dir(tmp_path):
 
 
 def _write_constraints(problems_dir: Path, time_limit_seconds, memory_limit_mb=256) -> None:
-    (problems_dir / "p1" / "constraints.yaml").write_text(
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(
         "n_max: 100000\n"
         f"limits:\n  time_limit_seconds: {time_limit_seconds}\n  memory_limit_mb: {memory_limit_mb}\n",
         encoding="utf-8",
@@ -74,7 +74,7 @@ def test_edited_limits_survive_when_constraints_limits_unchanged(problems_dir):
     _run(problems_dir)
     _limits_path(problems_dir).write_text("time_limit_seconds: 3\nmemory_limit_mb: 256\n")
     # Правка constraints.yaml не в TL/ML — вход шага тот же.
-    (problems_dir / "p1" / "constraints.yaml").write_text(
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(
         "n_max: 200000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
     )
 
@@ -127,7 +127,7 @@ def test_force_derives_again(problems_dir, flag):
 
 
 def test_constraints_without_limits_stop_the_pipeline(problems_dir):
-    (problems_dir / "p1" / "constraints.yaml").write_text("n_max: 100000\n")
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text("n_max: 100000\n")
 
     outcome = _run(problems_dir)
 

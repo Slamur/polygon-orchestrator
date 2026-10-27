@@ -41,7 +41,7 @@ def _link(problems_dir: Path) -> None:
 def _write_spec(problems_dir: Path) -> bytes:
     # Как есть, с комментариями: загружается файл, а не разобранный спек.
     content = b"# author's comment\n" + (FIXTURES_DIR / "valid-spec.yaml").read_bytes()
-    path = problems_dir / PROBLEM_ID / "spec.yaml"
+    path = problems_dir / PROBLEM_ID / "authoring" / "spec.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
     return content
@@ -118,12 +118,12 @@ def test_status_not_run_then_done_then_stale(problems_dir, spec):
     _run(spec, problems_dir, MagicMock())
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
-    (problems_dir / PROBLEM_ID / "spec.yaml").write_bytes(content + b"# edited\n")
+    (problems_dir / PROBLEM_ID / "authoring" / "spec.yaml").write_bytes(content + b"# edited\n")
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
 
 
 def _write(problems_dir: Path, name: str, content: bytes) -> None:
-    path = problems_dir / PROBLEM_ID / name
+    path = problems_dir / PROBLEM_ID / "authoring" / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
 

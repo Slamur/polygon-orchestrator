@@ -2,9 +2,9 @@
 модели как образцы (см. docs/SPEC_FORMAT.md, "references").
 
 Референс — путь от корня репозитория на файл или каталог. Каталог-референс
-устроен как результат оркестратора `problems/<problem_id>/` (`constraints.yaml`,
-`validator.cpp`, `generators/`, ...) и, возможно, со своим спеком `spec.yaml`
-рядом — так устроены учебные задачи `examples/<problem_id>/`, но
+устроен как результат оркестратора `problems/<problem_id>/` (`validator.cpp`,
+`generators/`, ..., `authoring/constraints.yaml`) и, возможно, со своим
+спеком `authoring/spec.yaml` — так устроены учебные задачи `examples/<problem_id>/`, но
 подходит и каталог прошлой задачи автора в `problems/` (в том числе
 выгруженной `polygon pull`). Каждый шаг берёт из каталога только свою часть
 (`REFERENCE_DOCUMENTS`); файл-референс прикладывается как есть.
@@ -28,11 +28,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from orchestrator.problem_paths import is_removed_mark
+from orchestrator.problem_paths import find_authoring_file, is_authoring_name, is_removed_mark
 from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 
 # Что каждый шаг берёт из каталога-референса: пути относительно каталога,
-# запись с `*` — glob (файлы в отсортированном порядке). `spec.yaml`
+# запись с `*` — glob (файлы в отсортированном порядке); спек и
+# `constraints.yaml` — из `authoring/` (`problem_paths.find_authoring_file`). `spec.yaml`
 # прикладывается, только если из каталога взят хотя бы один другой файл —
 # спек без результата образцом не служит. Файлы, помеченные шагом как
 # удалённые (`<имя>.removed`), под glob не попадают.
@@ -137,10 +138,13 @@ def _directory_files(
     files: list[Path] = []
     for entry in REFERENCE_DOCUMENTS[step_name]:
         if entry == SPEC_FILENAME:
-            candidate = directory / SPEC_FILENAME
+            candidate = find_authoring_file(directory, SPEC_FILENAME)
             spec_file = candidate if candidate.is_file() else None
             continue
-        if "*" in entry:
+        if is_authoring_name(entry):
+            candidate = find_authoring_file(directory, entry)
+            matches = [candidate] if candidate.is_file() else []
+        elif "*" in entry:
             matches = sorted(
                 path
                 for path in directory.glob(entry)

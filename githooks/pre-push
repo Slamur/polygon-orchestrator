@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Блокирует push, если имя ветки или сообщения коммитов (относительно
 # origin/main) содержат problem_id любой задачи в problems/ — имя каталога
-# задачи на любой глубине (каталог со spec.yaml или polygon_state.json, см.
+# задачи на любой глубине (каталог с authoring/spec.yaml, spec.yaml — до
+# переноса в authoring/ — или polygon_state.json, см.
 # orchestrator/problem_paths.py; группирующие каталоги вроде года или раунда не
 # проверяются — иначе короткие имена давали бы ложные срабатывания), — и имя
 # любого каталога в outputs/ (прежнее имя каталога задач, на случай оставшейся
@@ -17,10 +18,18 @@ shopt -s nocasematch
 
 repo_root="$(git rev-parse --show-toplevel)" || exit 0
 
+# Каталог задачи по найденному маркеру: спек в authoring/ — на уровень выше.
+marker_problem_dir() {
+    local dir
+    dir="$(dirname "$1")"
+    [ "$(basename "$dir")" = authoring ] && dir="$(dirname "$dir")"
+    printf '%s\n' "$dir"
+}
+
 problem_ids=()
 if [ -d "$repo_root/problems" ]; then
     while IFS= read -r -d '' marker; do
-        problem_id="$(basename "$(dirname "$marker")")"
+        problem_id="$(basename "$(marker_problem_dir "$marker")")"
         # spec.yaml и polygon_state.json одной задачи — один problem_id
         [[ " ${problem_ids[*]} " == *" $problem_id "* ]] || problem_ids+=("$problem_id")
     done < <(find "$repo_root/problems" -mindepth 1 -name '.*' -prune -o \
@@ -37,7 +46,7 @@ shopt -u nullglob
 example_names=" "
 if [ -d "$repo_root/examples" ]; then
     while IFS= read -r -d '' marker; do
-        example_dir="$(dirname "$marker")"
+        example_dir="$(marker_problem_dir "$marker")"
         example_rel="${example_dir#"$repo_root/examples/"}"
         example_names+="$(basename "$example_dir") ${example_rel//\//--} "
     done < <(find "$repo_root/examples" -mindepth 1 -name '.*' -prune -o \

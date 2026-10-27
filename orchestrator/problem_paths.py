@@ -4,8 +4,14 @@
 (учебные задачи-образцы) — на любой глубине вложенности: промежуточные
 каталоги только группируют задачи (`problems/<контест>/<год>/<раунд>/...`).
 Каталог задачи — первый каталог на пути вниз от корня, в котором есть
-`spec.yaml` или `polygon_state.json` (`PROBLEM_MARKERS`); внутрь каталога
-задачи поиск не спускается, задачи друг в друга не вкладываются.
+`authoring/spec.yaml` или `polygon_state.json` (`PROBLEM_MARKERS`); внутрь
+каталога задачи поиск не спускается, задачи друг в друга не вкладываются.
+
+Файлы, с которыми работает только модель и автор, — спек, результат
+`constraints_pick` и копия черновика (`AUTHORING_FILES`) — лежат в подкаталоге
+`authoring/` каталога задачи; всё остальное (условие, валидатор, генераторы,
+`limits.yaml`, ...) — в самом каталоге задачи, как на Polygon. Задачи,
+созданные до `authoring/`, переносит `migrate_to_authoring`.
 
 Адрес задачи — путь её каталога вместе с корнем, так он и пишется в CLI:
 `problems/contest/2026/round-1/my-task`, `examples/array/prefix-sums`.
@@ -39,9 +45,21 @@ PROBLEMS_DIR = Path("problems")
 EXAMPLES_DIR = Path("examples")
 PROBLEM_ROOTS = (PROBLEMS_DIR, EXAMPLES_DIR)
 
+AUTHORING_DIRNAME = "authoring"
 SPEC_FILENAME = "spec.yaml"
+CONSTRAINTS_FILENAME = "constraints.yaml"
+# Копия черновика автора (`init --draft`): `draft<расширение>`, см.
+# `orchestrator/drafts.py`.
+DRAFT_STEM = "draft"
 POLYGON_STATE_FILENAME = "polygon_state.json"
-PROBLEM_MARKERS = (SPEC_FILENAME, POLYGON_STATE_FILENAME)
+# `spec.yaml` прямо в каталоге задачи — задача, ещё не перенесённая в
+# `authoring/` (`migrate_to_authoring`): её тоже находят дополнение и
+# проверка уникальности `problem_id`.
+PROBLEM_MARKERS = (
+    f"{AUTHORING_DIRNAME}/{SPEC_FILENAME}",
+    SPEC_FILENAME,
+    POLYGON_STATE_FILENAME,
+)
 
 EXAMPLE_ID_SEPARATOR = "--"
 
@@ -63,6 +81,60 @@ def is_removed_mark(path: Path | str) -> bool:
 _COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?$")
 # `problem_id` спека и имя задачи на Polygon.
 PROBLEM_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+
+
+def is_draft_name(name: str) -> bool:
+    """Копия черновика автора (`draft<расширение>`)."""
+    return "/" not in name and PurePosixPath(name).stem == DRAFT_STEM
+
+
+def is_authoring_name(name: str) -> bool:
+    """Файл, который лежит в `authoring/`: спек, `constraints.yaml`, копия
+    черновика (по имени файла, без каталога)."""
+    return name in (SPEC_FILENAME, CONSTRAINTS_FILENAME) or is_draft_name(name)
+
+
+def authoring_dir(problem_dir: Path) -> Path:
+    return Path(problem_dir) / AUTHORING_DIRNAME
+
+
+def authoring_path(problem_dir: Path, name: str) -> Path:
+    """Путь файла `authoring/` (`is_authoring_name`) в каталоге задачи."""
+    return authoring_dir(problem_dir) / name
+
+
+def find_authoring_file(problem_dir: Path, name: str) -> Path:
+    """Файл `authoring/` другой задачи, которую читают как образец (`--ref`,
+    референсы спека): та задача может быть ещё не перенесена
+    (`migrate_to_authoring`) — тогда файл берётся из самого её каталога."""
+    path = authoring_path(problem_dir, name)
+    legacy = Path(problem_dir) / name
+    return legacy if not path.exists() and legacy.exists() else path
+
+
+def migrate_to_authoring(problem_dir: Path) -> list[tuple[Path, Path]]:
+    """Переносит спек, `constraints.yaml` и копию черновика из самого каталога
+    задачи (раскладка до `authoring/`) в `authoring/`; [(откуда, куда), ...].
+    Файл, который есть в обоих местах, — `ProblemPathError` до любого
+    переноса: какой из двух актуален, решает автор."""
+    problem_dir = Path(problem_dir)
+    if not problem_dir.is_dir():
+        return []
+    moves = [
+        (path, authoring_path(problem_dir, path.name))
+        for path in sorted(problem_dir.iterdir())
+        if path.is_file() and is_authoring_name(path.name)
+    ]
+    clashes = [str(source) for source, target in moves if target.exists()]
+    if clashes:
+        raise ProblemPathError(
+            f"{', '.join(clashes)}: the same file is also in {authoring_dir(problem_dir)} — "
+            "keep the actual one in authoring/ and delete the other"
+        )
+    for source, target in moves:
+        target.parent.mkdir(exist_ok=True)
+        source.rename(target)
+    return moves
 
 
 class ProblemPathError(ValueError):
@@ -107,6 +179,11 @@ def parse_problem_address(address: str) -> tuple[Path, str]:
                 f"problem address '{address}': directory name '{part}' must be ASCII "
                 "letters/digits/'-'/'_', not starting or ending with '-'"
             )
+        if part == AUTHORING_DIRNAME:
+            raise ProblemPathError(
+                f"problem address '{address}': '{AUTHORING_DIRNAME}' is the subdirectory of a "
+                "problem with its spec, not a problem or a group of problems"
+            )
         if is_examples_root(root) and EXAMPLE_ID_SEPARATOR in part:
             raise ProblemPathError(
                 f"problem address '{address}': directory names in {root.name}/ must not contain "
@@ -122,7 +199,12 @@ def parse_problem_address(address: str) -> tuple[Path, str]:
 
 
 def is_problem_dir(path: Path) -> bool:
-    return any((Path(path) / marker).is_file() for marker in PROBLEM_MARKERS)
+    """`authoring/` — не задача, хотя спек в нём и подходит под маркер
+    задачи, ещё не перенесённой в `authoring/`."""
+    path = Path(path)
+    if path.name == AUTHORING_DIRNAME:
+        return False
+    return any((path / marker).is_file() for marker in PROBLEM_MARKERS)
 
 
 def iter_problem_dirs(directory: Path) -> Iterator[Path]:
