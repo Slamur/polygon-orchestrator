@@ -174,6 +174,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_attachments, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_interactor, upload_statement, upload_generators, upload_test_script, upload_solutions
 │   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
+│   ├── llm_report.py              # отчёты llm_reports/<шаг>.md: заметки модели по видам, файлы шага, диффы изменённых файлов
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
 │   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
@@ -197,6 +198,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── interactor_draft.json
         │   └── <step>.response.json        # ответ модели, ещё не применённый (до `llm apply`, `llm accept` или нового прогона шага)
         ├── llm_generation.log      # лог `orchestrator <задача> llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
+        ├── llm_reports/<шаг>.md    # человеко-читаемый отчёт последнего прогона шага (и spec_from_draft.md от `init --draft`): заметки модели, файлы, диффы
         ├── polygon.log             # лог `orchestrator <задача> polygon push` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256, stamps: файл -> отметка его версии на Polygon); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull`
@@ -452,8 +454,17 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   свои текущие файлы, если они есть (см. "Режим доработки" выше).
   `--force` игнорирует кэш и вызывает модель заново — тоже в режиме
   доработки; `--fresh` — заново и с нуля, без текущих файлов (подразумевает
-  `--force`). В конце печатаются помеченные `.removed` и переименованные
-  файлы и каталог `.llm_backup/` с прежними версиями. Если в спеке
+  `--force`). В консоль — строка на шаг и, у отработавшего шага (вызвал
+  модель или применил сохранённый ответ), путь к его отчёту
+  `llm_reports/<шаг>.md` со счётчиком заметок по видам. Отчёт
+  (`orchestrator/llm_report.py`) — текущее состояние шага, а не история:
+  переписывается только отработавшим шагом; в нём заметки модели по видам
+  (`uncertain`, `proposed`, `suggestion`, `changed`), не применённое, ошибки
+  compile-check, новые/изменённые/переименованные/помеченные `.removed`
+  файлы, каталог `.llm_backup/` и диффы файлов, которые существовали и
+  изменились. Полные заметки по-прежнему пишутся и в
+  `llm_generation.log` (история прогонов). Так же — `llm apply` и
+  `init --draft` (`llm_reports/spec_from_draft.md`). Если в спеке
   остались пометки `init --draft` (`# PROPOSED, REVIEW ME`,
   `# SUGGESTION`) — перед прогоном печатается предупреждение со строками
   пометок (`spec.spec_review_marks`); прогон оно не останавливает. То же
@@ -804,7 +815,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
   спек `authoring/spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
   служебные файлы оркестратора в них — кэш, логи, `polygon_state.json`,
-  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `*.removed` — в `.gitignore`;
+  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `llm_reports/`, `*.removed` — в `.gitignore`;
   `limits.yaml` коммитится — актуальные TL/ML задачи, после подгонки на
   Polygon они расходятся с `constraints.yaml`, и это нормально; ожидаемый по нему
   результат `constraints_pick` — `authoring/constraints.yaml` рядом; при правке

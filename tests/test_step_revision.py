@@ -717,9 +717,13 @@ def test_cli_fresh_flag_and_revision_report(spec_file, tmp_path, capsys):
         side_effect=lambda step, *args, **kw: responses[step],
     ):
         assert cli.main(base + ["--force"]) == 0
-    out = capsys.readouterr().out
-    assert "renamed: " in out and "wa_cpp_draft.cpp — now wrong" in out
-    assert "previous versions of overwritten files: " in out
+    assert "(1 removed/renamed)" in capsys.readouterr().out
+    report = (problems_dir / "p1" / "llm_reports" / "solutions_draft.md").read_text(
+        encoding="utf-8"
+    )
+    assert "- renamed: `solutions/ok_cpp_draft.cpp` -> [solutions/wa_cpp_draft.cpp]" in report
+    assert "— now wrong" in report
+    assert "- previous versions: `.llm_backup/" in report
 
     with patch(
         "orchestrator.model_router.call_model",
