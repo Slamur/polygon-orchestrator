@@ -1,4 +1,4 @@
-problem_id: graph/tree-diameter
+problem_id: graph--tree-diameter
 intended_complexity: "O(N)"
 complexity_reasoning: |
   По массиву предков за O(N) строится список смежности неориентированного
@@ -24,7 +24,7 @@ variables:
       одной вершины, диаметр 0), нужно поправить условие и это значение.
   - name: "p_i"
     min: 0
-    max: 300000
+    max: "N"
     description: "предок вершины i, либо 0, если i — корень; фактическая верхняя граница каждого p_i равна N"
     status: confirmed
 
