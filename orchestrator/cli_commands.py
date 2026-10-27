@@ -65,6 +65,11 @@ from orchestrator.checks.test_script_check import (
     check_script,
 )
 from orchestrator.drafts import DRAFTS_DIR, DraftError, find_draft
+from orchestrator.llm_report import (
+    note_counts,
+    write_spec_from_draft_report,
+    write_step_report,
+)
 from orchestrator.problem_paths import EXAMPLES_DIR
 from orchestrator.spec import (
     SpecInitError,
@@ -190,23 +195,28 @@ def _problem_log_handler(
     if needs_separator:
         handler.stream.write("\n")
     # Только в файл, мимо консольного handler'а — в консоли команда и так видна.
-    handler.handle(
-        logging.LogRecord(
-            name=LOGGER_NAME,
-            level=logging.INFO,
-            pathname=__file__,
-            lineno=0,
-            msg=_RUN_HEADER,
-            args=(command_line,),
-            exc_info=None,
-        )
-    )
+    _log_to_file(handler, _RUN_HEADER % command_line)
     logger.addHandler(handler)
     try:
         yield handler
     finally:
         logger.removeHandler(handler)
         handler.close()
+
+
+def _log_to_file(handler: logging.Handler, message: str) -> None:
+    """INFO-запись только в `handler` (лог-файл задачи), мимо консоли."""
+    handler.handle(
+        logging.LogRecord(
+            name=LOGGER_NAME,
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=0,
+            msg=message,
+            args=None,
+            exc_info=None,
+        )
+    )
 
 
 def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
@@ -229,7 +239,17 @@ def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
     handler.handle(record)
 
 
-def _print_pipeline_result(logger: logging.Logger, result) -> None:
+def _print_pipeline_result(
+    logger: logging.Logger,
+    result,
+    file_handler: logging.Handler,
+    problem_dir: Path,
+    command_line: str,
+) -> None:
+    """Итог `llm generate`/`apply`: в консоль — строка на шаг и путь к
+    отчёту `llm_reports/<шаг>.md` отработавшего шага (заметки модели, файлы,
+    диффы — там, см. `llm_report`); в лог-файл задачи — ещё и все заметки и
+    файлы, чтобы история прогонов в нём оставалась полной."""
     logger.info(f"=== {result.problem_id} ===")
     if result.spec_error is not None:
         logger.info(result.spec_error)
@@ -241,29 +261,53 @@ def _print_pipeline_result(logger: logging.Logger, result) -> None:
         if outcome.detail:
             line += f" — {outcome.detail}"
         logger.info(line)
-        for note in outcome.notes:
-            kind = note.get("kind", "?")
-            field_name = note.get("field", "?")
-            explanation = note.get("explanation", "")
-            logger.info(f"      [{kind}] {field_name}: {explanation}")
-        for mark, reason in outcome.removed:
-            logger.info(f"      removed (review and delete by hand): {mark} — {reason}")
-        for old_path, new_path, reason in outcome.renamed:
-            logger.info(f"      renamed: {old_path} -> {new_path} — {reason}")
-        if outcome.backup_dir is not None:
-            logger.info(f"      previous versions of overwritten files: {outcome.backup_dir}")
-        # Одна строка на причину: у ответа, не применённого целиком, она
-        # общая для всех его файлов.
-        by_reason: dict[str, list[str]] = {}
-        for filename, reason in outcome.conflicts:
-            by_reason.setdefault(reason, []).append(filename)
-        for reason, filenames in by_reason.items():
-            logger.info(f"      not applied: {', '.join(filenames)} — {reason}")
-        if outcome.conflicts_dir is not None:
-            logger.info(f"      model versions of not applied files: {outcome.conflicts_dir}")
+        if not outcome.ran:
+            continue
+        report = write_step_report(
+            problem_dir, outcome, status_label=label, command_line=command_line
+        )
+        summary = [note_counts(outcome.notes)]
+        if outcome.compile_errors:
+            summary.append(f"{len(outcome.compile_errors)} compile error(s)")
+        if outcome.removed or outcome.renamed:
+            summary.append(f"{len(outcome.removed) + len(outcome.renamed)} removed/renamed")
+        summary = [part for part in summary if part]
+        logger.info(f"      report: {report}" + (f" ({'; '.join(summary)})" if summary else ""))
+        for detail_line in _outcome_detail_lines(outcome):
+            _log_to_file(file_handler, detail_line)
 
     if result.stopped_uncertain:
         logger.info(f"  ! pipeline stopped for '{result.problem_id}' — see the step above")
+
+
+def _note_lines(notes) -> list[str]:
+    return [
+        f"      [{note.get('kind', '?')}] {note.get('field', '?')}: {note.get('explanation', '')}"
+        for note in notes
+    ]
+
+
+def _outcome_detail_lines(outcome) -> list[str]:
+    """Заметки и файлы шага строками — для лог-файла задачи."""
+    lines = _note_lines(outcome.notes)
+    for name, stderr in outcome.compile_errors.items():
+        lines.append(f"      compile error: {name}: {stderr.strip()}")
+    for mark, reason in outcome.removed:
+        lines.append(f"      removed (review and delete by hand): {mark} — {reason}")
+    for old_path, new_path, reason in outcome.renamed:
+        lines.append(f"      renamed: {old_path} -> {new_path} — {reason}")
+    if outcome.backup_dir is not None:
+        lines.append(f"      previous versions of overwritten files: {outcome.backup_dir}")
+    # Одна строка на причину: у ответа, не применённого целиком, она
+    # общая для всех его файлов.
+    by_reason: dict[str, list[str]] = {}
+    for filename, reason in outcome.conflicts:
+        by_reason.setdefault(reason, []).append(filename)
+    for reason, filenames in by_reason.items():
+        lines.append(f"      not applied: {', '.join(filenames)} — {reason}")
+    if outcome.conflicts_dir is not None:
+        lines.append(f"      model versions of not applied files: {outcome.conflicts_dir}")
+    return lines
 
 
 # Сколько строк с пометками `init --draft` показывать в предупреждении.
@@ -326,7 +370,13 @@ def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
                 file_handler, f"unhandled error while processing '{args.problem_id}'"
             )
             raise
-        _print_pipeline_result(logger, result)
+        _print_pipeline_result(
+            logger,
+            result,
+            file_handler,
+            Path(args.problems_dir) / args.problem_id,
+            args.command_line,
+        )
     return 0 if result.ok else 1
 
 
@@ -744,11 +794,17 @@ def _init_from_draft(args: argparse.Namespace, init, draft_path: Path) -> int:
 
         label = _OUTCOME_LABELS.get(result.status, result.status)
         logger.info(f"=== {init.problem_id}: spec from draft {draft_path} — {label} ===")
-        for note in result.notes:
-            kind = note.get("kind", "?")
-            field_name = note.get("field", "?")
-            explanation = note.get("explanation", "")
-            logger.info(f"      [{kind}] {field_name}: {explanation}")
+        report = write_spec_from_draft_report(
+            Path(args.problems_dir) / args.problem_id,
+            result,
+            status_label=label,
+            command_line=args.command_line,
+            draft_path=draft_path,
+        )
+        counts = note_counts(result.notes)
+        logger.info(f"      report: {report}" + (f" ({counts})" if counts else ""))
+        for line in _note_lines(result.notes):
+            _log_to_file(file_handler, line)
         if result.path is None:
             logger.info("  ! no spec written — see the notes above, fix the draft and run again")
             return 1

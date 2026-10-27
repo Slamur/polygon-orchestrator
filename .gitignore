@@ -13,7 +13,7 @@ drafts/*
 !drafts/.gitkeep
 
 # служебные файлы оркестратора в учебных задачах (сами образцы коммитятся):
-# кэш шагов, логи, привязка к Polygon (личный problemId автора), бэкапы pull,
+# кэш шагов, логи и отчёты модели, привязка к Polygon (личный problemId автора), бэкапы pull,
 # llm generate и polygon fix, файлы, которые шаг предложил удалить.
 # limits.yaml коммитится: актуальные TL/ML — часть задачи, после подгонки на
 # Polygon они отличаются от constraints.yaml
@@ -25,6 +25,7 @@ examples/**/.fix_backup/
 examples/**/*.removed
 examples/**/polygon_state.json
 examples/**/llm_generation.log
+examples/**/llm_reports/
 examples/**/polygon.log
 
 # прежнее имя каталога задач (теперь problems/) — на случай оставшихся локальных копий

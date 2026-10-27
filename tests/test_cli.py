@@ -121,8 +121,15 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(problems_dir, tmp_path, ca
     assert rc == 1
     out = capsys.readouterr().out
     assert "statement_draft: uncertain" in out
-    assert "formal_output_sketch" in out
-    assert "нет точности" in out
+    assert "(1 uncertain)" in out
+    assert "нет точности" not in out
+    report = (problems_dir / "p1" / "llm_reports" / "statement_draft.md").read_text(
+        encoding="utf-8"
+    )
+    assert "## Uncertain — the spec needs fixing (1)" in report
+    assert "- **statement_draft.formal_output_sketch** — нет точности" in report
+    log = (problems_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
+    assert "[uncertain] statement_draft.formal_output_sketch: нет точности" in log
 
 
 def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tmp_path, capsys):
@@ -146,12 +153,19 @@ def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tm
         "statement_draft: conflict — the set of files does not match — "
         "nothing of the response is applied" in out
     )
+    assert "llm apply --step statement_draft" in out
+    assert "report: " in out and "statement_draft.md" in out
+    report = (problems_dir / "p1" / "llm_reports" / "statement_draft.md").read_text(
+        encoding="utf-8"
+    )
+    assert "# statement_draft: conflict" in report
+    assert "- `legend.tex` — the response is not applied as a whole" in report
+    assert "CONFLICTS.md" in report
+    log = (problems_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     assert (
         "not applied: legend.tex, input_format.tex, output_format.tex, notes.tex "
-        "— the response is not applied as a whole" in out
+        "— the response is not applied as a whole" in log
     )
-    assert "model versions of not applied files: " in out
-    assert "llm apply --step statement_draft" in out
 
     with patch("orchestrator.model_router.call_model") as mock_call:
         rc = cli.main(argv + ["apply"])
