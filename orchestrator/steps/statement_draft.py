@@ -246,7 +246,7 @@ def run_step(
     только ради общей сигнатуры `run_step(problem_id, spec,
     upstream_artifacts)` у всех шагов.
     """
-    context = {"problem_id": problem_id, "statement_draft": _section_data(spec)}
+    context = {"problem_id": spec.problem_id, "statement_draft": _section_data(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 

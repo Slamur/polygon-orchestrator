@@ -111,7 +111,7 @@ def test_set_problem_id_keeps_comment_column():
 
     assert yaml.safe_load(result)["problem_id"] == "my-task"
     assert result.index("#") == text.index("#")
-    assert set_problem_id('problem_id: ""\n', "my-task") == "problem_id: my-task \n"
+    assert set_problem_id('problem_id: ""\n', "my-task") == "problem_id: my-task\n"
     with pytest.raises(SpecInitError):
         set_problem_id("title: x\n", "my-task")
 
@@ -254,7 +254,7 @@ def test_draft_spec_from_template_attaches_example_specs(base_dir, fake_model):
     assert "examples/array/sums/spec.yaml" in call["documents"]
     assert "шаблон спека" in call["user"]
     # Невалидный спек всё равно записан — это черновик, вызов не пропадает.
-    assert result.path.read_text(encoding="utf-8") == "problem_id: my-task \n"
+    assert result.path.read_text(encoding="utf-8") == "problem_id: my-task\n"
     assert result.validation_errors
 
 

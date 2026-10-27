@@ -139,7 +139,7 @@ def run_step(
     """
     _require_interactive(problem_id, spec)
 
-    context = {"problem_id": problem_id, **_build_context_sections(spec)}
+    context = {"problem_id": spec.problem_id, **_build_context_sections(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 

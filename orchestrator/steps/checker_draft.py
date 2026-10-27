@@ -126,7 +126,7 @@ def run_step(
     _require_custom_checker(problem_id, spec)
 
     context = {
-        "problem_id": problem_id,
+        "problem_id": spec.problem_id,
         "checker": spec.checker.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD),
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
