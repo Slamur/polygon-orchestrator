@@ -371,7 +371,7 @@ def run_step(
     constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
 
     context = {
-        "problem_id": problem_id,
+        "problem_id": spec.problem_id,
         **_build_context_sections(spec),
         "constraints_pick_result": {"artifacts": {CONSTRAINTS_ARTIFACT: constraints_yaml}},
     }
