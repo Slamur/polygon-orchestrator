@@ -159,7 +159,6 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     ],
     "solutions_draft": [
         "tutorials/solutions.md",
-        "tutorials/limits.md",
     ],
     "checker_draft": [
         "tutorials/checker.md",

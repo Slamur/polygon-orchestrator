@@ -95,7 +95,7 @@ Python-оркестратор, который берёт структуриро�
 │   │                             # ввод-вывод и структура без алгоритма; solutions_draft получает их для языков без ok-образца в референсах
 │   └── tutorials/
 │       ├── statement.md          # правила по условию (statement_draft)
-│       ├── limits.md             # правила по TL/ML (constraints_pick, solutions_draft)
+│       ├── limits.md             # правила по TL/ML (constraints_pick)
 │       ├── validator.md          # правила по валидатору (constraints_pick)
 │       ├── tests.md              # правила по тестам, генераторам и test-script (generators_and_script)
 │       ├── freemarker.md         # правила по FreeMarker-скриптам (generators_and_script)
@@ -269,8 +269,10 @@ Python-оркестратор, который берёт структуриро�
    может предложить свои тесты под вероятные ошибки, которых нет в спеке
    (по легенде и `algorithm_hint`) — см. "Предложения модели сверх спека".
 4. **`solutions_draft`** — вход: секция `solutions` спека +
-   `constraints.intended_complexity` + полный текст `constraints.yaml` из
-   шага 2 + условие из `statement_draft` в части ввода-вывода
+   `constraints.intended_complexity` + текст `constraints.yaml` из
+   шага 2 без TL/ML (вердикты по времени модель выводит из асимптотики и
+   максимальных значений переменных, а подгонка TL не инвалидирует решения)
+   + условие из `statement_draft` в части ввода-вывода
    (`formal_input_sketch`, `formal_output_sketch`, `indexing`, примеры с
    ответами, `legend_sketch` — для понимания терминов `algorithm_hint`, не
    как источник алгоритма авторского решения). Выход: черновики решений с
@@ -585,7 +587,7 @@ status|pull` спек не нужен, а команда на момент до�
   этого шага, не только правка `generation`); `solutions_draft` → секция
   `solutions` + `constraints.intended_complexity` + ввод-вывод из
   `statement_draft` (формат ввода и вывода, `indexing`, примеры с ответами,
-  легенда, у интерактивной задачи — протокол) + `constraints.yaml`;
+  легенда, у интерактивной задачи — протокол) + `constraints.yaml` без TL/ML;
   `interactor_draft` → секция `interactor` + формат ввода и протокол из
   `statement_draft`). Сборка этой части `statement_draft` —
   `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
