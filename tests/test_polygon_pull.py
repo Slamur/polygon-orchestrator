@@ -10,6 +10,7 @@ from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pull import (
     ITEM_ABSENT,
     ITEM_CONFLICT,
+    ITEM_DIFFERS,
     ITEM_DOWNLOADED,
     ITEM_ERROR,
     ITEM_KEPT,
@@ -364,14 +365,12 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
-    assert statuses["statement/legend.tex"] == ITEM_KEPT
-    assert "the next push will upload it" in next(
-        item.detail for item in result.items if item.name == "statement/legend.tex"
-    )
+    # Базы нет — кто менял, неизвестно.
+    assert statuses["statement/legend.tex"] == ITEM_DIFFERS
     assert statuses["statement/input_format.tex"] == ITEM_DOWNLOADED
     assert statuses["statement/examples/example_1.txt"] == ITEM_SAME
-    assert statuses["validator.cpp"] == ITEM_KEPT
-    assert statuses["test_script_groups"] == ITEM_KEPT
+    assert statuses["validator.cpp"] == ITEM_DIFFERS
+    assert statuses["test_script_groups"] == ITEM_DIFFERS
     assert statuses["solutions/ok_cpp_main_author.cpp"] == ITEM_SAME
     assert (problem_dir / "statement" / "legend.tex").read_text() == "local legend"
     assert (problem_dir / "validator.cpp").read_text() == "local validator"
@@ -436,9 +435,6 @@ def test_local_only_files_are_reported_and_kept(problems_dir, polygon):
         assert statuses[name] == ITEM_LOCAL_ONLY, name
         assert (problem_dir / name).exists()
         assert name not in _synced(problems_dir)
-    assert "not on Polygon" in next(
-        item.detail for item in result.items if item.name == "generators/gen_local.cpp"
-    )
 
 
 def test_differing_limits_without_base_are_kept_without_overwrite(problems_dir, polygon):
@@ -447,7 +443,7 @@ def test_differing_limits_without_base_are_kept_without_overwrite(problems_dir, 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     item = next(item for item in result.items if item.name == "limits.yaml")
-    assert item.status == ITEM_KEPT
+    assert item.status == ITEM_DIFFERS
     assert "1000ms/256MB" in item.detail and "2000ms/256MB" in item.detail
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (1000, 256)
     assert "limits" not in _synced(problems_dir)
@@ -537,7 +533,7 @@ def test_different_local_problem_lib_is_kept(problems_dir, polygon):
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["problem_lib.h"] == ITEM_KEPT
+    assert _statuses(result)["problem_lib.h"] == ITEM_DIFFERS
     assert (problems_dir / PROBLEM_ID / "problem_lib.h").read_text() == "// local edits\n"
     assert _synced(problems_dir)["problem_lib.h"] == pull_module.digest(
         polygon.resource_files["problem_lib.h"]
@@ -558,7 +554,7 @@ def test_different_local_spec_is_kept(problems_dir, polygon):
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["authoring/spec.yaml"] == ITEM_KEPT
+    assert _statuses(result)["authoring/spec.yaml"] == ITEM_DIFFERS
     assert _synced(problems_dir)["spec.yaml"] == pull_module.digest(polygon.aux_files["spec.yaml"])
 
 
@@ -662,7 +658,8 @@ def test_local_checker_with_standard_checker_on_polygon(problems_dir, polygon):
 
     item = next(item for item in result.items if item.name == "checker.cpp")
     assert item.status == ITEM_LOCAL_ONLY
-    assert "std::ncmp.cpp" in item.detail and "custom_needed" in item.detail
+    assert "std::ncmp.cpp" in item.detail
+    assert item.push_condition == "checker.custom_needed: true"
     synced = _synced(problems_dir)
     assert "checker" in synced and "checker.cpp" not in synced
 
@@ -882,7 +879,11 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
 
     out = capsys.readouterr().out
     assert exit_code == 0
-    assert "  validator.cpp: downloaded — Polygon source file val.cpp" in out
+    assert "  validator.cpp..." in out  # прогресс по частям
+    pulled = out.split("=== pulled ===\n")[1].split("\n\n")[0].splitlines()
+    assert "validator.cpp" in pulled and "statement/legend.tex" in pulled
+    # Совпадающее с Polygon и отсутствующее с обеих сторон не печатается.
+    assert "up to date" not in out and "absent" not in out
     assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
     log = (problems_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
     assert "run started: orchestrator --base-dir" in log
@@ -921,8 +922,35 @@ def test_cli_pull_overwrite_reports_backup_dir(problems_dir, polygon, capsys, mo
 
     out = capsys.readouterr().out
     assert exit_code == 0
-    assert "  validator.cpp: overwritten" in out
+    assert "=== pulled over local changes (--overwrite) ===\nvalidator.cpp\n" in out
     assert "replaced local files are backed up in" in out
+
+
+def test_cli_pull_groups_files_to_push_and_conflicts(problems_dir, polygon, capsys, monkeypatch):
+    problem_dir = problems_dir / PROBLEM_ID
+    _write(problem_dir, "statement/legend.tex", "local legend")  # базы нет — differs
+    _write(problem_dir, "generators/gen_local.cpp", "// local\n")  # local only
+    _write(problem_dir, "checker.cpp", "// local checker\n")  # local only, при custom_needed
+    _write(problem_dir, "limits.yaml", "time_limit_seconds: 1\nmemory_limit_mb: 256\n")
+    monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
+
+    exit_code = cli.main(
+        ["--base-dir", str(problems_dir.parent), f"problems/{PROBLEM_ID}", "polygon", "pull"]
+    )
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    to_push = out.split("=== will be pushed ===\n")[1].split("\n\n")[0].splitlines()
+    assert to_push == [
+        "checker.cpp (if checker.custom_needed: true)",
+        "generators/gen_local.cpp",
+    ]
+    conflicts = out.split("=== conflicts ===\n")[1].split("\n\n")[0].splitlines()
+    assert conflicts[:2] == [
+        "statement/legend.tex — no sync base",
+        "limits.yaml — no sync base; local 1000ms/256MB, Polygon 2000ms/256MB",
+    ]
+    assert "--overwrite" in conflicts[2]
 
 
 # --- Инкрементальный pull: отметки версий файлов на Polygon ---
@@ -1280,3 +1308,17 @@ def test_push_after_pull_of_interactive_problem_uploads_nothing(problems_dir, po
         assert result.uploaded == {}, step.STEP_NAME
 
     client.call.assert_not_called()
+
+
+def test_cli_pull_prints_warnings_as_a_group_after_progress(
+    problems_dir, polygon, capsys, monkeypatch
+):
+    polygon.solutions = {"sol.cpp": ("MA", b"// sol\n")}
+    monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
+
+    cli.main(["--base-dir", str(problems_dir.parent), f"problems/{PROBLEM_ID}", "polygon", "pull"])
+
+    out = capsys.readouterr().out
+    warnings = out.split("=== warnings ===\n")[1].split("\n\n")[0].splitlines()
+    assert len(warnings) == 1 and warnings[0].startswith("solutions/sol.cpp: the name does not")
+    assert out.index("  solutions...") < out.index("=== warnings ===")

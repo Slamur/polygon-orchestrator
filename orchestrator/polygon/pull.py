@@ -21,15 +21,16 @@ Polygon каждую часть задачи, которой пользуетс�
   `--overwrite`, следующий `polygon push` загрузит её (в базу записывается
   хеш версии с Polygon — push сравнивает с ним локальный);
 - отличается, и обе стороны отличаются от базы — менялись обе (`conflict`),
-  либо базы для файла нет: без `--overwrite` остаётся локальная версия
-  (`conflict`/`kept`), с `--overwrite` — заменяется версией с Polygon
-  (`overwritten`);
+  либо базы для файла нет — кто менял, неизвестно (`differs`): без
+  `--overwrite` остаётся локальная версия, с `--overwrite` — заменяется
+  версией с Polygon (`overwritten`);
 - есть только локально — не трогается (`local only`), и следующий push
-  загрузит его; локальные файлы pull никогда не удаляет.
+  загрузит его (если загружает такую часть при этом спеке — тогда условие
+  в `PullItem.push_condition`); локальные файлы pull никогда не удаляет.
 
 Заменённый локальный файл (`updated`, `overwritten`) сначала переносится в
 `.pull_backup/<время>/` (`problems/` вне git, другой копии у него нет).
-Отличающийся файл, оставленный локальным (`kept`, `conflict`), получает в
+Отличающийся файл, оставленный локальным (`kept`, `conflict`, `differs`), получает в
 базе хеш версии с Polygon — для следующего pull это уже правка только
 локальная, и `--overwrite` её не заменит. Чтобы отбросить локальную правку
 в этом случае, достаточно удалить файл локально — pull скачает его заново.
@@ -187,6 +188,7 @@ ITEM_UPDATED = "updated"  # менялся только на Polygon: замен
 ITEM_OVERWRITTEN = "overwritten"  # менялся и локально, --overwrite: заменён, старый — в бэкапе
 ITEM_KEPT = "kept"  # отличается от Polygon, оставлена локальная версия
 ITEM_CONFLICT = "conflict"  # менялся и локально, и на Polygon: оставлена локальная версия
+ITEM_DIFFERS = "differs"  # отличается, базы нет — кто менял, неизвестно: оставлена локальная версия
 ITEM_LOCAL_ONLY = "local only"  # есть только локально — не тронут
 ITEM_ABSENT = "absent"  # нет ни на Polygon, ни локально
 ITEM_ERROR = "error"
@@ -207,18 +209,11 @@ _VALIDATOR_FILENAME = VALIDATOR_FILE_KEY
 _CHECKER_FILENAME = CHECKER_FILE_KEY
 _BACKUP_DIRNAME = ".pull_backup"
 
-_KEPT_DETAIL = "differs from Polygon, local version kept — the next push will upload it"
-_LOCAL_CHANGE_DETAIL = (
-    "changed only locally since the last sync, local version kept — the next push will upload it"
-)
-_UPDATED_DETAIL = "changed only on Polygon since the last sync, local file replaced"
-_CONFLICT_DETAIL = (
-    "changed both locally and on Polygon since the last sync, local version kept — "
-    "the next push will upload it over Polygon; to take the Polygon version instead, "
-    "delete the local file and pull again"
-)
-_LOCAL_ONLY_DETAIL = "not on Polygon — the next push will upload it"
+# `detail` — только то, что статус сам не говорит (откуда версия на Polygon,
+# чем отличаются TL/ML): CLI печатает его у конфликтов и ошибок.
 _NOT_DOWNLOADED_DETAIL = "unchanged on Polygon since the last sync, not downloaded"
+# Протокол и интерактор push загружает только у интерактивной задачи.
+_INTERACTIVE_CONDITION = "the spec has an interactor section"
 
 
 
@@ -229,6 +224,8 @@ class PullItem:
     name: str  # путь относительно `problems/<problem_id>/`
     status: str
     detail: str = ""
+    # У `local only`: при каком спеке push загрузит файл; пусто — загрузит всегда.
+    push_condition: str = ""
 
 
 @dataclass
@@ -253,7 +250,7 @@ def pull_problem(
     overwrite: bool = False,
     problems_dir: Path = PROBLEMS_DIR,
     client: PolygonClient | None = None,
-    on_item: Callable[[PullItem], None] | None = None,
+    on_part: Callable[[str], None] | None = None,
 ) -> PullResult:
     """Привязывает `problem_id` к задаче на Polygon, сравнивает с ней
     локальные файлы и переписывает базу синхронизации (см. докстринг
@@ -270,8 +267,8 @@ def pull_problem(
     незакоммиченные правки — `PolygonStepError`, файлы не трогаются.
     `PolygonApiError` на этом этапе тоже пробрасывается наружу.
 
-    `on_item` вызывается после каждой части — чтобы CLI показывал прогресс
-    по мере выполнения.
+    `on_part` вызывается с именем части перед её сравнением — чтобы CLI
+    показывал прогресс по мере выполнения.
     """
     client = client or PolygonClient()
     resolved_id, link_detail = _resolve_and_link(
@@ -303,7 +300,6 @@ def pull_problem(
         / _BACKUP_DIRNAME
         / datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
         result=result,
-        on_item=on_item,
         base_synced=dict(base.synced),
         base_stamps=dict(base.stamps),
         revision_unchanged=base.revision is not None and base.revision == current.revision,
@@ -321,6 +317,8 @@ def pull_problem(
         ("test_script", puller.pull_script),
         ("solutions", puller.pull_solutions),
     ):
+        if on_part is not None:
+            on_part(name)
         try:
             part()
         except PolygonApiError as exc:
@@ -419,7 +417,6 @@ class _Puller:
     overwrite: bool
     backup_dir: Path
     result: PullResult
-    on_item: Callable[[PullItem], None] | None = None
     base_synced: dict[str, str] = field(default_factory=dict)
     base_stamps: dict[str, str] = field(default_factory=dict)
     revision_unchanged: bool = False
@@ -432,17 +429,14 @@ class _Puller:
     _remote_stamps: dict[str, str] | None = None
     _problem_info: dict | None = None
 
-    def add(self, name: str, status: str, detail: str = "") -> None:
-        item = PullItem(name, status, detail)
-        self.result.items.append(item)
+    def add(self, name: str, status: str, detail: str = "", *, push_condition: str = "") -> None:
+        self.result.items.append(PullItem(name, status, detail, push_condition))
         level = logging.ERROR if status == ITEM_ERROR else logging.INFO
         logger.log(level, "[pull] %s: %s%s", name, status, f" — {detail}" if detail else "")
-        if self.on_item is not None:
-            self.on_item(item)
 
     def warn(self, message: str) -> None:
         self.result.warnings.append(message)
-        logger.warning("[pull] %s", message)
+        logger.warning("%s", message)
 
     def pull_statement(self) -> None:
         statements = self._call("problem.statements") or {}
@@ -457,7 +451,9 @@ class _Puller:
                 name_file, f"no {_LANG!r} statement on Polygon", key=STATEMENT_NAME_KEY
             )
             self._missing_if_local(
-                f"statement/{INTERACTION_FILENAME}", f"no {_LANG!r} statement on Polygon"
+                f"statement/{INTERACTION_FILENAME}",
+                f"no {_LANG!r} statement on Polygon",
+                push_condition=_INTERACTIVE_CONDITION,
             )
             return
         for field_name, filename in _STATEMENT_FILES.items():
@@ -470,7 +466,11 @@ class _Puller:
         if interaction:
             self._sync_file(interaction_file, lambda: interaction.encode("utf-8"))
         else:
-            self._missing_if_local(interaction_file, "no interaction protocol on Polygon")
+            self._missing_if_local(
+                interaction_file,
+                "no interaction protocol on Polygon",
+                push_condition=_INTERACTIVE_CONDITION,
+            )
         name = (statement.get("name") or "").strip()
         if not name:
             self._missing_on_polygon(
@@ -562,14 +562,14 @@ class _Puller:
             self.synced[LIMITS_KEY] = limits_digest(*remote)
             return
 
-        differs = f"TL/ML differ: local {_describe_limits(local)}, Polygon {_describe_limits(remote)}"
+        differs = f"local {_describe_limits(local)}, Polygon {_describe_limits(remote)}"
         change = _change(
             self.base_synced.get(LIMITS_KEY),
             limits_digest(*local) if local is not None else None,
             limits_digest(*remote),
         )
         if change == _LOCAL:
-            self.add(LIMITS_FILENAME, ITEM_KEPT, f"{differs}; {_LOCAL_CHANGE_DETAIL}")
+            self.add(LIMITS_FILENAME, ITEM_KEPT, differs)
             self.synced[LIMITS_KEY] = None
             return
         if change == _REMOTE or self.overwrite:
@@ -580,10 +580,7 @@ class _Puller:
             )
             self.synced[LIMITS_KEY] = limits_digest(*remote)
             return
-        if change == _BOTH:
-            self.add(LIMITS_FILENAME, ITEM_CONFLICT, f"{differs}; {_CONFLICT_DETAIL}")
-        else:
-            self.add(LIMITS_FILENAME, ITEM_KEPT, f"{differs}; {_KEPT_DETAIL}")
+        self.add(LIMITS_FILENAME, ITEM_CONFLICT if change == _BOTH else ITEM_DIFFERS, differs)
         self.synced[LIMITS_KEY] = None
 
     def pull_problem_lib(self) -> None:
@@ -633,8 +630,7 @@ class _Puller:
                 _CHECKER_FILENAME,
                 f"standard checker {polygon_name} on Polygon",
                 key=CHECKER_FILE_KEY,
-                local_only_detail="the next push will upload it if the spec has "
-                "checker.custom_needed: true",
+                push_condition="checker.custom_needed: true",
             )
             self.synced[CHECKER_KEY] = digest(polygon_name)
         else:
@@ -658,6 +654,7 @@ class _Puller:
                 INTERACTOR_FILENAME,
                 "the problem is not interactive on Polygon",
                 key=INTERACTOR_FILE_KEY,
+                push_condition=_INTERACTIVE_CONDITION,
             )
             return
         polygon_name = self._interactor_name()
@@ -831,7 +828,7 @@ class _Puller:
                 self._record(key, known, stamp, also)
                 return False
             # Версия на Polygon равна базе — менялся только локальный файл.
-            self.add(name, ITEM_KEPT, _join(detail, _LOCAL_CHANGE_DETAIL))
+            self.add(name, ITEM_KEPT, detail)
             self._record(key, known, stamp, {k: None for k in also})
             return False
 
@@ -858,18 +855,11 @@ class _Puller:
             if change == _REMOTE or (change != _LOCAL and self.overwrite):
                 self._backup(name)
                 self._write(name, remote)
-                if change == _REMOTE:
-                    self.add(name, ITEM_UPDATED, _join(detail, _UPDATED_DETAIL))
-                else:
-                    self.add(name, ITEM_OVERWRITTEN, detail)
+                self.add(name, ITEM_UPDATED if change == _REMOTE else ITEM_OVERWRITTEN, detail)
                 written = True
             else:
-                if change == _LOCAL:
-                    self.add(name, ITEM_KEPT, _join(detail, _LOCAL_CHANGE_DETAIL))
-                elif change == _BOTH:
-                    self.add(name, ITEM_CONFLICT, _join(detail, _CONFLICT_DETAIL))
-                else:
-                    self.add(name, ITEM_KEPT, _join(detail, _KEPT_DETAIL))
+                status = {_LOCAL: ITEM_KEPT, _BOTH: ITEM_CONFLICT}.get(change, ITEM_DIFFERS)
+                self.add(name, status, detail)
                 self._record(key, digest(normalize(remote)), stamp, {k: None for k in also})
                 return False
 
@@ -921,22 +911,25 @@ class _Puller:
         detail: str = "",
         *,
         key: str | None = None,
-        local_only_detail: str = _LOCAL_ONLY_DETAIL,
+        push_condition: str = "",
     ) -> None:
         """Части `name` на Polygon нет: если она есть локально — "local only"
-        (push её загрузит), иначе "absent". В базе её быть не должно."""
+        (push её загрузит — всегда или при `push_condition`), иначе "absent".
+        В базе её быть не должно."""
         self.synced[key or name] = None
         if (self.problem_dir / name).exists():
-            self.add(name, ITEM_LOCAL_ONLY, _join(detail, local_only_detail))
+            self.add(name, ITEM_LOCAL_ONLY, detail, push_condition=push_condition)
         else:
             self.add(name, ITEM_ABSENT, detail)
 
-    def _missing_if_local(self, name: str, detail: str, *, key: str | None = None) -> None:
+    def _missing_if_local(
+        self, name: str, detail: str, *, key: str | None = None, push_condition: str = ""
+    ) -> None:
         """Как `_missing_on_polygon`, но для частей, которые есть не у всех
         задач (протокол и интерактор интерактивной задачи): если локально
         файла тоже нет, отчёт о нём не печатается."""
         if (self.problem_dir / name).exists():
-            self._missing_on_polygon(name, detail, key=key)
+            self._missing_on_polygon(name, detail, key=key, push_condition=push_condition)
         else:
             self.synced[key or name] = None
 

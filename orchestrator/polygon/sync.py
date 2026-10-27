@@ -35,10 +35,12 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from typing import Iterable
 
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.problem_paths import (
+    AUTHORING_DIRNAME,
     CONSTRAINTS_FILENAME,
     SPEC_FILENAME,
     is_authoring_name,
@@ -139,6 +141,37 @@ def generator_source_names(
         for file in source_files
         if file["name"].endswith(".cpp") and file["name"] not in not_generators
     )
+
+
+# Ключи-"не-файлы" -> как их показывать автору (`describe_keys`).
+_KEY_LABELS = {
+    LIMITS_KEY: "TL/ML (limits.yaml)",
+    VALIDATOR_KEY: "validator assignment",
+    CHECKER_KEY: "checker assignment",
+    INTERACTOR_KEY: "interactor assignment",
+    INTERACTIVE_KEY: "interactive flag",
+    STATEMENT_NAME_KEY: "statement/name.txt",
+    SCRIPT_KEY: "test script",
+}
+# Назначение -> файл, при загрузке которого назначение отдельно не показывается.
+_ASSIGNED_FILES = {
+    VALIDATOR_KEY: VALIDATOR_FILE_KEY,
+    CHECKER_KEY: CHECKER_FILE_KEY,
+    INTERACTOR_KEY: INTERACTOR_FILE_KEY,
+}
+
+
+def describe_keys(keys: Iterable[str]) -> list[str]:
+    """Ключи базы -> имена для вывода CLI, по порядку ключей: файлы — путём в
+    каталоге задачи (Attachments — с `authoring/`), остальное — словами.
+    Назначение валидатора/чекера/интерактора вместе с его файлом — одна
+    строка, файл."""
+    keys = list(keys)
+    return [
+        _KEY_LABELS.get(key) or (f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else key)
+        for key in keys
+        if _ASSIGNED_FILES.get(key) not in keys
+    ]
 
 
 def is_stamped_key(key: str) -> bool:
