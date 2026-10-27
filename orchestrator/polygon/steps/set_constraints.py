@@ -1,7 +1,7 @@
-"""Polygon-шаг 2 — перенос TL/ML из `problems/<problem_id>/constraints.yaml`
-(результат генеративного шага `constraints_pick`) в Polygon через
-`problem.updateInfo` вместе с флагом интерактивности задачи (есть ли в
-спеке секция `interactor`).
+"""Polygon-шаг 2 — перенос актуальных TL/ML из `problems/<problem_id>/limits.yaml`
+(см. `orchestrator/limits.py`; из `constraints.yaml` его выводит шаг
+`limits_from_constraints`) в Polygon через `problem.updateInfo` вместе с
+флагом интерактивности задачи (есть ли в спеке секция `interactor`).
 
 Флаг — отдельный элемент базы синхронизации (`INTERACTIVE_KEY`), но
 сравнивается, только если задача интерактивная или флаг уже есть в базе:
@@ -13,11 +13,9 @@
 
 from __future__ import annotations
 
-from numbers import Real
 from pathlib import Path
 
-import yaml
-
+from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.steps.base import (
     NO_CHANGES_MESSAGE,
@@ -39,9 +37,6 @@ from orchestrator.polygon.sync import (
 from orchestrator.problem_paths import problem_address
 
 STEP_NAME = "set_constraints"
-
-_TIME_KEY = "time_limit_seconds"
-_MEMORY_KEY = "memory_limit_mb"
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
@@ -89,95 +84,33 @@ def _describe(time_limit_ms: int, memory_limit_mb: int) -> str:
 
 def read_limits(problem_id: str, problems_dir: Path) -> tuple[int, int]:
     """(timeLimit в миллисекундах, memoryLimit в мегабайтах) из
-    `constraints.yaml` — в единицах `problem.updateInfo`. Без сети; если
-    `constraints.yaml` нет или он некорректен — `PolygonStepError` (при
-    отсутствии — с указанием, какой шаг запустить сначала). Нужно и
-    `polygon pull` — сравнить локальные TL/ML с Polygon.
+    `limits.yaml` — в единицах `problem.updateInfo` (`limits.parse_limits`).
+    Без сети; если `limits.yaml` нет или он некорректен — `PolygonStepError`
+    (при отсутствии — с указанием, как его получить). Нужно и `polygon pull`
+    — сравнить локальные TL/ML с Polygon.
 
     `problem.updateInfo` получает ещё inputFile="", outputFile="" (см.
     `_execute`): в формате спека (docs/SPEC_FORMAT.md) нет полей для
     файлового ввода/вывода, значения отражают дефолт stdin/stdout. Если
     такие поля появятся — менять нужно там.
 
-    Единицы: `time_limit_seconds` x 1000 -> `timeLimit` в миллисекундах;
-    `memory_limit_mb` -> `memoryLimit` как есть, в мегабайтах (конвенция
-    Codeforces/Polygon problem.xml). В тексте документации
-    `problem.updateInfo` это прямо не сказано — после первого реального
-    вызова стоит сверить с вкладкой General в UI Polygon.
+    NOTE: в тексте документации `problem.updateInfo` единицы прямо не
+    названы — после первого реального вызова стоит сверить с вкладкой
+    General в UI Polygon.
     """
-    constraints_path = Path(problems_dir) / problem_id / "constraints.yaml"
-    if not constraints_path.exists():
+    limits_path = Path(problems_dir) / problem_id / LIMITS_FILENAME
+    if not limits_path.exists():
         address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
-            f"'{problem_id}': {constraints_path} not found — first run "
-            f"the generative step constraints_pick (`orchestrator {address} llm generate "
-            "--step constraints_pick`)"
+            f"'{problem_id}': {limits_path} not found — derive it from constraints.yaml "
+            f"(`orchestrator {address} llm generate --step limits_from_constraints`, "
+            "the model is not called) or take it from Polygon "
+            f"(`orchestrator {address} polygon pull`)"
         )
-
     try:
-        constraints_data = yaml.safe_load(constraints_path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
-        raise PolygonStepError(
-            f"'{problem_id}': {constraints_path} is not valid YAML: {exc}"
-        ) from exc
-    if not isinstance(constraints_data, dict):
-        raise PolygonStepError(
-            f"'{problem_id}': {constraints_path} did not parse into a mapping "
-            f"(got {type(constraints_data).__name__})"
-        )
-
-    time_limit_seconds, memory_limit_mb = _extract_limits(constraints_data)
-    for key, value in ((_TIME_KEY, time_limit_seconds), (_MEMORY_KEY, memory_limit_mb)):
-        if value is None:
-            raise PolygonStepError(
-                f"'{problem_id}': {key} in {constraints_path} is not set (null) — "
-                "constraints_pick should have stopped with status: uncertain"
-            )
-        if isinstance(value, bool) or not isinstance(value, Real) or value <= 0:
-            raise PolygonStepError(
-                f"'{problem_id}': {key} in {constraints_path} must be "
-                f"a positive number, got {value!r}"
-            )
-
-    return round(time_limit_seconds * 1000), round(memory_limit_mb)
-
-
-def _extract_limits(constraints_data: dict) -> tuple[object, object]:
-    """Пара (time_limit_seconds, memory_limit_mb) из `constraints.yaml`.
-
-    `constraints.yaml` — свободный YAML: структурированный вывод модели
-    валидирует только форму status/artifacts/notes, не содержимое файла.
-    Поэтому пара встречается и внутри вложенного словаря `limits`, и прямо
-    в корне документа — ищем в обоих местах.
-
-    Если пара есть в обоих местах с РАЗНЫМИ значениями — это противоречие
-    в самом `constraints.yaml`: `PolygonStepError`, а не молчаливый выбор.
-    Значения не проверяются (могут быть `None`) — это делает вызывающий.
-    """
-    candidates: list[tuple[str, dict]] = []
-    limits = constraints_data.get("limits")
-    if isinstance(limits, dict):
-        candidates.append(("limits", limits))
-    candidates.append(("root", constraints_data))
-
-    found = [
-        (label, (container[_TIME_KEY], container[_MEMORY_KEY]))
-        for label, container in candidates
-        if _TIME_KEY in container and _MEMORY_KEY in container
-    ]
-    if not found:
-        raise PolygonStepError(
-            f"{_TIME_KEY}/{_MEMORY_KEY} found neither in 'limits' nor at the root of "
-            "constraints.yaml"
-        )
-
-    first_values = found[0][1]
-    if any(values != first_values for _, values in found[1:]):
-        raise PolygonStepError(
-            f"{_TIME_KEY}/{_MEMORY_KEY} are set both in 'limits' and at the root of "
-            f"constraints.yaml, with different values: {dict(found)!r}"
-        )
-    return first_values
+        return parse_limits(limits_path.read_text(encoding="utf-8"))
+    except LimitsError as exc:
+        raise PolygonStepError(f"'{problem_id}': {limits_path}: {exc}") from exc
 
 
 STEP = PolygonStep(

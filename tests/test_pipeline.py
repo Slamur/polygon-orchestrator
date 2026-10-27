@@ -11,6 +11,8 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
+_CONSTRAINTS_YAML = "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
+
 _RESPONSES = {
     "statement_draft": ModelResponse(
         status="confirmed",
@@ -24,7 +26,7 @@ _RESPONSES = {
         notes=[],
     ),
     "constraints_pick": ModelResponse(
-        status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[]
+        status="confirmed", artifacts={"constraints.yaml": _CONSTRAINTS_YAML}, notes=[]
     ),
     "generators_and_script": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
@@ -43,6 +45,8 @@ _RESPONSES = {
 # Опциональные шаги, которые спек-фикстура не заказывает: стандартный чекер
 # (checker.custom_needed: false) и обычная, не интерактивная задача.
 _SKIPPED_STEPS = {"checker_draft", "interactor_draft"}
+# Шаги без вызова модели.
+_MECHANICAL_STEPS = {"limits_from_constraints"}
 
 
 def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
@@ -85,9 +89,11 @@ def test_first_run_calls_model_for_every_step_in_order(spec_file, tmp_path):
     assert statuses["interactor_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
     called_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: statuses[s] for s in called_steps} == {s: "confirmed" for s in called_steps}
-    assert mock_call.call_count == len(called_steps)
-    # порядок вызовов совпадает с STEP_ORDER (за вычетом пропущенных шагов)
-    assert [c.args[0] for c in mock_call.call_args_list] == called_steps
+    model_steps = [s for s in called_steps if s not in _MECHANICAL_STEPS]
+    assert mock_call.call_count == len(model_steps)
+    # порядок вызовов совпадает с STEP_ORDER (за вычетом пропущенных и
+    # механических шагов)
+    assert [c.args[0] for c in mock_call.call_args_list] == model_steps
 
 
 def test_second_run_is_all_cache_hits_and_does_not_call_model(spec_file, tmp_path):
@@ -125,7 +131,7 @@ def test_force_recalls_model_even_when_cached(spec_file, tmp_path):
     assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
     forced_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: statuses[s] for s in forced_steps} == {s: "confirmed" for s in forced_steps}
-    assert mock_call.call_count == len(forced_steps)
+    assert mock_call.call_count == len([s for s in forced_steps if s not in _MECHANICAL_STEPS])
 
 
 def test_uncertain_step_stops_pipeline_before_later_steps(spec_file, tmp_path):
@@ -565,7 +571,7 @@ def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(spec
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         _run(problems_dir)
-    (problems_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
+    (problems_dir / "p1" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
 
     before = _statuses(problems_dir)
     assert before["generators_and_script"].detail == (
@@ -584,7 +590,7 @@ def test_accept_only_step_leaves_other_steps_stale(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         _run(problems_dir)
-    (problems_dir / "p1" / "constraints.yaml").write_text("n_max: 200000", encoding="utf-8")
+    (problems_dir / "p1" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
 
     accepted = _accept(problems_dir, only_step="solutions_draft")
     assert list(accepted) == ["solutions_draft"]

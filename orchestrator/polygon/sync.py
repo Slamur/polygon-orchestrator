@@ -53,11 +53,12 @@ INTERACTOR_KEY = "interactor"  # имя назначенного интерак�
 STATEMENT_NAME_KEY = "statement/name"
 SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
 SPEC_KEY = "spec.yaml"
-CONSTRAINTS_KEY = "constraints.yaml"  # файл целиком, в Attachments; TL/ML — `LIMITS_KEY`
+CONSTRAINTS_KEY = "constraints.yaml"  # файл целиком, в Attachments; TL/ML задачи — `LIMITS_KEY`
 
-# Заголовок `constraints.yaml`, который пишет `polygon pull`, когда на Polygon
-# есть только TL/ML: такой файл — не результат `constraints_pick`, и
-# `upload_attachments` его не загружает.
+# Заголовок `constraints.yaml`, который писали прежние версии `polygon pull`,
+# когда на Polygon есть только TL/ML (теперь TL/ML — в `limits.yaml`): такой
+# файл — не результат `constraints_pick`, и `upload_attachments` его не
+# загружает.
 PULLED_CONSTRAINTS_HEADER = (
     "# Pulled from Polygon (orchestrator <problem> polygon pull): TL/ML only.\n"
     "# This is NOT a constraints_pick result — there are no variable ranges,\n"

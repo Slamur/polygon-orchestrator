@@ -76,22 +76,15 @@ Polygon равна записанной в базе (с последней си�
 - aux-файлы (раздел "Attachments", `problem.files` + `problem.viewFile`;
   загружает шаг `upload_attachments`) -> `spec.yaml`, `constraints.yaml`
   (результат `constraints_pick` целиком), копия черновика
-  `draft<расширение>`; прочие aux-файлы не трогаются. Сравниваются раньше
-  TL/ML: `constraints.yaml` из Attachments заменяет локальный файл из одних
-  TL/ML (ниже) без `--overwrite`, а его TL/ML затем сверяются с задачей;
-- TL/ML (`problem.info`) -> `constraints.yaml`. Если файла нет ни локально,
-  ни в Attachments, пишется файл только с секцией `limits` — это НЕ
-  результат `constraints_pick`: диапазонов переменных, групп и секции
-  `validator` в нём нет (см. `PULLED_CONSTRAINTS_HEADER`). Сравниваются
-  только TL/ML. Результат `constraints_pick` целиком TL/ML не
-  перезаписывают никогда: если TL/ML менялись только на Polygon (или с
-  `--overwrite`; или локальный файл совпадает с версией в Attachments — его
-  TL/ML тогда старее TL/ML задачи),
-  в нём заменяются только значения
-  `time_limit_seconds`/`memory_limit_mb` (`_replace_limits`), остальное —
-  диапазоны, группы, `validator`, комментарии — остаётся как было. База —
-  хеш TL/ML (`LIMITS_KEY`), сверка та же, что у файлов.
-  Обоснование TL/ML (`limits.rationale`) при этом не правится;
+  `draft<расширение>` — каждый сверяется только со своей версией в
+  Attachments; прочие aux-файлы не трогаются. `constraints.yaml` из одних
+  TL/ML, который писали прежние версии pull (`PULLED_CONSTRAINTS_HEADER`),
+  уступает место версии из Attachments без `--overwrite`;
+- TL/ML (`problem.info`) -> `limits.yaml` (актуальные TL/ML задачи, см.
+  `orchestrator/limits.py`); `constraints.yaml` они не трогают никогда.
+  Сравниваются значения, а не текст файла; база — хеш TL/ML
+  (`LIMITS_KEY`), сверка та же, что у файлов. Заменённый `limits.yaml`
+  пишется заново (`limits.render_limits`);
 - валидатор (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
 - чекер (`problem.checker`) -> `checker.cpp`, если он не стандартный
   (`std::...` — скачивать нечего);
@@ -125,12 +118,10 @@ from __future__ import annotations
 
 import datetime
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-import yaml
 
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import (
@@ -140,12 +131,7 @@ from orchestrator.polygon.state import (
     update_sync,
 )
 from orchestrator.polygon.steps.base import PolygonStepError
-from orchestrator.polygon.steps.set_constraints import (
-    _MEMORY_KEY,
-    _TIME_KEY,
-    _extract_limits,
-    read_limits,
-)
+from orchestrator.polygon.steps.set_constraints import read_limits
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
 from orchestrator.polygon.steps.upload_statement import (
     INTERACTION_FILENAME,
@@ -180,6 +166,7 @@ from orchestrator.polygon.sync import (
     limits_digest,
     remote_stamps,
 )
+from orchestrator.limits import LIMITS_FILENAME, render_limits
 from orchestrator.problem_paths import (
     PROBLEMS_DIR,
     SPEC_FILENAME,
@@ -217,7 +204,6 @@ _STATEMENT_FILES = {
 
 _VALIDATOR_FILENAME = VALIDATOR_FILE_KEY
 _CHECKER_FILENAME = CHECKER_FILE_KEY
-_CONSTRAINTS_FILENAME = "constraints.yaml"
 _BACKUP_DIRNAME = ".pull_backup"
 
 _KEPT_DETAIL = "differs from Polygon, local version kept — the next push will upload it"
@@ -324,9 +310,8 @@ def pull_problem(
     for name, part in (
         ("statement", puller.pull_statement),
         ("statement/examples", puller.pull_examples),
-        # До TL/ML: `pull_limits` правит уже скачанный `constraints.yaml`.
         ("attachments", puller.pull_attachments),
-        (_CONSTRAINTS_FILENAME, puller.pull_limits),
+        (LIMITS_FILENAME, puller.pull_limits),
         (PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
         (_VALIDATOR_FILENAME, puller.pull_validator),
         (_CHECKER_FILENAME, puller.pull_checker),
@@ -554,26 +539,16 @@ class _Puller:
         time_limit_ms, memory_limit_mb = info.get("timeLimit"), info.get("memoryLimit")
         if time_limit_ms is None or memory_limit_mb is None:
             self._missing_on_polygon(
-                _CONSTRAINTS_FILENAME, "no timeLimit/memoryLimit on Polygon", key=LIMITS_KEY
+                LIMITS_FILENAME, "no timeLimit/memoryLimit on Polygon", key=LIMITS_KEY
             )
             return
         remote = (int(time_limit_ms), int(memory_limit_mb))
-        seconds = time_limit_ms / 1000
-        values = {
-            _TIME_KEY: str(int(seconds) if seconds.is_integer() else seconds),
-            _MEMORY_KEY: str(memory_limit_mb),
-        }
-        content = (
-            f"{PULLED_CONSTRAINTS_HEADER}"
-            "limits:\n"
-            f"  {_TIME_KEY}: {values[_TIME_KEY]}\n"
-            f"  {_MEMORY_KEY}: {values[_MEMORY_KEY]}\n"
-        ).encode("utf-8")
+        content = render_limits(*remote).encode("utf-8")
 
-        path = self.problem_dir / _CONSTRAINTS_FILENAME
+        path = self.problem_dir / LIMITS_FILENAME
         if not path.exists():
-            self._write(_CONSTRAINTS_FILENAME, content)
-            self.add(_CONSTRAINTS_FILENAME, ITEM_DOWNLOADED, "TL/ML only, see file header")
+            self._write(LIMITS_FILENAME, content)
+            self.add(LIMITS_FILENAME, ITEM_DOWNLOADED)
             self.synced[LIMITS_KEY] = limits_digest(*remote)
             return
 
@@ -582,7 +557,7 @@ class _Puller:
         except PolygonStepError:
             local = None
         if local == remote:
-            self.add(_CONSTRAINTS_FILENAME, ITEM_SAME, "TL/ML")
+            self.add(LIMITS_FILENAME, ITEM_SAME)
             self.synced[LIMITS_KEY] = limits_digest(*remote)
             return
 
@@ -592,43 +567,22 @@ class _Puller:
             limits_digest(*local) if local is not None else None,
             limits_digest(*remote),
         )
-        if self._constraints_as_on_polygon():
-            # Локальный файл — тот же, что в Attachments, а его TL/ML загружены
-            # в задачу раньше: TL/ML задачи на Polygon с тех пор правили.
-            change = _REMOTE
         if change == _LOCAL:
-            self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_LOCAL_CHANGE_DETAIL}")
+            self.add(LIMITS_FILENAME, ITEM_KEPT, f"{differs}; {_LOCAL_CHANGE_DETAIL}")
             self.synced[LIMITS_KEY] = None
             return
-        is_pulled = _is_pulled_constraints(path.read_bytes())
         if change == _REMOTE or self.overwrite:
-            if is_pulled:
-                replaced, detail = content, differs
-            else:
-                text = _replace_limits(path.read_text(encoding="utf-8"), values, remote)
-                replaced = text.encode("utf-8") if text is not None else None
-                detail = (
-                    f"{differs} — only the limits were replaced in the constraints_pick "
-                    "result, check limits.rationale"
-                )
-            if replaced is not None:
-                self._backup(_CONSTRAINTS_FILENAME)
-                self._write(_CONSTRAINTS_FILENAME, replaced)
-                self.add(
-                    _CONSTRAINTS_FILENAME,
-                    ITEM_UPDATED if change == _REMOTE else ITEM_OVERWRITTEN,
-                    detail,
-                )
-                self.synced[LIMITS_KEY] = limits_digest(*remote)
-                return
-            differs += (
-                f" — could not replace {_TIME_KEY}/{_MEMORY_KEY} in constraints.yaml "
-                "automatically, fix the limits in it manually"
+            self._backup(LIMITS_FILENAME)
+            self._write(LIMITS_FILENAME, content)
+            self.add(
+                LIMITS_FILENAME, ITEM_UPDATED if change == _REMOTE else ITEM_OVERWRITTEN, differs
             )
+            self.synced[LIMITS_KEY] = limits_digest(*remote)
+            return
         if change == _BOTH:
-            self.add(_CONSTRAINTS_FILENAME, ITEM_CONFLICT, f"{differs}; {_CONFLICT_DETAIL}")
+            self.add(LIMITS_FILENAME, ITEM_CONFLICT, f"{differs}; {_CONFLICT_DETAIL}")
         else:
-            self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_KEPT_DETAIL}")
+            self.add(LIMITS_FILENAME, ITEM_KEPT, f"{differs}; {_KEPT_DETAIL}")
         self.synced[LIMITS_KEY] = None
 
     def pull_problem_lib(self) -> None:
@@ -798,9 +752,15 @@ class _Puller:
         if SPEC_KEY not in remote_names:
             self._missing_on_polygon(SPEC_FILENAME, "no attachment on Polygon", key=SPEC_KEY)
         if CONSTRAINTS_KEY not in remote_names:
-            # Без отдельной записи: о `constraints.yaml` отчитается `pull_limits`,
-            # а push загрузит его, раз в базе нет хеша.
-            self.synced[CONSTRAINTS_KEY] = None
+            path = self.problem_dir / CONSTRAINTS_KEY
+            if path.exists() and _is_pulled_constraints(path.read_bytes()):
+                # Файл из одних TL/ML от прежних версий pull — не результат
+                # `constraints_pick`, `upload_attachments` его не загружает.
+                self.synced[CONSTRAINTS_KEY] = None
+            else:
+                self._missing_on_polygon(
+                    CONSTRAINTS_KEY, "no attachment on Polygon", key=CONSTRAINTS_KEY
+                )
         local_drafts = sorted(
             path.name
             for path in (self.problem_dir.iterdir() if self.problem_dir.is_dir() else [])
@@ -810,20 +770,13 @@ class _Puller:
             self._missing_on_polygon(name, "no attachment on Polygon")
 
     def _drop_pulled_constraints(self) -> None:
-        """Локальный `constraints.yaml` из одних TL/ML, собранный прошлым pull,
-        уступает место результату `constraints_pick` из Attachments: в бэкап и
+        """Локальный `constraints.yaml` из одних TL/ML, собранный прежними
+        версиями pull, уступает место результату `constraints_pick` из Attachments: в бэкап и
         удаляется, `_sync_file` скачает файл с Polygon."""
         path = self.problem_dir / CONSTRAINTS_KEY
         if path.exists() and _is_pulled_constraints(path.read_bytes()):
             self._backup(CONSTRAINTS_KEY)
             path.unlink()
-
-    def _constraints_as_on_polygon(self) -> bool:
-        """Совпадает ли локальный `constraints.yaml` с версией в Attachments
-        (по итогу `pull_attachments`)."""
-        path = self.problem_dir / CONSTRAINTS_KEY
-        remote = self.synced.get(CONSTRAINTS_KEY)
-        return remote is not None and path.exists() and digest(path.read_bytes()) == remote
 
     def _warn_if_unparseable_solution_name(self, polygon_name: str, tag: object) -> None:
         try:
@@ -1073,40 +1026,6 @@ def _same(local: bytes, remote: bytes) -> bool:
 
 def _join(detail: str, suffix: str) -> str:
     return f"{detail}; {suffix}" if detail else suffix
-
-
-_LIMIT_LINE = re.compile(
-    rf"^(?P<head>[ \t]*(?:{_TIME_KEY}|{_MEMORY_KEY})[ \t]*:[ \t]*)"
-    r"(?P<value>[^#\n]*?)(?P<tail>[ \t]*(?:#[^\n]*)?)$",
-    re.MULTILINE,
-)
-
-
-def _replace_limits(
-    text: str, values: dict[str, str], expected: tuple[int, int]
-) -> str | None:
-    """`text` (результат `constraints_pick`) с заменёнными значениями
-    `time_limit_seconds`/`memory_limit_mb` — построчно, чтобы сохранить
-    остальное содержимое и комментарии. Заменяются все вхождения ключей
-    (`read_limits` ищет пару и в `limits`, и в корне). None, если после
-    замены `read_limits` не прочитал бы ровно `expected` (ключи в
-    flow-стиле, многострочные значения и т.п.) — тогда файл не трогаем.
-    """
-
-    def substitute(match: re.Match) -> str:
-        key = match["head"].split(":", 1)[0].strip()
-        return f"{match['head']}{values[key]}{match['tail']}"
-
-    replaced = _LIMIT_LINE.sub(substitute, text)
-    try:
-        data = yaml.safe_load(replaced)
-        if not isinstance(data, dict):
-            return None
-        time_limit_seconds, memory_limit_mb = _extract_limits(data)
-        actual = (round(time_limit_seconds * 1000), round(memory_limit_mb))
-    except (yaml.YAMLError, PolygonStepError, TypeError):
-        return None
-    return replaced if actual == expected else None
 
 
 def _describe_limits(limits: tuple[int, int] | None) -> str:

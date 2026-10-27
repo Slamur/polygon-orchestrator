@@ -599,7 +599,7 @@ def test_step_order():
 
 
 def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
-    # задача привязана, но constraints.yaml нет -> PolygonStepError в set_constraints
+    # задача привязана, но limits.yaml нет -> PolygonStepError в set_constraints
     _write_spec(problems_dir, PROBLEM_ID)
     _link(problems_dir)
     client = RevisionClient(revision=10)
@@ -614,7 +614,7 @@ def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
         ("upload_attachments", "ok"),
         ("set_constraints", "error"),
     ]
-    assert "constraints_pick" in result.outcomes[-1].detail
+    assert "limits_from_constraints" in result.outcomes[-1].detail
     # set_constraints упал до сети — вызовы только от проверки ревизии и
     # upload_attachments, потом запись отметок после коммита upload_attachments
     assert client.methods() == [
@@ -693,7 +693,7 @@ def test_status_done_with_state(tmp_path):
     assert statuses[0].detail == "polygon_id=777"
 
 
-def test_status_after_full_run_then_constraints_change(problems_dir):
+def test_status_after_full_run_then_limits_change(problems_dir):
     _write_spec(problems_dir, PROBLEM_ID, flat_script=True)
     _write_generated_outputs(problems_dir)
     client = MagicMock()
@@ -717,8 +717,8 @@ def test_status_after_full_run_then_constraints_change(problems_dir):
         ("upload_solutions", "done"),
     ]
 
-    (problems_dir / PROBLEM_ID / "constraints.yaml").write_text(
-        "limits:\n  time_limit_seconds: 3\n  memory_limit_mb: 256\n", encoding="utf-8"
+    (problems_dir / PROBLEM_ID / "limits.yaml").write_text(
+        "time_limit_seconds: 3\nmemory_limit_mb: 256\n", encoding="utf-8"
     )
     statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=problems_dir)
     assert (statuses[2].status, statuses[2].detail) == (
@@ -738,6 +738,9 @@ def _write_generated_outputs(problems_dir: Path) -> None:
     path = problems_dir / PROBLEM_ID / "constraints.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n", encoding="utf-8")
+    (path.parent / "limits.yaml").write_text(
+        "time_limit_seconds: 2\nmemory_limit_mb: 256\n", encoding="utf-8"
+    )
     (path.parent / "validator.cpp").write_text("int main() {}\n", encoding="utf-8")
     statement_dir = path.parent / "statement"
     (statement_dir / "examples").mkdir(parents=True, exist_ok=True)
@@ -951,7 +954,7 @@ class ListingClient(RevisionClient):
 
 
 def test_push_records_stamps_of_uploaded_files(problems_dir):
-    # upload_attachments загрузит spec.yaml, set_constraints упадёт без constraints.yaml
+    # upload_attachments загрузит spec.yaml, set_constraints упадёт без limits.yaml
     _write_spec(problems_dir, PROBLEM_ID)
     _link(problems_dir)
     client = ListingClient(revision=10)

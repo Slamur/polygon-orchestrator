@@ -44,12 +44,13 @@ from orchestrator.cache import (
 from orchestrator.problem_paths import is_removed_mark, problem_address
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
-from orchestrator.step_order import STEP_ORDER
+from orchestrator.step_order import MECHANICAL_STEPS, STEP_ORDER
 from orchestrator.steps import (
     checker_draft,
     constraints_pick,
     generators_and_script,
     interactor_draft,
+    limits_from_constraints,
     solutions_draft,
     statement_draft,
 )
@@ -67,6 +68,7 @@ logger = logging.getLogger(__name__)
 _STEP_MODULES: dict[str, ModuleType] = {
     "statement_draft": statement_draft,
     "constraints_pick": constraints_pick,
+    "limits_from_constraints": limits_from_constraints,
     "generators_and_script": generators_and_script,
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
@@ -169,10 +171,11 @@ def _load_constraints_upstream(
     upstream_artifacts: dict[str, Any],
     problems_dir: Path,
 ) -> None:
-    """generators_and_script и solutions_draft зависят от constraints.yaml с
-    диска. Если constraints_pick в этом прогоне не запускался (только --step
-    или пропущен по кэшу), артефакт подхватывается с диска."""
-    if step_name not in ("generators_and_script", "solutions_draft"):
+    """limits_from_constraints, generators_and_script и solutions_draft
+    зависят от constraints.yaml с диска. Если constraints_pick в этом прогоне
+    не запускался (только --step или пропущен по кэшу), артефакт
+    подхватывается с диска."""
+    if step_name not in ("limits_from_constraints", "generators_and_script", "solutions_draft"):
         return
     if CONSTRAINTS_ARTIFACT in upstream_artifacts:
         return
@@ -198,6 +201,15 @@ def _compute_step_hashes(
     module = _STEP_MODULES[step_name]
     input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*module.hash_inputs(problem_id, spec, upstream_artifacts))
+    if step_name in MECHANICAL_STEPS:
+        return _StepHashes(
+            input_hash=input_hash,
+            prompt_hash=module.PROMPT_HASH,
+            input_parts=input_parts_from_values(input_values),
+            prompt_parts={},
+            model=module.MODEL,
+            input_values=input_values,
+        )
     extra_documents = module.extra_context_documents(spec, templates_dir=templates_dir)
     prompt_kwargs = dict(
         prompts_dir=prompts_dir,
@@ -547,6 +559,23 @@ def run_pipeline(
             result.stopped_uncertain = True
             return result
         elif (
+            step_name in MECHANICAL_STEPS
+            and cache_entry is None
+            and artifact_present
+            and not (force or fresh)
+        ):
+            # Файл появился не из этого шага (например, `limits.yaml` скачал
+            # `polygon pull`) — он актуальнее, чем то, что шаг вывел бы.
+            _save_accepted_entry(problem_id, step_name, hashes, problems_dir)
+            result.outcomes.append(
+                StepOutcome(
+                    step_name,
+                    OUTCOME_CACHE_HIT,
+                    f"{primary_path.name} already exists and the step has never run — kept as is "
+                    f"('llm generate --step {step_name} --force' derives it again)",
+                )
+            )
+        elif (
             not (force or fresh)
             and is_cache_valid(
                 cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model
@@ -573,7 +602,7 @@ def run_pipeline(
                 rerun_reason = f"regenerated: {_stale_reason(cache_entry, hashes)}"
             revision = (
                 None
-                if fresh
+                if fresh or step_name in MECHANICAL_STEPS
                 else _revision_for_step(
                     module, problem_id, spec, cache_entry, hashes, problems_dir
                 )
@@ -816,6 +845,10 @@ def _cache_status_of_step(
     artifact_present: bool,
 ) -> StepStatus:
     if cache_entry is None:
+        if step_name in MECHANICAL_STEPS and artifact_present:
+            return StepStatus(
+                step_name, STATUS_NOT_RUN, "the file already exists — 'llm generate' keeps it as is"
+            )
         return StepStatus(step_name, STATUS_NOT_RUN)
     if cache_entry.status == UNCERTAIN_STATUS:
         return StepStatus(
@@ -864,6 +897,22 @@ def _accept_step(
         accepted_detail = f"was stale: {current.detail}"
 
     assert cache_entry is not None
+    _save_accepted_entry(problem_id, step_name, hashes, problems_dir, status=cache_entry.status)
+    # Принятые файлы актуальны — неприменённый ответ того же шага больше не нужен.
+    discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
+    return StepStatus(step_name, STATUS_ACCEPTED, accepted_detail)
+
+
+def _save_accepted_entry(
+    problem_id: str,
+    step_name: str,
+    hashes: _StepHashes,
+    problems_dir: Path,
+    *,
+    status: str = OUTCOME_CONFIRMED,
+) -> None:
+    """Запись кэша, принимающая текущие файлы шага как актуальные
+    (`accepted: true`), без вызова модели."""
     save_cache_entry(
         problem_id,
         step_name,
@@ -871,7 +920,7 @@ def _accept_step(
             input_hash=hashes.input_hash,
             prompt_hash=hashes.prompt_hash,
             model=hashes.model,
-            status=cache_entry.status,
+            status=status,
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             input_parts=hashes.input_parts,
             prompt_parts=hashes.prompt_parts,
@@ -880,6 +929,3 @@ def _accept_step(
         ),
         problems_dir=problems_dir,
     )
-    # Принятые файлы актуальны — неприменённый ответ того же шага больше не нужен.
-    discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
-    return StepStatus(step_name, STATUS_ACCEPTED, accepted_detail)
