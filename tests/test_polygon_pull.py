@@ -22,11 +22,11 @@ from orchestrator.polygon.pull import (
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
 from orchestrator.polygon.steps import (
     set_constraints,
+    upload_attachments,
     upload_generators,
     upload_interactor,
     upload_problem_lib,
     upload_solutions,
-    upload_spec,
     upload_statement,
     upload_test_script,
     upload_validator,
@@ -259,7 +259,7 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, proble
         upload_generators.STEP,
         upload_test_script.STEP,
         upload_solutions.STEP,
-        upload_spec.STEP,
+        upload_attachments.STEP,
     ):
         assert uploaded(step) == {}, step.name
     # на Polygon валидатор назначен под другим именем — push загрузит validator.cpp
@@ -610,6 +610,84 @@ def test_spec_missing_on_polygon(problems_dir, polygon):
 
     assert _statuses(result)["spec.yaml"] == ITEM_LOCAL_ONLY
     assert "spec.yaml" not in _synced(problems_dir)
+
+
+_CONSTRAINTS_PICK = (
+    "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n"
+    "groups: []\nvalidator: {constants: [], checks: []}\n"
+)
+
+
+def test_attachments_are_downloaded(problems_dir, polygon):
+    polygon.aux_files.update(
+        {"constraints.yaml": _CONSTRAINTS_PICK.encode(), "draft.md": b"idea\n", "other.txt": b"x"}
+    )
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    problem_dir = problems_dir / PROBLEM_ID
+    assert result.ok
+    assert (problem_dir / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
+    assert (problem_dir / "draft.md").read_text() == "idea\n"
+    # Чужие aux-файлы pull не трогает.
+    assert not (problem_dir / "other.txt").exists()
+    statuses = [(item.name, item.status) for item in result.items]
+    assert ("constraints.yaml", ITEM_DOWNLOADED) in statuses
+    assert ("constraints.yaml", ITEM_SAME) in statuses  # TL/ML
+    assert ("draft.md", ITEM_DOWNLOADED) in statuses
+    synced = _synced(problems_dir)
+    assert synced["constraints.yaml"] == pull_module.digest(_CONSTRAINTS_PICK)
+    assert synced["draft.md"] == pull_module.digest(b"idea\n")
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
+    assert state.stamps["draft.md"] == "draft.md:100:5"
+
+
+def test_attached_constraints_replace_pulled_limits_only_file(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    path = problems_dir / PROBLEM_ID / "constraints.yaml"
+    stub = path.read_text()
+    assert stub.startswith("# Pulled from Polygon")
+    polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_PICK.encode()
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert path.read_text() == _CONSTRAINTS_PICK
+    assert (result.backup_dir / "constraints.yaml").read_text() == stub
+
+
+def test_limits_changed_on_polygon_after_constraints_were_attached(problems_dir, polygon):
+    # constraints.yaml в Attachments — с TL/ML последнего push, а TL поменяли
+    # на Polygon: свежий клон без базы получает TL/ML задачи.
+    polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_PICK.encode()
+    polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
+    assert _statuses(result)["constraints.yaml"] == ITEM_UPDATED
+    assert "groups: []" in (problems_dir / PROBLEM_ID / "constraints.yaml").read_text()
+    # Файл теперь отличается от Attachments — следующий push загрузит его.
+    assert _synced(problems_dir)["constraints.yaml"] == pull_module.digest(_CONSTRAINTS_PICK)
+
+
+def test_constraints_missing_in_attachments_is_left_for_push(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "constraints.yaml", _CONSTRAINTS_PICK)
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["constraints.yaml"] == ITEM_SAME  # TL/ML
+    assert "constraints.yaml" not in _synced(problems_dir)
+
+
+def test_local_draft_missing_on_polygon(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "draft.txt", "idea\n")
+    _write(problems_dir / PROBLEM_ID, "draft.md.removed", "old\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["draft.txt"] == ITEM_LOCAL_ONLY
+    assert "draft.md.removed" not in _statuses(result)
+    assert "draft.txt" not in _synced(problems_dir)
 
 
 def test_local_checker_with_standard_checker_on_polygon(problems_dir, polygon):

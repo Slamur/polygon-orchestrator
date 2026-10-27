@@ -35,7 +35,9 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from pathlib import PurePosixPath
 
+from orchestrator.drafts import PROBLEM_DRAFT_STEM
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.steps.base import PolygonStepError
 
@@ -51,6 +53,17 @@ INTERACTOR_KEY = "interactor"  # имя назначенного интерак�
 STATEMENT_NAME_KEY = "statement/name"
 SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
 SPEC_KEY = "spec.yaml"
+CONSTRAINTS_KEY = "constraints.yaml"  # файл целиком, в Attachments; TL/ML — `LIMITS_KEY`
+
+# Заголовок `constraints.yaml`, который пишет `polygon pull`, когда на Polygon
+# есть только TL/ML: такой файл — не результат `constraints_pick`, и
+# `upload_attachments` его не загружает.
+PULLED_CONSTRAINTS_HEADER = (
+    "# Pulled from Polygon (orchestrator <problem> polygon pull): TL/ML only.\n"
+    "# This is NOT a constraints_pick result — there are no variable ranges,\n"
+    "# test groups or validator section here. Steps that take constraints.yaml\n"
+    "# as input (generators_and_script, solutions_draft) will see only this.\n"
+)
 
 # Локальные имена валидатора, чекера и интерактора: source-файлы с такими
 # именами — не генераторы, даже если не назначены (см. `generator_source_names`).
@@ -58,6 +71,19 @@ VALIDATOR_FILENAME = "validator.cpp"
 CHECKER_FILENAME = "checker.cpp"
 INTERACTOR_FILENAME = "interactor.cpp"
 STANDARD_CHECKER_PREFIX = "std::"
+
+
+def is_draft_name(name: str) -> bool:
+    """Копия черновика автора в каталоге задачи (`draft<расширение>`, см.
+    `orchestrator/drafts.py`)."""
+    return "/" not in name and PurePosixPath(name).stem == PROBLEM_DRAFT_STEM
+
+
+def is_attachment_name(name: str) -> bool:
+    """Файл каталога задачи, который хранится на Polygon в Attachments
+    (aux-файлы, шаг `upload_attachments`): спек, `constraints.yaml`,
+    копия черновика. Ключ в базе синхронизации — само имя."""
+    return name in (SPEC_KEY, CONSTRAINTS_KEY) or is_draft_name(name)
 
 
 def statement_file_key(filename: str) -> str:
@@ -118,11 +144,10 @@ def is_stamped_key(key: str) -> bool:
     """Есть ли у ключа отметка в листинге Polygon (см. `remote_stamps`)."""
     return key in (
         PROBLEM_LIB_KEY,
-        SPEC_KEY,
         VALIDATOR_FILE_KEY,
         CHECKER_FILE_KEY,
         INTERACTOR_FILE_KEY,
-    ) or key.startswith(("generators/", "solutions/"))
+    ) or is_attachment_name(key) or key.startswith(("generators/", "solutions/"))
 
 
 def file_stamp(file: dict) -> str | None:
@@ -151,8 +176,8 @@ def remote_stamps(
         if file["name"] == PROBLEM_LIB_KEY:
             by_key[PROBLEM_LIB_KEY] = file
     for file in files.get("auxFiles") or []:
-        if file["name"] == SPEC_KEY:
-            by_key[SPEC_KEY] = file
+        if is_attachment_name(file["name"]):
+            by_key[file["name"]] = file
     if validator in sources:
         by_key[VALIDATOR_FILE_KEY] = sources[validator]
     if checker in sources and not checker.startswith(STANDARD_CHECKER_PREFIX):

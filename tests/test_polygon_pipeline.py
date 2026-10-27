@@ -442,7 +442,7 @@ def test_reused_polygon_problem_needs_pull_before_push(problems_dir):
 
     assert [(o.step_name, o.status) for o in result.outcomes] == [
         ("create_problem", "ok"),
-        ("upload_spec", "error"),
+        ("upload_attachments", "error"),
     ]
     assert "polygon pull" in result.outcomes[0].detail
     assert "polygon pull" in result.outcomes[1].detail
@@ -585,7 +585,7 @@ def test_full_run_commits_after_every_step_but_create_problem(problems_dir):
 def test_step_order():
     assert POLYGON_STEP_ORDER == [
         "create_problem",
-        "upload_spec",
+        "upload_attachments",
         "set_constraints",
         "upload_problem_lib",
         "upload_validator",
@@ -611,12 +611,12 @@ def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
     assert result.ok is False
     assert [(o.step_name, o.status) for o in result.outcomes] == [
         ("create_problem", "ok"),
-        ("upload_spec", "ok"),
+        ("upload_attachments", "ok"),
         ("set_constraints", "error"),
     ]
     assert "constraints_pick" in result.outcomes[-1].detail
     # set_constraints упал до сети — вызовы только от проверки ревизии и
-    # upload_spec, потом запись отметок после коммита upload_spec
+    # upload_attachments, потом запись отметок после коммита upload_attachments
     assert client.methods() == [
         "problems.list",
         "problem.saveFile",
@@ -655,7 +655,7 @@ def test_status_not_run_without_state(tmp_path):
 
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "not run"),
-        ("upload_spec", "not run"),
+        ("upload_attachments", "not run"),
         ("set_constraints", "not run"),
         ("upload_problem_lib", "not run"),
         ("upload_validator", "not run"),
@@ -679,7 +679,7 @@ def test_status_done_with_state(tmp_path):
 
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
-        ("upload_spec", "not run"),
+        ("upload_attachments", "not run"),
         ("set_constraints", "not run"),
         ("upload_problem_lib", "not run"),
         ("upload_validator", "not run"),
@@ -705,7 +705,7 @@ def test_status_after_full_run_then_constraints_change(problems_dir):
     statuses = compute_polygon_step_statuses(PROBLEM_ID, problems_dir=problems_dir)
     assert [(s.step_name, s.status) for s in statuses] == [
         ("create_problem", "done"),
-        ("upload_spec", "done"),
+        ("upload_attachments", "done"),
         ("set_constraints", "done"),
         ("upload_problem_lib", "done"),
         ("upload_validator", "done"),
@@ -773,7 +773,7 @@ def test_cli_polygon_run_prints_outcomes(problems_dir, capsys):
     assert "upload_generators: ok" in out
     assert "upload_test_script: ok" in out
     assert "upload_solutions: ok" in out
-    assert "upload_spec: ok" in out
+    assert "upload_attachments: ok" in out
 
 
 def test_cli_polygon_run_with_step(problems_dir, capsys):
@@ -951,7 +951,7 @@ class ListingClient(RevisionClient):
 
 
 def test_push_records_stamps_of_uploaded_files(problems_dir):
-    # upload_spec загрузит spec.yaml, set_constraints упадёт без constraints.yaml
+    # upload_attachments загрузит spec.yaml, set_constraints упадёт без constraints.yaml
     _write_spec(problems_dir, PROBLEM_ID)
     _link(problems_dir)
     client = ListingClient(revision=10)
@@ -985,7 +985,7 @@ def test_push_stamp_recording_error_does_not_fail_push(problems_dir):
 
     assert [(o.step_name, o.status) for o in result.outcomes][:2] == [
         ("create_problem", "ok"),
-        ("upload_spec", "ok"),
+        ("upload_attachments", "ok"),
     ]
     assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).stamps == {}
 
