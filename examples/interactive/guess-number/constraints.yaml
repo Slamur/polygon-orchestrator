@@ -1,4 +1,4 @@
-problem_id: interactive/guess-number
+problem_id: interactive--guess-number
 intended_complexity: "O(log N) запросов"
 complexity_reasoning: |
   Бинарный поиск по диапазону: поддерживается отрезок [lo, hi]
@@ -19,7 +19,7 @@ variables:
     status: confirmed
   - name: "X"
     min: 1
-    max: 1000              # фактическая верхняя граница — N (проверяется как X <= N)
+    max: "N"              
     description: "загаданное число (скрытые данные теста), 1 <= X <= N"
     status: confirmed
   - name: "Q"
