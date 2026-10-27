@@ -105,6 +105,9 @@ class PolygonStepOutcome:
     # однострочный, с подсказкой в конце, — CLI печатает его целиком, а не
     # обрезает, как ответы Polygon API и неожиданные исключения.
     full_detail: bool = False
+    # Что шаг загрузил и закоммитил (ключи базы, см. `sync.describe_keys`).
+    uploaded: tuple[str, ...] = ()
+    notice: str = ""  # `StepResult.notice`
 
 
 @dataclass
@@ -130,6 +133,7 @@ def run_polygon_pipeline(
     problems_dir: Path = PROBLEMS_DIR,
     client: PolygonClient | None = None,
     on_outcome: Callable[[PolygonStepOutcome], None] | None = None,
+    on_step_start: Callable[[str], None] | None = None,
 ) -> PolygonPipelineResult:
     """Прогоняет polygon-шаги для `problem_id` по порядку `POLYGON_STEP_ORDER`
     (или только один, если задан `only_step`).
@@ -158,9 +162,9 @@ def run_polygon_pipeline(
     исключения. Полный текст ошибки всегда пишется в лог (ERROR), т.к.
     вызывающий код может показывать `detail` сокращённо.
 
-    `on_outcome` вызывается сразу после каждого шага (и успешного, и
-    упавшего) — чтобы CLI показывал прогресс по мере выполнения, а не
-    одним куском в конце. Ошибка валидации спека — как в `run_pipeline`:
+    `on_step_start` вызывается с именем шага перед его запуском, `on_outcome`
+    — сразу после каждого шага (и успешного, и упавшего) — чтобы CLI
+    показывал прогресс по мере выполнения, а не одним куском в конце. Ошибка валидации спека — как в `run_pipeline`:
     записывается в `result.spec_error`, клиент при этом не создаётся.
     """
     try:
@@ -187,6 +191,8 @@ def run_polygon_pipeline(
         for step_name in steps_to_run:
             step = _POLYGON_STEPS[step_name]
             logger.info("[%s] step started", step_name)
+            if on_step_start is not None:
+                on_step_start(step_name)
             try:
                 if step.commits_changes and not baseline_checked:
                     synced = _sync_baseline(
@@ -197,6 +203,7 @@ def run_polygon_pipeline(
                     step, problem_id, spec, problems_dir=problems_dir, client=client, synced=synced
                 )
                 detail = step_result.message
+                uploaded: tuple[str, ...] = ()
                 if step.commits_changes and step_result.uploaded:
                     detail += "; " + _commit_and_record(
                         problem_id,
@@ -208,6 +215,7 @@ def run_polygon_pipeline(
                     )
                     committed = True
                     replace_base = False
+                    uploaded = tuple(step_result.uploaded)
             except (PolygonApiError, PolygonStepError) as exc:
                 logger.error("[%s] %s", step_name, exc)
                 record(
@@ -225,7 +233,15 @@ def run_polygon_pipeline(
                     PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}")
                 )
                 return result
-            record(PolygonStepOutcome(step_name, OUTCOME_OK, detail))
+            record(
+                PolygonStepOutcome(
+                    step_name,
+                    OUTCOME_OK,
+                    detail,
+                    uploaded=uploaded,
+                    notice=step_result.notice,
+                )
+            )
     finally:
         if baseline_checked:
             _record_stamps(problem_id, committed=committed, problems_dir=problems_dir, client=client)

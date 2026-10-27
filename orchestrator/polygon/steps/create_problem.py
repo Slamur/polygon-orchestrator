@@ -62,14 +62,16 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     if polygon_id is not None:
         _link(ctx, polygon_id, revision=None)
         address = problem_address(ctx.problems_dir, ctx.problem_id)
-        return StepResult(
+        message = (
             f"found existing Polygon problem by name (id={polygon_id}), reused — run "
             f"`orchestrator {address} polygon pull` before pushing to it"
         )
+        return StepResult(message, notice=message)
 
     polygon_id = _create_polygon_problem(client, name)
     _link(ctx, polygon_id, revision=fetch_revision(client, polygon_id).revision)
-    return StepResult(f"created new Polygon problem (id={polygon_id}); {_AUTO_UPDATE_REMINDER}")
+    message = f"created new Polygon problem (id={polygon_id}); {_AUTO_UPDATE_REMINDER}"
+    return StepResult(message, notice=message)
 
 
 def _find_polygon_id_by_name(client: PolygonClient, name: str) -> int | None:

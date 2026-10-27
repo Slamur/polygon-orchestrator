@@ -768,16 +768,35 @@ def test_cli_polygon_run_prints_outcomes(problems_dir, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert "create_problem: ok" in out
-    assert "set_constraints: ok" in out
-    assert "upload_problem_lib: ok" in out
-    assert "upload_validator: ok" in out
-    assert "upload_checker: ok" in out
-    assert "upload_statement: ok" in out
-    assert "upload_generators: ok" in out
-    assert "upload_test_script: ok" in out
-    assert "upload_solutions: ok" in out
-    assert "upload_attachments: ok" in out
+    # Прогресс — строка на каждый шаг.
+    for step_name in polygon_pipeline.POLYGON_STEP_ORDER:
+        assert f"  {step_name}...\n" in out
+    pushed = out.split("=== pushed ===\n")[1].split("\n\n")[0].splitlines()
+    assert "validator.cpp" in pushed
+    assert "TL/ML (limits.yaml)" in pushed
+    assert "authoring/spec.yaml" in pushed
+    assert "validator assignment" not in pushed  # вместе с validator.cpp — одна строка
+    assert pushed[-1] == "(committed on Polygon id=555, revision 1)"
+    assert "=== notes ===\ncreate_problem: created new Polygon problem (id=555)" in out
+    assert "=== errors ===" not in out
+
+
+def test_cli_polygon_push_without_changes_prints_nothing_to_push(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID, flat_script=True)
+    _write_generated_outputs(problems_dir)
+    client = MagicMock()
+    client.call.side_effect = _new_problem_polygon
+    argv = _cli_args(problems_dir) + [f"problems/{PROBLEM_ID}", "polygon", "push"]
+
+    with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
+        cli.main(argv)
+        capsys.readouterr()
+        rc = cli.main(argv)
+
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "===" not in out
+    assert out.endswith("\nnothing to push: Polygon is up to date\n")
 
 
 def test_cli_polygon_run_with_step(problems_dir, capsys):
@@ -792,7 +811,7 @@ def test_cli_polygon_run_with_step(problems_dir, capsys):
         )
 
     assert rc == 0
-    assert "create_problem: ok" in capsys.readouterr().out
+    assert capsys.readouterr().out.startswith("  create_problem...\n")
 
 
 def test_cli_polygon_run_api_error_exits_nonzero(problems_dir, capsys):
@@ -804,7 +823,7 @@ def test_cli_polygon_run_api_error_exits_nonzero(problems_dir, capsys):
         rc = cli.main(_cli_args(problems_dir) + [f"problems/{PROBLEM_ID}", "polygon", "push"])
 
     assert rc == 1
-    assert "create_problem: error" in capsys.readouterr().out
+    assert "=== errors ===\ncreate_problem: Polygon API problems.list: boom" in capsys.readouterr().out
 
 
 def test_cli_polygon_run_invalid_spec_exits_nonzero(problems_dir, capsys):
@@ -857,7 +876,7 @@ def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(problems_dir,
 
     assert rc == 1
     out = capsys.readouterr().out
-    assert "create_problem: error — Polygon API problems.list: compilation failed" in out
+    assert "create_problem: Polygon API problems.list: compilation failed" in out
     assert "error line 1" not in out
     log_path = problems_dir / PROBLEM_ID / cli_commands.POLYGON_LOG
     assert str(log_path) in out
@@ -875,9 +894,15 @@ def test_cli_polygon_run_own_step_error_is_printed_in_full(problems_dir, capsys)
 
     assert rc == 1
     out = capsys.readouterr().out
-    assert len(out.splitlines()[1]) > cli_commands._CONSOLE_ERROR_MAX_LEN
-    assert f"orchestrator problems/{PROBLEM_ID} polygon push --force" in out
+    error = out.split("=== errors ===\n")[1].splitlines()[0]
+    assert len(error) > cli_commands._CONSOLE_ERROR_MAX_LEN
+    assert f"orchestrator problems/{PROBLEM_ID} polygon push --force" in error
     assert "…" not in out
+    # Шаги, которые из-за ошибки не загрузили своё, — по имени, без подробностей.
+    not_pushed = out.split("=== not pushed ===\n")[1].splitlines()
+    assert not_pushed[0] == "upload_attachments"
+    assert "upload_solutions" in not_pushed
+    assert "create_problem" not in not_pushed
 
 
 def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(problems_dir, capsys):
@@ -890,7 +915,7 @@ def test_cli_polygon_run_unexpected_exception_has_no_traceback_in_console(proble
 
     assert rc == 1
     captured = capsys.readouterr()
-    assert "create_problem: error — RuntimeError: POLYGON_API_KEY is not set" in captured.out
+    assert "create_problem: RuntimeError: POLYGON_API_KEY is not set" in captured.out
     assert "Traceback" not in captured.out + captured.err
     log = (problems_dir / PROBLEM_ID / cli_commands.POLYGON_LOG).read_text(encoding="utf-8")
     assert "Traceback" in log

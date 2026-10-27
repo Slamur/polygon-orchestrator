@@ -57,10 +57,14 @@ class StepContext:
 @dataclass(frozen=True)
 class StepResult:
     """Итог шага: сообщение и что именно ушло в Polygon (ключ -> sha256).
-    Пустой `uploaded` — Polygon не менялся: коммитить и записывать нечего."""
+    Пустой `uploaded` — Polygon не менялся: коммитить и записывать нечего.
+
+    `message` идёт в лог; `notice` — то, что CLI покажет автору отдельно
+    (например, что задача на Polygon создана), пусто — нечего."""
 
     message: str
     uploaded: dict[str, str] = field(default_factory=dict)
+    notice: str = ""
 
 
 @dataclass(frozen=True)

@@ -38,8 +38,18 @@ from orchestrator.polygon.pipeline import (
     run_polygon_pipeline,
 )
 from orchestrator.polygon.client import PolygonApiError
+from orchestrator.polygon.pull import ITEM_CONFLICT as PULL_ITEM_CONFLICT
+from orchestrator.polygon.pull import ITEM_DIFFERS as PULL_ITEM_DIFFERS
+from orchestrator.polygon.pull import ITEM_DOWNLOADED as PULL_ITEM_DOWNLOADED
 from orchestrator.polygon.pull import ITEM_ERROR as PULL_ITEM_ERROR
+from orchestrator.polygon.pull import ITEM_KEPT as PULL_ITEM_KEPT
+from orchestrator.polygon.pull import ITEM_LOCAL_ONLY as PULL_ITEM_LOCAL_ONLY
+from orchestrator.polygon.pull import ITEM_OVERWRITTEN as PULL_ITEM_OVERWRITTEN
+from orchestrator.polygon.pull import ITEM_UPDATED as PULL_ITEM_UPDATED
 from orchestrator.polygon.pull import pull_problem
+from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps.base import STATUS_DONE as POLYGON_STATUS_DONE
+from orchestrator.polygon.sync import describe_keys
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.checks.statement_check import (
@@ -64,7 +74,7 @@ from orchestrator.spec import (
     spec_validation_errors,
     write_spec,
 )
-from orchestrator.step_order import STEP_ORDER
+from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
 
 _OUTCOME_LABELS = {
     OUTCOME_CACHE_HIT: "cache hit",
@@ -104,7 +114,18 @@ _CONSOLE_ERROR_MAX_LEN = 200
 _console_handler: logging.Handler | None = None
 
 
-def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger:
+class _ListHandler(logging.Handler):
+    """Копит текст записей в список — CLI печатает его сам, в своём месте вывода."""
+
+    def __init__(self, messages: list[str]) -> None:
+        super().__init__()
+        self.messages = messages
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.messages.append(self.format(record))
+
+
+def _configure_console_logging(*, warnings_into: list[str] | None = None) -> logging.Logger:
     """Настраивает логгер пакета так, чтобы INFO-сообщения были видны в
     консоли — до этого `logger.info(...)` в `_log_usage` никуда не выводился,
     потому что для логгера не было ни уровня, ни handler'а.
@@ -114,10 +135,10 @@ def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger
     `capsys` в тестах подменяет `sys.stdout` на время теста — handler,
     созданный при импорте, писал бы мимо этой подмены.
 
-    `warnings_only` — для `polygon push`: в консоль идут только WARNING, а
-    INFO (каждый HTTP-запрос, сообщения шагов) и ERROR (полный текст
-    ошибки шага с traceback) — только в `polygon.log`; итог по каждому шагу
-    печатает сам CLI, коротко (см. `_print_polygon_outcome`).
+    `warnings_into` — для `polygon push`/`pull`: в консоль не идёт ничего,
+    WARNING копятся в этот список (CLI печатает их группой в итоге, см.
+    `_print_groups`), а INFO (каждый HTTP-запрос, сообщения шагов) и ERROR
+    (полный текст ошибки шага с traceback) — только в `polygon.log`.
     """
     global _console_handler
     logger = logging.getLogger(LOGGER_NAME)
@@ -127,10 +148,12 @@ def _configure_console_logging(*, warnings_only: bool = False) -> logging.Logger
     if _console_handler is not None:
         logger.removeHandler(_console_handler)
 
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    if warnings_only:
+    if warnings_into is None:
+        handler: logging.Handler = logging.StreamHandler(sys.stdout)
+    else:
+        handler = _ListHandler(warnings_into)
         handler.addFilter(lambda record: record.levelno == logging.WARNING)
+    handler.setFormatter(logging.Formatter("%(message)s"))
     logger.addHandler(handler)
     _console_handler = handler
     return logger
@@ -370,22 +393,45 @@ def _shorten_error(detail: str) -> str:
     return first_line
 
 
-def _print_polygon_outcome(outcome, log_path: Path) -> None:
-    """Печатает итог одного polygon-шага сразу по его завершении (`flush` —
-    чтобы прогресс был виден и при выводе в pipe/файл). Ошибка — коротко,
-    со ссылкой на `polygon.log`, где лежит полный текст."""
-    line = f"  {outcome.step_name}: {outcome.status}"
-    if outcome.status == POLYGON_OUTCOME_ERROR and outcome.full_detail:
-        line += f" — {outcome.detail}"
-    elif outcome.status == POLYGON_OUTCOME_ERROR:
-        line += f" — {_shorten_error(outcome.detail)} (details: {log_path})"
-    elif outcome.detail:
-        line += f" — {outcome.detail}"
-    print(line, flush=True)
+def _print_progress(name: str) -> None:
+    """Строка прогресса `polygon push`/`pull` перед шагом или частью задачи
+    (`flush` — чтобы прогресс был виден и при выводе в pipe/файл)."""
+    print(f"  {name}...", flush=True)
+
+
+def _print_groups(groups: list[tuple[str, list[str], str]]) -> bool:
+    """Итог `polygon push`/`pull` по группам: `(заголовок, строки,
+    подсказка)`; пустые группы не печатаются, подсказка — после строк, если
+    не пуста. Возвращает, было ли что печатать."""
+    printed = False
+    for title, lines, hint in groups:
+        if not lines:
+            continue
+        print(f"\n=== {title} ===")
+        for line in lines:
+            print(line)
+        if hint:
+            print(f"({hint})")
+        printed = True
+    return printed
+
+
+def _polygon_error_line(outcome, log_path: Path) -> str:
+    """Ошибка polygon-шага одной строкой: свой текст оркестратора — целиком,
+    ответ Polygon API и прочее — коротко, полный текст в `polygon.log`."""
+    if outcome.full_detail:
+        return f"{outcome.step_name}: {outcome.detail}"
+    return f"{outcome.step_name}: {_shorten_error(outcome.detail)} (details: {log_path})"
 
 
 def cmd_polygon_push(args: argparse.Namespace) -> int:
-    logger = _configure_console_logging(warnings_only=True)
+    """Прогон polygon-шагов (`run_polygon_pipeline`). По ходу — строка на
+    шаг, в конце — группы: что загружено, заметки шагов, ошибка и шаги,
+    которые из-за неё не загрузили своё (не `done` по
+    `compute_polygon_step_statuses`), предупреждения. Шаги, которым нечего
+    загружать, в итоге не печатаются."""
+    warnings: list[str] = []
+    logger = _configure_console_logging(warnings_into=warnings)
     log_path = Path(args.problems_dir) / args.problem_id / POLYGON_LOG
 
     with _problem_log_handler(
@@ -396,11 +442,54 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
             only_step=args.step,
             force=args.force,
             problems_dir=args.problems_dir,
-            on_outcome=lambda outcome: _print_polygon_outcome(outcome, log_path),
+            on_step_start=_print_progress,
         )
     if result.spec_error is not None:
         print(result.spec_error, file=sys.stderr)
         return 1
+
+    outcomes = result.outcomes
+    pushed = [name for outcome in outcomes for name in describe_keys(outcome.uploaded)]
+    errors = [
+        _polygon_error_line(outcome, log_path)
+        for outcome in outcomes
+        if outcome.status == POLYGON_OUTCOME_ERROR
+    ]
+    not_pushed = []
+    if errors:
+        failed = outcomes[-1].step_name
+        remaining = (
+            [failed] if args.step else POLYGON_STEP_ORDER[POLYGON_STEP_ORDER.index(failed) :]
+        )
+        not_pushed = [
+            status.step_name
+            for status in compute_polygon_step_statuses(
+                args.problem_id, problems_dir=args.problems_dir
+            )
+            if status.step_name in remaining and status.status != POLYGON_STATUS_DONE
+        ]
+    state = load_polygon_state(args.problem_id, problems_dir=args.problems_dir)
+    committed = (
+        f"committed on Polygon id={state.polygon_id}, revision {state.revision}"
+        if pushed and state is not None
+        else ""
+    )
+    printed = _print_groups(
+        [
+            ("pushed", pushed, committed),
+            ("notes", [f"{o.step_name}: {o.notice}" for o in outcomes if o.notice], ""),
+            ("errors", errors, ""),
+            (
+                "not pushed",
+                not_pushed,
+                "push stopped on the error above; `polygon status` shows what these steps "
+                "have to upload",
+            ),
+            ("warnings", warnings, ""),
+        ]
+    )
+    if not printed:
+        print("\nnothing to push: Polygon is up to date")
     return 0 if result.ok else 1
 
 
@@ -516,18 +605,13 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
     """Привязка к существующей на Polygon задаче, сравнение с ней локальных
     файлов и выгрузка недостающих и изменённых только на Polygon / с
     `--overwrite` — и изменённых с обеих сторон (см.
-    `orchestrator/polygon/pull.py`). Спек не нужен.
+    `orchestrator/polygon/pull.py`). Спек не нужен. По ходу — строка на
+    часть задачи, в конце — группы по тому, что случилось с файлами;
+    совпадающее с Polygon и отсутствующее с обеих сторон не печатается.
     Лог — в тот же `polygon.log`, что и у `polygon push`."""
-    logger = _configure_console_logging(warnings_only=True)
+    warnings: list[str] = []
+    logger = _configure_console_logging(warnings_into=warnings)
     log_path = Path(args.problems_dir) / args.problem_id / POLYGON_LOG
-
-    def print_item(item) -> None:
-        line = f"  {item.name}: {item.status}"
-        if item.status == PULL_ITEM_ERROR:
-            line += f" — {_shorten_error(item.detail)} (details: {log_path})"
-        elif item.detail:
-            line += f" — {item.detail}"
-        print(line, flush=True)
 
     with _problem_log_handler(
         logger, args.problems_dir, args.problem_id, POLYGON_LOG, args.command_line
@@ -538,7 +622,7 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
                 polygon_id=args.polygon_id,
                 overwrite=args.overwrite,
                 problems_dir=args.problems_dir,
-                on_item=print_item,
+                on_part=_print_progress,
             )
         except PolygonStepError as exc:
             logger.error("[pull] %s", exc)
@@ -548,10 +632,53 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
             logger.error("[pull] %s", exc)
             print(f"{_shorten_error(str(exc))} (details: {log_path})", file=sys.stderr)
             return 1
-    print(f"  {result.link_detail}, revision {result.revision}")
+
+    def items(*statuses: str) -> list:
+        return [item for item in result.items if item.status in statuses]
+
+    printed = _print_groups(
+        [
+            ("pulled", [i.name for i in items(PULL_ITEM_DOWNLOADED, PULL_ITEM_UPDATED)], ""),
+            (
+                "pulled over local changes (--overwrite)",
+                [i.name for i in items(PULL_ITEM_OVERWRITTEN)],
+                "",
+            ),
+            (
+                "will be pushed",
+                [
+                    i.name + (f" (if {i.push_condition})" if i.push_condition else "")
+                    for i in items(PULL_ITEM_KEPT, PULL_ITEM_LOCAL_ONLY)
+                ],
+                "",
+            ),
+            (
+                "conflicts",
+                [_pull_conflict_line(i) for i in items(PULL_ITEM_CONFLICT, PULL_ITEM_DIFFERS)],
+                "local versions kept, the next push uploads them; "
+                "`polygon pull --overwrite` takes the Polygon versions instead",
+            ),
+            (
+                "errors",
+                [f"{i.name}: {_shorten_error(i.detail)}" for i in items(PULL_ITEM_ERROR)],
+                f"details: {log_path}",
+            ),
+            ("warnings", warnings, ""),
+        ]
+    )
+    if not printed:
+        print("\nnothing changed: up to date with Polygon")
+    print(f"\n{result.link_detail}, revision {result.revision}")
     if result.backup_dir is not None:
-        print(f"  replaced local files are backed up in {result.backup_dir}")
+        print(f"replaced local files are backed up in {result.backup_dir}")
     return 0 if result.ok else 1
+
+
+def _pull_conflict_line(item) -> str:
+    """Конфликт pull: что менялось — обе стороны или неизвестно (нет базы) —
+    и пояснение pull (откуда версия на Polygon, чем отличаются TL/ML)."""
+    reason = "changed on both sides" if item.status == PULL_ITEM_CONFLICT else "no sync base"
+    return f"{item.name} — {reason}" + (f"; {item.detail}" if item.detail else "")
 
 
 def cmd_init(args: argparse.Namespace) -> int:
