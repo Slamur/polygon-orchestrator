@@ -407,6 +407,8 @@ def set_problem_id(text: str, problem_id: str) -> str:
     """
 
     def substitute(match: re.Match) -> str:
+        if not match.string.startswith("#", match.end()):
+            return f"problem_id: {problem_id}"
         return "problem_id:" + f" {problem_id} ".ljust(len(match.group("value")))
 
     result, count = _PROBLEM_ID_LINE.subn(substitute, text, count=1)
