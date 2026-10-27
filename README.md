@@ -1,0 +1,415 @@
+# polygon-orchestrator
+
+Оркестратор подготовки олимпиадных задач для [Polygon](https://polygon.codeforces.com).
+По структурированному спеку задачи (`authoring/spec.yaml`) он прогоняет цепочку
+генеративных шагов — каждый шаг это вызов модели Claude плюс механическая
+проверка результата — и получает черновики артефактов задачи:
+
+- условие в LaTeX (`statement/*.tex`) и примеры;
+- ограничения, TL/ML, тестовые группы и валидатор;
+- генераторы (C++/testlib) и FreeMarker test-script;
+- черновики решений (ok / wa / tl);
+- кастомный чекер и интерактор — если они нужны задаче.
+
+Потом всё это загружается на Polygon через Polygon API (`polygon push`) или
+скачивается оттуда (`polygon pull`). Результат — **черновик**: автор
+проверяет и докручивает его руками.
+
+Подробные описания: [CLAUDE.md](CLAUDE.md) (архитектура и поведение команд),
+[docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md) (формат спека),
+[docs/SETUP.md](docs/SETUP.md) (детали настройки).
+
+---
+
+## Содержание
+
+1. [Как запускать на Windows](#как-запускать-на-windows)
+2. [Установка (WSL2 + Ubuntu)](#установка-wsl2--ubuntu)
+3. [Первая задача: от черновика до Polygon](#первая-задача-от-черновика-до-polygon)
+4. [Справочник команд](#справочник-команд)
+5. [Что где лежит](#что-где-лежит)
+6. [Совместная работа над задачами](#совместная-работа-над-задачами)
+7. [Частые проблемы](#частые-проблемы)
+
+---
+
+## Как запускать на Windows
+
+Оркестратор разрабатывается и проверяется на Linux. На Windows рекомендуемый
+путь — **WSL2 с Ubuntu**: это обычный Linux внутри Windows, все инструкции
+ниже — для него.
+
+| Вариант | Плюсы | Минусы |
+|---|---|---|
+| **WSL2 + Ubuntu** (рекомендуется) | Всё работает как у автора, без изменений кода; VS Code открывает проект через расширение WSL; Claude Code ставится прямо в WSL | Нужно один раз включить WSL |
+| Docker | Одинаковое окружение у всех | На Windows Docker Desktop всё равно работает поверх WSL2; логин Claude Code нужно пробрасывать в контейнер (`~/.claude`); Tab-дополнение и git-хуки неудобны; образа в репозитории пока нет |
+| Нативный Windows | Без WSL | Не проверялся: нужны `g++` (MSYS2), `bash` для git-хука и дополнения; запуск процессов с таймаутами и пути могут вести себя иначе |
+
+---
+
+## Установка (WSL2 + Ubuntu)
+
+### 1. WSL и Ubuntu
+
+В PowerShell **от администратора**:
+
+```powershell
+wsl --install -d Ubuntu-24.04
+```
+
+Перезагрузить компьютер, открыть «Ubuntu» из меню Пуск, задать имя
+пользователя и пароль. Дальше все команды — **в терминале Ubuntu**.
+
+> Работайте в домашнем каталоге Linux (`~/...`), а не в `/mnt/c/...`:
+> файлы на диске Windows из WSL читаются в разы медленнее, плюс бывают
+> проблемы с правами и концами строк.
+
+Если пользуетесь VS Code: поставьте в Windows расширение **WSL**
+(`ms-vscode-remote.remote-wsl`), тогда `code .` в терминале Ubuntu открывает
+проект в VS Code, а расширение Claude Code работает внутри WSL.
+
+### 2. Системные пакеты
+
+```bash
+sudo apt update
+sudo apt install -y git python3 python3-venv python3-pip g++ default-jdk-headless bash-completion curl
+```
+
+Зачем что нужно:
+
+- `python3` (≥ 3.10) — сам оркестратор;
+- `g++` — compile-check сгенерированных C++-файлов (валидатор, генераторы,
+  решения, чекер);
+- `default-jdk-headless` (JDK 11+) — проверка test-script'а настоящим
+  FreeMarker в `polygon check` и перед `polygon push`. Без Java push всё
+  равно работает, но грузит скрипт без проверки;
+- `bash-completion` — Tab-дополнение команд и адресов задач.
+
+### 3. Claude Code CLI (подписка Pro/Max)
+
+Оркестратор по умолчанию вызывает модели через Claude Code CLI (`claude -p`),
+поэтому расход идёт из лимитов вашей подписки, а не с API-баланса.
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+# или: npm install -g @anthropic-ai/claude-code
+```
+
+Затем один раз залогиниться **подпиской** (не API-ключом):
+
+```bash
+claude          # откроется ссылка для входа в браузере
+# внутри Claude Code: /status — должен показать вашу подписку, /exit — выйти
+```
+
+Проверить, что CLI в `PATH` и достаточно свежий:
+
+```bash
+claude --version
+claude update
+```
+
+Нужна версия с флагами `--system-prompt-file` и `--safe-mode`; со старой
+оркестратор упадёт с подсказкой обновиться. Если `claude` лежит не в
+`PATH` — укажите путь в `CLAUDE_CODE_BIN` в `.env`.
+
+### 4. Репозиторий и Python-окружение
+
+```bash
+cd ~
+git clone https://github.com/Slamur/polygon-orchestrator.git
+cd polygon-orchestrator
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+```
+
+После этого в активированном окружении доступна команда `orchestrator`.
+Окружение нужно активировать в каждом новом терминале
+(`source .venv/bin/activate`), либо добавить эту строку в `~/.bashrc`.
+
+Проверка:
+
+```bash
+orchestrator --help
+pytest               # unit-тесты; к модели и Polygon не обращаются
+```
+
+### 5. Git-хук (если будете присылать изменения в код)
+
+```bash
+git config core.hooksPath githooks
+```
+
+Хук `pre-push` не даёт запушить ветку или коммит, в имени/сообщении которого
+есть `problem_id` вашей задачи из `problems/` или имя черновика из
+`drafts/` — репозиторий публичный, задачи нет. Подробнее — в
+[docs/SETUP.md](docs/SETUP.md) и в разделе «Конфиденциальность problems/»
+[CLAUDE.md](CLAUDE.md).
+
+### 6. Ключи Polygon и `.env`
+
+```bash
+cp .env.example .env
+```
+
+В Polygon: **Settings → API keys → Create** — получите `key` и `secret` и
+впишите их в `.env`:
+
+```dotenv
+ORCHESTRATOR_LLM_BACKEND=claude-code
+POLYGON_API_KEY=ваш_key
+POLYGON_API_SECRET=ваш_secret
+POLYGON_API_BASE_URL=https://polygon.codeforces.com/api
+```
+
+`.env` в `.gitignore` и никуда не коммитится. `ANTHROPIC_API_KEY` нужен
+только при `ORCHESTRATOR_LLM_BACKEND=anthropic-api` (те же модели через
+Anthropic API, деньги с API-баланса вместо подписки).
+
+Задачи, созданные через `polygon push`, появятся в **вашем** аккаунте
+Polygon.
+
+### 7. Tab-дополнение (по желанию)
+
+Из активированного окружения, один раз:
+
+```bash
+mkdir -p ~/.local/share/bash-completion/completions
+register-python-argcomplete orchestrator \
+    > ~/.local/share/bash-completion/completions/orchestrator
+```
+
+В новом терминале `orchestrator examples/<Tab>` дополняет адреса задач,
+`orchestrator <задача> polygon pu<Tab>` — команды. Дополнять нужно из корня
+репозитория.
+
+---
+
+## Первая задача: от черновика до Polygon
+
+> ⚠️ Команды `init --draft` и `llm generate` вызывают модель и тратят лимиты
+> подписки (общие с вашей обычной работой в Claude Code и claude.ai).
+> Повторный прогон без изменений модель **не** вызывает — результаты
+> кэшируются по хешу входа.
+
+Все команды — из корня репозитория, с активированным `.venv`.
+
+**1. Черновик.** Опишите задачу в свободной форме в файле `drafts/`, например
+`drafts/my-task.md`: суть, ввод-вывод, ограничения, идея решения, типичные
+ошибки — что знаете. Чтобы понять, во что черновик превратится, посмотрите
+спеки учебных задач: `examples/*/*/authoring/spec.yaml`.
+
+**2. Спек по черновику.**
+
+```bash
+orchestrator problems/my-task init --draft my-task
+# с учебной задачей как образцом формата и файлов:
+orchestrator problems/my-task init --draft my-task --ref examples/array/prefix-sums
+```
+
+Модель пишет `problems/my-task/authoring/spec.yaml`. Всё, что она дописала
+сама, помечено `# PROPOSED, REVIEW ME: ...` или `# SUGGESTION: ...` —
+**прочитайте спек**, поправьте и удалите пометки. Отчёт — в
+`problems/my-task/llm_reports/spec_from_draft.md`.
+
+Без `--draft` создаётся пустой спек из шаблона (или копия спека `--ref`),
+который заполняется руками по [docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md).
+
+**3. Генерация.**
+
+```bash
+orchestrator problems/my-task llm status     # что будет запущено (бесплатно)
+orchestrator problems/my-task llm generate   # все шаги по порядку
+```
+
+После каждого шага смотрите его отчёт `problems/my-task/llm_reports/<шаг>.md`:
+там заметки модели (`uncertain` — чего не хватает в спеке, `proposed` —
+предположения, которые надо проверить, `suggestion` — идеи сверх спека),
+ошибки компиляции и диффы.
+
+Если шаг вернул `uncertain` — пайплайн останавливается: допишите в спек
+то, что просит модель, и запустите `llm generate` снова (готовые шаги
+пропустятся по кэшу). Поправили спек — перезапускаются только те шаги, на
+которые правка влияет; текущие файлы при этом не переписываются с нуля, а
+дорабатываются (в том числе с вашими ручными правками).
+
+**4. Проверка и загрузка на Polygon.**
+
+```bash
+orchestrator problems/my-task polygon check   # оформление условия и дубли тестов в скрипте
+orchestrator problems/my-task polygon fix     # автоматически исправить то, что можно
+orchestrator problems/my-task polygon push    # создать задачу на Polygon и загрузить
+```
+
+Дальше — тесты, пакет и проверка решений в Polygon руками. Если правили
+задачу в Polygon — `polygon pull` перед следующим `push`.
+
+---
+
+## Справочник команд
+
+Общий вид:
+
+```
+orchestrator [--base-dir DIR] <задача> <init|llm|polygon> [команда] [флаги]
+```
+
+`<задача>` — путь каталога задачи **вместе с корнем**: `problems/<путь>`
+(ваши задачи, на любой глубине: `problems/contest-2026/round-1/my-task`) или
+`examples/<путь>` (учебные). `problem_id` (имя задачи на Polygon) выводится
+из пути: для `problems/` — имя последнего каталога (`my-task`), для
+`examples/` — путь через `--` (`array--prefix-sums`).
+
+`--base-dir` — каталог, в котором лежат `problems/` и `examples/` (по
+умолчанию текущий).
+
+### `init` — создать задачу
+
+| Команда | Что делает | Модель |
+|---|---|---|
+| `init` | Каталог задачи + `authoring/spec.yaml` из шаблона с комментариями | нет |
+| `init --ref <задача>` | Спек — копия спека другой задачи; она же добавляется в `references` как образец для шагов | нет |
+| `init --draft NAME` | Спек пишет модель по черновику `drafts/NAME` (с `--ref` — на его основе); копия черновика — в `authoring/` | **да** |
+
+Существующий `spec.yaml` не перезаписывается никогда.
+
+### `llm` — генеративные шаги
+
+Шаги по порядку: `statement_draft` → `constraints_pick` →
+`limits_from_constraints` (механический, без модели) →
+`generators_and_script` → `checker_draft` (только при
+`checker.custom_needed: true`) → `interactor_draft` (только у интерактивных)
+→ `solutions_draft`.
+
+| Команда | Что делает | Модель |
+|---|---|---|
+| `llm status` | Таблица «шаг → cache hit / stale / not run / uncertain / conflict»; у `stale` — что именно изменилось | нет |
+| `llm generate` | Прогон всех шагов; валидные по кэшу пропускаются | **да** |
+| `llm generate --step NAME` | Только один шаг | **да** |
+| `llm generate --force` | Игнорировать кэш, доработать текущие файлы заново | **да** |
+| `llm generate --fresh` | С нуля, не показывая модели текущие файлы | **да** |
+| `llm apply [--step NAME]` | Применить сохранённый, но не применённый ответ модели (например, после конфликта или ошибки) | нет |
+| `llm accept [--step NAME]` | Пометить текущие файлы `stale`-шагов актуальными (если правка не должна менять результат, или вы уже поправили файлы руками) | нет |
+
+Что важно знать:
+
+- **Кэш.** Шаг не вызывает модель, если не изменились его часть спека,
+  результаты предыдущих шагов, промпты, образцы и модель.
+- **Доработка.** Если файлы шага уже есть, модель получает их (с вашими
+  ручными правками) и «что изменилось во входе» и дорабатывает их.
+  Прежние версии — в `.llm_backup/<время>/`. Файлы, которые модель
+  предлагает удалить, становятся `<имя>.removed` — удаляете вы сами.
+- **Конфликты.** То, что нельзя применить, откладывается в
+  `.llm_conflicts/<шаг>-<время>/` с `CONFLICTS.md`. Разберите, удалите
+  каталог и сделайте `llm accept` (или `llm generate --force`).
+- **Лимит подписки исчерпан** — `llm generate` останавливается на текущем
+  шаге; после сброса лимита просто запустите снова.
+
+### `polygon` — синхронизация с Polygon
+
+| Команда | Что делает | Сеть |
+|---|---|---|
+| `polygon status` | Какие polygon-шаги сделаны / устарели — по локальным файлам | нет |
+| `polygon check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`) и дублей строк в раскрытом test-script'е (нужна `java`) | нет |
+| `polygon fix` | Исправить найденное `check`: списки → `itemize`/`enumerate`, кавычки → `<<…>>`; бэкап в `.fix_backup/` | нет |
+| `polygon push` | Создать задачу (если нет) и загрузить только изменившееся с последней синхронизации; после каждого шага — коммит на Polygon | **да** |
+| `polygon push --step NAME` | Только один шаг (`create_problem`, `upload_statement`, `upload_solutions`, …) | **да** |
+| `polygon push --force` | Загрузить всё, даже если задачу меняли на Polygon (затирает те правки) | **да** |
+| `polygon pull` | Привязаться к существующей задаче на Polygon (по имени = `problem_id`), сравнить и скачать изменения; спек не нужен | **да**, только чтение |
+| `polygon pull --polygon-id N` | Уточнить задачу по числовому id, если с таким именем их несколько | **да** |
+| `polygon pull --overwrite` | Заменить и локальные файлы, которые менялись с обеих сторон; бэкап в `.pull_backup/` | **да** |
+
+`push` останавливается, если задачу на Polygon меняли в обход оркестратора
+(или там есть незакоммиченные правки), и предлагает сначала сделать `pull`.
+
+### Переменные окружения (`.env`)
+
+| Переменная | Значение |
+|---|---|
+| `ORCHESTRATOR_LLM_BACKEND` | `claude-code` (по умолчанию, подписка) или `anthropic-api` |
+| `CLAUDE_CODE_BIN` | путь к `claude`, если он не в `PATH` |
+| `ANTHROPIC_API_KEY` | только для `anthropic-api` |
+| `POLYGON_API_KEY`, `POLYGON_API_SECRET` | ключи Polygon API |
+| `POLYGON_API_BASE_URL` | `https://polygon.codeforces.com/api` |
+| `ORCHESTRATOR_FREEMARKER_JAR` | путь к jar FreeMarker, если нет сети (иначе скачивается сам в `~/.cache/polygon-orchestrator/`) |
+| `ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` | отключить проверку test-script'а перед `push` |
+
+---
+
+## Что где лежит
+
+```
+drafts/                    черновики задач для init --draft (не в git)
+problems/<путь задачи>/    ваши задачи (не в git)
+  authoring/spec.yaml        спек — вход всех шагов
+  authoring/constraints.yaml ограничения, группы, что проверяет валидатор
+  statement/                 условие (.tex) и примеры
+  limits.yaml                актуальные TL/ML (можно править руками)
+  validator.cpp, checker.cpp, interactor.cpp
+  generators/*.cpp, test_script, test_script_groups
+  solutions/*
+  llm_reports/<шаг>.md       отчёт последнего прогона шага — читать в первую очередь
+  llm_generation.log         полный лог llm-прогонов
+  polygon.log                полный лог push/pull
+  polygon_state.json         привязка к задаче на Polygon
+examples/<вид>/<суть>/     учебные задачи — образцы для --ref и references
+templates/                 общие шаблоны: problem_lib.h, testlib.h, правила (tutorials/*.md)
+prompts/                   промпты шагов
+orchestrator/              код
+```
+
+`problems/` и `drafts/` в `.gitignore` специально: репозиторий публичный, а
+задачи — нет, пока не прошёл контест.
+
+---
+
+## Совместная работа над задачами
+
+Задачи не хранятся в git, поэтому обмениваться ими удобнее всего через
+Polygon:
+
+1. Владелец задачи даёт доступ на Polygon (**Manage access**, право
+   `WRITE`).
+2. Второй участник: `orchestrator problems/<путь>/<problem_id> polygon pull` —
+   задача найдётся по имени, скачаются её файлы, а из Attachments — спек,
+   `constraints.yaml` и черновик.
+3. Дальше обычный цикл: правки → `llm generate` / руками → `polygon push`.
+   Если другой человек успел что-то запушить, `push` остановится и попросит
+   сначала `pull`.
+
+Кэш шагов (`.cache/`) через Polygon не переносится: после `pull` шаги будут
+`not run`. Если файлы уже в порядке и перегенерировать их не нужно —
+`llm accept` вместо `llm generate`.
+
+---
+
+## Частые проблемы
+
+- **`orchestrator: command not found`** — не активировано окружение:
+  `source .venv/bin/activate`.
+- **`claude` не найден / требует обновления** — `claude --version`,
+  `claude update`; или путь в `CLAUDE_CODE_BIN`. Плагин VS Code несёт свою
+  копию бинаря, но оркестратор использует ту, что в `PATH`.
+- **Модель тратит API-деньги вместо подписки** — проверьте
+  `ORCHESTRATOR_LLM_BACKEND=claude-code` и что `claude` залогинен подпиской
+  (`/status`). `ANTHROPIC_API_KEY` в `.env` при этом не мешает — оркестратор
+  его не передаёт в `claude`.
+- **`polygon check` пишет, что нет java** — `sudo apt install
+  default-jdk-headless`.
+- **Всё очень медленно в WSL** — проект лежит в `/mnt/c/...`; перенесите в
+  `~/`.
+- **`push` отказывается: задача изменена на Polygon** — `polygon pull`,
+  разобрать конфликты, затем снова `push`. `--force` — только если точно
+  нужно затереть правки на Polygon.
+- **Шаг постоянно `uncertain`** — в спеке не хватает того, что модель не
+  имеет права придумывать сама (асимптотика, точность ответа, правило
+  сравнения в чекере…). Что именно — в `llm_reports/<шаг>.md`.
+
+### Если работаете в репозитории через Claude Code
+
+[CLAUDE.md](CLAUDE.md) подхватывается автоматически. Claude Code в этом
+проекте пишет код оркестратора, а не содержимое задач, и **не запускает**
+`llm generate` / `init --draft` без явной команды — они тратят лимиты
+подписки.
