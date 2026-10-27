@@ -49,12 +49,12 @@ from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.steps import (
     create_problem,
     set_constraints,
+    upload_attachments,
     upload_checker,
     upload_interactor,
     upload_generators,
     upload_problem_lib,
     upload_solutions,
-    upload_spec,
     upload_statement,
     upload_test_script,
     upload_validator,
@@ -75,7 +75,7 @@ logger = logging.getLogger(__name__)
 
 _POLYGON_STEPS: dict[str, PolygonStep] = {
     create_problem.STEP_NAME: create_problem.STEP,
-    upload_spec.STEP_NAME: upload_spec.STEP,
+    upload_attachments.STEP_NAME: upload_attachments.STEP,
     set_constraints.STEP_NAME: set_constraints.STEP,
     upload_problem_lib.STEP_NAME: upload_problem_lib.STEP,
     upload_validator.STEP_NAME: upload_validator.STEP,

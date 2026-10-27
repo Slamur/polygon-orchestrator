@@ -51,9 +51,11 @@ Python-оркестратор, который берёт структуриро�
   загрузка `problems/<путь задачи>/interactor.cpp` и назначение его
   интерактором (`upload_interactor`, только у интерактивной задачи; флаг
   интерактивности выставляет `set_constraints`),
-  загрузка `problems/<путь задачи>/spec.yaml` как есть в раздел Attachments
-  (aux-файл, `upload_spec`) — чтобы `polygon pull` восстанавливал задачу
-  вместе со спеком.
+  загрузка `problems/<путь задачи>/spec.yaml`, `constraints.yaml` (результат
+  `constraints_pick` целиком) и копии черновика `draft.<расширение>` как
+  есть в раздел Attachments (aux-файлы, `upload_attachments`) — чтобы
+  `polygon pull` восстанавливал задачу вместе со спеком, ограничениями и
+  черновиком.
   Шаги загружают только то, что изменилось с последней синхронизации с
   Polygon (база — `revision`/`synced` в `polygon_state.json`, см.
   `orchestrator/polygon/sync.py`). После каждого polygon-шага, который
@@ -165,7 +167,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── state.py                # PolygonState, load/save polygon_state.json
 │   │   ├── sync.py                 # база синхронизации: ключи элементов задачи, sha256, fetch_revision (ревизия задачи на Polygon)
 │   │   ├── pull.py                 # pull_problem — привязка к существующей задаче, сравнение с ней и выгрузка (обратное направление к steps/)
-│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_spec, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_interactor, upload_statement, upload_generators, upload_test_script, upload_solutions
+│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_attachments, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_interactor, upload_statement, upload_generators, upload_test_script, upload_solutions
 │   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
 │   ├── checks/
@@ -178,8 +180,8 @@ Python-оркестратор, который берёт структуриро�
 ├── drafts/                       # черновики задач в свободной форме для `init --draft` (плоско, любое расширение); в .gitignore, как problems/
 └── problems/
     └── <путь задачи>/              # на любой глубине: <группа>/.../<problem_id>/ (см. "Запуск")
-        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` (из шаблона, по --ref и/или моделью по --draft); на Polygon — в Attachments (upload_spec / pull)
-        ├── draft.<расширение>      # копия черновика автора, по которому `init --draft` написал спек
+        ├── spec.yaml               # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` (из шаблона, по --ref и/или моделью по --draft); на Polygon — в Attachments (upload_attachments / pull)
+        ├── draft.<расширение>      # копия черновика автора, по которому `init --draft` написал спек; на Polygon — в Attachments
         ├── .cache/
         │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
         │   ├── constraints_pick.json
@@ -199,7 +201,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ диалог example_<N>.{input,output}_for_statement.txt у интерактивной задачи)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
-        ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
+        ├── constraints.yaml       # выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"; на Polygon — в Attachments
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
         ├── generators/*.cpp
         ├── test_script(_groups)
@@ -514,12 +516,12 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   `--polygon-id` дополнительно сужает поиск, если
   задач с таким именем несколько), сравнивает с ней части задачи, которыми
   пользуется оркестратор (условие и примеры, TL/ML, валидатор,
-  нестандартный чекер, генераторы, test-script, решения, спек из
-  Attachments), скачивает в
+  нестандартный чекер, генераторы, test-script, решения, спек,
+  `constraints.yaml` и черновик из Attachments), скачивает в
   каталог задачи недостающие локально и переписывает базу
   синхронизации по текущей ревизии Polygon. Файлы с временем изменения в
   листинге Polygon (валидатор, чекер, генераторы, решения, `problem_lib.h`,
-  `spec.yaml`) скачиваются, только если с последней синхронизации их
+  Attachments) скачиваются, только если с последней синхронизации их
   версия на Polygon могла измениться (отметка в базе не совпала с
   листингом и ревизия другая) или их нужно записать на диск. Отличающиеся
   от Polygon файлы сверяются трёхсторонне, как в `git merge`, с базой
@@ -529,9 +531,11 @@ git). `llm generate --fresh` — генерация с нуля, без теку
   или базы нет — остаётся локальный, с `--overwrite` — заменяется версией
   с Polygon. Заменённые файлы переносятся в `.pull_backup/`. Файлы, которых
   нет на Polygon, явно перечисляются и никогда не удаляются;
-  `constraints.yaml` — результат `constraints_pick` — целиком не
-  перезаписывается: при замене TL/ML (по той же сверке) в нём заменяются
-  только их значения (старый файл — тоже в `.pull_backup/`). Отказывается
+  `constraints.yaml` сверяется с Attachments как обычный файл (файл из
+  одних TL/ML, который pull пишет, если `constraints.yaml` нет нигде, — без
+  `--overwrite`), а TL/ML задачи в нём только заменяются (по той же
+  сверке; если файл совпадает с Attachments — всегда: TL/ML задачи новее)
+  — остальное не трогается (старый файл — тоже в `.pull_backup/`). Отказывается
   работать, если на Polygon есть незакоммиченные правки. Каталог задачи
   создаётся, если его нет; локальный спек не нужен (сам `spec.yaml`
   сравнивается и скачивается как обычный файл). На Polygon ничего не меняет

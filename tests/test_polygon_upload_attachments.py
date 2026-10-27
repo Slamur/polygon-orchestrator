@@ -5,7 +5,8 @@ import pytest
 
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.upload_spec import STEP, STEP_NAME
+from orchestrator.polygon.steps.upload_attachments import STEP, STEP_NAME
+from orchestrator.polygon.sync import PULLED_CONSTRAINTS_HEADER
 from orchestrator.spec import load_spec
 
 from polygon_sync_helpers import run_and_record
@@ -54,7 +55,7 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
 
 def test_step_is_a_polygon_step_with_expected_name():
     assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "upload_spec"
+    assert STEP.name == STEP_NAME == "upload_attachments"
 
 
 def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
@@ -119,3 +120,79 @@ def test_status_not_run_then_done_then_stale(problems_dir, spec):
 
     (problems_dir / PROBLEM_ID / "spec.yaml").write_bytes(content + b"# edited\n")
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
+
+
+def _write(problems_dir: Path, name: str, content: bytes) -> None:
+    path = problems_dir / PROBLEM_ID / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+
+
+def _uploaded(client) -> dict[str, bytes]:
+    return {
+        call.args[1]["name"]: call.args[1]["file"]
+        for call in client.call.call_args_list
+        if call.args[0] == "problem.saveFile"
+    }
+
+
+def test_uploads_constraints_and_draft_copies(problems_dir, spec):
+    _link(problems_dir)
+    spec_content = _write_spec(problems_dir)
+    _write(problems_dir, "constraints.yaml", b"limits: {}\n")
+    _write(problems_dir, "draft.md", b"idea\n")
+    _write(problems_dir, "draft", b"idea without extension\n")
+    _write(problems_dir, "draft.md.removed", b"old\n")
+    _write(problems_dir, "drafts.md", b"not a draft copy\n")
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert all(call.args[1]["type"] == "aux" for call in client.call.call_args_list)
+    assert _uploaded(client) == {
+        "spec.yaml": spec_content,
+        "constraints.yaml": b"limits: {}\n",
+        "draft": b"idea without extension\n",
+        "draft.md": b"idea\n",
+    }
+    assert sorted(load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced) == [
+        "constraints.yaml",
+        "draft",
+        "draft.md",
+        "spec.yaml",
+    ]
+
+
+def test_constraints_pulled_as_limits_only_are_not_uploaded(problems_dir, spec):
+    _link(problems_dir)
+    _write_spec(problems_dir)
+    _write(problems_dir, "constraints.yaml", PULLED_CONSTRAINTS_HEADER.encode() + b"limits: {}\n")
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert list(_uploaded(client)) == ["spec.yaml"]
+
+
+def test_incremental_run_uploads_only_changed_attachments(problems_dir, spec):
+    _link(problems_dir)
+    _write_spec(problems_dir)
+    _write(problems_dir, "constraints.yaml", b"limits: {}\n")
+    _run(spec, problems_dir, MagicMock())
+    _write(problems_dir, "constraints.yaml", b"limits: {}\ngroups: []\n")
+    _write(problems_dir, "draft.md", b"idea\n")
+    client = MagicMock()
+
+    message = _run(spec, problems_dir, client, incremental=True)
+
+    assert _uploaded(client) == {
+        "constraints.yaml": b"limits: {}\ngroups: []\n",
+        "draft.md": b"idea\n",
+    }
+    assert "constraints.yaml, draft.md" in message
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    _write(problems_dir, "draft.md", b"idea, edited\n")
+    status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
+    assert status == "stale"
+    assert "draft.md" in detail

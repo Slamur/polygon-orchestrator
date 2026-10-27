@@ -38,7 +38,7 @@ Pull отказывается работать, если в рабочей ко�
 незакоммиченные правки: база синхронизации — всегда закоммиченная ревизия.
 
 Файлы, которые Polygon отдаёт листингом с временем изменения (валидатор,
-нестандартный чекер, генераторы, решения, `problem_lib.h`, `spec.yaml`),
+нестандартный чекер, генераторы, решения, `problem_lib.h`, Attachments),
 скачиваются, только если версия на Polygon может отличаться от записанной в
 базе. Версия на Polygon считается известной — её хеш равен `synced[ключ]`,
 — если у ключа есть хеш в базе и либо отметка (`stamps`, см.
@@ -73,11 +73,20 @@ Polygon равна записанной в базе (с последней си�
   задачи (input/output for statement) -> `example_<K>.input_for_statement.txt`
   и `example_<K>.output_for_statement.txt` — так же, только если он есть
   на Polygon или локально;
-- TL/ML (`problem.info`) -> `constraints.yaml`, только секция `limits`.
-  Это НЕ результат `constraints_pick`: диапазонов переменных, групп и
-  секции `validator` в нём нет (см. `_CONSTRAINTS_HEADER`). Сравниваются
-  только TL/ML. Результат `constraints_pick` целиком не перезаписывается
-  никогда: если TL/ML менялись только на Polygon (или с `--overwrite`),
+- aux-файлы (раздел "Attachments", `problem.files` + `problem.viewFile`;
+  загружает шаг `upload_attachments`) -> `spec.yaml`, `constraints.yaml`
+  (результат `constraints_pick` целиком), копия черновика
+  `draft<расширение>`; прочие aux-файлы не трогаются. Сравниваются раньше
+  TL/ML: `constraints.yaml` из Attachments заменяет локальный файл из одних
+  TL/ML (ниже) без `--overwrite`, а его TL/ML затем сверяются с задачей;
+- TL/ML (`problem.info`) -> `constraints.yaml`. Если файла нет ни локально,
+  ни в Attachments, пишется файл только с секцией `limits` — это НЕ
+  результат `constraints_pick`: диапазонов переменных, групп и секции
+  `validator` в нём нет (см. `PULLED_CONSTRAINTS_HEADER`). Сравниваются
+  только TL/ML. Результат `constraints_pick` целиком TL/ML не
+  перезаписывают никогда: если TL/ML менялись только на Polygon (или с
+  `--overwrite`; или локальный файл совпадает с версией в Attachments — его
+  TL/ML тогда старее TL/ML задачи),
   в нём заменяются только значения
   `time_limit_seconds`/`memory_limit_mb` (`_replace_limits`), остальное —
   диапазоны, группы, `validator`, комментарии — остаётся как было. База —
@@ -101,9 +110,7 @@ Polygon равна записанной в базе (с последней си�
   тег из имени файла, поэтому про имена не по его схеме — предупреждение;
 - resource `problem_lib.h` -> `problem_lib.h` (копия задачи, см.
   `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`; если её нет на
-  Polygon, push загрузит локальную, а без неё — шаблон);
-- aux-файл `spec.yaml` (раздел "Attachments", `problem.files` +
-  `problem.viewFile`) -> `spec.yaml` (загружает шаг `upload_spec`).
+  Polygon, push загрузит локальную, а без неё — шаблон).
 
 Текст сравнивается с точностью до переводов строк (`\\r\\n` = `\\n`).
 NOTE: не проверено на реальном API, не нормализует ли Polygon содержимое
@@ -150,12 +157,14 @@ from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES, norm
 from orchestrator.polygon.sync import (
     CHECKER_FILE_KEY,
     CHECKER_KEY,
+    CONSTRAINTS_KEY,
     INTERACTIVE_KEY,
     INTERACTOR_FILE_KEY,
     INTERACTOR_FILENAME,
     INTERACTOR_KEY,
     LIMITS_KEY,
     PROBLEM_LIB_KEY,
+    PULLED_CONSTRAINTS_HEADER,
     SCRIPT_KEY,
     SPEC_KEY,
     STATEMENT_NAME_KEY,
@@ -166,6 +175,8 @@ from orchestrator.polygon.sync import (
     fetch_revision,
     generator_source_names,
     interactive_digest,
+    is_attachment_name,
+    is_draft_name,
     limits_digest,
     remote_stamps,
 )
@@ -222,12 +233,6 @@ _CONFLICT_DETAIL = (
 _LOCAL_ONLY_DETAIL = "not on Polygon — the next push will upload it"
 _NOT_DOWNLOADED_DETAIL = "unchanged on Polygon since the last sync, not downloaded"
 
-_CONSTRAINTS_HEADER = (
-    "# Pulled from Polygon (orchestrator <problem> polygon pull): TL/ML only.\n"
-    "# This is NOT a constraints_pick result — there are no variable ranges,\n"
-    "# test groups or validator section here. Steps that take constraints.yaml\n"
-    "# as input (generators_and_script, solutions_draft) will see only this.\n"
-)
 
 
 @dataclass
@@ -319,6 +324,8 @@ def pull_problem(
     for name, part in (
         ("statement", puller.pull_statement),
         ("statement/examples", puller.pull_examples),
+        # До TL/ML: `pull_limits` правит уже скачанный `constraints.yaml`.
+        ("attachments", puller.pull_attachments),
         (_CONSTRAINTS_FILENAME, puller.pull_limits),
         (PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
         (_VALIDATOR_FILENAME, puller.pull_validator),
@@ -327,7 +334,6 @@ def pull_problem(
         ("generators", puller.pull_generators),
         ("test_script", puller.pull_script),
         ("solutions", puller.pull_solutions),
-        (SPEC_FILENAME, puller.pull_spec),
     ):
         try:
             part()
@@ -558,7 +564,7 @@ class _Puller:
             _MEMORY_KEY: str(memory_limit_mb),
         }
         content = (
-            f"{_CONSTRAINTS_HEADER}"
+            f"{PULLED_CONSTRAINTS_HEADER}"
             "limits:\n"
             f"  {_TIME_KEY}: {values[_TIME_KEY]}\n"
             f"  {_MEMORY_KEY}: {values[_MEMORY_KEY]}\n"
@@ -586,11 +592,15 @@ class _Puller:
             limits_digest(*local) if local is not None else None,
             limits_digest(*remote),
         )
+        if self._constraints_as_on_polygon():
+            # Локальный файл — тот же, что в Attachments, а его TL/ML загружены
+            # в задачу раньше: TL/ML задачи на Polygon с тех пор правили.
+            change = _REMOTE
         if change == _LOCAL:
             self.add(_CONSTRAINTS_FILENAME, ITEM_KEPT, f"{differs}; {_LOCAL_CHANGE_DETAIL}")
             self.synced[LIMITS_KEY] = None
             return
-        is_pulled = path.read_bytes().startswith(_CONSTRAINTS_HEADER.encode("utf-8"))
+        is_pulled = _is_pulled_constraints(path.read_bytes())
         if change == _REMOTE or self.overwrite:
             if is_pulled:
                 replaced, detail = content, differs
@@ -767,17 +777,53 @@ class _Puller:
         if not solutions and not local_only:
             self.add("solutions", ITEM_ABSENT, "no solutions on Polygon")
 
-    def pull_spec(self) -> None:
-        attachments = {file["name"] for file in self._polygon_files().get("auxFiles") or []}
-        if SPEC_FILENAME not in attachments:
-            self._missing_on_polygon(SPEC_FILENAME, "no attachment on Polygon", key=SPEC_KEY)
-            return
-        self._sync_file(
-            SPEC_FILENAME,
-            lambda: self._call_raw("problem.viewFile", {"type": "aux", "name": SPEC_FILENAME}),
-            key=SPEC_KEY,
-            stamped=True,
+    def pull_attachments(self) -> None:
+        """Aux-файлы задачи (`is_attachment_name`: спек, `constraints.yaml`,
+        копия черновика), их загружает шаг `upload_attachments`. Прочие
+        aux-файлы на Polygon не трогаются."""
+        remote_names = sorted(
+            file["name"]
+            for file in self._polygon_files().get("auxFiles") or []
+            if is_attachment_name(file["name"])
         )
+        for name in remote_names:
+            if name == CONSTRAINTS_KEY:
+                self._drop_pulled_constraints()
+            self._sync_file(
+                name,
+                lambda name=name: self._call_raw("problem.viewFile", {"type": "aux", "name": name}),
+                stamped=True,
+            )
+
+        if SPEC_KEY not in remote_names:
+            self._missing_on_polygon(SPEC_FILENAME, "no attachment on Polygon", key=SPEC_KEY)
+        if CONSTRAINTS_KEY not in remote_names:
+            # Без отдельной записи: о `constraints.yaml` отчитается `pull_limits`,
+            # а push загрузит его, раз в базе нет хеша.
+            self.synced[CONSTRAINTS_KEY] = None
+        local_drafts = sorted(
+            path.name
+            for path in (self.problem_dir.iterdir() if self.problem_dir.is_dir() else [])
+            if path.is_file() and is_draft_name(path.name) and path.name not in remote_names
+        )
+        for name in local_drafts:
+            self._missing_on_polygon(name, "no attachment on Polygon")
+
+    def _drop_pulled_constraints(self) -> None:
+        """Локальный `constraints.yaml` из одних TL/ML, собранный прошлым pull,
+        уступает место результату `constraints_pick` из Attachments: в бэкап и
+        удаляется, `_sync_file` скачает файл с Polygon."""
+        path = self.problem_dir / CONSTRAINTS_KEY
+        if path.exists() and _is_pulled_constraints(path.read_bytes()):
+            self._backup(CONSTRAINTS_KEY)
+            path.unlink()
+
+    def _constraints_as_on_polygon(self) -> bool:
+        """Совпадает ли локальный `constraints.yaml` с версией в Attachments
+        (по итогу `pull_attachments`)."""
+        path = self.problem_dir / CONSTRAINTS_KEY
+        remote = self.synced.get(CONSTRAINTS_KEY)
+        return remote is not None and path.exists() and digest(path.read_bytes()) == remote
 
     def _warn_if_unparseable_solution_name(self, polygon_name: str, tag: object) -> None:
         try:
@@ -1015,6 +1061,10 @@ def _change(base: str | None, local: str | None, remote: str) -> str | None:
     if remote == base:
         return _LOCAL
     return _BOTH
+
+
+def _is_pulled_constraints(content: bytes) -> bool:
+    return content.startswith(PULLED_CONSTRAINTS_HEADER.encode("utf-8"))
 
 
 def _same(local: bytes, remote: bytes) -> bool:

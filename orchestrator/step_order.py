@@ -28,13 +28,14 @@ STEP_ORDER: list[str] = [
 # Список расширяется по мере добавления шагов — дописывать новые имена (как
 # правило, в конец) и добавлять запись в `polygon.pipeline._POLYGON_STEPS`;
 # больше ничего менять не нужно, если новый шаг — такой же `PolygonStep`,
-# запускаемый через `steps.base.run_step`. `upload_spec` идёт сразу после
-# `create_problem`: спек — основа задачи, и он должен оказаться на Polygon,
-# даже если какой-то из следующих шагов упадёт. `upload_interactor` — после
+# запускаемый через `steps.base.run_step`. `upload_attachments` (спек,
+# `constraints.yaml`, черновик) идёт сразу после `create_problem`: спек —
+# основа задачи, и он должен оказаться на Polygon, даже если какой-то из
+# следующих шагов упадёт. `upload_interactor` — после
 # `set_constraints`: тот выставляет флаг интерактивности задачи.
 POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
-    "upload_spec",
+    "upload_attachments",
     "set_constraints",
     "upload_problem_lib",
     "upload_validator",

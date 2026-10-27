@@ -125,13 +125,13 @@ def sync_status(
     problem_id: str,
     problems_dir: Path,
     *,
-    key_prefix: str,
+    key_prefix: str | tuple[str, ...],
     read_items: Callable[[], dict[str, str]],
 ) -> tuple[str, str]:
     """Статус шага для `polygon status` по базе синхронизации.
 
-    `key_prefix` — префикс ключей шага в `synced` (есть ли у шага база
-    вообще); `read_items` — текущие локальные элементы шага (ключ ->
+    `key_prefix` — префикс (или несколько) ключей шага в `synced` (есть ли
+    у шага база вообще); `read_items` — текущие локальные элементы шага (ключ ->
     sha256), может бросить `PolygonStepError`, если файлов нет.
 
     "not run" — по ключам шага базы нет; "stale" — какой-то элемент
