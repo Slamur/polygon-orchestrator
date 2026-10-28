@@ -564,8 +564,8 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_polygon_check(args: argparse.Namespace) -> int:
-    """Без обращения к Polygon проверяет то, что загрузит push: оформление
+def cmd_local_check(args: argparse.Namespace) -> int:
+    """Без модели и без сети проверяет файлы задачи: оформление
     условия (`statement/*.tex`: списки в стиле Markdown, кавычки не `<<…>>` —
     `orchestrator/checks/statement_check.py`) и test-script(ы) — раскрывает
     их и печатает одинаковые строки и строки, которые Polygon не примет
@@ -621,15 +621,15 @@ def _check_statement(problem_dir: Path, tex_files: list[Path]) -> bool:
     for issue in issues:
         print(f"  {issue.format()}")
     if any(issue.fixable for issue in issues):
-        print(f"run 'polygon fix' to fix them (old versions go to {FIX_BACKUP_DIRNAME}/)")
+        print(f"run 'local fix' to fix them (old versions go to {FIX_BACKUP_DIRNAME}/)")
     return False
 
 
-def cmd_polygon_fix(args: argparse.Namespace) -> int:
-    """Исправляет в условии то, что `polygon check` находит и что можно
+def cmd_local_fix(args: argparse.Namespace) -> int:
+    """Исправляет в условии то, что `local check` находит и что можно
     исправить механически: списки в стиле Markdown -> `itemize`/`enumerate`,
     кавычки -> `<<…>>`. Прежние версии изменённых файлов — в
-    `.fix_backup/<время>/` каталога задачи. Без обращения к Polygon; push
+    `.fix_backup/<время>/` каталога задачи. Без модели и без сети; push
     загрузит изменённые файлы как обычно. Код возврата 1 — если остались
     проблемы, которые нужно исправить руками (непарные кавычки)."""
     problem_dir = Path(args.problems_dir) / args.problem_id

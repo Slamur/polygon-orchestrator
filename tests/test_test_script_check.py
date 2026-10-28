@@ -313,14 +313,14 @@ def test_skip_env_disables_check(monkeypatch, linked_problem, flat_spec):
     client.call.assert_called_once()
 
 
-# --- polygon check ----------------------------------------------------------
+# --- local check ------------------------------------------------------------
 
 
 def _check_cli(tmp_path: Path) -> int:
-    return cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "polygon", "check"])
+    return cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "check"])
 
 
-def test_polygon_check_reports_duplicates(tmp_path, capsys):
+def test_local_check_reports_duplicates(tmp_path, capsys):
     _jar_or_skip()
     problem_dir = tmp_path / "problems" / PROBLEM_ID
     problem_dir.mkdir(parents=True)
@@ -333,7 +333,7 @@ def test_polygon_check_reports_duplicates(tmp_path, capsys):
     assert "test_script_groups: ok" in out
 
 
-def test_polygon_check_reports_quoted_parameters(tmp_path, capsys):
+def test_local_check_reports_quoted_parameters(tmp_path, capsys):
     _jar_or_skip()
     problem_dir = tmp_path / "problems" / PROBLEM_ID
     problem_dir.mkdir(parents=True)
@@ -343,7 +343,7 @@ def test_polygon_check_reports_quoted_parameters(tmp_path, capsys):
     assert 'line 3: gen -p="${pair[0]} ${pair[1]}" > $ — quotes "' in capsys.readouterr().out
 
 
-def test_polygon_check_without_script(tmp_path, capsys):
+def test_local_check_without_script(tmp_path, capsys):
     (tmp_path / "problems" / PROBLEM_ID).mkdir(parents=True)
     assert _check_cli(tmp_path) == 1
     assert "no test script" in capsys.readouterr().err

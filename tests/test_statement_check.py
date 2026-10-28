@@ -95,11 +95,11 @@ def test_guillemets_are_ok():
     assert _kinds("Ответ <<YES>>.\n") == []
 
 
-# --- polygon check / polygon fix ----------------------------------------------
+# --- local check / local fix --------------------------------------------------
 
 
 def _cli(tmp_path: Path, command: str) -> int:
-    return cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "polygon", command])
+    return cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", command])
 
 
 def _statement(tmp_path: Path, files: dict[str, str]) -> Path:
@@ -110,7 +110,7 @@ def _statement(tmp_path: Path, files: dict[str, str]) -> Path:
     return statement_dir
 
 
-def test_polygon_check_reports_statement_issues(tmp_path, capsys):
+def test_local_check_reports_statement_issues(tmp_path, capsys):
     _statement(tmp_path, {"legend.tex": '- пункт "a"\n', "notes.tex": "Ответ <<YES>>.\n"})
 
     assert _cli(tmp_path, "check") == 1
@@ -118,18 +118,18 @@ def test_polygon_check_reports_statement_issues(tmp_path, capsys):
     assert "statement/legend.tex:1: markdown list" in out
     assert "statement/legend.tex:1: quotes" in out
     assert "notes.tex" not in out
-    assert "polygon fix" in out
+    assert "local fix" in out
     assert "no test script" in out
 
 
-def test_polygon_check_ok_statement(tmp_path, capsys):
+def test_local_check_ok_statement(tmp_path, capsys):
     _statement(tmp_path, {"legend.tex": "Ответ <<YES>>.\n"})
 
     assert _cli(tmp_path, "check") == 0
     assert "statement: ok" in capsys.readouterr().out
 
 
-def test_polygon_fix_rewrites_files_with_backup(tmp_path, capsys):
+def test_local_fix_rewrites_files_with_backup(tmp_path, capsys):
     statement_dir = _statement(
         tmp_path, {"legend.tex": '- "a"\n', "notes.tex": "Ответ <<YES>>.\n"}
     )
@@ -145,7 +145,7 @@ def test_polygon_fix_rewrites_files_with_backup(tmp_path, capsys):
     assert _cli(tmp_path, "check") == 0
 
 
-def test_polygon_fix_reports_unpaired_quotes(tmp_path, capsys):
+def test_local_fix_reports_unpaired_quotes(tmp_path, capsys):
     statement_dir = _statement(tmp_path, {"legend.tex": 'Один " без пары.\n'})
 
     assert _cli(tmp_path, "fix") == 1
@@ -153,7 +153,7 @@ def test_polygon_fix_reports_unpaired_quotes(tmp_path, capsys):
     assert "unpaired quotes" in capsys.readouterr().out
 
 
-def test_polygon_fix_without_statement(tmp_path, capsys):
+def test_local_fix_without_statement(tmp_path, capsys):
     (tmp_path / "problems" / PROBLEM_ID).mkdir(parents=True)
     assert _cli(tmp_path, "fix") == 1
     assert "no statement" in capsys.readouterr().err

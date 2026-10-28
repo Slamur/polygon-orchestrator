@@ -1,5 +1,5 @@
 """Проверка строк раскрытого FreeMarker test-script'а — до загрузки в
-Polygon (`orchestrator <задача> polygon check` и проверка перед загрузкой в
+Polygon (`orchestrator <задача> local check` и проверка перед загрузкой в
 `upload_test_script`).
 
 Polygon раскрывает скрипт в построчный список команд и отказывается
