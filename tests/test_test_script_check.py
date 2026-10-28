@@ -15,7 +15,9 @@ from orchestrator.checks.test_script_check import (
     ScriptLine,
     ScriptRenderError,
     find_duplicates,
+    find_invalid_lines,
     format_duplicates,
+    format_invalid_lines,
     instrument_script,
     parse_rendered,
 )
@@ -36,6 +38,13 @@ DUPLICATES_SCRIPT = """<#assign maxN = 100/>
 </#list>
 gen -n=100 > $
 gen  -n=100  >  $
+"""
+
+QUOTED_SCRIPT = """<#assign pairs = [[1, 2], [3, 4]]/>
+<#list pairs as pair>
+    gen -p="${pair[0]} ${pair[1]}" > $
+</#list>
+gen -n=1 > $
 """
 
 
@@ -143,6 +152,35 @@ def test_report_names_source_lines_and_loop_values():
     assert "#2 <- line 4: gen > $" in report
 
 
+def test_find_invalid_lines_quotes_and_redirects():
+    lines = [
+        ScriptLine(1, "gen -n=1 > $"),
+        ScriptLine(2, "gen -n=1 | upd --rev > 5"),
+        ScriptLine(3, 'gen -p="1 2" > $'),
+        ScriptLine(4, "gen -p='1' > $"),
+        ScriptLine(5, "gen -a=1 > 2 > $"),
+        ScriptLine(6, "gen -n=1"),
+    ]
+    assert [(item.line.index, item.problems) for item in find_invalid_lines(lines)] == [
+        (3, ('quotes "',)),
+        (4, ("quotes '",)),
+        (5, ("2 '>' (only the final '> test' is allowed)",)),
+        (6, ("no '> test' redirect",)),
+    ]
+
+
+def test_invalid_lines_report_groups_by_source_line():
+    lines = parse_rendered(
+        'gen -p="1 2" > $\x1e3\x1f[1, 2]\x1e\ngen -p="3 4" > $\x1e3\x1f?\x1e\n',
+        instrument_script(QUOTED_SCRIPT).sources,
+    )
+    report = format_invalid_lines(find_invalid_lines(lines), "test_script")
+
+    assert "test_script: 2 line(s) Polygon will reject" in report
+    assert 'line 3: gen -p="${pair[0]} ${pair[1]}" > $ — quotes "' in report
+    assert '2 line(s), e.g. #1 "gen -p="1 2" > $"' in report
+
+
 # --- раскрытие настоящим FreeMarker ----------------------------------------
 
 
@@ -158,6 +196,15 @@ def test_expand_and_find_duplicates_with_freemarker():
     assert "line 7: gen  -n=100  >  $" in result.report
 
 
+def test_check_script_reports_quoted_parameters_with_freemarker():
+    jar = _jar_or_skip()
+    result = check.check_script(QUOTED_SCRIPT, "test_script", jar=jar)
+
+    assert result.failed and result.duplicates == []
+    assert [item.line.text for item in result.invalid] == ['gen -p="1 2" > $', 'gen -p="3 4" > $']
+    assert "Polygon will reject" in result.report
+
+
 def test_render_error_points_to_source_line():
     jar = _jar_or_skip()
     with pytest.raises(ScriptRenderError, match="line 2") as error:
@@ -171,6 +218,7 @@ def test_example_scripts_have_no_identical_lines(script):
     lines = check.expand_script(script.read_text(encoding="utf-8"), jar=jar)
     assert lines and all(line.source is not None for line in lines)
     assert find_duplicates(lines) == []
+    assert find_invalid_lines(lines) == []
 
 
 def test_freemarker_jar_from_env(monkeypatch, tmp_path):
@@ -224,6 +272,19 @@ def test_upload_stops_on_duplicates_before_network(monkeypatch, linked_problem, 
     client.call.assert_not_called()
 
 
+def test_upload_stops_on_invalid_lines_before_network(monkeypatch, linked_problem, flat_spec):
+    monkeypatch.delenv(SKIP_CHECK_ENV)
+    invalid = check.InvalidLine(ScriptLine(1, 'gen -p="1 2" > $'), ('quotes "',))
+    result = ScriptCheckResult([], "test_script: INVALID", [invalid])
+    monkeypatch.setattr(upload_test_script, "check_script", lambda *a, **k: result)
+    client = MagicMock()
+
+    with pytest.raises(PolygonStepError, match="INVALID"):
+        run_and_record(upload_test_script.STEP, PROBLEM_ID, flat_spec, linked_problem, client)
+
+    client.call.assert_not_called()
+
+
 @pytest.mark.parametrize("exc", [ScriptCheckUnavailable("no java"), ScriptRenderError("bad")])
 def test_upload_continues_with_warning_when_check_fails(
     monkeypatch, linked_problem, flat_spec, caplog, exc
@@ -270,6 +331,16 @@ def test_polygon_check_reports_duplicates(tmp_path, capsys):
     out = capsys.readouterr().out
     assert '"gen -n=100 -c=100 > $" — 2 times' in out
     assert "test_script_groups: ok" in out
+
+
+def test_polygon_check_reports_quoted_parameters(tmp_path, capsys):
+    _jar_or_skip()
+    problem_dir = tmp_path / "problems" / PROBLEM_ID
+    problem_dir.mkdir(parents=True)
+    (problem_dir / "test_script").write_text(QUOTED_SCRIPT, encoding="utf-8")
+
+    assert _check_cli(tmp_path) == 1
+    assert 'line 3: gen -p="${pair[0]} ${pair[1]}" > $ — quotes "' in capsys.readouterr().out
 
 
 def test_polygon_check_without_script(tmp_path, capsys):

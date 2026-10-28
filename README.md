@@ -139,7 +139,8 @@ pytest               # unit-тесты; к модели и Polygon не обра
 
 `polygon check` и `polygon push` (перед загрузкой test-script'а) раскрывают
 скрипт **настоящим FreeMarker** — тем же движком, что и Polygon, — и ищут
-одинаковые строки: с ними Polygon отказывается генерировать тесты. Для этого
+одинаковые строки (с ними Polygon отказывается генерировать тесты) и строки,
+которые Polygon не примет (кавычки или лишний `>` в параметрах генератора). Для этого
 нужны Java и jar FreeMarker.
 
 **Java** (JDK 11+; `.java`-файл запускается без сборки, поэтому нужен
@@ -272,7 +273,7 @@ orchestrator problems/my-task llm generate   # все шаги по порядк
 **4. Проверка и загрузка на Polygon.**
 
 ```bash
-orchestrator problems/my-task polygon check   # оформление условия и дубли тестов в скрипте
+orchestrator problems/my-task polygon check   # оформление условия, дубли и кавычки в скрипте
 orchestrator problems/my-task polygon fix     # автоматически исправить то, что можно
 orchestrator problems/my-task polygon push    # создать задачу на Polygon и загрузить
 ```
@@ -346,7 +347,7 @@ orchestrator [--base-dir DIR] <задача> <init|llm|polygon> [команда]
 | Команда | Что делает | Сеть |
 |---|---|---|
 | `polygon status` | Какие polygon-шаги сделаны / устарели — по локальным файлам | нет |
-| `polygon check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`) и дублей строк в раскрытом test-script'е (нужна `java`) | нет |
+| `polygon check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`) дублей строк и параметров с кавычками/`>` в раскрытом test-script'е (нужна `java`) | нет |
 | `polygon fix` | Исправить найденное `check`: списки → `itemize`/`enumerate`, кавычки → `<<…>>`; бэкап в `.fix_backup/` | нет |
 | `polygon push` | Создать задачу (если нет) и загрузить только изменившееся с последней синхронизации; после каждого шага — коммит на Polygon | **да** |
 | `polygon push --step NAME` | Только один шаг (`create_problem`, `upload_statement`, `upload_solutions`, …) | **да** |

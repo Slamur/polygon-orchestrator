@@ -179,7 +179,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
 │   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
-│   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker и поиск одинаковых строк (polygon check, upload_test_script)
+│   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker, поиск одинаковых строк и параметров с кавычками/`>` (polygon check, upload_test_script)
 │   │   ├── statement_check.py     # оформление statement/*.tex: Markdown-списки и кавычки не <<…>> (polygon check) и их исправление (polygon fix)
 │   │   └── FreemarkerRender.java  # рендер FreeMarker для test_script_check (java без сборки; jar — в ~/.cache/polygon-orchestrator/)
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
@@ -538,9 +538,12 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   jar FreeMarker при первом запуске скачивается с Maven Central в
   `~/.cache/polygon-orchestrator/`) и печатает одинаковые строки — с
   ними Polygon не генерирует тесты — с указанием, какая строка скрипта
-  и при каких значениях переменных `<#list>` напечатала каждую. Та же
-  проверка — перед загрузкой в `upload_test_script`: дубли
-  останавливают push до сети; если проверку выполнить нельзя или
+  и при каких значениях переменных `<#list>` напечатала каждую, и
+  строки, которые Polygon не примет: кавычки в параметрах генератора и
+  `>` не ровно один (только финальное `> $`); их `polygon fix` не
+  исправляет — это вопрос параметров генератора. Та же
+  проверка — перед загрузкой в `upload_test_script`: найденное
+  останавливает push до сети; если проверку выполнить нельзя или
   FreeMarker не раскрыл скрипт — только предупреждение
   (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
   докстринге `orchestrator/checks/test_script_check.py`.
