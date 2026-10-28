@@ -26,6 +26,7 @@ from orchestrator.pipeline import (
     OUTCOME_PROPOSED,
     OUTCOME_SKIPPED_OPTIONAL,
     OUTCOME_UNCERTAIN,
+    STATUS_ACCEPTED,
     STATUS_BLOCKED,
     STATUS_NOT_ACCEPTED,
     accept_steps,
@@ -67,6 +68,7 @@ from orchestrator.checks.test_script_check import (
 from orchestrator.drafts import DRAFTS_DIR, DraftError, find_draft
 from orchestrator.llm_report import (
     note_counts,
+    write_accept_report,
     write_spec_from_draft_report,
     write_step_report,
 )
@@ -381,8 +383,9 @@ def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
 
 
 def _print_step_statuses(problem_id: str, statuses, spec_error: str | None) -> bool:
-    """Печатает `шаг: состояние — подробности` (или ошибку спека).
-    Возвращает, была ли ошибка спека."""
+    """Печатает `шаг: состояние — подробности` (или ошибку спека); у шага с
+    короткой формой подробностей (`brief`) — она. Возвращает, была ли ошибка
+    спека."""
     print(f"=== {problem_id} ===")
     if spec_error is not None:
         print(spec_error)
@@ -390,8 +393,9 @@ def _print_step_statuses(problem_id: str, statuses, spec_error: str | None) -> b
 
     for step_status in statuses:
         line = f"  {step_status.step_name}: {step_status.state}"
-        if step_status.detail:
-            line += f" — {step_status.detail}"
+        detail = step_status.brief or step_status.detail
+        if detail:
+            line += f" — {detail}"
         print(line)
     return False
 
@@ -424,6 +428,16 @@ def cmd_llm_accept(args: argparse.Namespace) -> int:
         status.state in (STATUS_NOT_ACCEPTED, STATUS_BLOCKED) for status in statuses
     )
     any_error = _print_step_statuses(args.problem_id, statuses, spec_error)
+    # Что изменилось во входе принятых шагов — целиком в отчёте, в консоли
+    # только кратко.
+    reported = [
+        status for status in statuses if status.state in (STATUS_ACCEPTED, STATUS_NOT_ACCEPTED)
+    ]
+    if reported:
+        report = write_accept_report(
+            Path(args.problems_dir) / args.problem_id, reported, command_line=args.command_line
+        )
+        print(f"  report: {report}")
     return 1 if any_error or any_not_accepted else 0
 
 

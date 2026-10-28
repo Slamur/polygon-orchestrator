@@ -175,7 +175,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_attachments, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_interactor, upload_statement, upload_generators, upload_test_script, upload_solutions
 │   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
 │   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
-│   ├── llm_report.py              # отчёты llm_reports/<шаг>.md: заметки модели по видам, файлы шага, диффы изменённых файлов
+│   ├── llm_report.py              # отчёты llm_reports/<шаг>.md: заметки модели по видам, файлы шага, диффы изменённых файлов; accept.md — что принял `llm accept`
 │   ├── checks/
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
 │   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
@@ -199,7 +199,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── interactor_draft.json
         │   └── <step>.response.json        # ответ модели, ещё не применённый (до `llm apply`, `llm accept` или нового прогона шага)
         ├── llm_generation.log      # лог `orchestrator <задача> llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
-        ├── llm_reports/<шаг>.md    # человеко-читаемый отчёт последнего прогона шага (и spec_from_draft.md от `init --draft`): заметки модели, файлы, диффы
+        ├── llm_reports/<шаг>.md    # человеко-читаемый отчёт последнего прогона шага (и spec_from_draft.md от `init --draft`, accept.md от `llm accept`): заметки модели, файлы, диффы
         ├── polygon.log             # лог `orchestrator <задача> polygon push` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256, stamps: файл -> отметка его версии на Polygon); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull`
@@ -499,7 +499,10 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   спек. Шаги `not run`, `uncertain` и без артефакта на диске не принимаются.
   Шаг с конфликтами (`conflict`) принимается, только когда автор их
   разобрал и удалил каталог конфликтов, — даже если вход не менялся.
-  Неприменённый сохранённый ответ принятого шага удаляется.
+  Неприменённый сохранённый ответ принятого шага удаляется. В консоль —
+  строка на шаг с кратким "что изменилось" (модель, спек, промпт) и путь к
+  отчёту `llm_reports/accept.md`, в котором у каждого принятого и не
+  принятого шага — полный список изменившихся частей входа.
 - `orchestrator <задача> polygon push [--step NAME] [--force]` — прогон
   polygon-шагов по порядку `POLYGON_STEP_ORDER`; каждый шаг загружает
   только элементы задачи, изменившиеся с последней синхронизации (как

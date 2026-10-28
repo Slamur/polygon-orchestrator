@@ -234,10 +234,11 @@ def _compute_step_hashes(
     )
 
 
-def _stale_reason(entry: CacheEntry, hashes: _StepHashes) -> str:
+def _stale_reason(entry: CacheEntry, hashes: _StepHashes, *, brief: bool = False) -> str:
     """Почему кэш шага невалиден (при уже известном, что он невалиден и
     `entry.status` — не `uncertain`): что именно изменилось — по хешам
-    частей, если они есть в записи кэша."""
+    частей, если они есть в записи кэша. `brief` — только что изменилось в
+    целом (модель, спек, промпт), без списка частей — для консоли."""
     reasons: list[str] = []
     parts_unknown = False
     if entry.model != hashes.model:
@@ -259,6 +260,9 @@ def _stale_reason(entry: CacheEntry, hashes: _StepHashes) -> str:
         ),
     ):
         if old_hash == new_hash:
+            continue
+        if brief:
+            reasons.append(summary)
             continue
         if old_parts is None:
             parts_unknown = True
@@ -681,6 +685,9 @@ class StepStatus:
     step_name: str
     state: str
     detail: str = ""
+    # Короткая форма `detail` для консоли, если полная длинная (полная — в
+    # отчёте); пусто — в консоль идёт `detail`.
+    brief: str = ""
 
 
 def compute_step_statuses(
@@ -908,6 +915,7 @@ def _accept_step(
                 step_name, STATUS_NOT_ACCEPTED, "conflicts resolved, but the artifact is missing on disk"
             )
         accepted_detail = f"conflicts resolved ({cache_entry.conflicts} deleted)"
+        accepted_brief = ""
     elif current.state != STATUS_STALE or not artifact_present:
         detail = current.detail or "the step has never been generated"
         return StepStatus(
@@ -917,13 +925,15 @@ def _accept_step(
             f"'orchestrator {problem_address(problems_dir, problem_id)} llm generate'",
         )
     else:
+        assert cache_entry is not None
         accepted_detail = f"was stale: {current.detail}"
+        accepted_brief = f"was stale: {_stale_reason(cache_entry, hashes, brief=True)}"
 
     assert cache_entry is not None
     _save_accepted_entry(problem_id, step_name, hashes, problems_dir, status=cache_entry.status)
     # Принятые файлы актуальны — неприменённый ответ того же шага больше не нужен.
     discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
-    return StepStatus(step_name, STATUS_ACCEPTED, accepted_detail)
+    return StepStatus(step_name, STATUS_ACCEPTED, accepted_detail, accepted_brief)
 
 
 def _save_accepted_entry(

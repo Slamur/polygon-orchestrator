@@ -10,7 +10,8 @@
 применённое, ошибки компиляции, `proposed`), потом идеи модели
 (`suggestion`), что она изменила, файлы шага и диффы изменённых файлов
 против прежних версий из `.llm_backup/`. `init --draft` пишет так же
-`llm_reports/spec_from_draft.md`.
+`llm_reports/spec_from_draft.md`, `llm accept` — `llm_reports/accept.md`
+(что принято и что изменилось во входе каждого шага).
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from orchestrator.steps.base import CONFLICTS_REPORT
 
 REPORTS_DIRNAME = "llm_reports"
 SPEC_FROM_DRAFT_REPORT = "spec_from_draft"
+ACCEPT_REPORT = "accept"
 
 # Порядок и заголовки групп заметок; заметки других `kind` — в конце, в
 # `_OTHER_NOTES_TITLE`.
@@ -112,9 +114,24 @@ def write_spec_from_draft_report(
     return _write(report_path(problem_dir, SPEC_FROM_DRAFT_REPORT), lines)
 
 
+def write_accept_report(problem_dir: Path, statuses: list[Any], *, command_line: str) -> Path:
+    """Пишет `llm_reports/accept.md` по `pipeline.StepStatus` шагов, которые
+    `llm accept` принял или не принял: полное `detail` каждого — в консоль
+    идёт короткое `brief`."""
+    lines = [f"# {ACCEPT_REPORT}", "", f"`orchestrator {command_line}` · {_stamp()}", ""]
+    for status in statuses:
+        lines += [f"## {status.step_name}: {status.state}", ""]
+        if status.detail:
+            lines += [status.detail, ""]
+    return _write(report_path(Path(problem_dir), ACCEPT_REPORT), lines)
+
+
+def _stamp() -> str:
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+
+
 def _header(name: str, status_label: str, command_line: str) -> list[str]:
-    stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    return [f"# {name}: {status_label}", "", f"`orchestrator {command_line}` · {stamp}", ""]
+    return [f"# {name}: {status_label}", "", f"`orchestrator {command_line}` · {_stamp()}", ""]
 
 
 def _notes_sections(notes: list[dict[str, Any]]) -> list[str]:
