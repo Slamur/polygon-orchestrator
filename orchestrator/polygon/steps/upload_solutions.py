@@ -12,7 +12,8 @@
   алфавиту имён;
 - остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL или OK"),
   `wa` -> `WA`, `ml`/`mle` -> `ML`;
-- всё прочее допустимое (`re`) -> `RJ` ("Incorrect").
+- всё прочее допустимое (`re`, `il` — Idleness limit exceeded в
+  интерактивной задаче) -> `RJ` ("Incorrect").
 
 Риск 1: `Solutions.languages` в спеке — `list[str]` без ограничения
 значений, и модель может записать язык в имени файла по-разному (`py`,
@@ -82,7 +83,7 @@ _LANGUAGE_ALIASES = {
 
 # Совпадает с `orchestrator.spec._ALLOWED_VERDICTS` (допустимые
 # `solutions.wanted_verdicts`).
-_VALID_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re"}
+_VALID_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il"}
 
 
 @dataclass(frozen=True)
@@ -234,7 +235,7 @@ def _tag_for(parsed: _ParsedSolution, main_name: str) -> str:
         return "WA"
     if parsed.verdict in ("ml", "mle"):
         return "ML"
-    return "RJ"  # re — "Incorrect"
+    return "RJ"  # re, il — "Incorrect"
 
 
 STEP = PolygonStep(

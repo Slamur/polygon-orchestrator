@@ -255,6 +255,7 @@ def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
             "ml_cpp_bigarray_draft.cpp": b"",
             "mle_cpp_vectors_draft.cpp": b"",
             "re_cpp_overflow_draft.cpp": b"",
+            "il_java_noflush_draft.java": b"",
         },
     )
     client = MagicMock()
@@ -266,6 +267,7 @@ def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
         "mle_cpp_vectors_draft.cpp": "ML",
         "ok_cpp_main_draft.cpp": "MA",
         "re_cpp_overflow_draft.cpp": "RJ",
+        "il_java_noflush_draft.java": "RJ",
     }
 
 
