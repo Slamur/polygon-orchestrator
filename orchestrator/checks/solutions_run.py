@@ -32,16 +32,26 @@
 компиляторы, флаги и скорость не те, что на Polygon, поэтому TL здесь —
 сигнал, а не вердикт Polygon. ML не меряется.
 
-Интерактивные задачи пока не поддерживаются: решения не запускаются (с
-заметкой), валидатор — запускается.
+Интерактивная задача (секция `interactor` в спеке, без спека — есть
+`interactor.cpp`): решение и интерактор (`interactor.cpp`, testlib) связаны
+двумя пайпами, интерактор читает тест и пишет `tout` — его, как на Polygon,
+судит чекер, а ответ — `tout` Main correct (`output` примеров в спеке у
+интерактивной задачи — реплики решения в диалоге, а не ответ). Вердикт:
+решение не завершилось за TL с запасом — IL, если процессорного времени оно
+потратило меньше половины прошедшего (ждало ответа интерактора, обычно — не
+сбросило вывод), иначе TL; дальше — вердикт интерактора (WA/PE/FAIL), RE
+решения, вердикт чекера.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -49,7 +59,7 @@ from typing import Callable
 import yaml
 
 from orchestrator.checks.compile_check import compile_check
-from orchestrator.checks.run_with_timeout import RunResult, run_with_timeout
+from orchestrator.checks.run_with_timeout import RunResult, _raise_stack_limit, run_with_timeout
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
 from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits
 from orchestrator.polygon.steps.base import PolygonStepError
@@ -67,13 +77,14 @@ VERDICT_WA = "WA"
 VERDICT_PE = "PE"
 VERDICT_TL = "TL"
 VERDICT_RE = "RE"
+# Idleness limit: решение интерактивной задачи ждёт ответа, которого не будет.
+VERDICT_IL = "IL"
 # Чекер упал или вернул неизвестный код — ошибка проверки, не решения.
 VERDICT_FAIL = "FAIL"
 
 # Вердикт из имени решения -> что допустимо на примерах. `ml`: память здесь
 # не меряется, нехватка проявится как RE (OutOfMemoryError у Java). `il`
-# (Idleness limit) бывает только в интерактивной задаче, которые пока не
-# запускаются; простой без вывода в обычной задаче — TL.
+# (Idleness limit) бывает только в интерактивной задаче.
 ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "ok": frozenset({VERDICT_OK}),
     "wa": frozenset({VERDICT_OK, VERDICT_WA}),
@@ -83,7 +94,7 @@ ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "re": frozenset({VERDICT_OK, VERDICT_RE}),
     "ml": frozenset({VERDICT_OK, VERDICT_RE}),
     "mle": frozenset({VERDICT_OK, VERDICT_RE}),
-    "il": frozenset({VERDICT_OK, VERDICT_TL}),
+    "il": frozenset({VERDICT_OK, VERDICT_IL}),
 }
 
 # Доля TL, дольше которой решение не с вердиктом `tl` — предупреждение.
@@ -178,7 +189,7 @@ class SolutionsRunResult:
             for s in self.solutions
             if s.verdict not in _TL_VERDICTS
             for t in s.tests
-            if t.verdict != VERDICT_TL and t.seconds is not None and t.seconds > threshold
+            if t.seconds is not None and threshold < t.seconds <= self.time_limit
         ]
 
     def groups(self) -> list[tuple[str, list[str], str]]:
@@ -247,15 +258,16 @@ def run_solutions(
         work_dir = Path(tmp)
         _check_validator(problem_dir, include_dirs, tests, work_dir, result)
 
-        if _is_interactive(problem_dir, spec):
-            result.note("interactive problem: running solutions is not supported yet — skipped")
-            return result
-
         sources = _solution_sources(problem_dir)
         if not sources:
             result.note(f"no {SOLUTIONS_DIRNAME}/ files — skipped")
             return result
 
+        interactor = None
+        if _is_interactive(problem_dir, spec):
+            interactor = _build_interactor(problem_dir, include_dirs, work_dir, result)
+            if interactor is None:
+                return result
         checker = _build_checker(problem_dir, spec, include_dirs, work_dir, result)
         if checker is None:
             return result
@@ -284,7 +296,9 @@ def run_solutions(
                     programs[path.name] = str(exc)
             return programs[path.name]
 
-        tests = _fill_answers(tests, parsed, program_for, time_limit, result)
+        tests = _fill_answers(
+            tests, parsed, program_for, time_limit, work_dir, interactor, result
+        )
 
         for name, solution in parsed.items():
             outcome = SolutionOutcome(
@@ -299,9 +313,10 @@ def run_solutions(
                 continue
             for test in tests:
                 outcome.tests.append(
-                    _run_test(program, checker, test, time_limit, work_dir)
+                    _run_test(program, checker, test, time_limit, work_dir, interactor)
                 )
-        _note_suspicious_answers(tests, result)
+        if interactor is None:
+            _note_suspicious_answers(tests, result)
     result.solutions.sort(key=lambda s: s.name)
     return result
 
@@ -467,6 +482,24 @@ def _build_checker(
     return _Program([str(binary)])
 
 
+def _build_interactor(
+    problem_dir: Path, include_dirs: list[Path], work_dir: Path, result: SolutionsRunResult
+) -> _Program | None:
+    source = problem_dir / INTERACTOR_FILENAME
+    if not source.is_file():
+        result.errors.append(
+            f"interactive problem without {INTERACTOR_FILENAME} — solutions are not run"
+        )
+        return None
+    try:
+        binary = _compile_cpp(source, include_dirs, work_dir)
+    except _BuildError as exc:
+        result.errors.append(f"{INTERACTOR_FILENAME}: {exc}")
+        return None
+    result.note(f"interactive problem: interactor {INTERACTOR_FILENAME}")
+    return _Program([str(binary)])
+
+
 def _build_solution(
     path: Path, include_dirs: list[Path], work_dir: Path, memory_limit_mb: int
 ) -> _Program:
@@ -534,14 +567,128 @@ def _hard_timeout(time_limit: float) -> float:
     return 2 * time_limit + 1
 
 
+@dataclass
+class _Execution:
+    seconds: float
+    # `None` — решение завершилось как надо, его вывод судит чекер.
+    verdict: str | None = None
+    comment: str = ""
+    # Вывод решения, у интерактивной задачи — `tout` интерактора.
+    output: str = ""
+
+
+def _execute(
+    program: _Program,
+    test: SampleTest,
+    time_limit: float,
+    work_dir: Path,
+    interactor: _Program | None,
+) -> _Execution:
+    if interactor is not None:
+        return _execute_interactive(program, interactor, test, time_limit, work_dir)
+    run = program.run(test.input, _hard_timeout(time_limit))
+    seconds = run.elapsed_seconds
+    if run.timed_out or seconds > time_limit:
+        return _Execution(seconds, VERDICT_TL)
+    if run.exit_code != 0:
+        return _Execution(seconds, VERDICT_RE, f"exit code {run.exit_code}\n{run.stderr}")
+    return _Execution(seconds, output=run.stdout)
+
+
+def _wait(proc: subprocess.Popen, deadline: float | None) -> tuple[int | None, float]:
+    """(код возврата, процессорное время в секундах) процесса; `None`, если
+    он не завершился к `deadline` (`None` — ждать сколько угодно).
+    `os.wait4`, а не `Popen.wait`: нужно процессорное время самого процесса."""
+    while True:
+        pid, status, usage = os.wait4(proc.pid, 0 if deadline is None else os.WNOHANG)
+        if pid:
+            proc.returncode = os.waitstatus_to_exitcode(status)
+            return proc.returncode, usage.ru_utime + usage.ru_stime
+        if time.monotonic() >= deadline:
+            return None, 0.0
+        time.sleep(0.002)
+
+
+def _execute_interactive(
+    program: _Program,
+    interactor: _Program,
+    test: SampleTest,
+    time_limit: float,
+    work_dir: Path,
+) -> _Execution:
+    """Решение и интерактор, связанные пайпами: вывод решения — вход
+    интерактора, и наоборот. Интерактор — `interactor <input> <tout>`."""
+    run_dir = work_dir / "interaction"
+    run_dir.mkdir(exist_ok=True)
+    input_path = run_dir / "input.txt"
+    input_path.write_text(test.input, encoding="utf-8")
+    tout_path = run_dir / "tout.txt"
+    tout_path.unlink(missing_ok=True)
+    to_interactor_read, to_interactor_write = os.pipe()
+    to_solution_read, to_solution_write = os.pipe()
+    with open(run_dir / "solution.err", "w+", encoding="utf-8", errors="replace") as solution_err, \
+            open(run_dir / "interactor.err", "w+", encoding="utf-8", errors="replace") as interactor_err:
+        started = time.monotonic()
+        interactor_proc = subprocess.Popen(
+            [*interactor.command, str(input_path), str(tout_path)],
+            stdin=to_interactor_read,
+            stdout=to_solution_write,
+            stderr=interactor_err,
+        )
+        solution_proc = subprocess.Popen(
+            program.command,
+            stdin=to_solution_read,
+            stdout=to_interactor_write,
+            stderr=solution_err,
+            preexec_fn=_raise_stack_limit if program.unlimited_stack else None,
+        )
+        # Иначе конец ввода не дойдёт ни до одного из процессов.
+        for fd in (to_interactor_read, to_interactor_write, to_solution_read, to_solution_write):
+            os.close(fd)
+        exit_code, cpu = _wait(solution_proc, started + _hard_timeout(time_limit))
+        seconds = time.monotonic() - started
+        killed = exit_code is None
+        if killed:
+            solution_proc.kill()
+            exit_code, cpu = _wait(solution_proc, None)
+        interactor_code, _ = _wait(interactor_proc, time.monotonic() + _CHECKER_TIMEOUT_SECONDS)
+        if interactor_code is None:
+            interactor_proc.kill()
+            _wait(interactor_proc, None)
+        solution_err.seek(0)
+        interactor_err.seek(0)
+        solution_stderr = solution_err.read()
+        interactor_stderr = interactor_err.read().strip()
+
+    if killed:
+        verdict = VERDICT_IL if cpu < seconds / 2 else VERDICT_TL
+        return _Execution(seconds, verdict, f"CPU time {cpu:.2f}s of {seconds:.2f}s")
+    if seconds > time_limit:
+        return _Execution(seconds, VERDICT_TL)
+    if interactor_code is None:
+        return _Execution(seconds, VERDICT_FAIL, "interactor did not finish after the solution")
+    if interactor_code != 0:
+        verdict = {1: VERDICT_WA, 2: VERDICT_PE}.get(interactor_code, VERDICT_FAIL)
+        return _Execution(seconds, verdict, f"interactor: {interactor_stderr}")
+    if exit_code != 0:
+        return _Execution(seconds, VERDICT_RE, f"exit code {exit_code}\n{solution_stderr}")
+    output = tout_path.read_text(encoding="utf-8") if tout_path.is_file() else ""
+    return _Execution(seconds, output=output, comment=f"interactor: {interactor_stderr}")
+
+
 def _fill_answers(
     tests: list[SampleTest],
     parsed: dict,
     program_for,
     time_limit: float,
+    work_dir: Path,
+    interactor: _Program | None,
     result: SolutionsRunResult,
 ) -> list[SampleTest]:
-    """Ответы примеров без `output` в спеке — вывод Main correct."""
+    """Ответы примеров без `output` в спеке — вывод Main correct. У
+    интерактивной задачи — всех примеров: `tout` Main correct."""
+    if interactor is not None:
+        tests = [SampleTest(t.name, t.input, None) for t in tests]
     missing = [t for t in tests if t.answer is None]
     if not missing:
         result.note("expected outputs: from the spec")
@@ -550,20 +697,25 @@ def _fill_answers(
     try:
         main_name = _choose_main(list(parsed.values()))
     except PolygonStepError:
-        result.errors.append(f"no output in the spec for {names} and no ok solution to produce it")
+        result.errors.append(f"no expected output for {names} and no ok solution to produce it")
         return tests
     program = program_for(parsed[main_name].path)
-    result.note(f"expected outputs for {names}: from the main solution {main_name}")
+    if interactor is not None:
+        result.note(f"expected outputs: tout of the main solution {main_name}")
+    else:
+        result.note(f"expected outputs for {names}: from the main solution {main_name}")
     if isinstance(program, str):
         return tests
     filled = []
     for test in tests:
         if test.answer is None:
-            run = program.run(test.input, _hard_timeout(time_limit))
-            if not run.timed_out and run.exit_code == 0:
-                test = SampleTest(test.name, test.input, run.stdout)
+            execution = _execute(program, test, time_limit, work_dir, interactor)
+            if execution.verdict is None:
+                test = SampleTest(test.name, test.input, execution.output)
             else:
-                result.errors.append(f"{test.name}: no expected output — {main_name} failed on it")
+                result.errors.append(
+                    f"{test.name}: no expected output — {main_name} got {execution.verdict} on it"
+                )
         filled.append(test)
     return filled
 
@@ -574,20 +726,17 @@ def _run_test(
     test: SampleTest,
     time_limit: float,
     work_dir: Path,
+    interactor: _Program | None = None,
 ) -> TestOutcome:
-    run = program.run(test.input, _hard_timeout(time_limit))
-    seconds = run.elapsed_seconds
-    if run.timed_out or seconds > time_limit:
-        return TestOutcome(test.name, VERDICT_TL, seconds)
-    if run.exit_code != 0:
-        return TestOutcome(
-            test.name, VERDICT_RE, seconds, f"exit code {run.exit_code}\n{run.stderr}"
-        )
+    execution = _execute(program, test, time_limit, work_dir, interactor)
+    seconds = execution.seconds
+    if execution.verdict is not None:
+        return TestOutcome(test.name, execution.verdict, seconds, execution.comment)
     if test.answer is None:
         return TestOutcome(test.name, VERDICT_OK, seconds, "not judged: no expected output")
     judge_dir = work_dir / "judge"
     judge_dir.mkdir(exist_ok=True)
-    files = {"input": test.input, "output": run.stdout, "answer": test.answer}
+    files = {"input": test.input, "output": execution.output, "answer": test.answer}
     for name, text in files.items():
         (judge_dir / f"{name}.txt").write_text(text, encoding="utf-8")
     # testlib-чекер: `checker <input> <output> <answer>`, комментарий — в stderr.

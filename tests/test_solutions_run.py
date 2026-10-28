@@ -191,18 +191,77 @@ def test_checker_problems_stop_solution_runs(tmp_path, checker, message):
     assert any(message in error for error in result.errors)
 
 
-def test_interactive_problem_is_skipped(tmp_path):
+# Синтетический интерактив: интерактор сообщает n, решение отвечает 2n,
+# интерактор подтверждает "ok", решение читает подтверждение и завершается.
+INTERACTOR_CPP = (
+    '#include "testlib.h"\n'
+    "#include <iostream>\n"
+    "int main(int argc, char* argv[]) {\n"
+    "    registerInteraction(argc, argv);\n"
+    "    int n = inf.readInt();\n"
+    "    std::cout << n << std::endl;\n"
+    '    int reply = ouf.readInt(-1000000, 1000000, "reply");\n'
+    '    if (reply != 2 * n) quitf(_wa, "expected %d, got %d", 2 * n, reply);\n'
+    '    std::cout << "ok" << std::endl;\n'
+    "    tout << reply << std::endl;\n"
+    '    quitf(_ok, "reply %d", reply);\n'
+    "}\n"
+)
+INTERACTIVE_OK_PY = "import sys\nn = int(input())\nprint(2 * n, flush=True)\nsys.stdin.readline()\n"
+INTERACTIVE_WA_PY = "import sys\nn = int(input())\nprint(n, flush=True)\nsys.stdin.readline()\n"
+INTERACTIVE_NOFLUSH_PY = "import sys\nn = int(input())\nprint(2 * n)\nsys.stdin.readline()\n"
+INTERACTIVE_RE_PY = "import sys\nn = int(input())\nprint(2 * n, flush=True)\nsys.stdin.readline()\nraise SystemExit(1)\n"
+
+
+def _interactive_problem(tmp_path: Path, solutions: dict[str, str], *, interactor: bool = True) -> Path:
     problem_dir = _problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY},
+        solutions,
+        # Реплики решения в диалоге, а не ответ: чекер их не видит.
+        examples=[("5\n", "10\n\n")],
+        checker={"standard": "wcmp", "custom_needed": False},
         extra_spec={"interactor": {"behavior_notes": "synthetic"}},
     )
+    if interactor:
+        (problem_dir / "interactor.cpp").write_text(INTERACTOR_CPP, encoding="utf-8")
+    return problem_dir
+
+
+def test_interactive_verdicts(tmp_path):
+    problem_dir = _interactive_problem(
+        tmp_path,
+        {
+            "ok_py_main_draft.py": INTERACTIVE_OK_PY,
+            "wa_py_echo_draft.py": INTERACTIVE_WA_PY,
+            "il_py_noflush_draft.py": INTERACTIVE_NOFLUSH_PY,
+            "re_py_exit_draft.py": INTERACTIVE_RE_PY,
+            "ok_py_wrong_draft.py": INTERACTIVE_WA_PY,
+        },
+    )
+
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    verdicts = {s.name: [t.verdict for t in s.tests] for s in result.solutions}
+
+    assert verdicts == {
+        "il_py_noflush_draft.py": ["IL"],
+        "ok_py_main_draft.py": ["OK"],
+        "ok_py_wrong_draft.py": ["WA"],
+        "re_py_exit_draft.py": ["RE"],
+        "wa_py_echo_draft.py": ["WA"],
+    }
+    assert "expected outputs: tout of the main solution ok_py_main_draft.py" in result.notes
+    assert [s.name for s in result.solutions if s.failed] == ["ok_py_wrong_draft.py"]
+    assert "expected 10, got 5" in _by_name(result)["ok_py_wrong_draft.py"].tests[0].comment
+    assert result.warnings == []
+
+
+def test_interactive_problem_without_interactor(tmp_path):
+    problem_dir = _interactive_problem(tmp_path, {"ok_py_main_draft.py": INTERACTIVE_OK_PY}, interactor=False)
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
 
     assert result.solutions == []
-    assert not result.failed
-    assert any("interactive problem" in note for note in result.notes)
+    assert any("without interactor.cpp" in error for error in result.errors)
 
 
 def test_java_class_name():
