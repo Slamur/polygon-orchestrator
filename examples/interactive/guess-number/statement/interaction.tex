@@ -17,7 +17,7 @@
 \textbf{После каждого выведенного запроса обязательно сбрасывайте буфер вывода}, иначе интерактор не получит запрос вовремя и ваша программа получит вердикт <<Idleness Limit Exceeded>>:
 
 \begin{itemize}
-\item C++: \texttt{fflush(stdout)} или \texttt{cout.flush()} (\texttt{cout << endl});
-\item Java: \texttt{System.out.flush()};
-\item Python: \texttt{sys.stdout.flush()} (или \texttt{print(..., flush=True)}).
+\item C++: \texttt{std::endl} при выводе через \texttt{iostream} (\texttt{cout << ... << endl}), \texttt{fflush(stdout)} после вывода через \texttt{stdio} (\texttt{printf});
+\item Java: \texttt{System.out.println(...)}, а при выводе через другой поток (\texttt{PrintWriter}, \texttt{BufferedWriter}) --- его \texttt{flush()} после каждой строки;
+\item Python: \texttt{print(..., flush=True)}, а ответы интерактора читайте через \texttt{input()}.
 \end{itemize}

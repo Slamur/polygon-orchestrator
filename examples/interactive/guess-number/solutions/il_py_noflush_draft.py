@@ -1,5 +1,8 @@
+import sys
+
+
 def read_line() -> str:
-    return input()
+    return sys.stdin.readline().strip()
 
 
 def read_int() -> int:
