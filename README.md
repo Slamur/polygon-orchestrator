@@ -81,8 +81,7 @@ sudo apt install -y git python3 python3-venv python3-pip g++ default-jdk-headles
 - `g++` — compile-check сгенерированных C++-файлов (валидатор, генераторы,
   решения, чекер);
 - `default-jdk-headless` (JDK 11+) — проверка test-script'а настоящим
-  FreeMarker в `polygon check` и перед `polygon push`. Без Java push всё
-  равно работает, но грузит скрипт без проверки;
+  FreeMarker в `polygon check` и перед `polygon push` (подробнее — в п. 5);
 - `bash-completion` — Tab-дополнение команд и адресов задач.
 
 ### 3. Claude Code CLI (подписка Pro/Max)
@@ -136,7 +135,42 @@ orchestrator --help
 pytest               # unit-тесты; к модели и Polygon не обращаются
 ```
 
-### 5. Git-хук (если будете присылать изменения в код)
+### 5. Java и FreeMarker (проверка test-script'а)
+
+`polygon check` и `polygon push` (перед загрузкой test-script'а) раскрывают
+скрипт **настоящим FreeMarker** — тем же движком, что и Polygon, — и ищут
+одинаковые строки: с ними Polygon отказывается генерировать тесты. Для этого
+нужны Java и jar FreeMarker.
+
+**Java** (JDK 11+; `.java`-файл запускается без сборки, поэтому нужен
+именно JDK, а не только JRE) ставится вместе с системными пакетами из п. 2
+(`default-jdk-headless`). Проверить:
+
+```bash
+java -version        # должна быть 11 или новее
+```
+
+Если пакет не ставили — `sudo apt install -y default-jdk-headless` (подойдёт
+и любой другой JDK 11+, лишь бы `java` была в `PATH`).
+
+**FreeMarker** отдельно ставить не нужно: при первой проверке оркестратор
+сам скачивает `freemarker-2.3.33.jar` с Maven Central (с проверкой sha1) в
+`~/.cache/polygon-orchestrator/`. Чтобы скачать его сразу и убедиться, что
+всё работает:
+
+```bash
+python -c "from orchestrator.checks.test_script_check import freemarker_jar; print(freemarker_jar())"
+```
+
+Без доступа к Maven Central (прокси, офлайн) — скачайте jar вручную
+(`https://repo1.maven.org/maven2/org/freemarker/freemarker/2.3.33/freemarker-2.3.33.jar`)
+и либо положите его в `~/.cache/polygon-orchestrator/freemarker-2.3.33.jar`,
+либо укажите путь в `.env`: `ORCHESTRATOR_FREEMARKER_JAR=/путь/к/freemarker-2.3.33.jar`.
+
+Без Java или jar `polygon check` сообщает, что проверку выполнить нельзя, а
+`polygon push` загружает скрипт без проверки, с предупреждением.
+
+### 6. Git-хук (если будете присылать изменения в код)
 
 ```bash
 git config core.hooksPath githooks
@@ -148,7 +182,7 @@ git config core.hooksPath githooks
 [docs/SETUP.md](docs/SETUP.md) и в разделе «Конфиденциальность problems/»
 [CLAUDE.md](CLAUDE.md).
 
-### 6. Ключи Polygon и `.env`
+### 7. Ключи Polygon и `.env`
 
 ```bash
 cp .env.example .env
@@ -171,7 +205,7 @@ Anthropic API, деньги с API-баланса вместо подписки)
 Задачи, созданные через `polygon push`, появятся в **вашем** аккаунте
 Polygon.
 
-### 7. Tab-дополнение (по желанию)
+### 8. Tab-дополнение (по желанию)
 
 Из активированного окружения, один раз:
 
@@ -398,6 +432,9 @@ Polygon:
   его не передаёт в `claude`.
 - **`polygon check` пишет, что нет java** — `sudo apt install
   default-jdk-headless`.
+- **`polygon check` не может скачать jar FreeMarker** — нет доступа к Maven
+  Central; скачайте jar вручную и укажите `ORCHESTRATOR_FREEMARKER_JAR`
+  (см. п. 5 установки).
 - **Всё очень медленно в WSL** — проект лежит в `/mnt/c/...`; перенесите в
   `~/`.
 - **`push` отказывается: задача изменена на Polygon** — `polygon pull`,
