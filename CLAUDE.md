@@ -73,6 +73,9 @@ Python-оркестратор, который берёт структуриро�
 Минимальная страховка вместо судящего контура на этом этапе:
 - **compile-check** после каждого сгенерированного C++-файла
   (валидатор/чекер/генератор/решение) — компилируется или нет, без запуска;
+- **решения на примерах** (`local check`) — запуск валидатора и решений
+  только на примерах условия, с проверкой, что вердикт совместим с именем
+  решения;
 - **timeout-обёртка** вокруг любого запуска сгенерированного бинаря
   (например, прогон генератора для смоук-теста) — просто убить процесс по
   таймауту, без анализа TLE/MLE отдельно.
@@ -181,6 +184,8 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
 │   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker, поиск одинаковых строк и параметров с кавычками/`>` (local check, upload_test_script)
 │   │   ├── statement_check.py     # оформление statement/*.tex: Markdown-списки и кавычки не <<…>> (local check) и их исправление (local fix)
+│   │   ├── solutions_check.py     # валидатор и решения на примерах: сборка (C++/Java/Python), запуск с TL из limits.yaml, чекер, допустимые вердикты (local check)
+│   │   ├── std_checkers/          # исходники стандартных чекеров testlib (ncmp, wcmp, …) для solutions_check — копия из репозитория testlib, MIT
 │   │   └── FreemarkerRender.java  # рендер FreeMarker для test_script_check (java без сборки; jar — в ~/.cache/polygon-orchestrator/)
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 ├── drafts/                       # черновики задач в свободной форме для `init --draft` (плоско, любое расширение); в .gitignore, как problems/
@@ -524,6 +529,19 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   FreeMarker не раскрыл скрипт — только предупреждение
   (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
   докстринге `orchestrator/checks/test_script_check.py`.
+  И прогоняет на примерах (`statement/examples/example_<N>.txt`)
+  валидатор и все решения из `solutions/`: C++ — g++, Java — `javac` (без
+  него — тот же компилятор из модуля `jdk.compiler` через `java -m`), Python
+  — `python3`; TL — из `limits.yaml` (без него — из `constraints.yaml`),
+  время — локальное wall-clock; ответ — `output` примера в спеке, без него —
+  вывод Main correct; вердикт выносит чекер задачи (`checker.cpp` или
+  стандартный из `checker.standard`, исходники — в
+  `orchestrator/checks/std_checkers/`). Решение с вердиктом X в имени может
+  получить на примере OK или X (`tl_ok` — OK или TL), остальное — ошибка
+  (`ALLOWED_VERDICTS`). Интерактивные задачи пока не запускаются.
+  `--only statement|script|solutions` (повторяемый) сужает набор проверок.
+  Это проверка, а не судящий контур: только примеры, без
+  различения MLE. Детали — в докстринге `orchestrator/checks/solutions_check.py`.
 - `orchestrator <задача> local fix` — без модели и без сети:
   исправляет в условии найденное `local check`, что исправляется
   механически, — Markdown-списки в `itemize`/`enumerate` (вложенность —
