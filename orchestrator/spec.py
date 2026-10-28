@@ -194,8 +194,10 @@ class Generation(BaseModel):
 
 
 # `tl_ok` — "TL или OK": пограничное по времени решение или решение без
-# ускорения ввода-вывода (`templates/tutorials/solutions.md`).
-_ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re"}
+# ускорения ввода-вывода (`templates/tutorials/solutions.md`); `il` —
+# Idleness limit exceeded в интерактивной задаче (решение без сброса буфера,
+# `templates/tutorials/interactive.md`).
+_ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il"}
 
 
 def split_solution_stem(stem: str) -> list[str]:

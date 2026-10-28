@@ -76,7 +76,7 @@ generation:
 # Секция необязательная: если решения генерировать не нужно, удалите её целиком.
 # ---------------------------------------------------------------------------
 solutions:
-  wanted_verdicts: []                # [required] из: ok, wa, tl, tl_ok, ml, re
+  wanted_verdicts: []                # [required] из: ok, wa, tl, tl_ok, ml, re, il (il — интерактивная задача)
   languages: []                      # [required] например ["cpp", "java", "python"]
   algorithm_hint: ""                 # [required] идея основного алгоритма
   alternative_approaches: []         # [optional] другие верные идеи — по ok-решению на каждую
