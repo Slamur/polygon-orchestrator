@@ -345,5 +345,10 @@ def test_local_check_reports_quoted_parameters(tmp_path, capsys):
 
 def test_local_check_without_script(tmp_path, capsys):
     (tmp_path / "problems" / PROBLEM_ID).mkdir(parents=True)
+    assert _check_cli(tmp_path) == 0
+    assert "no test script" in capsys.readouterr().out
+
+
+def test_local_check_without_problem_directory(tmp_path, capsys):
     assert _check_cli(tmp_path) == 1
-    assert "no test script" in capsys.readouterr().err
+    assert "no problem directory" in capsys.readouterr().err

@@ -47,6 +47,9 @@ from orchestrator.problem_paths import (
 from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
 
 
+# Проверки `local check` (`--only`), в порядке выполнения.
+LOCAL_CHECKS = ["statement", "script", "solutions"]
+
 def _complete_problem_addresses(
     prefix: str, parsed_args: argparse.Namespace, **kwargs
 ) -> list[str]:
@@ -184,7 +187,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="check the problem files: Markdown lists and quotes other than <<...>> "
         "in statement/*.tex; identical lines in the expanded FreeMarker test script "
         "(Polygon refuses to generate tests from them) and the script lines printing them "
-        "(the script check needs java, downloads FreeMarker once)",
+        "(the script check needs java, downloads FreeMarker once); the validator and "
+        "solutions run on the examples, with the verdict each solution may get there "
+        "taken from its name",
+    )
+    local_check_parser.add_argument(
+        "--only",
+        choices=LOCAL_CHECKS,
+        action="append",
+        default=None,
+        help="run only this check (repeat for several): statement formatting, test script, "
+        "validator and solutions on the examples",
     )
     local_check_parser.set_defaults(handler="cmd_local_check")
 
