@@ -188,6 +188,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     local_check_parser.set_defaults(handler="cmd_local_check")
 
+    local_run_parser = local_commands.add_parser(
+        "run",
+        help="build the validator and all solutions and run them on the examples: each "
+        "solution must get the verdict its name allows (X: OK or X), the problem checker "
+        "judges the output, TL from limits.yaml (local time)",
+    )
+    local_run_parser.set_defaults(handler="cmd_local_run")
+
     local_fix_parser = local_commands.add_parser(
         "fix",
         help="fix statement/*.tex issues found by 'local check': Markdown lists -> "

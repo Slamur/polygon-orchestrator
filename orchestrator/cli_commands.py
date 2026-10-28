@@ -60,6 +60,7 @@ from orchestrator.checks.statement_check import (
     fix_text as fix_statement_text,
     statement_files,
 )
+from orchestrator.checks.solutions_run import run_solutions
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptRenderError,
@@ -565,45 +566,69 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 
 
 def cmd_local_check(args: argparse.Namespace) -> int:
-    """Без модели и без сети проверяет файлы задачи: оформление
-    условия (`statement/*.tex`: списки в стиле Markdown, кавычки не `<<…>>` —
+    """Без модели и без сети проверяет файлы задачи: оформление условия
+    (`statement/*.tex`: списки в стиле Markdown, кавычки не `<<…>>` —
     `orchestrator/checks/statement_check.py`) и test-script(ы) — раскрывает
     их и печатает одинаковые строки и строки, которые Polygon не примет
-    (кавычки, лишний `>`), с указанием строк скрипта, которые их напечатали (`orchestrator/checks/test_script_check.py`). Спек не нужен —
-    проверяются все существующие файлы условия и из `SCRIPT_FILENAMES`."""
+    (кавычки, лишний `>`), с указанием строк скрипта, которые их напечатали
+    (`orchestrator/checks/test_script_check.py`). Спек не нужен —
+    проверяется то, что есть на диске; чего нет — пропускается с заметкой."""
     problem_dir = Path(args.problems_dir) / args.problem_id
-    tex_files = statement_files(problem_dir)
-    scripts = [problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()]
-    if not tex_files and not scripts:
-        print(
-            f"nothing to check in {problem_dir}: no {STATEMENT_DIRNAME}/*.tex and no test script "
-            f"(expected one of: {', '.join(SCRIPT_FILENAMES)})",
-            file=sys.stderr,
-        )
+    if not problem_dir.is_dir():
+        print(f"no problem directory {problem_dir}", file=sys.stderr)
         return 1
     failed = False
+    tex_files = statement_files(problem_dir)
     if tex_files:
-        failed = not _check_statement(problem_dir, tex_files)
+        failed |= not _check_statement(problem_dir, tex_files)
     else:
         print(f"no statement ({STATEMENT_DIRNAME}/*.tex) — skipped")
+    failed |= not _check_scripts(problem_dir)
+    return 1 if failed else 0
+
+
+def cmd_local_run(args: argparse.Namespace) -> int:
+    """Без модели и без сети собирает валидатор и решения задачи и
+    прогоняет их на примерах (`orchestrator/checks/solutions_run.py`). По
+    ходу — заметки и строка на каждое запускаемое решение, в конце — группы,
+    как у `polygon push`: ожидаемые и неожиданные вердикты, не запущенные
+    решения, предупреждения (долгие решения не с вердиктом `tl`), ошибки.
+    Код возврата 1 — если есть неожиданные вердикты, не запущенные решения
+    или ошибки."""
+    problem_dir = Path(args.problems_dir) / args.problem_id
+    if not problem_dir.is_dir():
+        print(f"no problem directory {problem_dir}", file=sys.stderr)
+        return 1
+    result = run_solutions(
+        problem_dir, Path(args.templates_dir), progress=lambda line: print(line, flush=True)
+    )
+    _print_groups(result.groups())
+    return 1 if result.failed else 0
+
+
+def _check_scripts(problem_dir: Path) -> bool:
+    scripts = [problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()]
     if not scripts:
         print(f"no test script (expected one of: {', '.join(SCRIPT_FILENAMES)}) — skipped")
+        return True
+    ok = True
     for script in scripts:
         try:
             result = check_script(script.read_text(encoding="utf-8"), script.name)
         except ScriptCheckUnavailable as exc:
             print(f"{script.name}: check unavailable — {exc}", file=sys.stderr)
-            return 1
+            ok = False
+            continue
         except ScriptRenderError as exc:
             print(f"{script.name}: FreeMarker failed to expand the script:\n{exc}")
-            failed = True
+            ok = False
             continue
         if result.failed:
             print(result.report)
-            failed = True
+            ok = False
         else:
             print(f"{script.name}: ok, no identical or invalid lines")
-    return 1 if failed else 0
+    return ok
 
 
 def _check_statement(problem_dir: Path, tex_files: list[Path]) -> bool:

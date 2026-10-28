@@ -274,6 +274,7 @@ orchestrator problems/my-task llm generate   # все шаги по порядк
 
 ```bash
 orchestrator problems/my-task local check    # оформление условия, дубли и кавычки в скрипте
+orchestrator problems/my-task local run      # валидатор и решения на примерах
 orchestrator problems/my-task local fix      # автоматически исправить то, что можно
 orchestrator problems/my-task polygon push   # создать задачу на Polygon и загрузить
 ```
@@ -347,7 +348,18 @@ orchestrator [--base-dir DIR] <задача> <init|llm|local|polygon> [кома�
 | Команда | Что делает |
 |---|---|
 | `local check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`), дублей строк и параметров с кавычками/`>` в раскрытом test-script'е (нужна `java`) |
+| `local run` | Собрать валидатор и решения и прогнать на примерах (дольше, чем `check`) |
 | `local fix` | Исправить найденное `check`: списки → `itemize`/`enumerate`, кавычки → `<<…>>`; бэкап в `.fix_backup/` |
+
+`local run`: каждое решение из `solutions/` собирается и
+запускается на `statement/examples/example_<N>.txt`, ответ проверяет чекер
+задачи (свой `checker.cpp` или стандартный из `checker.standard`), ответы —
+`output` примеров в спеке (если его нет — вывод главного `ok`-решения).
+Решение с вердиктом X в имени может получить на примере OK или X (`tl_ok` —
+OK или TL); всё остальное — ошибка. TL — из `limits.yaml`, время меряется
+локально и с Polygon может не совпадать; решение не с вердиктом `tl`, которое
+работало дольше половины TL, попадает в предупреждения. Для Java-решений нужен JDK
+(`default-jdk-headless`). Интерактивные задачи пока не запускаются.
 
 ### `polygon` — синхронизация с Polygon
 
