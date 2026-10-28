@@ -554,8 +554,8 @@ def cmd_polygon_check(args: argparse.Namespace) -> int:
     """Без обращения к Polygon проверяет то, что загрузит push: оформление
     условия (`statement/*.tex`: списки в стиле Markdown, кавычки не `<<…>>` —
     `orchestrator/checks/statement_check.py`) и test-script(ы) — раскрывает
-    их и печатает одинаковые строки с указанием строк скрипта, которые их
-    напечатали (`orchestrator/checks/test_script_check.py`). Спек не нужен —
+    их и печатает одинаковые строки и строки, которые Polygon не примет
+    (кавычки, лишний `>`), с указанием строк скрипта, которые их напечатали (`orchestrator/checks/test_script_check.py`). Спек не нужен —
     проверяются все существующие файлы условия и из `SCRIPT_FILENAMES`."""
     problem_dir = Path(args.problems_dir) / args.problem_id
     tex_files = statement_files(problem_dir)
@@ -584,11 +584,11 @@ def cmd_polygon_check(args: argparse.Namespace) -> int:
             print(f"{script.name}: FreeMarker failed to expand the script:\n{exc}")
             failed = True
             continue
-        if result.duplicates:
+        if result.failed:
             print(result.report)
             failed = True
         else:
-            print(f"{script.name}: ok, no identical lines")
+            print(f"{script.name}: ok, no identical or invalid lines")
     return 1 if failed else 0
 
 

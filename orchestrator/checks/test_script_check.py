@@ -1,10 +1,16 @@
-"""Проверка FreeMarker test-script'а на одинаковые строки — до загрузки в
+"""Проверка строк раскрытого FreeMarker test-script'а — до загрузки в
 Polygon (`orchestrator <задача> polygon check` и проверка перед загрузкой в
 `upload_test_script`).
 
 Polygon раскрывает скрипт в построчный список команд и отказывается
 генерировать тесты, если две строки совпали. Ищется именно совпадение строк
 скрипта, а не одинаковые тесты.
+
+Ещё Polygon не принимает строки, где параметры генератора содержат кавычки
+или `>`: строка — `<генератор> <параметры> [| <генератор> ...] > <тест>`,
+и `>` в ней ровно один — перенаправление в тест (`find_invalid_lines`).
+Исправить это механически нельзя: значение с пробелом (`-p="1 2"`) должно
+стать одним словом, а это меняет и разбор параметров в генераторе.
 
 Скрипт раскрывается настоящим FreeMarker (`FreemarkerRender.java`, запуск
 `java` без сборки; jar скачивается с Maven Central в кэш при первом запуске,
@@ -118,6 +124,14 @@ class ScriptLine:
 class DuplicateGroup:
     text: str
     occurrences: list[ScriptLine] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class InvalidLine:
+    """Строка раскрытого скрипта, которую Polygon не примет, и почему."""
+
+    line: ScriptLine
+    problems: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -289,6 +303,24 @@ def find_duplicates(lines: list[ScriptLine]) -> list[DuplicateGroup]:
     return [group for group in groups.values() if len(group.occurrences) > 1]
 
 
+def find_invalid_lines(lines: list[ScriptLine]) -> list[InvalidLine]:
+    """Строки с кавычками или не ровно одним `>` (см. докстринг модуля)."""
+    invalid: list[InvalidLine] = []
+    for line in lines:
+        problems: list[str] = []
+        quotes = sorted({ch for ch in line.text if ch in "\"'`"})
+        if quotes:
+            problems.append("quotes " + " ".join(quotes))
+        redirects = line.text.count(">")
+        if redirects == 0:
+            problems.append("no '> test' redirect")
+        elif redirects > 1:
+            problems.append(f"{redirects} '>' (only the final '> test' is allowed)")
+        if problems:
+            invalid.append(InvalidLine(line, tuple(problems)))
+    return invalid
+
+
 def expand_script(source: str, *, jar: Path | None = None) -> list[ScriptLine]:
     """Раскрывает скрипт настоящим FreeMarker и возвращает его непустые строки
     с привязкой к строкам скрипта."""
@@ -377,6 +409,28 @@ def format_duplicates(groups: list[DuplicateGroup], script_name: str) -> str:
     return "\n".join(lines)
 
 
+def format_invalid_lines(invalid: list[InvalidLine], script_name: str) -> str:
+    """Отчёт по строкам, которые Polygon не примет, — по строке скрипта,
+    напечатавшей их, с первым примером раскрытой строки."""
+    groups: dict[int | str, list[InvalidLine]] = {}
+    for item in invalid:
+        key = item.line.source.line if item.line.source else item.line.text
+        groups.setdefault(key, []).append(item)
+    lines = [
+        f"{script_name}: {len(invalid)} line(s) Polygon will reject — generator parameters "
+        "can't contain quotes or '>' (pass a value with spaces as one word, e.g. "
+        "comma-separated, or as separate parameters):"
+    ]
+    for items in groups.values():
+        first = items[0]
+        problems = "; ".join(dict.fromkeys(p for item in items for p in item.problems))
+        source = first.line.source
+        where = f"line {source.line}: {source.text}" if source else "source line unknown"
+        lines.append(f"  {where} — {problems}")
+        lines.append(f'    {len(items)} line(s), e.g. #{first.line.index} "{first.line.text}"')
+    return "\n".join(lines)
+
+
 def _describe(line: ScriptLine) -> str:
     """`#3 <- line 10: gen -c=${c} > $   [c=100 (loop at line 8), k=1 (loop at line 9)]`."""
     head = f"#{line.index} <- "
@@ -396,12 +450,23 @@ def _describe(line: ScriptLine) -> str:
 @dataclass(frozen=True)
 class ScriptCheckResult:
     duplicates: list[DuplicateGroup]
-    report: str  # пусто, если дублей нет
+    report: str  # пусто, если проблем нет
+    invalid: list[InvalidLine] = field(default_factory=list)
+
+    @property
+    def failed(self) -> bool:
+        return bool(self.duplicates or self.invalid)
 
 
 def check_script(source: str, script_name: str, *, jar: Path | None = None) -> ScriptCheckResult:
-    """Раскрывает скрипт и ищет одинаковые строки. Исключения —
-    `ScriptCheckUnavailable` и `ScriptRenderError`."""
-    duplicates = find_duplicates(expand_script(source, jar=jar))
-    report = format_duplicates(duplicates, script_name) if duplicates else ""
-    return ScriptCheckResult(duplicates, report)
+    """Раскрывает скрипт и ищет одинаковые строки и строки, которые Polygon
+    не примет. Исключения — `ScriptCheckUnavailable` и `ScriptRenderError`."""
+    lines = expand_script(source, jar=jar)
+    duplicates = find_duplicates(lines)
+    invalid = find_invalid_lines(lines)
+    reports = []
+    if invalid:
+        reports.append(format_invalid_lines(invalid, script_name))
+    if duplicates:
+        reports.append(format_duplicates(duplicates, script_name))
+    return ScriptCheckResult(duplicates, "\n".join(reports), invalid)
