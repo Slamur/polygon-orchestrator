@@ -244,8 +244,17 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     mock_call.assert_not_called()
     assert rc == 0
     out = capsys.readouterr().out
-    assert "generators_and_script: accepted — was stale: " in out
-    assert "upstream: constraints.yaml" in out
+    # В консоли — только что изменилось в целом, список частей — в отчёте.
+    assert (
+        "generators_and_script: accepted — was stale: spec (or upstream artifact) changed\n"
+        in out
+    )
+    assert "upstream: constraints.yaml" not in out
+    report = problems_dir / "p1" / "llm_reports" / "accept.md"
+    assert f"report: {report}" in out
+    report_text = report.read_text(encoding="utf-8")
+    assert "## generators_and_script: accepted" in report_text
+    assert "upstream: constraints.yaml" in report_text
 
     cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
     assert capsys.readouterr().out.count("cache hit") == 5
@@ -257,7 +266,9 @@ def test_accept_before_any_run_exits_nonzero(problems_dir, tmp_path, capsys):
     rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "accept"])
 
     assert rc == 1
-    assert "statement_draft: not accepted" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "statement_draft: not accepted" in out
+    assert "llm_reports" in out
 
 
 def test_problem_id_is_required(problems_dir, tmp_path):
