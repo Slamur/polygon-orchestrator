@@ -1,6 +1,6 @@
 """Проверка оформления LaTeX-условия (`statement/*.tex`) — `orchestrator
-<задача> polygon check` — и его механическое исправление — `orchestrator
-<задача> polygon fix`. К Polygon не обращается.
+<задача> local check` — и его механическое исправление — `orchestrator
+<задача> local fix`. К Polygon не обращается.
 
 Что проверяется:
 
@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 STATEMENT_DIRNAME = "statement"
-# Прежние версии файлов, изменённых `polygon fix`: `.fix_backup/<время>/`.
+# Прежние версии файлов, изменённых `local fix`: `.fix_backup/<время>/`.
 FIX_BACKUP_DIRNAME = ".fix_backup"
 
 KIND_MARKDOWN_LIST = "markdown list"
@@ -54,7 +54,7 @@ class StatementIssue:
     fixable: bool = True
 
     def format(self) -> str:
-        suffix = "" if self.fixable else " (not fixed by 'polygon fix': fix by hand)"
+        suffix = "" if self.fixable else " (not fixed by 'local fix': fix by hand)"
         return f"{self.file}:{self.line}: {self.kind}{suffix}: {self.text.strip()}"
 
 
