@@ -60,7 +60,7 @@ from orchestrator.checks.statement_check import (
     fix_text as fix_statement_text,
     statement_files,
 )
-from orchestrator.checks.solutions_check import check_solutions
+from orchestrator.checks.solutions_run import run_solutions
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptRenderError,
@@ -82,7 +82,6 @@ from orchestrator.spec import (
     spec_validation_errors,
     write_spec,
 )
-from orchestrator.cli import LOCAL_CHECKS
 from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
 
 _OUTCOME_LABELS = {
@@ -567,34 +566,44 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 
 
 def cmd_local_check(args: argparse.Namespace) -> int:
-    """Без модели и без сети проверяет файлы задачи (`--only` сужает набор):
-    оформление условия (`statement/*.tex`: списки в стиле Markdown, кавычки
-    не `<<…>>` — `orchestrator/checks/statement_check.py`); test-script(ы) —
-    раскрывает их и печатает одинаковые строки и строки, которые Polygon не
-    примет (кавычки, лишний `>`), с указанием строк скрипта, которые их
-    напечатали (`orchestrator/checks/test_script_check.py`); валидатор и
-    решения на примерах — с вердиктом, допустимым для решения по его имени
-    (`orchestrator/checks/solutions_check.py`). Спек не нужен — проверяется
-    то, что есть на диске; чего нет — пропускается с заметкой."""
+    """Без модели и без сети проверяет файлы задачи: оформление условия
+    (`statement/*.tex`: списки в стиле Markdown, кавычки не `<<…>>` —
+    `orchestrator/checks/statement_check.py`) и test-script(ы) — раскрывает
+    их и печатает одинаковые строки и строки, которые Polygon не примет
+    (кавычки, лишний `>`), с указанием строк скрипта, которые их напечатали
+    (`orchestrator/checks/test_script_check.py`). Спек не нужен —
+    проверяется то, что есть на диске; чего нет — пропускается с заметкой."""
     problem_dir = Path(args.problems_dir) / args.problem_id
     if not problem_dir.is_dir():
         print(f"no problem directory {problem_dir}", file=sys.stderr)
         return 1
-    selected = set(args.only or LOCAL_CHECKS)
     failed = False
-    if "statement" in selected:
-        tex_files = statement_files(problem_dir)
-        if tex_files:
-            failed |= not _check_statement(problem_dir, tex_files)
-        else:
-            print(f"no statement ({STATEMENT_DIRNAME}/*.tex) — skipped")
-    if "script" in selected:
-        failed |= not _check_scripts(problem_dir)
-    if "solutions" in selected:
-        result = check_solutions(problem_dir, Path(args.templates_dir))
-        print(result.report)
-        failed |= result.failed
+    tex_files = statement_files(problem_dir)
+    if tex_files:
+        failed |= not _check_statement(problem_dir, tex_files)
+    else:
+        print(f"no statement ({STATEMENT_DIRNAME}/*.tex) — skipped")
+    failed |= not _check_scripts(problem_dir)
     return 1 if failed else 0
+
+
+def cmd_local_run(args: argparse.Namespace) -> int:
+    """Без модели и без сети собирает валидатор и решения задачи и
+    прогоняет их на примерах (`orchestrator/checks/solutions_run.py`). По
+    ходу — заметки и строка на каждое запускаемое решение, в конце — группы,
+    как у `polygon push`: ожидаемые и неожиданные вердикты, не запущенные
+    решения, предупреждения (долгие решения не с вердиктом `tl`), ошибки.
+    Код возврата 1 — если есть неожиданные вердикты, не запущенные решения
+    или ошибки."""
+    problem_dir = Path(args.problems_dir) / args.problem_id
+    if not problem_dir.is_dir():
+        print(f"no problem directory {problem_dir}", file=sys.stderr)
+        return 1
+    result = run_solutions(
+        problem_dir, Path(args.templates_dir), progress=lambda line: print(line, flush=True)
+    )
+    _print_groups(result.groups())
+    return 1 if result.failed else 0
 
 
 def _check_scripts(problem_dir: Path) -> bool:

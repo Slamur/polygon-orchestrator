@@ -5,10 +5,10 @@ import pytest
 import yaml
 
 from orchestrator import cli
-from orchestrator.checks.solutions_check import (
+from orchestrator.checks.solutions_run import (
     ALLOWED_VERDICTS,
     _java_class_name,
-    check_solutions,
+    run_solutions,
 )
 from orchestrator.spec import _ALLOWED_VERDICTS
 
@@ -78,6 +78,10 @@ def _by_name(result):
     return {s.name: s for s in result.solutions}
 
 
+def _group(result, title):
+    return next(lines for group_title, lines, _ in result.groups() if group_title == title)
+
+
 def test_allowed_verdicts_cover_every_spec_verdict():
     assert set(ALLOWED_VERDICTS) == _ALLOWED_VERDICTS
     assert all("OK" in allowed for allowed in ALLOWED_VERDICTS.values())
@@ -97,7 +101,7 @@ def test_verdicts_checked_against_solution_names(tmp_path):
     )
     (problem_dir / "solutions" / "ok_py_old_draft.py.removed").write_text(WA_PY, encoding="utf-8")
 
-    result = check_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
     solutions = _by_name(result)
 
     assert "ok_py_old_draft.py.removed" not in solutions
@@ -110,9 +114,12 @@ def test_verdicts_checked_against_solution_names(tmp_path):
     assert not solutions["re_py_crash_draft.py"].failed
     assert solutions["readme.txt"].error
     assert result.failed
-    assert "checker std::ncmp.cpp" in result.report
-    assert "example_1: WA, expected OK for 'ok'" in result.report
-    assert "example_1: RE, expected OK, WA for 'wa'" in result.report
+    assert "checker std::ncmp.cpp" in result.notes
+    unexpected = _group(result, "unexpected verdicts")
+    assert "  example_1: WA, expected OK for 'ok'" in unexpected
+    assert "  example_1: RE, expected OK, WA for 'wa'" in unexpected
+    assert any(line.startswith("readme.txt: ") for line in _group(result, "not run"))
+    assert any(line.startswith("wa_py_minus_draft.py: ") for line in _group(result, "expected verdicts"))
 
 
 def test_time_limit_from_limits_yaml(tmp_path):
@@ -123,7 +130,7 @@ def test_time_limit_from_limits_yaml(tmp_path):
         time_limit=0.5,
     )
 
-    solutions = _by_name(check_solutions(problem_dir, TEMPLATES_DIR))
+    solutions = _by_name(run_solutions(problem_dir, TEMPLATES_DIR))
 
     assert [t.verdict for t in solutions["tl_py_slow_draft.py"].tests] == ["TL"]
     assert not solutions["tl_py_slow_draft.py"].failed
@@ -137,9 +144,9 @@ def test_missing_outputs_come_from_main_solution(tmp_path):
         examples=[("1 2\n", None), ("10 20\n", "30\n")],
     )
 
-    result = check_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
 
-    assert "expected outputs for example_1: from the main solution ok_py_main_draft.py" in result.report
+    assert "expected outputs for example_1: from the main solution ok_py_main_draft.py" in result.notes
     assert [t.verdict for t in _by_name(result)["ok_py_wrong_draft.py"].tests] == ["WA", "WA"]
 
 
@@ -150,7 +157,7 @@ def test_wrong_output_in_spec_is_reported(tmp_path):
         examples=[("1 2\n", "4\n"), ("10 20\n", "30\n")],
     )
 
-    result = check_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
 
     assert "example_1: all ok solutions get WA — check the expected output in the spec" in result.errors
 
@@ -161,7 +168,7 @@ def test_validator_rejecting_example(tmp_path):
     )
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
 
-    result = check_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
 
     rejected = [e for e in result.errors if e.startswith("validator.cpp rejects")]
     assert len(rejected) == 1 and "example_2" in rejected[0]
@@ -178,7 +185,7 @@ def test_validator_rejecting_example(tmp_path):
 def test_checker_problems_stop_solution_runs(tmp_path, checker, message):
     problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, checker=checker)
 
-    result = check_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
 
     assert result.solutions == []
     assert any(message in error for error in result.errors)
@@ -191,11 +198,11 @@ def test_interactive_problem_is_skipped(tmp_path):
         extra_spec={"interactor": {"behavior_notes": "synthetic"}},
     )
 
-    result = check_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
 
     assert result.solutions == []
     assert not result.failed
-    assert "interactive problem" in result.report
+    assert any("interactive problem" in note for note in result.notes)
 
 
 def test_java_class_name():
@@ -209,20 +216,42 @@ def test_java_class_name():
 def test_java_solution_compiled_under_its_class_name(tmp_path):
     problem_dir = _problem(tmp_path, {"ok_java_main_draft.java": OK_JAVA})
 
-    solution = _by_name(check_solutions(problem_dir, TEMPLATES_DIR))["ok_java_main_draft.java"]
+    solution = _by_name(run_solutions(problem_dir, TEMPLATES_DIR))["ok_java_main_draft.java"]
 
     assert solution.error is None
     assert [t.verdict for t in solution.tests] == ["OK", "OK"]
 
 
-def test_local_check_only_solutions(tmp_path, capsys):
+def test_slow_non_tl_solutions_are_warned(tmp_path):
+    problem_dir = _problem(
+        tmp_path,
+        {"ok_py_slow_draft.py": SLOW_PY, "tl_ok_py_slow_draft.py": SLOW_PY, "tl_py_slow_draft.py": SLOW_PY},
+        examples=[("1 2\n", "3\n")],
+        time_limit=2,
+    )
+
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
+
+    assert not result.failed
+    warned = sorted(line.split(":")[0] for line in result.warnings)
+    assert warned == ["ok_py_slow_draft.py", "tl_ok_py_slow_draft.py"]
+    assert "more than 0.5 of TL 2s" in result.warnings[0]
+
+
+def test_local_run_prints_progress_and_groups(tmp_path, capsys):
     _problem(tmp_path, {"ok_py_main_draft.py": OK_PY, "ok_py_wrong_draft.py": WA_PY})
 
-    rc = cli.main(
-        ["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "check", "--only", "solutions"]
-    )
+    rc = cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "run"])
 
     out = capsys.readouterr().out
     assert rc == 1
-    assert "FAIL ok_py_wrong_draft.py" in out
-    assert "statement" not in out.split("solutions:")[0]
+    assert "running ok_py_main_draft.py\nrunning ok_py_wrong_draft.py\n" in out
+    assert out.index("=== expected verdicts ===") < out.index("=== unexpected verdicts ===")
+    assert "\nok_py_wrong_draft.py: WA" in out.split("=== unexpected verdicts ===")[1]
+
+
+def test_local_check_does_not_run_solutions(tmp_path, capsys):
+    _problem(tmp_path, {"ok_py_wrong_draft.py": WA_PY})
+
+    assert cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "check"]) == 0
+    assert "running" not in capsys.readouterr().out

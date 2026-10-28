@@ -1,7 +1,8 @@
-"""Прогон решений задачи на примерах — часть `orchestrator <задача> local
-check`. Без модели и без сети; не судящий контур (CLAUDE.md, "Скоуп
-(текущий)"), а проверка, что решения хотя бы на примерах ведут себя так,
-как заявляет вердикт в их имени.
+"""Прогон решений задачи на примерах — `orchestrator <задача> local run`.
+Без модели и без сети; не судящий контур (CLAUDE.md, "Скоуп (текущий)"), а
+проверка, что решения хотя бы на примерах ведут себя так, как заявляет
+вердикт в их имени. Отдельно от `local check`: сборка и запуск всех решений
+— долго, и нужны не при каждой проверке.
 
 Что делается:
 
@@ -23,7 +24,9 @@ check`. Без модели и без сети; не судящий контур
    `std_checkers/`, тот же `testlib.h` из `templates/`).
 4. Допустимое на примерах по вердикту из имени решения —
    `ALLOWED_VERDICTS`: решение с вердиктом X получает OK или X. Остальное —
-   ошибка.
+   ошибка. Решение не с вердиктом `tl`, которое на примере работало дольше
+   `SLOW_FRACTION` TL, — предупреждение: на больших тестах оно может не
+   уложиться (у `tl_ok` — видно, насколько оно пограничное).
 
 Время — wall-clock на локальной машине, с запуском JVM/интерпретатора:
 компиляторы, флаги и скорость не те, что на Polygon, поэтому TL здесь —
@@ -41,6 +44,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
@@ -81,6 +85,10 @@ ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "mle": frozenset({VERDICT_OK, VERDICT_RE}),
     "il": frozenset({VERDICT_OK, VERDICT_TL}),
 }
+
+# Доля TL, дольше которой решение не с вердиктом `tl` — предупреждение.
+SLOW_FRACTION = 0.5
+_TL_VERDICTS = frozenset({"tl", "tle"})
 
 STD_CHECKERS_DIR = Path(__file__).with_name("std_checkers")
 EXAMPLES_SUBDIR = "examples"
@@ -128,45 +136,77 @@ class SolutionOutcome:
     def failed(self) -> bool:
         return self.error is not None or any(t.verdict not in self.allowed for t in self.tests)
 
+    @property
+    def runs(self) -> str:
+        return ", ".join(
+            t.verdict + (f" {t.seconds:.2f}s" if t.seconds is not None else "") for t in self.tests
+        )
+
+
+Progress = Callable[[str], None]
+
 
 @dataclass
-class SolutionsCheckResult:
-    # Что проверено и откуда взято (TL, чекер, ответы).
+class SolutionsRunResult:
+    # Что проверено и откуда взято (TL, чекер, ответы) — печатается по ходу.
     notes: list[str] = field(default_factory=list)
     # Проблемы не отдельного решения: валидатор, чекер, ответы.
     errors: list[str] = field(default_factory=list)
     solutions: list[SolutionOutcome] = field(default_factory=list)
+    time_limit: float | None = None
+    progress: Progress | None = None
+
+    def note(self, message: str) -> None:
+        self.notes.append(message)
+        if self.progress is not None:
+            self.progress(message)
 
     @property
     def failed(self) -> bool:
         return bool(self.errors) or any(s.failed for s in self.solutions)
 
     @property
-    def report(self) -> str:
-        lines = [f"solutions: {note}" for note in self.notes]
-        lines += [f"solutions: error: {error}" for error in self.errors]
-        for solution in self.solutions:
-            lines.append(_format_solution(solution))
-        return "\n".join(lines)
+    def warnings(self) -> list[str]:
+        """Решения не с вердиктом `tl`, работавшие на примере дольше
+        `SLOW_FRACTION` TL (но уложившиеся в него)."""
+        if self.time_limit is None:
+            return []
+        threshold = SLOW_FRACTION * self.time_limit
+        return [
+            f"{s.name}: {t.test} {t.seconds:.2f}s — more than {SLOW_FRACTION:g} of TL "
+            f"{self.time_limit:g}s"
+            for s in self.solutions
+            if s.verdict not in _TL_VERDICTS
+            for t in s.tests
+            if t.verdict != VERDICT_TL and t.seconds is not None and t.seconds > threshold
+        ]
 
-
-def _format_solution(solution: SolutionOutcome) -> str:
-    mark = "FAIL" if solution.failed else "ok"
-    head = f"  {mark:<4} {solution.name}"
-    if solution.error is not None:
-        return f"{head}: {solution.error}"
-    runs = ", ".join(
-        f"{t.verdict}" + (f" {t.seconds:.2f}s" if t.seconds is not None else "")
-        for t in solution.tests
-    )
-    lines = [f"{head}: {runs}"]
-    for t in solution.tests:
-        if t.verdict not in solution.allowed:
-            allowed = ", ".join(sorted(solution.allowed))
-            lines.append(f"       {t.test}: {t.verdict}, expected {allowed} for '{solution.verdict}'")
-            if t.comment:
-                lines.extend(f"         {line}" for line in t.comment.strip().splitlines()[-5:])
-    return "\n".join(lines)
+    def groups(self) -> list[tuple[str, list[str], str]]:
+        """Итог по группам `(заголовок, строки, подсказка)` — как у `polygon
+        push`; пустые группы печатающий пропускает."""
+        expected = [f"{s.name}: {s.runs}" for s in self.solutions if not s.failed]
+        unexpected = []
+        not_run = []
+        for s in self.solutions:
+            if s.error is not None:
+                first, *rest = s.error.strip().splitlines() or [""]
+                not_run.append(f"{s.name}: {first}")
+                not_run.extend(f"    {line}" for line in rest[:10])
+            elif s.failed:
+                unexpected.append(f"{s.name}: {s.runs}")
+                for t in s.tests:
+                    if t.verdict in s.allowed:
+                        continue
+                    allowed = ", ".join(sorted(s.allowed))
+                    unexpected.append(f"  {t.test}: {t.verdict}, expected {allowed} for '{s.verdict}'")
+                    unexpected.extend(f"    {line}" for line in t.comment.strip().splitlines()[-5:])
+        return [
+            ("expected verdicts", expected, ""),
+            ("unexpected verdicts", unexpected, ""),
+            ("not run", not_run, ""),
+            ("warnings", self.warnings, ""),
+            ("errors", self.errors, ""),
+        ]
 
 
 @dataclass
@@ -188,29 +228,32 @@ class _BuildError(Exception):
     pass
 
 
-def check_solutions(problem_dir: Path, templates_dir: Path) -> SolutionsCheckResult:
+def run_solutions(
+    problem_dir: Path, templates_dir: Path, progress: Progress | None = None
+) -> SolutionsRunResult:
     """Прогоняет валидатор и решения задачи на её примерах (см. докстринг
-    модуля). Ничего в каталоге задачи не пишет."""
+    модуля). Ничего в каталоге задачи не пишет. `progress` получает строки
+    по ходу: заметки и запуск каждого решения."""
     problem_dir = Path(problem_dir)
-    result = SolutionsCheckResult()
+    result = SolutionsRunResult(progress=progress)
     spec = _read_spec(problem_dir, result)
     tests = _sample_tests(problem_dir, spec)
     if not tests:
-        result.notes.append(f"no {STATEMENT_DIRNAME}/{EXAMPLES_SUBDIR}/example_<N>.txt — skipped")
+        result.note(f"no {STATEMENT_DIRNAME}/{EXAMPLES_SUBDIR}/example_<N>.txt — skipped")
         return result
 
     include_dirs = [problem_dir, Path(templates_dir)]
-    with tempfile.TemporaryDirectory(prefix="solutions_check_") as tmp:
+    with tempfile.TemporaryDirectory(prefix="solutions_run_") as tmp:
         work_dir = Path(tmp)
         _check_validator(problem_dir, include_dirs, tests, work_dir, result)
 
         if _is_interactive(problem_dir, spec):
-            result.notes.append("interactive problem: running solutions is not supported yet — skipped")
+            result.note("interactive problem: running solutions is not supported yet — skipped")
             return result
 
         sources = _solution_sources(problem_dir)
         if not sources:
-            result.notes.append(f"no {SOLUTIONS_DIRNAME}/ files — skipped")
+            result.note(f"no {SOLUTIONS_DIRNAME}/ files — skipped")
             return result
 
         checker = _build_checker(problem_dir, spec, include_dirs, work_dir, result)
@@ -218,6 +261,7 @@ def check_solutions(problem_dir: Path, templates_dir: Path) -> SolutionsCheckRes
             return result
         time_limit_ms, memory_limit_mb = _limits(problem_dir, result)
         time_limit = time_limit_ms / 1000
+        result.time_limit = time_limit
 
         parsed = {}
         for path in sources:
@@ -247,6 +291,8 @@ def check_solutions(problem_dir: Path, templates_dir: Path) -> SolutionsCheckRes
                 name, solution.verdict, ALLOWED_VERDICTS.get(solution.verdict, frozenset())
             )
             result.solutions.append(outcome)
+            if progress is not None:
+                progress(f"running {name}")
             program = program_for(solution.path)
             if isinstance(program, str):
                 outcome.error = program
@@ -260,12 +306,12 @@ def check_solutions(problem_dir: Path, templates_dir: Path) -> SolutionsCheckRes
     return result
 
 
-def _read_spec(problem_dir: Path, result: SolutionsCheckResult) -> dict | None:
+def _read_spec(problem_dir: Path, result: SolutionsRunResult) -> dict | None:
     """Спек как есть (YAML), без валидации: проверка нужна и задаче, спек
     которой ещё не проходит валидацию. Нет спека — `None`."""
     path = find_authoring_file(problem_dir, SPEC_FILENAME)
     if not path.is_file():
-        result.notes.append(f"no {SPEC_FILENAME}: no expected outputs and checker settings")
+        result.note(f"no {SPEC_FILENAME}: no expected outputs and checker settings")
         return None
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -317,7 +363,7 @@ def _solution_sources(problem_dir: Path) -> list[Path]:
     )
 
 
-def _limits(problem_dir: Path, result: SolutionsCheckResult) -> tuple[int, int]:
+def _limits(problem_dir: Path, result: SolutionsRunResult) -> tuple[int, int]:
     for path in (problem_dir / LIMITS_FILENAME, find_authoring_file(problem_dir, CONSTRAINTS_FILENAME)):
         if not path.is_file():
             continue
@@ -326,12 +372,12 @@ def _limits(problem_dir: Path, result: SolutionsCheckResult) -> tuple[int, int]:
         except LimitsError as exc:
             result.errors.append(f"{path.name}: {exc}")
             continue
-        result.notes.append(
+        result.note(
             f"TL {time_limit_ms / 1000:g}s, ML {memory_limit_mb} MB from {path.name} "
             "(local wall-clock time, not Polygon's)"
         )
         return time_limit_ms, memory_limit_mb
-    result.notes.append(
+    result.note(
         f"no TL/ML in {LIMITS_FILENAME} or {CONSTRAINTS_FILENAME}: assuming "
         f"TL {_DEFAULT_TIME_LIMIT_MS / 1000:g}s, ML {_DEFAULT_MEMORY_LIMIT_MB} MB"
     )
@@ -352,12 +398,14 @@ def _check_validator(
     include_dirs: list[Path],
     tests: list[SampleTest],
     work_dir: Path,
-    result: SolutionsCheckResult,
+    result: SolutionsRunResult,
 ) -> None:
     path = problem_dir / VALIDATOR_FILENAME
     if not path.is_file():
-        result.notes.append(f"no {VALIDATOR_FILENAME}: examples are not validated")
+        result.note(f"no {VALIDATOR_FILENAME}: examples are not validated")
         return
+    if result.progress is not None:
+        result.progress(f"running {VALIDATOR_FILENAME}")
     try:
         binary = _compile_cpp(path, include_dirs, work_dir)
     except _BuildError as exc:
@@ -371,7 +419,7 @@ def _check_validator(
             reason = "timed out" if run.timed_out else (run.stderr or run.stdout).strip()
             result.errors.append(f"{VALIDATOR_FILENAME} rejects {test.name}: {reason}")
     if not rejected:
-        result.notes.append(f"{VALIDATOR_FILENAME} accepts all {len(tests)} example(s)")
+        result.note(f"{VALIDATOR_FILENAME} accepts all {len(tests)} example(s)")
 
 
 def _build_checker(
@@ -379,7 +427,7 @@ def _build_checker(
     spec: dict | None,
     include_dirs: list[Path],
     work_dir: Path,
-    result: SolutionsCheckResult,
+    result: SolutionsRunResult,
 ) -> _Program | None:
     section = _section(spec, "checker")
     custom = bool(section.get("custom_needed")) if spec is not None else (
@@ -415,7 +463,7 @@ def _build_checker(
     except _BuildError as exc:
         result.errors.append(f"checker {label}: {exc}")
         return None
-    result.notes.append(f"checker {label}")
+    result.note(f"checker {label}")
     return _Program([str(binary)])
 
 
@@ -491,12 +539,12 @@ def _fill_answers(
     parsed: dict,
     program_for,
     time_limit: float,
-    result: SolutionsCheckResult,
+    result: SolutionsRunResult,
 ) -> list[SampleTest]:
     """Ответы примеров без `output` в спеке — вывод Main correct."""
     missing = [t for t in tests if t.answer is None]
     if not missing:
-        result.notes.append("expected outputs: from the spec")
+        result.note("expected outputs: from the spec")
         return tests
     names = ", ".join(t.name for t in missing)
     try:
@@ -505,7 +553,7 @@ def _fill_answers(
         result.errors.append(f"no output in the spec for {names} and no ok solution to produce it")
         return tests
     program = program_for(parsed[main_name].path)
-    result.notes.append(f"expected outputs for {names}: from the main solution {main_name}")
+    result.note(f"expected outputs for {names}: from the main solution {main_name}")
     if isinstance(program, str):
         return tests
     filled = []
@@ -552,7 +600,7 @@ def _run_test(
     return TestOutcome(test.name, verdict, seconds, judged.stderr.strip())
 
 
-def _note_suspicious_answers(tests: list[SampleTest], result: SolutionsCheckResult) -> None:
+def _note_suspicious_answers(tests: list[SampleTest], result: SolutionsRunResult) -> None:
     """Если на примере с ответом из спека WA у всех `ok`-решений — скорее
     ошибся ответ в спеке, чем все решения сразу."""
     ok_solutions = [s for s in result.solutions if s.verdict == "ok" and s.error is None]
