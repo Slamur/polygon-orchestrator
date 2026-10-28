@@ -81,7 +81,7 @@ sudo apt install -y git python3 python3-venv python3-pip g++ default-jdk-headles
 - `g++` — compile-check сгенерированных C++-файлов (валидатор, генераторы,
   решения, чекер);
 - `default-jdk-headless` (JDK 11+) — проверка test-script'а настоящим
-  FreeMarker в `polygon check` и перед `polygon push` (подробнее — в п. 5);
+  FreeMarker в `local check` и перед `polygon push` (подробнее — в п. 5);
 - `bash-completion` — Tab-дополнение команд и адресов задач.
 
 ### 3. Claude Code CLI (подписка Pro/Max)
@@ -137,7 +137,7 @@ pytest               # unit-тесты; к модели и Polygon не обра
 
 ### 5. Java и FreeMarker (проверка test-script'а)
 
-`polygon check` и `polygon push` (перед загрузкой test-script'а) раскрывают
+`local check` и `polygon push` (перед загрузкой test-script'а) раскрывают
 скрипт **настоящим FreeMarker** — тем же движком, что и Polygon, — и ищут
 одинаковые строки (с ними Polygon отказывается генерировать тесты) и строки,
 которые Polygon не примет (кавычки или лишний `>` в параметрах генератора). Для этого
@@ -168,7 +168,7 @@ python -c "from orchestrator.checks.test_script_check import freemarker_jar; pri
 и либо положите его в `~/.cache/polygon-orchestrator/freemarker-2.3.33.jar`,
 либо укажите путь в `.env`: `ORCHESTRATOR_FREEMARKER_JAR=/путь/к/freemarker-2.3.33.jar`.
 
-Без Java или jar `polygon check` сообщает, что проверку выполнить нельзя, а
+Без Java или jar `local check` сообщает, что проверку выполнить нельзя, а
 `polygon push` загружает скрипт без проверки, с предупреждением.
 
 ### 6. Git-хук (если будете присылать изменения в код)
@@ -273,9 +273,9 @@ orchestrator problems/my-task llm generate   # все шаги по порядк
 **4. Проверка и загрузка на Polygon.**
 
 ```bash
-orchestrator problems/my-task polygon check   # оформление условия, дубли и кавычки в скрипте
-orchestrator problems/my-task polygon fix     # автоматически исправить то, что можно
-orchestrator problems/my-task polygon push    # создать задачу на Polygon и загрузить
+orchestrator problems/my-task local check    # оформление условия, дубли и кавычки в скрипте
+orchestrator problems/my-task local fix      # автоматически исправить то, что можно
+orchestrator problems/my-task polygon push   # создать задачу на Polygon и загрузить
 ```
 
 Дальше — тесты, пакет и проверка решений в Polygon руками. Если правили
@@ -288,7 +288,7 @@ orchestrator problems/my-task polygon push    # создать задачу на
 Общий вид:
 
 ```
-orchestrator [--base-dir DIR] <задача> <init|llm|polygon> [команда] [флаги]
+orchestrator [--base-dir DIR] <задача> <init|llm|local|polygon> [команда] [флаги]
 ```
 
 `<задача>` — путь каталога задачи **вместе с корнем**: `problems/<путь>`
@@ -342,13 +342,18 @@ orchestrator [--base-dir DIR] <задача> <init|llm|polygon> [команда]
 - **Лимит подписки исчерпан** — `llm generate` останавливается на текущем
   шаге; после сброса лимита просто запустите снова.
 
+### `local` — проверки без модели и сети
+
+| Команда | Что делает |
+|---|---|
+| `local check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`), дублей строк и параметров с кавычками/`>` в раскрытом test-script'е (нужна `java`) |
+| `local fix` | Исправить найденное `check`: списки → `itemize`/`enumerate`, кавычки → `<<…>>`; бэкап в `.fix_backup/` |
+
 ### `polygon` — синхронизация с Polygon
 
 | Команда | Что делает | Сеть |
 |---|---|---|
 | `polygon status` | Какие polygon-шаги сделаны / устарели — по локальным файлам | нет |
-| `polygon check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`) дублей строк и параметров с кавычками/`>` в раскрытом test-script'е (нужна `java`) | нет |
-| `polygon fix` | Исправить найденное `check`: списки → `itemize`/`enumerate`, кавычки → `<<…>>`; бэкап в `.fix_backup/` | нет |
 | `polygon push` | Создать задачу (если нет) и загрузить только изменившееся с последней синхронизации; после каждого шага — коммит на Polygon | **да** |
 | `polygon push --step NAME` | Только один шаг (`create_problem`, `upload_statement`, `upload_solutions`, …) | **да** |
 | `polygon push --force` | Загрузить всё, даже если задачу меняли на Polygon (затирает те правки) | **да** |
@@ -432,9 +437,9 @@ Polygon:
   `ORCHESTRATOR_LLM_BACKEND=claude-code` и что `claude` залогинен подпиской
   (`/status`). `ANTHROPIC_API_KEY` в `.env` при этом не мешает — оркестратор
   его не передаёт в `claude`.
-- **`polygon check` пишет, что нет java** — `sudo apt install
+- **`local check` пишет, что нет java** — `sudo apt install
   default-jdk-headless`.
-- **`polygon check` не может скачать jar FreeMarker** — нет доступа к Maven
+- **`local check` не может скачать jar FreeMarker** — нет доступа к Maven
   Central; скачайте jar вручную и укажите `ORCHESTRATOR_FREEMARKER_JAR`
   (см. п. 5 установки).
 - **Всё очень медленно в WSL** — проект лежит в `/mnt/c/...`; перенесите в
