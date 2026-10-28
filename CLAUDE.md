@@ -73,7 +73,7 @@ Python-оркестратор, который берёт структуриро�
 Минимальная страховка вместо судящего контура на этом этапе:
 - **compile-check** после каждого сгенерированного C++-файла
   (валидатор/чекер/генератор/решение) — компилируется или нет, без запуска;
-- **решения на примерах** (`local check`) — запуск валидатора и решений
+- **решения на примерах** (`local run`) — запуск валидатора и решений
   только на примерах условия, с проверкой, что вердикт совместим с именем
   решения;
 - **timeout-обёртка** вокруг любого запуска сгенерированного бинаря
@@ -144,7 +144,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── missing_artifacts.md.j2   # общий блок дозапроса файлов, которых не было в ответе (см. "Конфликты")
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, local check|fix, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, local check|run|fix, polygon push|status|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER / MECHANICAL_STEPS — имена шагов без импорта самих шагов
 │   ├── limits.py                  # формат limits.yaml (актуальные TL/ML задачи): чтение, запись, TL/ML из constraints.yaml
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; файлы authoring/ и перенос в него задач старой раскладки; без тяжёлых импортов
@@ -184,8 +184,8 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
 │   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker, поиск одинаковых строк и параметров с кавычками/`>` (local check, upload_test_script)
 │   │   ├── statement_check.py     # оформление statement/*.tex: Markdown-списки и кавычки не <<…>> (local check) и их исправление (local fix)
-│   │   ├── solutions_check.py     # валидатор и решения на примерах: сборка (C++/Java/Python), запуск с TL из limits.yaml, чекер, допустимые вердикты (local check)
-│   │   ├── std_checkers/          # исходники стандартных чекеров testlib (ncmp, wcmp, …) для solutions_check — копия из репозитория testlib, MIT
+│   │   ├── solutions_run.py       # валидатор и решения на примерах: сборка (C++/Java/Python), запуск с TL из limits.yaml, чекер, допустимые вердикты (local run)
+│   │   ├── std_checkers/          # исходники стандартных чекеров testlib (ncmp, wcmp, …) для solutions_run — копия из репозитория testlib (откуда и как обновить — README.md там же), MIT
 │   │   └── FreemarkerRender.java  # рендер FreeMarker для test_script_check (java без сборки; jar — в ~/.cache/polygon-orchestrator/)
 │   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
 ├── drafts/                       # черновики задач в свободной форме для `init --draft` (плоско, любое расширение); в .gitignore, как problems/
@@ -529,8 +529,11 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   FreeMarker не раскрыл скрипт — только предупреждение
   (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
   докстринге `orchestrator/checks/test_script_check.py`.
-  И прогоняет на примерах (`statement/examples/example_<N>.txt`)
-  валидатор и все решения из `solutions/`: C++ — g++, Java — `javac` (без
+- `orchestrator <задача> local run` — без модели и без сети: прогоняет
+  на примерах (`statement/examples/example_<N>.txt`) валидатор и все
+  решения из `solutions/`. Отдельно от `local check` и не запускается
+  перед push: сборка и запуск всех решений — долго и нужны не всегда.
+  Сборка: C++ — g++, Java — `javac` (без
   него — тот же компилятор из модуля `jdk.compiler` через `java -m`), Python
   — `python3`; TL — из `limits.yaml` (без него — из `constraints.yaml`),
   время — локальное wall-clock; ответ — `output` примера в спеке, без него —
@@ -538,10 +541,13 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   стандартный из `checker.standard`, исходники — в
   `orchestrator/checks/std_checkers/`). Решение с вердиктом X в имени может
   получить на примере OK или X (`tl_ok` — OK или TL), остальное — ошибка
-  (`ALLOWED_VERDICTS`). Интерактивные задачи пока не запускаются.
-  `--only statement|script|solutions` (повторяемый) сужает набор проверок.
-  Это проверка, а не судящий контур: только примеры, без
-  различения MLE. Детали — в докстринге `orchestrator/checks/solutions_check.py`.
+  (`ALLOWED_VERDICTS`); решение не с вердиктом `tl`, работавшее на примере
+  дольше половины TL, — предупреждение. Интерактивные задачи пока не
+  запускаются. Вывод — как у `polygon push`: по ходу заметки и строка на
+  каждое запускаемое решение, в конце группы `expected verdicts`,
+  `unexpected verdicts`, `not run`, `warnings`, `errors`. Это проверка, а
+  не судящий контур: только примеры, без различения MLE. Детали — в
+  докстринге `orchestrator/checks/solutions_run.py`.
 - `orchestrator <задача> local fix` — без модели и без сети:
   исправляет в условии найденное `local check`, что исправляется
   механически, — Markdown-списки в `itemize`/`enumerate` (вложенность —
