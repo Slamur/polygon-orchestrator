@@ -2,20 +2,24 @@
 
 Черновик — текстовый файл в свободной форме (любое расширение), в котором
 автор описывает задачу: сюжет, формат, идеи решения и тестов — сколько
-есть. Черновики лежат плоско в `drafts/` (рядом с `problems/` и
-`examples/`); как и `problems/`, каталог в `.gitignore` — в черновике та
-же суть задачи, что и в спеке (CLAUDE.md, "Конфиденциальность problems/").
+есть. Черновики лежат в `drafts/` (рядом с `problems/` и `examples/`), на
+любой глубине: подкаталоги только группируют черновики
+(`drafts/icpc/my-idea.md`); скрытые файлы и каталоги — не черновики. Как и
+`problems/`, каталог в `.gitignore` — в черновике та же суть задачи, что и
+в спеке (CLAUDE.md, "Конфиденциальность problems/").
 
-`--draft` принимает имя файла целиком (`my-idea.md`) или без расширения
-(`my-idea`); имя без расширения, под которое подходят несколько файлов, —
-ошибка, а не первый попавшийся.
+`--draft` принимает путь файла относительно `drafts/` целиком
+(`icpc/my-idea.md`) или без расширения (`icpc/my-idea`); имя без
+подкаталогов (`my-idea.md`, `my-idea`) ищется и во всех подкаталогах.
+Путь, совпавший с файлом целиком, выбирается сразу; иначе имя, под которое
+подходят несколько файлов, — ошибка, а не первый попавшийся.
 
 Модуль без тяжёлых импортов: им пользуется Tab-дополнение в `cli.py`.
 """
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from orchestrator.problem_paths import DRAFT_STEM
 
@@ -31,16 +35,29 @@ class DraftError(ValueError):
 
 
 def draft_names(drafts_dir: Path) -> list[str]:
-    """Имена файлов черновиков в `drafts_dir` (скрытые, например `.gitkeep`,
-    — не черновики), отсортированы. Нет каталога — пустой список."""
+    """Пути файлов черновиков относительно `drafts_dir` (через `/`, на любой
+    глубине; скрытые файлы и каталоги, например `.gitkeep`, — не черновики),
+    отсортированы. Нет каталога — пустой список."""
     drafts_dir = Path(drafts_dir)
     if not drafts_dir.is_dir():
         return []
-    return sorted(
-        path.name
-        for path in drafts_dir.iterdir()
-        if path.is_file() and not path.name.startswith(".")
-    )
+    names = []
+    for path in drafts_dir.rglob("*"):
+        rel = path.relative_to(drafts_dir)
+        if path.is_file() and not any(part.startswith(".") for part in rel.parts):
+            names.append(rel.as_posix())
+    return sorted(names)
+
+
+def _matches(rel: str, name: str) -> bool:
+    """Подходит ли черновик `rel` (путь из `draft_names`) под `name` из
+    `--draft`: путь с расширением или без, а имя без подкаталогов — и
+    в любом подкаталоге."""
+    path = PurePosixPath(rel)
+    candidates = {rel, path.with_suffix("").as_posix()}
+    if "/" not in name:
+        candidates |= {path.name, path.stem}
+    return name in candidates
 
 
 def find_draft(drafts_dir: Path, name: str) -> Path:
@@ -48,7 +65,8 @@ def find_draft(drafts_dir: Path, name: str) -> Path:
     пустой или не текстовый черновик — тоже `DraftError`."""
     drafts_dir = Path(drafts_dir)
     names = draft_names(drafts_dir)
-    matches = [name] if name in names else [n for n in names if Path(n).stem == name]
+    name = name.replace("\\", "/").strip("/")
+    matches = [name] if name in names else [n for n in names if _matches(n, name)]
     if len(matches) == 1:
         path = drafts_dir / matches[0]
         try:
@@ -61,7 +79,7 @@ def find_draft(drafts_dir: Path, name: str) -> Path:
     if matches:
         raise DraftError(
             f"draft name '{name}' is ambiguous in {drafts_dir}: {', '.join(matches)} — "
-            "pass the file name with its extension"
+            "pass the path in drafts/ with its extension"
         )
     available = ", ".join(names) if names else "none"
     raise DraftError(f"draft '{name}' not found in {drafts_dir} (available: {available})")
