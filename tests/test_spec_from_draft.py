@@ -7,6 +7,7 @@ import pytest
 import yaml
 
 from orchestrator import cli, model_router
+from orchestrator.llm_client import LLMCallError
 from orchestrator.drafts import DraftError, draft_names, find_draft
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import AUTHORING_DIRNAME
@@ -325,6 +326,19 @@ def test_cli_init_draft_writes_spec_and_log(base_dir, fake_model, capsys):
     assert "review the PROPOSED / SUGGESTION marks" in out
     assert (problem_dir / AUTHORING_DIRNAME / "draft.md").exists()
     assert "init --draft my-idea" in (problem_dir / "llm_generation.log").read_text(encoding="utf-8")
+
+
+def test_cli_init_draft_reports_failed_model_call(base_dir, monkeypatch, capsys):
+    def fail(*args, **kwargs):
+        raise LLMCallError("'claude -p' did not finish in 1800s, killed")
+
+    monkeypatch.setattr(model_router, "call_model", fail)
+
+    assert _cli_draft(base_dir) == 1
+
+    out = capsys.readouterr().out
+    assert "the model call failed" in out and "did not finish" in out
+    assert not (base_dir / "problems" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME).exists()
 
 
 def test_cli_init_draft_checks_everything_before_calling_the_model(base_dir, fake_model, capsys):

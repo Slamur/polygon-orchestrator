@@ -18,7 +18,7 @@ from typing import Any
 import anthropic
 from dotenv import load_dotenv
 
-from orchestrator.llm_client import build_system_prompt
+from orchestrator.llm_client import LLMCallError, build_system_prompt
 from orchestrator.model_contracts import (
     RESPONSE_JSON_SCHEMA,
     ModelResponse,
@@ -105,7 +105,10 @@ class AnthropicClient:
                         _MAX_ATTEMPTS,
                         exc,
                     )
-                    raise
+                    raise LLMCallError(
+                        f"AnthropicClient.generate(model_class={model_class!r}): "
+                        f"attempt {attempt}/{_MAX_ATTEMPTS} failed: {exc}"
+                    ) from exc
                 delay = _RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
                 logger.warning(
                     "AnthropicClient.generate(model_class=%r): attempt %d/%d "
@@ -136,7 +139,7 @@ class AnthropicClient:
                 self._env_loaded = True
             api_key = os.environ.get("ANTHROPIC_API_KEY")
             if not api_key:
-                raise RuntimeError(
+                raise LLMCallError(
                     "ANTHROPIC_API_KEY is not set. Copy .env.example to "
                     ".env and put the key there, or export the environment "
                     "variable ANTHROPIC_API_KEY directly."
@@ -191,7 +194,7 @@ def _parse_model_response(
         if block.type == "tool_use" and block.name == _RESPONSE_TOOL_NAME
     ]
     if not tool_use_blocks:
-        raise RuntimeError(
+        raise LLMCallError(
             f"AnthropicClient.generate(model_class={model_class!r}): the model "
             f"response has no tool_use block '{_RESPONSE_TOOL_NAME}' "
             f"(stop_reason={response.stop_reason!r})"

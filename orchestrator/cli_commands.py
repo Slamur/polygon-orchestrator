@@ -17,6 +17,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator
 
+from orchestrator.llm_client import LLMCallError
 from orchestrator.pipeline import (
     OUTCOME_CACHE_HIT,
     OUTCOME_CONFIRMED,
@@ -854,6 +855,9 @@ def _init_from_draft(args: argparse.Namespace, init, draft_path: Path, *, revisi
                 templates_dir=args.templates_dir,
                 examples_dir=args.base_dir / EXAMPLES_DIR,
             )
+        except LLMCallError as exc:
+            logger.error(f"the model call failed: {exc} — spec not touched")
+            return 1
         except Exception:
             _log_traceback_to_file(
                 file_handler, f"unhandled error while writing the spec of '{args.problem_id}'"
