@@ -1,4 +1,4 @@
-"""Polygon-шаг 8 — загрузка FreeMarker test-script'а (результат генеративного
+"""Polygon-шаг — загрузка FreeMarker test-script'а (результат генеративного
 шага `generators_and_script`) в Polygon (`problem.saveScript`,
 `testset=tests`).
 
@@ -30,14 +30,18 @@ FreeMarker не раскрыл скрипт, — только предупреж
 раскрытие может разойтись с Polygon, и загрузку оно не блокирует.
 `ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает проверку совсем.
 
-Сохранив скрипт, Polygon тут же генерирует по нему тесты и отвечает только
-после этого — на большом наборе тестов дольше обычного таймаута клиента.
-Поэтому `problem.saveScript` ждёт ответа `_SAVE_SCRIPT_TIMEOUT_SECONDS`, а
-если не дождался — скрипт перечитывается с Polygon (`problem.script`): тот
-же скрипт, что загружали (после `normalize_script`), — загрузка считается
-прошедшей, и pipeline коммитит её как обычно (иначе в рабочей копии Polygon
-остались бы незакоммиченные правки, и следующий push остановился бы на
-них); другой — `PolygonStepError`.
+Сохранив скрипт, Polygon тут же генерирует по нему тесты, а коммитить
+рабочую копию до конца генерации бессмысленно. Поэтому шаг идёт в push
+последним, `problem.saveScript` ждёт ответа `_SAVE_SCRIPT_TIMEOUT_SECONDS`
+(на большом наборе тестов — дольше обычного таймаута клиента; повторять
+запрос нельзя — генерация начнётся заново), а потом шаг опрашивает
+`problem.tests` с растущей паузой, пока `scriptLine` сгенерированных тестов
+по порядку не совпадут с командами раскрытого скрипта (строка скрипта без
+`> $`), — не дольше `_GENERATION_WAIT_SECONDS`. Не совпали — `PolygonStepError`
+без коммита: загруженный скрипт остаётся в рабочей копии Polygon, и следующий
+push остановится на незакоммиченных правках. Если скрипт локально не раскрыт
+(проверка выключена или недоступна), признак конца генерации — только ответ
+на `problem.saveScript`: дождались — шаг проходит, нет — `PolygonStepError`.
 
 По смыслу шаг идёт после `upload_generators` — скрипт ссылается на
 генераторы по имени, — хотя Polygon при сохранении скрипта этого не
@@ -48,8 +52,10 @@ FreeMarker не раскрыл скрипт, — только предупреж
 
 from __future__ import annotations
 
+import itertools
 import logging
 import os
+import time
 from pathlib import Path
 
 import requests
@@ -88,6 +94,12 @@ _TESTSET = "tests"
 # сгенерировав тесты (см. докстринг модуля).
 _SAVE_SCRIPT_TIMEOUT_SECONDS = 600
 
+# Ожидание конца генерации тестов: опрос `problem.tests` с паузой, растущей
+# вдвое от первой до максимальной, пока не выйдет общий лимит.
+_GENERATION_POLL_FIRST_DELAY_SECONDS = 5
+_GENERATION_POLL_MAX_DELAY_SECONDS = 120
+_GENERATION_WAIT_SECONDS = 1800
+
 # Возможные имена файла скрипта — для `_compute_status`, где спека нет.
 SCRIPT_FILENAMES = ("test_script", "test_script_groups")
 
@@ -112,59 +124,134 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
 
-    _check_script_lines(ctx.problem_id, script_path.name, content)
-    _save_script(ctx.problem_id, polygon_id, content, client)
+    expected = _check_script_lines(ctx.problem_id, script_path.name, content)
+    timed_out = _save_script(ctx.problem_id, polygon_id, content, client)
+    waited = _wait_for_tests(ctx.problem_id, polygon_id, expected, timed_out, client)
     return StepResult(
-        f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}", items
+        f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}{waited}", items
     )
 
 
 def _save_script(
     problem_id: str, polygon_id: int, content: bytes, client: PolygonClient
-) -> None:
-    """`problem.saveScript`; если ответа не дождались — проверка, что скрипт
-    на Polygon всё же сохранён (см. докстринг модуля)."""
-    params = {"problemId": str(polygon_id), "testset": _TESTSET}
+) -> bool:
+    """`problem.saveScript`; `True` — ответа не дождались (тесты, скорее
+    всего, ещё генерируются, см. докстринг модуля)."""
     try:
         client.call(
             "problem.saveScript",
-            {**params, "source": content.decode("utf-8")},
+            {"problemId": str(polygon_id), "testset": _TESTSET, "source": content.decode("utf-8")},
             timeout=_SAVE_SCRIPT_TIMEOUT_SECONDS,
         )
-        return
     except requests.ReadTimeout:
         logger.warning(
-            "'%s': no response to problem.saveScript in %ss (Polygon is probably still "
-            "generating tests) — checking the script saved on Polygon",
+            "'%s': no response to problem.saveScript in %ss — Polygon is probably still "
+            "generating tests",
             problem_id,
             _SAVE_SCRIPT_TIMEOUT_SECONDS,
         )
-    saved = client.call_raw("problem.script", params)
-    if normalize_script(saved) != normalize_script(content):
-        raise PolygonStepError(
-            f"'{problem_id}': no response to problem.saveScript in "
-            f"{_SAVE_SCRIPT_TIMEOUT_SECONDS}s, and the script on Polygon id={polygon_id} "
-            "differs from the uploaded one — check the problem on Polygon"
+        return True
+    return False
+
+
+def _wait_for_tests(
+    problem_id: str,
+    polygon_id: int,
+    expected: list[str] | None,
+    timed_out: bool,
+    client: PolygonClient,
+) -> str:
+    """Ждёт, пока сгенерированные тесты на Polygon не совпадут с раскрытым
+    скриптом (см. докстринг модуля); возвращает приписку к сообщению шага.
+
+    `expected` — `None`, если скрипт локально не раскрыт: ответ на
+    `problem.saveScript` тогда — единственный признак конца генерации, и без
+    него шаг падает, не коммитя недогенерированные тесты.
+    """
+    if expected is None:
+        if timed_out:
+            raise PolygonStepError(
+                f"'{problem_id}': no response to problem.saveScript in "
+                f"{_SAVE_SCRIPT_TIMEOUT_SECONDS}s and the script was not expanded locally, so "
+                "the end of test generation cannot be checked — wait for it on Polygon, commit "
+                "there, then run `polygon pull`"
+            )
+        return ""
+
+    started = time.monotonic()
+    for attempt in itertools.count():
+        generated = _generated_script_lines(polygon_id, client)
+        if generated == expected:
+            break
+        elapsed = time.monotonic() - started
+        if elapsed >= _GENERATION_WAIT_SECONDS:
+            raise PolygonStepError(
+                f"'{problem_id}': tests on Polygon id={polygon_id} still do not match the script "
+                f"after {int(elapsed)}s ({_progress(generated, expected)}) — check test "
+                "generation on Polygon, commit there, then run `polygon pull`"
+            )
+        delay = min(
+            _GENERATION_POLL_FIRST_DELAY_SECONDS * 2**attempt, _GENERATION_POLL_MAX_DELAY_SECONDS
         )
-    logger.info("'%s': the script on Polygon matches the uploaded one", problem_id)
+        logger.info(
+            "'%s': waiting for test generation (%s), next check in %ss",
+            problem_id,
+            _progress(generated, expected),
+            delay,
+        )
+        time.sleep(delay)
+    if not attempt:
+        return ""
+    return f"; waited {int(time.monotonic() - started)}s for test generation"
 
 
-def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> None:
+def _generated_script_lines(polygon_id: int, client: PolygonClient) -> list[str] | None:
+    """`scriptLine` сгенерированных тестов по порядку; `None`, если Polygon не
+    ответил вовремя (занят генерацией)."""
+    try:
+        tests = client.call(
+            "problem.tests",
+            {"problemId": str(polygon_id), "testset": _TESTSET, "noInputs": "true"},
+        )
+    except requests.ReadTimeout:
+        return None
+    return [_normalize_command(t.get("scriptLine", "")) for t in tests if not t.get("manual")]
+
+
+def _progress(generated: list[str] | None, expected: list[str]) -> str:
+    if generated is None:
+        return "Polygon did not respond"
+    matched = sum(1 for g, e in zip(generated, expected) if g == e)
+    return f"{matched}/{len(expected)} tests match the script"
+
+
+def _normalize_command(line: str) -> str:
+    """Команда генератора, как её показывает `scriptLine` теста Polygon: без
+    перенаправления `> $` и с одиночными пробелами."""
+    return " ".join(line.split(">", 1)[0].split())
+
+
+def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> list[str] | None:
     """`PolygonStepError` с отчётом, если в раскрытом скрипте есть одинаковые
-    строки или строки, которые Polygon не примет (см. докстринг модуля)."""
+    строки или строки, которые Polygon не примет (см. докстринг модуля).
+
+    Возвращает команды раскрытого скрипта (`_normalize_command`) — по ним
+    `_wait_for_tests` ждёт конца генерации; `None`, если скрипт не раскрыт.
+    """
     if os.environ.get(SKIP_CHECK_ENV):
-        return
+        return None
     try:
         result = check_script(content.decode("utf-8"), script_name)
     except (ScriptCheckUnavailable, ScriptRenderError) as exc:
         logger.warning(
             "'%s': line check of %s skipped — %s", problem_id, script_name, exc
         )
-        return
+        return None
     if result.failed:
         raise PolygonStepError(
             f"'{problem_id}': {result.report}\n(set {SKIP_CHECK_ENV}=1 to upload anyway)"
         )
+    return [_normalize_command(line.text) for line in result.lines]
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:

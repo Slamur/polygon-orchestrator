@@ -143,6 +143,13 @@ pytest               # unit-тесты; к модели и Polygon не обра
 которые Polygon не примет (кавычки или лишний `>` в параметрах генератора). Для этого
 нужны Java и jar FreeMarker.
 
+По раскрытому скрипту `polygon push` ещё и ждёт, пока Polygon сгенерирует
+тесты: test-script загружается последним шагом, и коммит делается только
+после того, как тесты на Polygon совпали со строками скрипта (до 30 минут).
+Без Java push полагается только на ответ Polygon на сохранение скрипта: не
+дождался его — шаг падает, и закоммитить нужно вручную на Polygon, а потом
+сделать `polygon pull`.
+
 **Java** (JDK 11+; `.java`-файл запускается без сборки, поэтому нужен
 именно JDK, а не только JRE) ставится вместе с системными пакетами из п. 2
 (`default-jdk-headless`). Проверить:
@@ -389,7 +396,7 @@ OK или TL); всё остальное — ошибка. TL — из `limits.y
 | `POLYGON_API_KEY`, `POLYGON_API_SECRET` | ключи Polygon API |
 | `POLYGON_API_BASE_URL` | `https://polygon.codeforces.com/api` |
 | `ORCHESTRATOR_FREEMARKER_JAR` | путь к jar FreeMarker, если нет сети (иначе скачивается сам в `~/.cache/polygon-orchestrator/`) |
-| `ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` | отключить проверку test-script'а перед `push` |
+| `ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` | отключить проверку test-script'а перед `push` (и ожидание генерации тестов по нему) |
 
 ---
 
