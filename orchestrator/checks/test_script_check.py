@@ -452,6 +452,7 @@ class ScriptCheckResult:
     duplicates: list[DuplicateGroup]
     report: str  # пусто, если проблем нет
     invalid: list[InvalidLine] = field(default_factory=list)
+    lines: list[ScriptLine] = field(default_factory=list)  # раскрытый скрипт
 
     @property
     def failed(self) -> bool:
@@ -469,4 +470,4 @@ def check_script(source: str, script_name: str, *, jar: Path | None = None) -> S
         reports.append(format_invalid_lines(invalid, script_name))
     if duplicates:
         reports.append(format_duplicates(duplicates, script_name))
-    return ScriptCheckResult(duplicates, "\n".join(reports), invalid)
+    return ScriptCheckResult(duplicates, "\n".join(reports), invalid, lines)

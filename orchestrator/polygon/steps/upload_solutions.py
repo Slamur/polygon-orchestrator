@@ -1,4 +1,4 @@
-"""Polygon-шаг 9 — загрузка всех файлов из `problems/<problem_id>/solutions/`
+"""Polygon-шаг — загрузка всех файлов из `problems/<problem_id>/solutions/`
 (результат генеративного шага `solutions_draft`) в Polygon
 (`problem.saveSolution`) с тегом вердикта для каждого.
 

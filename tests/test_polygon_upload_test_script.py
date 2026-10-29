@@ -2,9 +2,12 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
+from orchestrator.checks.test_script_check import SKIP_CHECK_ENV, ScriptCheckResult, ScriptLine
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.steps import upload_test_script
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import STEP, STEP_NAME
 from orchestrator.spec import load_spec
@@ -109,8 +112,132 @@ def test_uploads_script_via_save_script(problems_dir, spec):
     client.call.assert_called_once_with(
         "problem.saveScript",
         {"problemId": str(POLYGON_ID), "testset": "tests", "source": SCRIPT},
+        timeout=upload_test_script._SAVE_SCRIPT_TIMEOUT_SECONDS,
     )
     assert "test_script" in message and str(POLYGON_ID) in message
+
+
+class FakeTime:
+    """`time` шага: `sleep` только сдвигает часы и запоминает паузу."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+        self.sleeps: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_time(monkeypatch):
+    fake = FakeTime()
+    monkeypatch.setattr(upload_test_script.time, "monotonic", fake.monotonic)
+    monkeypatch.setattr(upload_test_script.time, "sleep", fake.sleep)
+    return fake
+
+
+@pytest.fixture
+def expanded(monkeypatch):
+    """Скрипт раскрывается локально (`conftest` выключает проверку)."""
+    monkeypatch.delenv(SKIP_CHECK_ENV)
+    lines = [ScriptLine(i, text) for i, text in enumerate(SCRIPT.splitlines(), start=1)]
+    monkeypatch.setattr(
+        upload_test_script, "check_script", lambda *a, **k: ScriptCheckResult([], "", [], lines)
+    )
+
+
+def _tests(*script_lines: str) -> list[dict]:
+    manual = [{"index": 1, "manual": True, "useInStatements": True}]
+    return manual + [
+        {"index": i, "manual": False, "useInStatements": False, "scriptLine": line}
+        for i, line in enumerate(script_lines, start=2)
+    ]
+
+
+GENERATED = _tests("gen_random 1 10", "gen_random 2 100")
+
+
+def _polygon(*tests_responses, save_times_out: bool = False) -> MagicMock:
+    """Клиент: `problem.saveScript` (или его таймаут), затем `problem.tests`
+    отвечает по очереди `tests_responses` (исключение — бросает его)."""
+    responses = iter(tests_responses)
+
+    def call(method, params, **kwargs):
+        if method == "problem.saveScript":
+            if save_times_out:
+                raise requests.ReadTimeout("read timed out")
+            return None
+        assert method == "problem.tests"
+        assert params["noInputs"] == "true"
+        response = next(responses)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    client = MagicMock()
+    client.call.side_effect = call
+    return client
+
+
+def test_generated_tests_are_checked_after_save(problems_dir, spec, expanded, fake_time):
+    _link(problems_dir)
+    _write_script(problems_dir)
+    client = _polygon(GENERATED)
+
+    message = _run(spec, problems_dir, client)
+
+    assert [c.args[0] for c in client.call.call_args_list] == [
+        "problem.saveScript",
+        "problem.tests",
+    ]
+    assert "waited" not in message
+    assert fake_time.sleeps == []
+
+
+def test_waits_with_backoff_until_tests_match_script(problems_dir, spec, expanded, fake_time):
+    _link(problems_dir)
+    _write_script(problems_dir)
+    old = _tests("gen_random 1 5", "gen_random 2 50")
+    client = _polygon(old, requests.ReadTimeout("busy"), GENERATED[:2], GENERATED, save_times_out=True)
+
+    message = _run(spec, problems_dir, client)
+
+    assert fake_time.sleeps == [5, 10, 20]
+    assert "waited 35s for test generation" in message
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_gives_up_when_tests_never_match(problems_dir, spec, expanded, fake_time):
+    _link(problems_dir)
+    _write_script(problems_dir)
+    client = _polygon(*[_tests("gen_random 1 10")] * 100)
+
+    with pytest.raises(PolygonStepError, match=r"1/2 tests match the script"):
+        _run(spec, problems_dir, client)
+
+    assert max(fake_time.sleeps) == upload_test_script._GENERATION_POLL_MAX_DELAY_SECONDS
+    assert sum(fake_time.sleeps) >= upload_test_script._GENERATION_WAIT_SECONDS
+    assert STEP.compute_status(PROBLEM_ID, problems_dir) == ("not run", "")
+
+
+def test_timeout_without_expanded_script_is_an_error(problems_dir, spec):
+    # conftest выключает проверку — скрипт не раскрыт, ждать нечего
+    _link(problems_dir)
+    _write_script(problems_dir)
+    client = _polygon(save_times_out=True)
+
+    with pytest.raises(PolygonStepError, match="cannot be checked"):
+        _run(spec, problems_dir, client)
+
+    assert STEP.compute_status(PROBLEM_ID, problems_dir) == ("not run", "")
+
+
+def test_command_is_compared_without_redirect_and_extra_spaces():
+    assert upload_test_script._normalize_command("gen  -n=1   -k=2 > $") == "gen -n=1 -k=2"
 
 
 def test_status_not_run_before_upload(problems_dir, spec):

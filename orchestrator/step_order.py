@@ -39,6 +39,9 @@ MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints"})
 # основа задачи, и он должен оказаться на Polygon, даже если какой-то из
 # следующих шагов упадёт. `upload_interactor` — после
 # `set_constraints`: тот выставляет флаг интерактивности задачи.
+# `upload_test_script` — последним: сохранив скрипт, Polygon генерирует по
+# нему тесты, и шаг ждёт конца генерации, — остальное к этому времени уже
+# загружено и закоммичено.
 POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
     "upload_attachments",
@@ -49,6 +52,6 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_interactor",
     "upload_statement",
     "upload_generators",
-    "upload_test_script",
     "upload_solutions",
+    "upload_test_script",
 ]

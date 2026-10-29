@@ -8,6 +8,11 @@
 (до `_MAX_REQUEST_INTERVAL_SECONDS`) — чтобы дальше в лимит не упираться.
 Если и после всех повторов 429 — ответ уходит вызывающему как есть
 (`PolygonApiError` с HTTP 429).
+
+Таймаут ответа — `_REQUEST_TIMEOUT_SECONDS`; метод, который Polygon
+выполняет долго (`problem.saveScript` сразу генерирует тесты), передаёт свой
+`timeout` в `call`. Таймаут не повторяется: запрос мог дойти до Polygon, и
+что делать дальше, решает вызывающий.
 """
 
 from __future__ import annotations
@@ -89,7 +94,13 @@ class PolygonClient:
             self._base_url = os.environ.get("POLYGON_API_BASE_URL") or _DEFAULT_BASE_URL
         return self._api_key, self._api_secret, self._base_url
 
-    def call(self, method_name: str, params: dict[str, str | bytes]) -> Any:
+    def call(
+        self,
+        method_name: str,
+        params: dict[str, str | bytes],
+        *,
+        timeout: float = _REQUEST_TIMEOUT_SECONDS,
+    ) -> Any:
         """Вызывает один метод Polygon API, возвращает `result` или бросает `PolygonApiError`.
 
         Содержимое файлов (`file` в `problem.saveFile`/`problem.saveSolution`)
@@ -97,8 +108,9 @@ class PolygonClient:
         или `str` — и входит в подпись (см. `generate_signature`). Запрос
         уходит как multipart/form-data, где каждый параметр — обычное поле
         формы без имени файла: так `bytes` передаются без перекодирования.
+        `timeout` — сколько секунд ждать ответа (см. докстринг модуля).
         """
-        response = self._post(method_name, params)
+        response = self._post(method_name, params, timeout=timeout)
 
         try:
             body = response.json()
@@ -145,11 +157,17 @@ class PolygonClient:
                 )
         return response.content
 
-    def _post(self, method_name: str, params: dict[str, str | bytes]) -> requests.Response:
+    def _post(
+        self,
+        method_name: str,
+        params: dict[str, str | bytes],
+        *,
+        timeout: float = _REQUEST_TIMEOUT_SECONDS,
+    ) -> requests.Response:
         """Отправляет запрос с паузами и повторами на 429 (см. докстринг
         модуля); разбор ответа — у вызывающего."""
         for attempt, retry_delay in enumerate(_RETRY_DELAYS_SECONDS, start=1):
-            response = self._post_once(method_name, params)
+            response = self._post_once(method_name, params, timeout=timeout)
             if response.status_code != _TOO_MANY_REQUESTS:
                 return response
             self._min_interval = min(self._min_interval * 2, _MAX_REQUEST_INTERVAL_SECONDS)
@@ -164,7 +182,7 @@ class PolygonClient:
                 self._min_interval,
             )
             self._sleep(delay)
-        return self._post_once(method_name, params)
+        return self._post_once(method_name, params, timeout=timeout)
 
     def _wait_for_interval(self) -> None:
         if self._last_request_at is not None:
@@ -173,7 +191,9 @@ class PolygonClient:
                 self._sleep(remaining)
         self._last_request_at = self._clock()
 
-    def _post_once(self, method_name: str, params: dict[str, str | bytes]) -> requests.Response:
+    def _post_once(
+        self, method_name: str, params: dict[str, str | bytes], *, timeout: float
+    ) -> requests.Response:
         """Подписывает и отправляет один запрос, выдержав интервал после
         предыдущего. Подпись — заново на каждую попытку: в неё входит `time`."""
         self._wait_for_interval()
@@ -191,7 +211,7 @@ class PolygonClient:
         return requests.post(
             url,
             files={name: (None, value) for name, value in signed_params.items()},
-            timeout=_REQUEST_TIMEOUT_SECONDS,
+            timeout=timeout,
         )
 
 
