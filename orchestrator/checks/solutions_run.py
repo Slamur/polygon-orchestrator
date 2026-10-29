@@ -41,6 +41,22 @@
 потратило меньше половины прошедшего (ждало ответа интерактора, обычно — не
 сбросило вывод), иначе TL; дальше — вердикт интерактора (WA/PE/FAIL), RE
 решения, вердикт чекера.
+
+Input/output for statements примера (`example_<N>.input_for_statement.txt`,
+`example_<N>.output_for_statement.txt` — то, что показывается в условии
+вместо теста, см. `upload_statement`) проверяются тоже, независимо от флага
+verify на Polygon:
+
+- обычная задача: input for statements — валидатором; показанный вывод
+  (output for statements, без него — ответ примера) — чекером против
+  ответа Main correct на показанном вводе (input for statements, без него —
+  ответ примера на input теста);
+- интерактивная задача: диалог проигрывается — интерактор получает тест и
+  реплики решения (output for statements) разом, его ответы решению должны
+  по токенам совпасть с input for statements, сам он — завершиться с OK, а
+  его `tout` — пройти чекер против `tout` Main correct.
+
+Расхождение — ошибка (группа `errors`).
 """
 
 from __future__ import annotations
@@ -52,7 +68,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 
@@ -71,6 +87,7 @@ from orchestrator.problem_paths import (
     find_authoring_file,
     is_removed_mark,
 )
+from orchestrator.steps.statement_draft import dialogue_filenames
 
 VERDICT_OK = "OK"
 VERDICT_WA = "WA"
@@ -124,6 +141,13 @@ class SampleTest:
     name: str
     input: str
     answer: str | None
+    # Input/output for statements (у интерактивной задачи — диалог).
+    statement_input: str | None = None
+    statement_output: str | None = None
+
+    @property
+    def has_statement_io(self) -> bool:
+        return self.statement_input is not None or self.statement_output is not None
 
 
 @dataclass
@@ -254,17 +278,20 @@ def run_solutions(
         return result
 
     include_dirs = [problem_dir, Path(templates_dir)]
+    interactive = _is_interactive(problem_dir, spec)
     with tempfile.TemporaryDirectory(prefix="solutions_run_") as tmp:
         work_dir = Path(tmp)
-        _check_validator(problem_dir, include_dirs, tests, work_dir, result)
+        _check_validator(problem_dir, include_dirs, tests, work_dir, result, interactive=interactive)
 
         sources = _solution_sources(problem_dir)
         if not sources:
             result.note(f"no {SOLUTIONS_DIRNAME}/ files — skipped")
+            if any(t.has_statement_io for t in tests):
+                result.note("input/output for statements are not checked: no solutions")
             return result
 
         interactor = None
-        if _is_interactive(problem_dir, spec):
+        if interactive:
             interactor = _build_interactor(problem_dir, include_dirs, work_dir, result)
             if interactor is None:
                 return result
@@ -298,6 +325,9 @@ def run_solutions(
 
         tests = _fill_answers(
             tests, parsed, program_for, time_limit, work_dir, interactor, result
+        )
+        _check_statement_io(
+            tests, parsed, program_for, checker, time_limit, work_dir, interactor, result
         )
 
         for name, solution in parsed.items():
@@ -358,7 +388,15 @@ def _sample_tests(problem_dir: Path, spec: dict | None) -> list[SampleTest]:
             output = spec_examples[number - 1].get("output")
             if isinstance(output, (str, int, float)) and str(output).strip():
                 answer = str(output)
-        tests.append(SampleTest(path.stem, path.read_text(encoding="utf-8"), answer))
+        statement_io = [
+            (examples_dir / name).read_text(encoding="utf-8")
+            if (examples_dir / name).is_file()
+            else None
+            for name in dialogue_filenames(number)
+        ]
+        tests.append(
+            SampleTest(path.stem, path.read_text(encoding="utf-8"), answer, *statement_io)
+        )
     return tests
 
 
@@ -414,8 +452,19 @@ def _check_validator(
     tests: list[SampleTest],
     work_dir: Path,
     result: SolutionsRunResult,
+    *,
+    interactive: bool = False,
 ) -> None:
+    """Input примеров и, у обычной задачи, их input for statements (у
+    интерактивной это реплики интерактора, а не тест)."""
     path = problem_dir / VALIDATOR_FILENAME
+    inputs = [(test.name, test.input) for test in tests]
+    if not interactive:
+        inputs += [
+            (f"{test.name} input for statements", test.statement_input)
+            for test in tests
+            if test.statement_input is not None
+        ]
     if not path.is_file():
         result.note(f"no {VALIDATOR_FILENAME}: examples are not validated")
         return
@@ -427,14 +476,16 @@ def _check_validator(
         result.errors.append(f"{VALIDATOR_FILENAME}: {exc}")
         return
     rejected = 0
-    for test in tests:
-        run = run_with_timeout(binary, [], _CHECKER_TIMEOUT_SECONDS, test.input)
+    for name, text in inputs:
+        run = run_with_timeout(binary, [], _CHECKER_TIMEOUT_SECONDS, text)
         if run.timed_out or run.exit_code != 0:
             rejected += 1
             reason = "timed out" if run.timed_out else (run.stderr or run.stdout).strip()
-            result.errors.append(f"{VALIDATOR_FILENAME} rejects {test.name}: {reason}")
+            result.errors.append(f"{VALIDATOR_FILENAME} rejects {name}: {reason}")
     if not rejected:
-        result.note(f"{VALIDATOR_FILENAME} accepts all {len(tests)} example(s)")
+        extra = len(inputs) - len(tests)
+        suffix = f" and {extra} input(s) for statements" if extra else ""
+        result.note(f"{VALIDATOR_FILENAME} accepts all {len(tests)} example(s){suffix}")
 
 
 def _build_checker(
@@ -688,7 +739,7 @@ def _fill_answers(
     """Ответы примеров без `output` в спеке — вывод Main correct. У
     интерактивной задачи — всех примеров: `tout` Main correct."""
     if interactor is not None:
-        tests = [SampleTest(t.name, t.input, None) for t in tests]
+        tests = [replace(t, answer=None) for t in tests]
     missing = [t for t in tests if t.answer is None]
     if not missing:
         result.note("expected outputs: from the spec")
@@ -711,7 +762,7 @@ def _fill_answers(
         if test.answer is None:
             execution = _execute(program, test, time_limit, work_dir, interactor)
             if execution.verdict is None:
-                test = SampleTest(test.name, test.input, execution.output)
+                test = replace(test, answer=execution.output)
             else:
                 result.errors.append(
                     f"{test.name}: no expected output — {main_name} got {execution.verdict} on it"
@@ -734,9 +785,17 @@ def _run_test(
         return TestOutcome(test.name, execution.verdict, seconds, execution.comment)
     if test.answer is None:
         return TestOutcome(test.name, VERDICT_OK, seconds, "not judged: no expected output")
+    verdict, comment = _judge(checker, test.input, execution.output, test.answer, work_dir)
+    return TestOutcome(test.name, verdict, seconds, comment)
+
+
+def _judge(
+    checker: _Program, input_text: str, output: str, answer: str, work_dir: Path
+) -> tuple[str, str]:
+    """Вердикт чекера и его комментарий."""
     judge_dir = work_dir / "judge"
     judge_dir.mkdir(exist_ok=True)
-    files = {"input": test.input, "output": execution.output, "answer": test.answer}
+    files = {"input": input_text, "output": output, "answer": answer}
     for name, text in files.items():
         (judge_dir / f"{name}.txt").write_text(text, encoding="utf-8")
     # testlib-чекер: `checker <input> <output> <answer>`, комментарий — в stderr.
@@ -746,7 +805,104 @@ def _run_test(
         _CHECKER_TIMEOUT_SECONDS,
     )
     verdict = {0: VERDICT_OK, 1: VERDICT_WA, 2: VERDICT_PE}.get(judged.exit_code, VERDICT_FAIL)
-    return TestOutcome(test.name, verdict, seconds, judged.stderr.strip())
+    return verdict, judged.stderr.strip()
+
+
+def _check_statement_io(
+    tests: list[SampleTest],
+    parsed: dict,
+    program_for,
+    checker: _Program,
+    time_limit: float,
+    work_dir: Path,
+    interactor: _Program | None,
+    result: SolutionsRunResult,
+) -> None:
+    """Input/output for statements примеров (см. докстринг модуля)."""
+    for test in tests:
+        if not test.has_statement_io:
+            continue
+        label = f"{test.name} input/output for statements"
+        if interactor is not None:
+            error = _check_dialogue(test, interactor, checker, work_dir)
+        else:
+            error = _check_shown_output(
+                test, parsed, program_for, checker, time_limit, work_dir
+            )
+        if error is None:
+            result.note(f"{label}: OK")
+        else:
+            result.errors.append(f"{label}: {error}")
+
+
+def _check_shown_output(
+    test: SampleTest, parsed: dict, program_for, checker: _Program, time_limit: float, work_dir: Path
+) -> str | None:
+    """Обычная задача: показанный в условии вывод — верный ответ на
+    показанный ввод. `None` — да, иначе — что не так."""
+    shown_output = test.statement_output if test.statement_output is not None else test.answer
+    if test.statement_input is None:
+        shown_input, answer = test.input, test.answer
+    else:
+        shown_input = test.statement_input
+        try:
+            main_name = _choose_main(list(parsed.values()))
+        except PolygonStepError:
+            return "not checked — no ok solution to produce the expected output"
+        program = program_for(parsed[main_name].path)
+        if isinstance(program, str):
+            return f"not checked — {main_name} is not built"
+        execution = _execute(
+            program, SampleTest(test.name, shown_input, None), time_limit, work_dir, None
+        )
+        if execution.verdict is not None:
+            return f"{main_name} got {execution.verdict} on the input for statements"
+        answer = execution.output
+    if shown_output is None or answer is None:
+        return "not checked — no expected output of the example"
+    verdict, comment = _judge(checker, shown_input, shown_output, answer, work_dir)
+    if verdict == VERDICT_OK:
+        return None
+    return f"checker says {verdict} on the output shown in the statement: {comment}"
+
+
+def _check_dialogue(
+    test: SampleTest, interactor: _Program, checker: _Program, work_dir: Path
+) -> str | None:
+    """Интерактивная задача: диалог в условии проигрывается с интерактором.
+    `None` — диалог согласован с ним, иначе — что не так."""
+    if test.statement_output is None:
+        return "not checked — no output for statements (what the solution prints) to replay"
+    run_dir = work_dir / "dialogue"
+    run_dir.mkdir(exist_ok=True)
+    input_path = run_dir / "input.txt"
+    input_path.write_text(test.input, encoding="utf-8")
+    tout_path = run_dir / "tout.txt"
+    tout_path.unlink(missing_ok=True)
+    run = run_with_timeout(
+        Path(interactor.command[0]),
+        [*interactor.command[1:], str(input_path), str(tout_path)],
+        _CHECKER_TIMEOUT_SECONDS,
+        test.statement_output,
+    )
+    if run.timed_out:
+        return "the interactor did not finish on the replayed dialogue"
+    if run.exit_code != 0:
+        verdict = {1: VERDICT_WA, 2: VERDICT_PE}.get(run.exit_code, VERDICT_FAIL)
+        return f"the interactor says {verdict} on the replayed dialogue: {run.stderr.strip()}"
+    if test.statement_input is not None and run.stdout.split() != test.statement_input.split():
+        return (
+            "the interactor answers differ from the input for statements:\n"
+            f"interactor: {' '.join(run.stdout.split())}\n"
+            f"statement:  {' '.join(test.statement_input.split())}"
+        )
+    if test.answer is None:
+        return None
+    tout = tout_path.read_text(encoding="utf-8") if tout_path.is_file() else ""
+    verdict, comment = _judge(checker, test.input, tout, test.answer, work_dir)
+    if verdict != VERDICT_OK:
+        return f"checker says {verdict} on the tout of the replayed dialogue: {comment}"
+    return None
 
 
 def _note_suspicious_answers(tests: list[SampleTest], result: SolutionsRunResult) -> None:
