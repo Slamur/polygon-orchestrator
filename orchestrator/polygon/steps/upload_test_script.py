@@ -30,6 +30,15 @@ FreeMarker не раскрыл скрипт, — только предупреж
 раскрытие может разойтись с Polygon, и загрузку оно не блокирует.
 `ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает проверку совсем.
 
+Сохранив скрипт, Polygon тут же генерирует по нему тесты и отвечает только
+после этого — на большом наборе тестов дольше обычного таймаута клиента.
+Поэтому `problem.saveScript` ждёт ответа `_SAVE_SCRIPT_TIMEOUT_SECONDS`, а
+если не дождался — скрипт перечитывается с Polygon (`problem.script`): тот
+же скрипт, что загружали (после `normalize_script`), — загрузка считается
+прошедшей, и pipeline коммитит её как обычно (иначе в рабочей копии Polygon
+остались бы незакоммиченные правки, и следующий push остановился бы на
+них); другой — `PolygonStepError`.
+
 По смыслу шаг идёт после `upload_generators` — скрипт ссылается на
 генераторы по имени, — хотя Polygon при сохранении скрипта этого не
 проверяет.
@@ -42,6 +51,8 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+
+import requests
 
 from orchestrator.checks.test_script_check import (
     SKIP_CHECK_ENV,
@@ -73,6 +84,10 @@ logger = logging.getLogger(__name__)
 
 _TESTSET = "tests"
 
+# Сколько ждать ответа `problem.saveScript`: Polygon отвечает, только
+# сгенерировав тесты (см. докстринг модуля).
+_SAVE_SCRIPT_TIMEOUT_SECONDS = 600
+
 # Возможные имена файла скрипта — для `_compute_status`, где спека нет.
 SCRIPT_FILENAMES = ("test_script", "test_script_groups")
 
@@ -98,17 +113,40 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
         return StepResult(NO_CHANGES_MESSAGE)
 
     _check_script_lines(ctx.problem_id, script_path.name, content)
-    client.call(
-        "problem.saveScript",
-        {
-            "problemId": str(polygon_id),
-            "testset": _TESTSET,
-            "source": content.decode("utf-8"),
-        },
-    )
+    _save_script(ctx.problem_id, polygon_id, content, client)
     return StepResult(
         f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}", items
     )
+
+
+def _save_script(
+    problem_id: str, polygon_id: int, content: bytes, client: PolygonClient
+) -> None:
+    """`problem.saveScript`; если ответа не дождались — проверка, что скрипт
+    на Polygon всё же сохранён (см. докстринг модуля)."""
+    params = {"problemId": str(polygon_id), "testset": _TESTSET}
+    try:
+        client.call(
+            "problem.saveScript",
+            {**params, "source": content.decode("utf-8")},
+            timeout=_SAVE_SCRIPT_TIMEOUT_SECONDS,
+        )
+        return
+    except requests.ReadTimeout:
+        logger.warning(
+            "'%s': no response to problem.saveScript in %ss (Polygon is probably still "
+            "generating tests) — checking the script saved on Polygon",
+            problem_id,
+            _SAVE_SCRIPT_TIMEOUT_SECONDS,
+        )
+    saved = client.call_raw("problem.script", params)
+    if normalize_script(saved) != normalize_script(content):
+        raise PolygonStepError(
+            f"'{problem_id}': no response to problem.saveScript in "
+            f"{_SAVE_SCRIPT_TIMEOUT_SECONDS}s, and the script on Polygon id={polygon_id} "
+            "differs from the uploaded one — check the problem on Polygon"
+        )
+    logger.info("'%s': the script on Polygon matches the uploaded one", problem_id)
 
 
 def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> None:

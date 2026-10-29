@@ -2,9 +2,11 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.steps import upload_test_script
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import STEP, STEP_NAME
 from orchestrator.spec import load_spec
@@ -109,8 +111,39 @@ def test_uploads_script_via_save_script(problems_dir, spec):
     client.call.assert_called_once_with(
         "problem.saveScript",
         {"problemId": str(POLYGON_ID), "testset": "tests", "source": SCRIPT},
+        timeout=upload_test_script._SAVE_SCRIPT_TIMEOUT_SECONDS,
     )
     assert "test_script" in message and str(POLYGON_ID) in message
+
+
+def test_timeout_with_script_saved_on_polygon_counts_as_uploaded(problems_dir, spec):
+    _link(problems_dir)
+    _write_script(problems_dir)
+    client = MagicMock()
+    client.call.side_effect = requests.ReadTimeout("read timed out")
+    # Polygon хранит скрипт без пустых строк — это всё равно тот же скрипт.
+    client.call_raw.return_value = SCRIPT.replace("\n", "\n\n").encode("utf-8")
+
+    message = _run(spec, problems_dir, client)
+
+    client.call_raw.assert_called_once_with(
+        "problem.script", {"problemId": str(POLYGON_ID), "testset": "tests"}
+    )
+    assert "uploaded test script" in message
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_timeout_with_other_script_on_polygon_is_an_error(problems_dir, spec):
+    _link(problems_dir)
+    _write_script(problems_dir)
+    client = MagicMock()
+    client.call.side_effect = requests.ReadTimeout("read timed out")
+    client.call_raw.return_value = b"gen_random 3 > $\n"
+
+    with pytest.raises(PolygonStepError, match="differs from the uploaded one"):
+        _run(spec, problems_dir, client)
+
+    assert STEP.compute_status(PROBLEM_ID, problems_dir) == ("not run", "")
 
 
 def test_status_not_run_before_upload(problems_dir, spec):

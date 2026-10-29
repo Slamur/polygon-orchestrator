@@ -80,6 +80,18 @@ def test_call_uses_base_url_from_env(credentials, monkeypatch):
     assert args == ("https://example.test/api/problem.info",)
 
 
+def test_call_waits_default_timeout_unless_given(credentials, monkeypatch):
+    post = MagicMock(return_value=_response({"status": "OK", "result": None}))
+    monkeypatch.setattr(polygon_client.requests, "post", post)
+    client = PolygonClient()
+
+    client.call("problem.info", {"problemId": "5"})
+    assert post.call_args.kwargs["timeout"] == polygon_client._REQUEST_TIMEOUT_SECONDS
+
+    client.call("problem.saveScript", {"problemId": "5"}, timeout=600)
+    assert post.call_args.kwargs["timeout"] == 600
+
+
 def test_file_content_is_a_signed_param(credentials, monkeypatch):
     # Polygon подписывает `file` наравне с остальными параметрами: контент
     # должен уйти полем формы и войти в apiSig, а не отдельной частью вне подписи.
