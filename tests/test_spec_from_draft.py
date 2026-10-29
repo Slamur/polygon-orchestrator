@@ -335,10 +335,11 @@ def test_cli_init_draft_checks_everything_before_calling_the_model(base_dir, fak
     assert cli.main(["--base-dir", str(base_dir), "problems/my-task", "init", "--draft", "nope"]) == 1
     assert not problem_dir.exists()
 
+    # Спек уже есть: `--ref` — только при создании спека.
     (problem_dir / AUTHORING_DIRNAME).mkdir(parents=True)
     (problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME).write_text("edited", encoding="utf-8")
-    assert _cli_draft(base_dir) == 1
-    assert "already exists" in capsys.readouterr().err
+    assert _cli_draft(base_dir, "--ref", "examples/array/sums") == 1
+    assert "--ref is only for creating a spec" in capsys.readouterr().err
     assert (problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME).read_text(encoding="utf-8") == "edited"
     assert fake.calls == []
 
@@ -350,10 +351,140 @@ def test_spec_from_draft_prompt_renders_for_both_bases(base_dir):
         init = _init(base_dir, reference=reference)
         text = render_user_prompt(
             "spec_from_draft",
-            {"problem_id": "my-task", "draft": "d", "base_spec": init.base_text, "reference": reference},
+            {
+                "problem_id": "my-task",
+                "draft": "d",
+                "base_spec": init.base_text,
+                "reference": reference,
+                "revision": False,
+            },
             prompts_dir=PROMPTS_DIR,
         )
         assert init.base_text.rstrip("\n") in text
+
+
+# --- доработка существующего спека ------------------------------------------
+
+
+@pytest.fixture
+def written_spec(base_dir):
+    """Задача, спек которой уже написан по черновику `drafts/my-idea.md`:
+    спек (с ручной правкой автора) и копия черновика в `authoring/`."""
+    authoring = base_dir / "problems" / "my-task" / AUTHORING_DIRNAME
+    authoring.mkdir(parents=True)
+    (authoring / SPEC_FILENAME).write_text(
+        _valid_spec_text("my-task") + "# author's edit\n", encoding="utf-8"
+    )
+    (authoring / "draft.md").write_text(DRAFT_TEXT, encoding="utf-8")
+    return authoring
+
+
+def test_cli_init_draft_unchanged_draft_does_not_call_the_model(
+    base_dir, written_spec, fake_model, capsys
+):
+    fake = fake_model(ModelResponse(status="confirmed", unchanged=[SPEC_FILENAME]))
+    spec_before = (written_spec / SPEC_FILENAME).read_text(encoding="utf-8")
+
+    assert _cli_draft(base_dir) == 0
+
+    assert "has not changed" in capsys.readouterr().out
+    assert fake.calls == []
+    assert (written_spec / SPEC_FILENAME).read_text(encoding="utf-8") == spec_before
+
+    # `--force` — доработка, даже если черновик не менялся.
+    assert _cli_draft(base_dir, "--force") == 0
+    assert len(fake.calls) == 1
+    assert "needs no changes" in capsys.readouterr().out
+
+
+def test_cli_init_draft_revises_spec_by_changed_draft(base_dir, written_spec, fake_model, capsys):
+    new_draft = DRAFT_TEXT + "Ещё: n до 10^5.\n"
+    (base_dir / "drafts" / "my-idea.md").write_text(new_draft, encoding="utf-8")
+    spec_before = (written_spec / SPEC_FILENAME).read_text(encoding="utf-8")
+    revised = spec_before.replace("problem_id: my-task", "problem_id: anything") + "# new\n"
+    fake = fake_model(
+        ModelResponse(
+            status="proposed",
+            artifacts={SPEC_FILENAME: revised},
+            notes=[{"field": SPEC_FILENAME, "kind": "changed", "explanation": "n bound"}],
+        )
+    )
+
+    assert _cli_draft(base_dir) == 0
+
+    (call,) = fake.calls
+    # Режим доработки: текущий спек целиком и "было → стало" черновика.
+    assert "Режим доработки" in call["user"]
+    assert "# author's edit" in call["user"]
+    assert "Ещё: n до 10^5." in call["user"]
+    assert "Было:" in call["user"] and DRAFT_TEXT.strip() in call["user"]
+    assert "Основа — шаблон спека" not in call["user"]
+
+    problem_dir = base_dir / "problems" / "my-task"
+    spec_text = (written_spec / SPEC_FILENAME).read_text(encoding="utf-8")
+    assert "problem_id: my-task" in spec_text and spec_text.endswith("# new\n")
+    assert (written_spec / "draft.md").read_text(encoding="utf-8") == new_draft
+    (backup,) = (problem_dir / ".llm_backup").iterdir()
+    assert (backup / AUTHORING_DIRNAME / SPEC_FILENAME).read_text(encoding="utf-8") == spec_before
+    assert (backup / AUTHORING_DIRNAME / "draft.md").read_text(encoding="utf-8") == DRAFT_TEXT
+    assert "revised" in capsys.readouterr().out
+    report = (problem_dir / "llm_reports" / "spec_from_draft.md").read_text(encoding="utf-8")
+    assert "## Diffs" in report and "+# new" in report
+
+
+def test_revision_unchanged_spec_updates_draft_copy_only(base_dir, written_spec, fake_model):
+    from orchestrator.spec_from_draft import prepare_spec_revision
+
+    (base_dir / "drafts" / "my-idea.txt").write_text("other\n", encoding="utf-8")
+    (base_dir / "drafts" / "my-idea.md").unlink()
+    spec_before = (written_spec / SPEC_FILENAME).read_text(encoding="utf-8")
+    fake_model(ModelResponse(status="confirmed", unchanged=[SPEC_FILENAME]))
+
+    init, revision = prepare_spec_revision("my-task", problems_dir=base_dir / "problems")
+    assert revision.previous_draft == DRAFT_TEXT
+    result = generate_spec_from_draft(
+        init,
+        base_dir / "drafts" / "my-idea.txt",
+        revision=revision,
+        prompts_dir=PROMPTS_DIR,
+        templates_dir=TEMPLATES_DIR,
+        examples_dir=base_dir / "examples",
+    )
+
+    assert result.unchanged and result.path == written_spec / SPEC_FILENAME
+    assert result.path.read_text(encoding="utf-8") == spec_before
+    # Копия черновика другого расширения заменяет прежнюю, прежняя — в бэкапе.
+    assert not (written_spec / "draft.md").exists()
+    assert (written_spec / "draft.txt").read_text(encoding="utf-8") == "other\n"
+    assert (result.backup_dir / AUTHORING_DIRNAME / "draft.md").is_file()
+    assert not (result.backup_dir / AUTHORING_DIRNAME / SPEC_FILENAME).exists()
+
+
+def test_revision_without_draft_copy_says_changes_are_unknown(
+    base_dir, written_spec, fake_model
+):
+    from orchestrator.spec_from_draft import prepare_spec_revision
+
+    (written_spec / "draft.md").unlink()
+    fake = fake_model(ModelResponse(status="uncertain"))
+
+    init, revision = prepare_spec_revision("my-task", problems_dir=base_dir / "problems")
+    assert revision.previous_draft is None
+    spec_before = init.path.read_text(encoding="utf-8")
+    result = generate_spec_from_draft(
+        init,
+        base_dir / "drafts" / "my-idea.md",
+        revision=revision,
+        prompts_dir=PROMPTS_DIR,
+        templates_dir=TEMPLATES_DIR,
+        examples_dir=base_dir / "examples",
+    )
+
+    assert "Неизвестно: прошлый запуск не сохранил свой вход" in fake.calls[0]["user"]
+    # Модель спека не вернула — ничего не тронуто, черновик не скопирован.
+    assert result.path is None
+    assert init.path.read_text(encoding="utf-8") == spec_before
+    assert not (written_spec / "draft.md").exists()
 
 
 def test_spec_review_marks_finds_mark_comments_only(tmp_path):

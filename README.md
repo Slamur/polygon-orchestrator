@@ -254,7 +254,9 @@ orchestrator problems/my-task init --draft my-task --ref examples/array/prefix-s
 Модель пишет `problems/my-task/authoring/spec.yaml`. Всё, что она дописала
 сама, помечено `# PROPOSED, REVIEW ME: ...` или `# SUGGESTION: ...` —
 **прочитайте спек**, поправьте и удалите пометки. Отчёт — в
-`problems/my-task/llm_reports/spec_from_draft.md`.
+`problems/my-task/llm_reports/spec_from_draft.md`. Поменяли черновик — та же
+команда доработает спек, а не напишет его заново: поправки в спеке
+останутся.
 
 Без `--draft` создаётся пустой спек из шаблона (или копия спека `--ref`),
 который заполняется руками по [docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md).
@@ -316,7 +318,9 @@ orchestrator [--base-dir DIR] <задача> <init|llm|local|polygon> [кома�
 | `init --ref <задача>` | Спек — копия спека другой задачи; она же добавляется в `references` как образец для шагов | нет |
 | `init --draft NAME` | Спек пишет модель по черновику `drafts/NAME` (`NAME` — путь в `drafts/`, с расширением или без; имя без подкаталогов ищется и в них; с `--ref` — на его основе); копия черновика — в `authoring/` | **да** |
 
-Существующий `spec.yaml` не перезаписывается никогда.
+| `init --draft NAME` (спек уже есть) | Модель дорабатывает текущий спек (ручные правки сохраняются) по тому, что изменилось в черновике с его копии в `authoring/`; черновик не менялся — модель не вызывается (`--force` — вызвать всё равно); прежние версии — в `.llm_backup/` | **да** |
+
+Без `--draft` существующий `spec.yaml` не перезаписывается.
 
 ### `llm` — генеративные шаги
 

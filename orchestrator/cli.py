@@ -110,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="create the problem directory with a draft spec.yaml: from "
         "templates/spec_template.yaml, from the spec of another problem (--ref) and/or "
         "written by the model from the author's draft (--draft, calls the model); "
-        "never overwrites an existing spec",
+        "an existing spec is revised by the model only with --draft, when the draft changed",
     )
     init_parser.add_argument(
         "--draft",
@@ -118,8 +118,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="free-form description of the problem in drafts/ (file name with or without "
         "extension): the model writes the spec from it (calls the model), the draft is "
-        "copied into the problem directory",
+        "copied into the problem directory; if the spec exists, the model revises it by "
+        "what changed in the draft since its copy",
     ).completer = _complete_draft_names
+    init_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="with --draft and an existing spec: revise it even if the draft has not changed",
+    )
     init_parser.add_argument(
         "--ref",
         metavar="PROBLEM",
