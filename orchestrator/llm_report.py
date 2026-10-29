@@ -100,6 +100,8 @@ def write_spec_from_draft_report(
     lines += [f"**Draft:** `{draft_path}`", ""]
     if result.path is None:
         lines += ["**No spec written** — see the notes below, fix the draft and run again.", ""]
+    elif result.unchanged:
+        lines += [f"**Spec:** {_link(problem_dir, result.path)} — no changes needed", ""]
     else:
         lines += [
             f"**Spec:** {_link(problem_dir, result.path)} — review the "
@@ -111,6 +113,12 @@ def write_spec_from_draft_report(
         lines += [f"- {error}" for error in result.validation_errors]
         lines.append("")
     lines += _notes_sections(result.notes)
+    before = None if result.path is None else _backup_of(problem_dir, result.backup_dir, result.path)
+    if before is not None:
+        diff = _diff_block(problem_dir, before, result.path, result.path)
+        lines += ["## Diffs", "", *diff] if diff else []
+    if result.backup_dir is not None:
+        lines += [f"Previous versions: `{_relative(problem_dir, result.backup_dir)}/`", ""]
     return _write(report_path(problem_dir, SPEC_FROM_DRAFT_REPORT), lines)
 
 
@@ -190,30 +198,36 @@ def _diffs_section(problem_dir: Path, outcome: Any) -> list[str]:
 
     lines: list[str] = []
     for before, old, new_path in pairs:
-        if not new_path.is_file():
-            continue
-        old_name, new_name = _relative(problem_dir, old), _relative(problem_dir, new_path)
-        diff = list(
-            difflib.unified_diff(
-                before.read_text(encoding="utf-8").splitlines(),
-                new_path.read_text(encoding="utf-8").splitlines(),
-                fromfile=old_name,
-                tofile=new_name,
-                lineterm="",
-            )
-        )
-        if not diff:
-            continue
-        title = new_name if old_name == new_name else f"{old_name} -> {new_name}"
-        lines += [
-            f"<details><summary><code>{title}</code></summary>",
-            "",
-            *_fenced("\n".join(diff), "diff"),
-            "",
-            "</details>",
-            "",
-        ]
+        lines += _diff_block(problem_dir, before, old, new_path)
     return ["## Diffs", "", *lines] if lines else []
+
+
+def _diff_block(problem_dir: Path, before: Path, old: Path, new_path: Path) -> list[str]:
+    """Дифф прежней версии `before` файла `old` против текущего `new_path`
+    — сворачиваемым блоком; пусто, если файла нет или он не изменился."""
+    if not new_path.is_file():
+        return []
+    old_name, new_name = _relative(problem_dir, old), _relative(problem_dir, new_path)
+    diff = list(
+        difflib.unified_diff(
+            before.read_text(encoding="utf-8").splitlines(),
+            new_path.read_text(encoding="utf-8").splitlines(),
+            fromfile=old_name,
+            tofile=new_name,
+            lineterm="",
+        )
+    )
+    if not diff:
+        return []
+    title = new_name if old_name == new_name else f"{old_name} -> {new_name}"
+    return [
+        f"<details><summary><code>{title}</code></summary>",
+        "",
+        *_fenced("\n".join(diff), "diff"),
+        "",
+        "</details>",
+        "",
+    ]
 
 
 def _backup_of(problem_dir: Path, backup_dir: Optional[Path], path: Path) -> Optional[Path]:

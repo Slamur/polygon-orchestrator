@@ -774,11 +774,17 @@ def cmd_init(args: argparse.Namespace) -> int:
     """Создаёт каталог задачи со спеком (см. `spec.prepare_spec_init`): из
     шаблона, копией спека задачи-основы (`--ref`) или — с `--draft` — моделью
     по черновику автора (`orchestrator/spec_from_draft.py`, единственный
-    вариант `init`, который вызывает модель). Polygon не вызывается."""
+    вариант `init`, который вызывает модель). Спек уже есть — с `--draft`
+    модель дорабатывает его по изменившемуся черновику
+    (`spec_from_draft.prepare_spec_revision`). Polygon не вызывается."""
     try:
         draft_path = (
             None if args.draft is None else find_draft(args.base_dir / DRAFTS_DIR, args.draft)
         )
+        if draft_path is not None and spec_path(
+            args.problem_id, problems_dir=args.problems_dir
+        ).exists():
+            return _revise_spec_from_draft(args, draft_path)
         init = prepare_spec_init(
             args.problem_id,
             problems_dir=args.problems_dir,
@@ -790,16 +796,37 @@ def cmd_init(args: argparse.Namespace) -> int:
         return 1
 
     if draft_path is None:
-        spec_path = write_spec(init, init.base_text)
+        created = write_spec(init, init.base_text)
         if init.reference is None:
-            print(f"created {spec_path} — fill it in (format: docs/SPEC_FORMAT.md)")
+            print(f"created {created} — fill it in (format: docs/SPEC_FORMAT.md)")
         else:
-            print(f"created {spec_path} as a copy of the spec of {init.reference} — edit it")
+            print(f"created {created} as a copy of the spec of {init.reference} — edit it")
             _print_spec_validation_errors(
-                spec_validation_errors(spec_path, expected_id=init.problem_id), print
+                spec_validation_errors(created, expected_id=init.problem_id), print
             )
         return 0
     return _init_from_draft(args, init, draft_path)
+
+
+def _revise_spec_from_draft(args: argparse.Namespace, draft_path: Path) -> int:
+    """`init --draft` у задачи со спеком: доработка спека, если черновик
+    изменился с прошлой копии (или `--force`). `--ref` — только при
+    создании: задача-основа уже в референсах спека."""
+    from orchestrator.spec_from_draft import draft_unchanged, prepare_spec_revision
+
+    if args.ref is not None:
+        raise SpecInitError(
+            f"{spec_path(args.problem_id, problems_dir=args.problems_dir)} already exists: "
+            "--ref is only for creating a spec (edit its references instead)"
+        )
+    init, revision = prepare_spec_revision(args.problem_id, problems_dir=args.problems_dir)
+    if not args.force and draft_unchanged(revision, draft_path):
+        print(
+            f"{draft_path} has not changed since {init.path} was written from it — "
+            "spec not touched (--force to revise it anyway)"
+        )
+        return 0
+    return _init_from_draft(args, init, draft_path, revision=revision)
 
 
 def _print_spec_validation_errors(errors: list[str], output) -> None:
@@ -809,8 +836,9 @@ def _print_spec_validation_errors(errors: list[str], output) -> None:
             output(f"  - {error}")
 
 
-def _init_from_draft(args: argparse.Namespace, init, draft_path: Path) -> int:
-    """`init --draft`: спек пишет модель, лог — в `llm_generation.log` задачи."""
+def _init_from_draft(args: argparse.Namespace, init, draft_path: Path, *, revision=None) -> int:
+    """`init --draft`: спек пишет (с `revision` — дорабатывает) модель, лог —
+    в `llm_generation.log` задачи."""
     from orchestrator.spec_from_draft import generate_spec_from_draft
 
     logger = _configure_console_logging()
@@ -821,6 +849,7 @@ def _init_from_draft(args: argparse.Namespace, init, draft_path: Path) -> int:
             result = generate_spec_from_draft(
                 init,
                 draft_path,
+                revision=revision,
                 prompts_dir=args.prompts_dir,
                 templates_dir=args.templates_dir,
                 examples_dir=args.base_dir / EXAMPLES_DIR,
@@ -847,7 +876,14 @@ def _init_from_draft(args: argparse.Namespace, init, draft_path: Path) -> int:
         if result.path is None:
             logger.info("  ! no spec written — see the notes above, fix the draft and run again")
             return 1
-        logger.info(f"created {result.path} — review the PROPOSED / SUGGESTION marks")
+        if revision is None:
+            logger.info(f"created {result.path} — review the PROPOSED / SUGGESTION marks")
+        elif result.unchanged:
+            logger.info(f"{result.path} needs no changes for the new draft — kept as is")
+        else:
+            logger.info(f"revised {result.path} — review the changes and new marks")
         logger.info(f"draft copied to {result.draft_copy}")
+        if result.backup_dir is not None:
+            logger.info(f"previous versions are backed up in {result.backup_dir}")
         _print_spec_validation_errors(result.validation_errors, logger.info)
     return 0
