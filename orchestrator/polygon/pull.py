@@ -158,6 +158,7 @@ from orchestrator.polygon.sync import (
     PULLED_CONSTRAINTS_HEADER,
     SCRIPT_KEY,
     SPEC_KEY,
+    TESTS_PLAN_KEY,
     STATEMENT_NAME_KEY,
     STANDARD_CHECKER_PREFIX,
     VALIDATOR_FILE_KEY,
@@ -751,7 +752,7 @@ class _Puller:
 
     def pull_attachments(self) -> None:
         """Aux-файлы задачи (`is_attachment_name`: спек, `constraints.yaml`,
-        копия черновика), их загружает шаг `upload_attachments`; локально они
+        `tests_plan.yaml`, копия черновика), их загружает шаг `upload_attachments`; локально они
         в `authoring/`, ключ базы — имя на Polygon. Прочие aux-файлы на
         Polygon не трогаются."""
         remote_names = sorted(
@@ -783,6 +784,10 @@ class _Puller:
                 self._missing_on_polygon(
                     _authoring_name(CONSTRAINTS_KEY), "no attachment on Polygon", key=CONSTRAINTS_KEY
                 )
+        if TESTS_PLAN_KEY not in remote_names:
+            self._missing_if_local(
+                _authoring_name(TESTS_PLAN_KEY), "no attachment on Polygon", key=TESTS_PLAN_KEY
+            )
         directory = authoring_dir(self.problem_dir)
         local_drafts = sorted(
             path.name

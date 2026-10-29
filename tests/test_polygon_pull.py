@@ -576,7 +576,12 @@ _CONSTRAINTS_PICK = (
 
 def test_attachments_are_downloaded(problems_dir, polygon):
     polygon.aux_files.update(
-        {"constraints.yaml": _CONSTRAINTS_PICK.encode(), "draft.md": b"idea\n", "other.txt": b"x"}
+        {
+            "constraints.yaml": _CONSTRAINTS_PICK.encode(),
+            "tests_plan.yaml": b"generators: []\n",
+            "draft.md": b"idea\n",
+            "other.txt": b"x",
+        }
     )
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
@@ -585,6 +590,7 @@ def test_attachments_are_downloaded(problems_dir, polygon):
     assert result.ok
     assert (problem_dir / "authoring" / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
     assert (problem_dir / "authoring" / "draft.md").read_text() == "idea\n"
+    assert (problem_dir / "authoring" / "tests_plan.yaml").read_text() == "generators: []\n"
     # Чужие aux-файлы pull не трогает.
     assert not (problem_dir / "other.txt").exists()
     statuses = [(item.name, item.status) for item in result.items]
@@ -638,6 +644,17 @@ def test_constraints_missing_in_attachments_is_left_for_push(problems_dir, polyg
 
     assert _statuses(result)["authoring/constraints.yaml"] == ITEM_LOCAL_ONLY
     assert "constraints.yaml" not in _synced(problems_dir)
+
+
+def test_local_tests_plan_missing_on_polygon(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    assert "authoring/tests_plan.yaml" not in _statuses(result)
+
+    _write(problems_dir / PROBLEM_ID, "authoring/tests_plan.yaml", "generators: []\n")
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["authoring/tests_plan.yaml"] == ITEM_LOCAL_ONLY
+    assert "tests_plan.yaml" not in _synced(problems_dir)
 
 
 def test_local_draft_missing_on_polygon(problems_dir, polygon):

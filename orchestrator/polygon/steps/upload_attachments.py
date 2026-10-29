@@ -9,6 +9,8 @@ Polygon — по имени файла, без каталога:
   задачи переносит `set_constraints` из `limits.yaml`. Файл, который прежние
   версии `polygon pull` собирали из одних TL/ML (`PULLED_CONSTRAINTS_HEADER`),
   — не результат `constraints_pick` и не загружается;
+- `tests_plan.yaml` — план тестов (шаг `tests_plan`, возможно с правками
+  автора), по которому написаны генераторы и test-script;
 - `draft<расширение>` — копия черновика автора, по которому
   `init --draft` написал спек.
 
@@ -41,6 +43,7 @@ from orchestrator.polygon.sync import (
     CONSTRAINTS_KEY,
     PULLED_CONSTRAINTS_HEADER,
     SPEC_KEY,
+    TESTS_PLAN_KEY,
     digest,
     is_draft_name,
 )
@@ -51,7 +54,8 @@ STEP_NAME = "upload_attachments"
 
 def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
     """[(имя, содержимое), ...]: спек, `constraints.yaml` (если он есть и это
-    результат `constraints_pick`), копии черновика по алфавиту. Имя — и имя
+    результат `constraints_pick`), `tests_plan.yaml` (если есть), копии
+    черновика по алфавиту. Имя — и имя
     aux-файла на Polygon, и ключ базы синхронизации. Нет спека —
     `PolygonStepError`."""
     directory = authoring_dir(Path(problems_dir) / problem_id)
@@ -65,6 +69,10 @@ def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, byt
         content = constraints_path.read_bytes()
         if not content.startswith(PULLED_CONSTRAINTS_HEADER.encode("utf-8")):
             attachments.append((CONSTRAINTS_KEY, content))
+
+    tests_plan_path = directory / TESTS_PLAN_KEY
+    if tests_plan_path.is_file():
+        attachments.append((TESTS_PLAN_KEY, tests_plan_path.read_bytes()))
 
     drafts = sorted(
         path
@@ -104,7 +112,7 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     return sync_status(
         problem_id,
         problems_dir,
-        key_prefix=(SPEC_KEY, CONSTRAINTS_KEY, DRAFT_STEM),
+        key_prefix=(SPEC_KEY, CONSTRAINTS_KEY, TESTS_PLAN_KEY, DRAFT_STEM),
         read_items=lambda: _items(read_attachments(problem_id, problems_dir)),
     )
 

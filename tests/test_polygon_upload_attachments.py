@@ -140,6 +140,7 @@ def test_uploads_constraints_and_draft_copies(problems_dir, spec):
     _link(problems_dir)
     spec_content = _write_spec(problems_dir)
     _write(problems_dir, "constraints.yaml", b"limits: {}\n")
+    _write(problems_dir, "tests_plan.yaml", b"generators: []\n")
     _write(problems_dir, "draft.md", b"idea\n")
     _write(problems_dir, "draft", b"idea without extension\n")
     _write(problems_dir, "draft.md.removed", b"old\n")
@@ -152,6 +153,7 @@ def test_uploads_constraints_and_draft_copies(problems_dir, spec):
     assert _uploaded(client) == {
         "spec.yaml": spec_content,
         "constraints.yaml": b"limits: {}\n",
+        "tests_plan.yaml": b"generators: []\n",
         "draft": b"idea without extension\n",
         "draft.md": b"idea\n",
     }
@@ -160,6 +162,7 @@ def test_uploads_constraints_and_draft_copies(problems_dir, spec):
         "draft",
         "draft.md",
         "spec.yaml",
+        "tests_plan.yaml",
     ]
 
 
