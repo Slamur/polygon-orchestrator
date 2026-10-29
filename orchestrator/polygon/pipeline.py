@@ -83,8 +83,8 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_interactor.STEP_NAME: upload_interactor.STEP,
     upload_statement.STEP_NAME: upload_statement.STEP,
     upload_generators.STEP_NAME: upload_generators.STEP,
-    upload_test_script.STEP_NAME: upload_test_script.STEP,
     upload_solutions.STEP_NAME: upload_solutions.STEP,
+    upload_test_script.STEP_NAME: upload_test_script.STEP,
 }
 
 # Статусы PolygonStepOutcome.status:
