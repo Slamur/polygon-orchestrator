@@ -56,9 +56,10 @@ def test_completers_tolerate_missing_directories(tmp_path):
 def test_draft_completer_lists_draft_files(base):
     _touch(base / "drafts" / "my-idea.md")
     _touch(base / "drafts" / ".gitkeep")
+    _touch(base / "drafts" / "icpc" / "other-idea.md")
     args = _parse(base, "problems/x", "init")
 
-    assert cli._complete_draft_names("", args) == ["my-idea.md"]
+    assert cli._complete_draft_names("", args) == ["icpc/other-idea.md", "my-idea.md"]
 
 
 def _complete(line: str) -> list[str]:

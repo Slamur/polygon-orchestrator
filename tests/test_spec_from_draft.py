@@ -103,6 +103,28 @@ def test_find_draft_rejects_ambiguous_missing_and_empty(base_dir):
         find_draft(drafts, "blank")
 
 
+def test_find_draft_in_subdirectories(base_dir):
+    drafts = base_dir / "drafts"
+    (drafts / "icpc").mkdir()
+    (drafts / "icpc" / "other-idea.md").write_text("text", encoding="utf-8")
+    (drafts / "icpc" / "my-idea.md").write_text("text", encoding="utf-8")
+    (drafts / ".hidden").mkdir()
+    (drafts / ".hidden" / "secret.md").write_text("text", encoding="utf-8")
+
+    assert draft_names(drafts) == ["icpc/my-idea.md", "icpc/other-idea.md", "my-idea.md"]
+    assert find_draft(drafts, "icpc/other-idea.md") == drafts / "icpc" / "other-idea.md"
+    assert find_draft(drafts, "icpc/other-idea") == drafts / "icpc" / "other-idea.md"
+    # Имя без подкаталогов ищется и в подкаталогах.
+    assert find_draft(drafts, "other-idea") == drafts / "icpc" / "other-idea.md"
+    # Путь, совпавший целиком, выбирается сразу; иначе — неоднозначность.
+    assert find_draft(drafts, "my-idea.md") == drafts / "my-idea.md"
+    assert find_draft(drafts, "icpc/my-idea") == drafts / "icpc" / "my-idea.md"
+    with pytest.raises(DraftError, match="ambiguous"):
+        find_draft(drafts, "my-idea")
+    with pytest.raises(DraftError, match="not found"):
+        find_draft(drafts, "secret")
+
+
 # --- правка текста спека ----------------------------------------------------
 
 

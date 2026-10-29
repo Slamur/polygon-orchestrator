@@ -68,8 +68,9 @@ def _complete_problem_addresses(
 
 
 def _complete_draft_names(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
-    """Кандидаты Tab-дополнения `init --draft`: имена файлов в `drafts/`
-    (с учётом `--base-dir`), читаются при каждом нажатии Tab."""
+    """Кандидаты Tab-дополнения `init --draft`: пути файлов относительно
+    `drafts/` на любой глубине (с учётом `--base-dir`), читаются при каждом
+    нажатии Tab."""
     base_dir = Path(getattr(parsed_args, "base_dir", None) or ".")
     return draft_names(base_dir / DRAFTS_DIR)
 

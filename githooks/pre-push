@@ -6,8 +6,9 @@
 # orchestrator/problem_paths.py; группирующие каталоги вроде года или раунда не
 # проверяются — иначе короткие имена давали бы ложные срабатывания), — и имя
 # любого каталога в outputs/ (прежнее имя каталога задач, на случай оставшейся
-# локальной копии), и имя (без расширения) любого черновика в drafts/
-# (`init --draft`), кроме черновиков учебных задач из examples/ — они
+# локальной копии), и имя (без расширения) любого черновика в drafts/ на любой
+# глубине (`init --draft`; имена подкаталогов не проверяются — как группирующие
+# каталоги problems/), кроме черновиков учебных задач из examples/ — они
 # публичны. См. "Конфиденциальность problems/" в CLAUDE.md.
 #
 # Подключение (один раз после клонирования): git config core.hooksPath githooks
@@ -53,15 +54,14 @@ if [ -d "$repo_root/examples" ]; then
         -type f \( -name spec.yaml -o -name polygon_state.json \) -print0)
 fi
 
-shopt -s nullglob
-for draft in "$repo_root"/drafts/*; do
-    [ -f "$draft" ] || continue
-    draft_name="$(basename "$draft")"
-    draft_name="${draft_name%.*}"
-    [[ "$example_names" == *" $draft_name "* ]] && continue
-    problem_ids+=("$draft_name")
-done
-shopt -u nullglob
+if [ -d "$repo_root/drafts" ]; then
+    while IFS= read -r -d '' draft; do
+        draft_name="$(basename "$draft")"
+        draft_name="${draft_name%.*}"
+        [[ "$example_names" == *" $draft_name "* ]] && continue
+        problem_ids+=("$draft_name")
+    done < <(find "$repo_root/drafts" -mindepth 1 -name '.*' -prune -o -type f -print0)
+fi
 
 if [ ${#problem_ids[@]} -eq 0 ]; then
     exit 0
