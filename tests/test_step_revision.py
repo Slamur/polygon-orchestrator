@@ -641,14 +641,17 @@ def test_statement_current_artifacts_skip_name_and_example_inputs(tmp_path):
 
 
 def test_statement_current_artifacts_sort_dialogues_numerically(tmp_path):
+    from orchestrator.spec import load_spec
     from orchestrator.steps import statement_draft
+
+    spec = load_spec(FIXTURES_DIR / "interactive-spec.yaml")
 
     examples = tmp_path / "p1" / "statement" / "examples"
     for number in (10, 2, 1):
         for name in statement_draft.dialogue_filenames(number):
             _touch(examples / name)
 
-    current = statement_draft.current_artifacts("p1", _spec(), problems_dir=tmp_path)
+    current = statement_draft.current_artifacts("p1", spec, problems_dir=tmp_path)
 
     assert list(current) == [
         f"examples/{name}"

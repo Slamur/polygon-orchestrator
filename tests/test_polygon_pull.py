@@ -1267,6 +1267,31 @@ def test_pull_interactive_problem(problems_dir, polygon):
     assert {"interactive", "interactor", "interactor.cpp"} <= set(synced)
 
 
+def test_pull_plain_problem_statement_output_and_verify_flag(problems_dir, polygon):
+    polygon.tests[0].update(outputForStatement="42\n", verifyInputOutputForStatements=True)
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    examples_dir = problems_dir / PROBLEM_ID / "statement" / "examples"
+    assert result.ok
+    assert (examples_dir / "example_1.output_for_statement.txt").read_text() == "42\n"
+    # Задано только одно поле — второго файла нет.
+    assert not (examples_dir / "example_1.input_for_statement.txt").exists()
+    assert (examples_dir / "example_1.verify_for_statement.txt").read_text() == "true\n"
+    assert not (examples_dir / "example_2.verify_for_statement.txt").exists()
+    statuses = _statuses(result)
+    assert "statement/examples/example_2.verify_for_statement.txt" not in statuses
+
+    # Флаг выключили на Polygon — локальный файл остаётся и виден как local only.
+    polygon.tests[0]["verifyInputOutputForStatements"] = False
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert (examples_dir / "example_1.verify_for_statement.txt").exists()
+    assert _statuses(result)["statement/examples/example_1.verify_for_statement.txt"] == (
+        ITEM_LOCAL_ONLY
+    )
+
+
 def test_pull_plain_problem_does_not_ask_for_interactor(problems_dir, polygon):
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 

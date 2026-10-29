@@ -70,10 +70,13 @@ Polygon равна записанной в базе (с последней си�
   окружающих пробелов и переводов строк);
 - тесты с флагом "use in statements" (`problem.tests`, testset `tests`) ->
   `statement/examples/example_<K>.txt`, K — порядковый номер такого теста
-  (1-based), а не его индекс на Polygon; диалог примера интерактивной
-  задачи (input/output for statement) -> `example_<K>.input_for_statement.txt`
-  и `example_<K>.output_for_statement.txt` — так же, только если он есть
-  на Polygon или локально;
+  (1-based), а не его индекс на Polygon; input/output for statements
+  (у интерактивной задачи — диалог примера) ->
+  `example_<K>.input_for_statement.txt` и
+  `example_<K>.output_for_statement.txt` — каждый сам по себе, только если
+  поле есть на Polygon или файл локально; флаг "verify input/output for
+  statements" -> `example_<K>.verify_for_statement.txt` (`true`; флага нет
+  — файла нет) так же;
 - aux-файлы (раздел "Attachments", `problem.files` + `problem.viewFile`;
   загружает шаг `upload_attachments`) -> `authoring/spec.yaml`,
   `authoring/constraints.yaml` (результат `constraints_pick` целиком), копия
@@ -139,6 +142,7 @@ from orchestrator.polygon.steps.upload_statement import (
     INTERACTION_PARAM,
     NAME_FILENAME,
     dialogue_filenames,
+    verify_filename,
 )
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES, normalize_script
 from orchestrator.polygon.sync import (
@@ -195,6 +199,8 @@ ITEM_ERROR = "error"
 
 _LANG = "russian"
 _TESTSET = "tests"
+# Содержимое файла флага verify input/output for statements.
+_VERIFY_CONTENT = b"true\n"
 
 # Поле объекта Statement -> файл в `statement/` (обратное к
 # `upload_statement._TEX_PARAM_NAMES`).
@@ -518,12 +524,26 @@ class _Puller:
                     )
                 else:
                     self._missing_if_local(name, f"no {field_name} in Polygon test {test['index']}")
+            verify_name = f"statement/examples/{verify_filename(number)}"
+            if test.get("verifyInputOutputForStatements"):
+                self._sync_file(
+                    verify_name,
+                    lambda: _VERIFY_CONTENT,
+                    detail=f"Polygon test {test['index']}",
+                    # Как `upload_statement._read_examples`: значение — `true`.
+                    normalize=lambda content: content.strip().lower(),
+                )
+            else:
+                self._missing_if_local(
+                    verify_name,
+                    f"verifyInputOutputForStatements is off in Polygon test {test['index']}",
+                )
 
         examples_dir = self.problem_dir / "statement" / "examples"
         pulled = {
             filename
             for n in range(1, len(statement_tests) + 1)
-            for filename in (f"example_{n}.txt", *dialogue_filenames(n))
+            for filename in (f"example_{n}.txt", *dialogue_filenames(n), verify_filename(n))
         }
         local_extra = sorted(
             path.name

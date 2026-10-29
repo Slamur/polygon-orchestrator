@@ -340,13 +340,68 @@ def test_dialogue_change_reuploads_only_that_example(problems_dir, interactive_s
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
 
-def test_half_a_dialogue_is_an_error(problems_dir, interactive_spec):
+def test_removed_statement_output_is_cleared_on_polygon(problems_dir, interactive_spec):
     _link(problems_dir)
     _write_interactive(problems_dir)
+    _run(interactive_spec, problems_dir, MagicMock())
     (_statement_dir(problems_dir) / "examples" / "example_1.output_for_statement.txt").unlink()
+    client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="pair"):
-        _run(interactive_spec, problems_dir, MagicMock())
+    _run(interactive_spec, problems_dir, client, incremental=True)
+
+    [test] = _calls(client, "problem.saveTest")
+    assert test["testInputForStatements"] == "10\n\n<\n"
+    assert test["testOutputForStatements"] == ""
+    synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
+    assert "statement/examples/example_1.output_for_statement.txt" not in synced
+
+    client = MagicMock()
+    assert "no changes" in _run(interactive_spec, problems_dir, client, incremental=True)
+    client.call.assert_not_called()
+
+
+def test_plain_problem_uploads_only_statement_output(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    examples_dir = _statement_dir(problems_dir) / "examples"
+    (examples_dir / "example_1.output_for_statement.txt").write_text("2\n", encoding="utf-8")
+    (examples_dir / "example_1.verify_for_statement.txt").write_text("true\n", encoding="utf-8")
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    [test] = _calls(client, "problem.saveTest")
+    assert test["testOutputForStatements"] == "2\n"
+    assert test["verifyInputOutputForStatements"] == "true"
+    assert "testInputForStatements" not in test
+
+
+def test_verify_flag_removal_sends_false(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    verify = _statement_dir(problems_dir) / "examples" / "example_1.verify_for_statement.txt"
+    verify.write_text("true\n", encoding="utf-8")
+    _run(spec, problems_dir, MagicMock())
+    verify.unlink()
+    client = MagicMock()
+
+    _run(spec, problems_dir, client, incremental=True)
+
+    [test] = _calls(client, "problem.saveTest")
+    assert test["verifyInputOutputForStatements"] == "false"
+
+
+def test_verify_flag_must_be_true(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    verify = _statement_dir(problems_dir) / "examples" / "example_1.verify_for_statement.txt"
+    verify.write_text("no\n", encoding="utf-8")
+
+    with pytest.raises(PolygonStepError, match="must contain 'true'"):
+        _run(spec, problems_dir, MagicMock())
 
 
 def test_plain_problem_sends_no_interaction(problems_dir, spec):
