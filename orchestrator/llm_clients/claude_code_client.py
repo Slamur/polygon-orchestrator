@@ -33,7 +33,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from orchestrator.llm_client import UsageLimitReachedError, build_system_prompt
+from orchestrator.llm_client import LLMCallError, UsageLimitReachedError, build_system_prompt
 from orchestrator.model_contracts import (
     RESPONSE_JSON_SCHEMA,
     ModelResponse,
@@ -60,8 +60,10 @@ _DEFAULT_CLAUDE_CODE_BIN = "claude"
 _API_AUTH_ENV_VARS = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 
 # Жёсткий таймаут на один вызов: сильная модель с высоким effort на большом
-# контексте отвечает минутами, но не часами.
-_TIMEOUT_SECONDS = 30 * 60
+# контексте отвечает минутами, но не часами. Переопределяется в секундах
+# переменной `ORCHESTRATOR_LLM_TIMEOUT`.
+TIMEOUT_ENV = "ORCHESTRATOR_LLM_TIMEOUT"
+_DEFAULT_TIMEOUT_SECONDS = 30 * 60
 
 # Как CLI сообщает об исчерпанном лимите подписки ("Claude AI usage limit
 # reached|<epoch>", "You've hit your limit · resets 5pm" и т.п.) — точный
@@ -126,9 +128,23 @@ def _subprocess_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in _API_AUTH_ENV_VARS}
 
 
+def _timeout_seconds() -> int:
+    raw = os.environ.get(TIMEOUT_ENV)
+    if not raw:
+        return _DEFAULT_TIMEOUT_SECONDS
+    try:
+        seconds = int(raw)
+    except ValueError:
+        seconds = 0
+    if seconds <= 0:
+        raise LLMCallError(f"{TIMEOUT_ENV} must be a positive number of seconds, got {raw!r}")
+    return seconds
+
+
 def _run(
     command: list[str], user_prompt: str, workdir: str, model_class: str
 ) -> subprocess.CompletedProcess[str]:
+    timeout = _timeout_seconds()
     try:
         return subprocess.run(
             command,
@@ -137,17 +153,18 @@ def _run(
             text=True,
             cwd=workdir,
             env=_subprocess_env(),
-            timeout=_TIMEOUT_SECONDS,
+            timeout=timeout,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError(
+        raise LLMCallError(
             f"ClaudeCodeClient: Claude Code CLI '{command[0]}' not found. "
             f"Install it or point {CLAUDE_CODE_BIN_ENV} at the binary."
         ) from exc
     except subprocess.TimeoutExpired as exc:
-        raise RuntimeError(
+        raise LLMCallError(
             f"ClaudeCodeClient.generate(model_class={model_class!r}): "
-            f"'claude -p' did not finish in {_TIMEOUT_SECONDS}s, killed"
+            f"'claude -p' did not finish in {timeout}s, killed (the limit is set "
+            f"in seconds by {TIMEOUT_ENV})"
         ) from exc
 
 
@@ -165,12 +182,12 @@ def _parse_result(
         result = None
     if not isinstance(result, dict):
         if _UNKNOWN_OPTION_RE.search(stderr):
-            raise RuntimeError(
+            raise LLMCallError(
                 f"{where}: the Claude Code CLI rejected an option — it is "
                 f"probably too old, run `claude update` ({stderr})"
             )
         _raise_if_usage_limit(where, stderr)
-        raise RuntimeError(
+        raise LLMCallError(
             f"{where}: 'claude -p' exited with code {completed.returncode} "
             f"without a JSON result (stderr: {stderr or '<empty>'})"
         )
@@ -178,13 +195,13 @@ def _parse_result(
     if result.get("is_error") or completed.returncode != 0:
         message = str(result.get("result") or stderr or "<no message>")
         _raise_if_usage_limit(where, message)
-        raise RuntimeError(
+        raise LLMCallError(
             f"{where}: 'claude -p' failed (subtype={result.get('subtype')!r}, "
             f"exit code {completed.returncode}): {message}"
         )
 
     if not isinstance(result.get("structured_output"), dict):
-        raise RuntimeError(
+        raise LLMCallError(
             f"{where}: the result has no structured_output "
             f"(subtype={result.get('subtype')!r})"
         )

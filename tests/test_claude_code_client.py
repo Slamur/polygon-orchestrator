@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.llm_client import UsageLimitReachedError
+from orchestrator.llm_client import LLMCallError, UsageLimitReachedError
 from orchestrator.llm_clients import claude_code_client
 from orchestrator.llm_clients.claude_code_client import ClaudeCodeClient
 from orchestrator.model_contracts import RESPONSE_JSON_SCHEMA, ModelResponse
@@ -182,7 +182,7 @@ def test_generate_raises_usage_limit_error_from_stderr_without_json(fake_run):
         _generate()
 
 
-def test_generate_raises_runtime_error_on_other_cli_errors(fake_run):
+def test_generate_raises_llm_call_error_on_other_cli_errors(fake_run):
     fake_run(
         stdout=json.dumps(
             {"type": "result", "subtype": "error_during_execution", "is_error": True,
@@ -191,7 +191,7 @@ def test_generate_raises_runtime_error_on_other_cli_errors(fake_run):
         returncode=1,
     )
 
-    with pytest.raises(RuntimeError, match="error_during_execution") as excinfo:
+    with pytest.raises(LLMCallError, match="error_during_execution") as excinfo:
         _generate()
     assert not isinstance(excinfo.value, UsageLimitReachedError)
 
@@ -199,29 +199,48 @@ def test_generate_raises_runtime_error_on_other_cli_errors(fake_run):
 def test_generate_hints_at_update_when_cli_rejects_an_option(fake_run):
     fake_run(stdout="", stderr="error: unknown option '--safe-mode'", returncode=1)
 
-    with pytest.raises(RuntimeError, match="claude update"):
+    with pytest.raises(LLMCallError, match="claude update"):
         _generate()
 
 
 def test_generate_raises_if_structured_output_is_missing(fake_run):
     fake_run(stdout=_success_stdout(payload=None))
 
-    with pytest.raises(RuntimeError, match="structured_output"):
+    with pytest.raises(LLMCallError, match="structured_output"):
         _generate()
 
 
 def test_generate_raises_clear_error_if_cli_is_missing(fake_run):
     fake_run(raises=FileNotFoundError("claude"))
 
-    with pytest.raises(RuntimeError, match="CLAUDE_CODE_BIN"):
+    with pytest.raises(LLMCallError, match="CLAUDE_CODE_BIN"):
         _generate()
 
 
 def test_generate_raises_on_timeout(fake_run):
     fake_run(raises=subprocess.TimeoutExpired(cmd="claude", timeout=1))
 
-    with pytest.raises(RuntimeError, match="did not finish"):
+    with pytest.raises(LLMCallError, match="did not finish in 1800s"):
         _generate()
+
+
+def test_generate_takes_timeout_from_env(fake_run, monkeypatch):
+    monkeypatch.setenv(claude_code_client.TIMEOUT_ENV, "3600")
+    fake = fake_run(stdout=_success_stdout())
+
+    _generate()
+
+    assert fake.calls[0]["timeout"] == 3600
+
+
+@pytest.mark.parametrize("value", ["soon", "0", "-5"])
+def test_generate_rejects_invalid_timeout_in_env(fake_run, monkeypatch, value):
+    monkeypatch.setenv(claude_code_client.TIMEOUT_ENV, value)
+    fake = fake_run()
+
+    with pytest.raises(LLMCallError, match=claude_code_client.TIMEOUT_ENV):
+        _generate()
+    assert fake.calls == []
 
 
 def test_model_classes_match_model_router():

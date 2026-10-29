@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from orchestrator import pipeline
+from orchestrator.llm_client import LLMCallError
 from orchestrator.model_router import ModelResponse
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -153,6 +154,23 @@ def test_uncertain_step_stops_pipeline_before_later_steps(spec_file, tmp_path):
     assert result.outcomes[0].notes == uncertain_response.notes
     # кроме самого спека в каталоге задачи на диск ничего не записано
     assert set(problems_dir.rglob("*")) == {spec_file.parent.parent, spec_file.parent, spec_file}
+
+
+def test_failed_model_call_stops_pipeline_with_step_error(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    with patch(
+        "orchestrator.model_router.call_model",
+        side_effect=LLMCallError("'claude -p' did not finish in 1800s, killed"),
+    ):
+        result = _run(problems_dir)
+
+    assert not result.ok
+    [outcome] = result.outcomes
+    assert outcome.step_name == "statement_draft"
+    assert outcome.status == pipeline.OUTCOME_ERROR
+    assert "did not finish" in outcome.detail
+    assert "nothing written" in outcome.detail
+    assert not (problems_dir / "p1" / "statement").exists()
 
 
 def test_missing_spec_yields_spec_error_without_raising(spec_file, tmp_path):

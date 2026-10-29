@@ -4,6 +4,7 @@ import anthropic
 import httpx2
 import pytest
 
+from orchestrator.llm_client import LLMCallError
 from orchestrator.llm_clients import anthropic_client
 from orchestrator.llm_clients.anthropic_client import AnthropicClient
 from orchestrator.model_contracts import ModelResponse
@@ -252,8 +253,9 @@ def test_generate_gives_up_after_max_attempts(_no_sleep):
     fake_sdk_client.messages.create.side_effect = _status_error(500)
     client = _client_with_fake_sdk(fake_sdk_client)
 
-    with pytest.raises(anthropic.APIStatusError):
+    with pytest.raises(LLMCallError) as excinfo:
         client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+    assert isinstance(excinfo.value.__cause__, anthropic.APIStatusError)
 
     assert fake_sdk_client.messages.create.call_count == anthropic_client._MAX_ATTEMPTS
 
@@ -263,8 +265,9 @@ def test_generate_does_not_retry_on_4xx(_no_sleep):
     fake_sdk_client.messages.create.side_effect = _status_error(400)
     client = _client_with_fake_sdk(fake_sdk_client)
 
-    with pytest.raises(anthropic.APIStatusError):
+    with pytest.raises(LLMCallError) as excinfo:
         client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+    assert isinstance(excinfo.value.__cause__, anthropic.APIStatusError)
 
     fake_sdk_client.messages.create.assert_called_once()
     _no_sleep.assert_not_called()
@@ -275,8 +278,9 @@ def test_generate_does_not_retry_on_rate_limit_429(_no_sleep):
     fake_sdk_client.messages.create.side_effect = _status_error(429)
     client = _client_with_fake_sdk(fake_sdk_client)
 
-    with pytest.raises(anthropic.APIStatusError):
+    with pytest.raises(LLMCallError) as excinfo:
         client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+    assert isinstance(excinfo.value.__cause__, anthropic.APIStatusError)
 
     fake_sdk_client.messages.create.assert_called_once()
 

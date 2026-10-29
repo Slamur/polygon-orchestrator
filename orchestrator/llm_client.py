@@ -20,7 +20,18 @@ from typing import Protocol, runtime_checkable
 from orchestrator.model_contracts import ModelResponse
 
 
-class UsageLimitReachedError(RuntimeError):
+class LLMCallError(RuntimeError):
+    """Вызов модели не дал ответа: таймаут, ошибка CLI или API, ответ без
+    структурированного вывода и т.п.
+
+    Это не ответ модели, который не прошёл проверку (тот сохраняется и
+    применяется `llm apply`), — сохранять нечего, следующий прогон шага
+    вызовет модель заново. Пайплайн превращает его в ошибку шага, а не в
+    traceback.
+    """
+
+
+class UsageLimitReachedError(LLMCallError):
     """Вендор отказал из-за исчерпанного лимита использования (например,
     5-часового или недельного лимита подписки), а не из-за ошибки запроса.
 

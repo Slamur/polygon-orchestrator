@@ -402,6 +402,7 @@ OK или TL); всё остальное — ошибка. TL — из `limits.y
 |---|---|
 | `ORCHESTRATOR_LLM_BACKEND` | `claude-code` (по умолчанию, подписка) или `anthropic-api` |
 | `CLAUDE_CODE_BIN` | путь к `claude`, если он не в `PATH` |
+| `ORCHESTRATOR_LLM_TIMEOUT` | предел одного вызова `claude -p` в секундах (по умолчанию 1800); не уложился — ошибка шага, на диск ничего не пишется |
 | `ANTHROPIC_API_KEY` | только для `anthropic-api` |
 | `POLYGON_API_KEY`, `POLYGON_API_SECRET` | ключи Polygon API |
 | `POLYGON_API_BASE_URL` | `https://polygon.codeforces.com/api` |

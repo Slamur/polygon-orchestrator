@@ -25,6 +25,7 @@ from types import ModuleType
 from typing import Any, Optional
 
 from orchestrator import model_router
+from orchestrator.llm_client import LLMCallError
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.cache import (
     UNCERTAIN_STATUS,
@@ -378,6 +379,19 @@ def _run_step_into(
         )
         result.stopped_uncertain = True
         return False
+    except LLMCallError as exc:
+        # Модель не ответила (таймаут, ошибка CLI/API) — записывать нечего,
+        # следующий прогон вызовет её заново.
+        message = f"the model call failed: {exc} — nothing written"
+        if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
+            message += (
+                "; the earlier model response is saved, "
+                f"'orchestrator {problem_address(problems_dir, problem_id)} "
+                f"llm apply --step {step_name}' applies it without calling the model"
+            )
+        result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, message, ran=True))
+        result.stopped_uncertain = True
+        return False
     except ValueError as exc:
         # Ответ модели не прошёл проверку — в `problems/` ничего не записано.
         # Сам ответ сохранён (`PendingResponse`): после правки причины его
@@ -483,7 +497,8 @@ def run_pipeline(
     Останавливается (не бросая исключение) на первом `StepUncertainError` —
     `result.stopped_uncertain=True`, `result.outcomes` содержит всё, что
     успело отработать. Так же — на ответе модели, не прошедшем проверку
-    (`ValueError` шага; ответ сохранён для `apply_pending`). Ошибка валидации спека (`SpecValidationError`) тоже не
+    (`ValueError` шага; ответ сохранён для `apply_pending`) и на неудачном
+    вызове модели (`LLMCallError`: таймаут, ошибка CLI/API). Ошибка валидации спека (`SpecValidationError`) тоже не
     прокидывается наружу — записывается в `result.spec_error`, и CLI печатает
     её вместо результатов шагов.
     """
