@@ -9,6 +9,7 @@ from orchestrator.steps.base import MissingArtifactsError, StepUncertainError
 from orchestrator.steps.statement_draft import (
     _expected_artifact_names,
     _validate_statement_artifacts,
+    current_artifacts,
     extra_context_documents,
     primary_artifact_path,
     run_step,
@@ -319,6 +320,22 @@ def test_interactive_without_dialogues_is_not_applied(interactive_spec, tmp_path
     assert result.artifact_paths == {}
     assert not (tmp_path / "interactive-spec" / "statement").exists()
     assert "interaction.tex" in result.not_applied_reason
+
+
+def test_statement_io_files_are_not_current_artifacts_of_plain_problem(
+    spec, interactive_spec, tmp_path
+):
+    for problem_id in ("example-problem", "interactive-spec"):
+        examples_dir = tmp_path / problem_id / "statement" / "examples"
+        examples_dir.mkdir(parents=True)
+        for name in ("example_1.output_for_statement.txt", "example_1.verify_for_statement.txt"):
+            (examples_dir / name).write_text("true\n", encoding="utf-8")
+
+    plain = current_artifacts("example-problem", spec, problems_dir=tmp_path)
+    interactive = current_artifacts("interactive-spec", interactive_spec, problems_dir=tmp_path)
+
+    assert not any(name.startswith("examples/") for name in plain)
+    assert set(interactive) == {"examples/example_1.output_for_statement.txt"}
 
 
 def test_plain_problem_prompt_has_no_protocol(spec, tmp_path):

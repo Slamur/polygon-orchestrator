@@ -213,7 +213,7 @@ Python-оркестратор, который берёт структуриро�
         ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
         ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи)
         │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
-        │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ диалог example_<N>.{input,output}_for_statement.txt у интерактивной задачи)
+        │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ example_<N>.{input,output}_for_statement.txt — input/output for statements, каждый сам по себе: у интерактивной задачи — диалог от statement_draft, у обычной — только от автора; example_<N>.verify_for_statement.txt — флаг verify, пишет автор или pull)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
         ├── limits.yaml            # актуальные TL/ML (orchestrator/limits.py): выводит из constraints.yaml шаг limits_from_constraints, когда TL/ML там изменились; push выставляет их на Polygon, pull обновляет с Polygon; можно править руками
         ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
@@ -549,6 +549,11 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   примеров в спеке — реплики диалога, не ответ); решение, не завершившееся
   за TL с запасом и потратившее меньше половины времени на процессоре, —
   IL (ждёт ответа: не сбросило вывод), иначе TL; `il` допускает OK или IL.
+  Input/output for statements примеров проверяются тоже: у обычной задачи
+  input — валидатором, показанный вывод — чекером против ответа Main
+  correct на показанном вводе; у интерактивной диалог проигрывается с
+  интерактором (его ответы — по токенам как input for statements, вердикт
+  OK, `tout` проходит чекер). Расхождение — в `errors`.
   Вывод — как у `polygon push`: по ходу заметки и строка на
   каждое запускаемое решение, в конце группы `expected verdicts`,
   `unexpected verdicts`, `not run`, `warnings`, `errors`. Это проверка, а

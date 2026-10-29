@@ -27,11 +27,18 @@
 
 Интерактивная задача (в спеке есть секция `interactor`): протокол
 взаимодействия `statement/interaction.tex` уходит в `problem.saveStatement`
-параметром `interaction` (без файла — ошибка), а диалог примера
-(`example_<N>.input_for_statement.txt`/`.output_for_statement.txt`, оба или
-ни одного) — в `problem.saveTest` параметрами
-`testInputForStatements`/`testOutputForStatements`: тест примера — вход
-интерактора, а в условии показывается диалог решения с ним.
+параметром `interaction` (без файла — ошибка).
+
+Input/output for statements примера (`example_<N>.input_for_statement.txt`,
+`example_<N>.output_for_statement.txt` — каждый сам по себе, у обычной
+задачи их задаёт автор, у интерактивной это диалог решения с интерактором)
+уходят в `problem.saveTest` параметрами
+`testInputForStatements`/`testOutputForStatements`, флаг
+`example_<N>.verify_for_statement.txt` (файл есть и содержит `true`) —
+`verifyInputOutputForStatements=true`. Файла нет — параметр не
+передаётся (Polygon оставляет поле как есть), но если в базе синхронизации
+поле было, а файл удалили, поле очищается: пустая строка, у флага —
+`false`.
 
 Название задачи берётся из `statement/name.txt`, а не из спека: `title.ru`
 спека — только начальное значение, которым шаг заполняет `name.txt`, если
@@ -45,6 +52,7 @@ pull` (он пишет его в тот же `name.txt`), следующий pus
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
@@ -65,8 +73,13 @@ from orchestrator.polygon.sync import (
     digest,
     example_key,
     statement_file_key,
+    verify_key,
 )
-from orchestrator.steps.statement_draft import INTERACTION_FILE, dialogue_filenames
+from orchestrator.steps.statement_draft import (
+    INTERACTION_FILE,
+    dialogue_filenames,
+    verify_filename,
+)
 
 STEP_NAME = "upload_statement"
 
@@ -88,8 +101,36 @@ NAME_FILENAME = "name.txt"
 INTERACTION_FILENAME = INTERACTION_FILE
 INTERACTION_PARAM = "interaction"
 
-# Пример: (testIndex, input, диалог (input, output for statement) или None).
-Example = tuple[int, bytes, tuple[bytes, bytes] | None]
+_VERIFY_VALUE = b"true"
+
+
+@dataclass(frozen=True)
+class Example:
+    """Пример условия: `testIndex`, input теста и необязательные поля теста
+    для условия — ключ базы синхронизации -> (параметр `problem.saveTest`,
+    значение); есть только у полей, файлы которых есть на диске."""
+
+    index: int
+    input: bytes
+    fields: dict[str, tuple[str, str]]
+
+    def items(self) -> dict[str, str]:
+        return {
+            example_key(self.index): digest(self.input),
+            **{key: digest(value.encode("utf-8")) for key, (_, value) in self.fields.items()},
+        }
+
+
+def _optional_fields(index: int) -> list[tuple[str, str, str, str]]:
+    """Необязательные поля теста примера: (имя файла, ключ базы, параметр
+    `problem.saveTest`, значение при очистке)."""
+    input_name, output_name = dialogue_filenames(index)
+    input_key, output_key = dialogue_keys(index)
+    return [
+        (input_name, input_key, "testInputForStatements", ""),
+        (output_name, output_key, "testOutputForStatements", ""),
+        (verify_filename(index), verify_key(index), "verifyInputOutputForStatements", "false"),
+    ]
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
@@ -111,7 +152,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
     statement_items = {**_tex_items(tex_files), STATEMENT_NAME_KEY: digest(name)}
     example_items = _example_items(examples)
-    uploaded: dict[str, str] = {}
+    uploaded: dict[str, str | None] = {}
     done: list[str] = []
 
     if changed_items(ctx, statement_items):
@@ -130,22 +171,23 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
         uploaded.update(statement_items)
         done.append(f"saved statement (name={name!r})")
 
-    changed_examples = changed_items(ctx, example_items)
+    changed_examples: dict[str, str | None] = dict(changed_items(ctx, example_items))
     sent_examples = 0
-    for test_index, content, dialogue in examples:
-        if not set(_example_keys(test_index, dialogue)) & set(changed_examples):
+    for example in examples:
+        cleared = _cleared_fields(ctx, example)
+        if not (set(example.items()) & set(changed_examples) or cleared):
             continue
         params = {
             "problemId": str(polygon_id),
             "testset": _TESTSET,
-            "testIndex": str(test_index),
-            "testInput": content.decode("utf-8"),
+            "testIndex": str(example.index),
+            "testInput": example.input.decode("utf-8"),
             "testUseInStatements": "true",
         }
-        if dialogue is not None:
-            params["testInputForStatements"] = dialogue[0].decode("utf-8")
-            params["testOutputForStatements"] = dialogue[1].decode("utf-8")
+        params.update(dict(example.fields.values()))
+        params.update(dict(cleared.values()))
         client.call("problem.saveTest", params)
+        changed_examples.update({key: None for key in cleared})
         sent_examples += 1
     if sent_examples:
         uploaded.update(changed_examples)
@@ -193,18 +235,21 @@ def _tex_param(filename: str) -> str:
     return INTERACTION_PARAM if filename == INTERACTION_FILENAME else _TEX_PARAM_NAMES[filename]
 
 
-def _example_keys(index: int, dialogue: tuple[bytes, bytes] | None) -> list[str]:
-    return [example_key(index), *(dialogue_keys(index) if dialogue is not None else ())]
-
-
 def _example_items(examples: list[Example]) -> dict[str, str]:
-    items: dict[str, str] = {}
-    for index, content, dialogue in examples:
-        contents = [content, *(dialogue or ())]
-        items.update(
-            {key: digest(data) for key, data in zip(_example_keys(index, dialogue), contents)}
-        )
-    return items
+    return {key: value for example in examples for key, value in example.items().items()}
+
+
+def _cleared_fields(ctx: StepContext, example: Example) -> dict[str, tuple[str, str]]:
+    """Поля теста примера, которые есть в базе синхронизации, но файла
+    которых больше нет: ключ -> (параметр, значение при очистке). Без базы
+    (`push --force`) неизвестно, что было на Polygon, — не очищается ничего."""
+    if ctx.synced is None:
+        return {}
+    return {
+        key: (param, empty)
+        for _, key, param, empty in _optional_fields(example.index)
+        if key not in example.fields and ctx.synced.get(key) is not None
+    }
 
 
 def _statement_dir(problem_id: str, problems_dir: Path) -> Path:
@@ -226,9 +271,8 @@ def _read_statement_dir(statement_dir: Path, *, interactive: bool = False) -> di
 
 
 def _read_examples(statement_dir: Path) -> list[Example]:
-    """[(testIndex, input, диалог), ...] по возрастанию `testIndex`; диалог
-    — (input, output for statement) интерактивной задачи или `None`, если
-    файлов диалога нет (только один из двух — `PolygonStepError`).
+    """Примеры по возрастанию `testIndex` с полями для условия, файлы которых
+    есть (см. `Example`). Флаг verify не `true` — `PolygonStepError`.
 
     Нумерация `example_<N>.txt` должна быть непрерывной 1..N. Набор файлов
     уже проверяет `statement_draft` перед записью, но этот шаг запускается
@@ -258,15 +302,21 @@ def _read_examples(statement_dir: Path) -> list[Example]:
 
     examples: list[Example] = []
     for index, content in sorted(found.items()):
-        paths = [examples_dir / name for name in dialogue_filenames(index)]
-        present = [path for path in paths if path.exists()]
-        if present and len(present) != len(paths):
-            raise PolygonStepError(
-                f"example {index} in {examples_dir}: dialogue files must come in a pair, "
-                f"found only {present[0].name}"
-            )
-        dialogue = (paths[0].read_bytes(), paths[1].read_bytes()) if present else None
-        examples.append((index, content, dialogue))
+        fields: dict[str, tuple[str, str]] = {}
+        for filename, key, param, _ in _optional_fields(index):
+            path = examples_dir / filename
+            if not path.exists():
+                continue
+            value = path.read_bytes()
+            if key == verify_key(index):
+                if value.strip().lower() != _VERIFY_VALUE:
+                    raise PolygonStepError(
+                        f"{path} must contain 'true' — delete the file to turn "
+                        "verification of input/output for statements off"
+                    )
+                value = _VERIFY_VALUE
+            fields[key] = (param, value.decode("utf-8"))
+        examples.append(Example(index, content, fields))
     return examples
 
 

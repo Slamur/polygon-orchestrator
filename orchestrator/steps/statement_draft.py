@@ -41,7 +41,10 @@ _EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 # отдельный блок условия (Interaction в Polygon), а пример в условии —
 # диалог решения с интерактором, а не вход теста (его читает интерактор):
 # что решение прочитало (`input_for_statement`) и что вывело
-# (`output_for_statement`), см. `upload_statement`.
+# (`output_for_statement`), см. `upload_statement`. У обычной задачи те же
+# файлы — input/output for statements, которые автор задаёт сам (руками или
+# на Polygon, их скачивает `polygon pull`): это не артефакты шага, модель их
+# не видит и не пишет.
 INTERACTION_FILE = "interaction.tex"
 _DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$")
 
@@ -52,6 +55,13 @@ def dialogue_filenames(number: int) -> tuple[str, str]:
         f"example_{number}.input_for_statement.txt",
         f"example_{number}.output_for_statement.txt",
     )
+
+
+def verify_filename(number: int) -> str:
+    """Имя файла флага "verify input/output for statements" `number`-го
+    примера (без `examples/`): файл есть — флаг включён. Пишет автор или
+    `polygon pull`, не модель."""
+    return f"example_{number}.verify_for_statement.txt"
 
 
 def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
@@ -161,15 +171,19 @@ def current_artifacts(
     модель) -> путь — для режима доработки (`base.StepRevision`).
     4 tex-файла, `interaction.tex` и диалоги примеров
     `examples/example_<N>.{input,output}_for_statement.txt` (по возрастанию
-    N). Не артефакты модели: `examples/example_<N>.txt` (их пишет
-    оркестратор из спека, `_example_inputs`) и `name.txt` (его пишут
+    N) — только у интерактивной задачи: у обычной это input/output for
+    statements автора. Не артефакты модели: `examples/example_<N>.txt` (их
+    пишет оркестратор из спека, `_example_inputs`), флаги
+    `example_<N>.verify_for_statement.txt` и `name.txt` (его пишут
     `polygon push`/`pull`)."""
     statement_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR
     candidates = {
         name: statement_dir / name for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
     }
     examples_dir = statement_dir / "examples"
-    examples = examples_dir.glob("example_*.txt") if examples_dir.is_dir() else []
+    examples = (
+        examples_dir.glob("example_*.txt") if spec.interactive and examples_dir.is_dir() else []
+    )
     numbered = sorted(
         (int(match.group(1)), path.name, path)
         for path in examples

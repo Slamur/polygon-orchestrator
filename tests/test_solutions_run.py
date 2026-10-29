@@ -264,6 +264,67 @@ def test_interactive_problem_without_interactor(tmp_path):
     assert any("without interactor.cpp" in error for error in result.errors)
 
 
+def _write_statement_io(problem_dir: Path, number: int, **files: str) -> None:
+    examples_dir = problem_dir / "statement" / "examples"
+    for field, text in files.items():
+        (examples_dir / f"example_{number}.{field}_for_statement.txt").write_text(
+            text, encoding="utf-8"
+        )
+
+
+def _statement_io_errors(result) -> list[str]:
+    return [e for e in result.errors if "input/output for statements" in e]
+
+
+def test_statement_io_of_plain_problem_is_validated_and_checked(tmp_path):
+    problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY})
+    (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
+    # Свой ввод и верный вывод к нему.
+    _write_statement_io(problem_dir, 1, input="5 6\n", output="11\n")
+    # Только вывод — неверный для input теста (10 20).
+    _write_statement_io(problem_dir, 2, output="31\n")
+
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
+
+    assert "validator.cpp accepts all 2 example(s) and 1 input(s) for statements" in result.notes
+    assert "example_1 input/output for statements: OK" in result.notes
+    [error] = _statement_io_errors(result)
+    assert error.startswith("example_2 input/output for statements: checker says WA")
+
+
+def test_statement_input_rejected_by_validator(tmp_path):
+    problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY})
+    (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
+    # Ответ примера (3) к своему вводу не подходит — тоже ошибка.
+    _write_statement_io(problem_dir, 1, input="0 4\n")
+
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
+
+    assert any(e.startswith("validator.cpp rejects example_1 input for statements") for e in result.errors)
+    [error] = _statement_io_errors(result)
+    assert "checker says WA" in error
+
+
+def test_interactive_dialogue_is_replayed(tmp_path):
+    problem_dir = _interactive_problem(tmp_path, {"ok_py_main_draft.py": INTERACTIVE_OK_PY})
+    examples_dir = problem_dir / "statement" / "examples"
+    (examples_dir / "example_2.txt").write_text("7\n", encoding="utf-8")
+    (examples_dir / "example_3.txt").write_text("8\n", encoding="utf-8")
+    _write_statement_io(problem_dir, 1, input="5\n\nok\n", output="\n10\n\n")
+    # Реплики интерактора в условии не те, что он отвечает.
+    _write_statement_io(problem_dir, 2, input="7\n\nyes\n", output="\n14\n\n")
+    # Решение в условии ошибается — интерактор не принимает.
+    _write_statement_io(problem_dir, 3, output="\n8\n")
+
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
+
+    assert "example_1 input/output for statements: OK" in result.notes
+    errors = _statement_io_errors(result)
+    assert len(errors) == 2
+    assert errors[0].startswith("example_2") and "interactor answers differ" in errors[0]
+    assert errors[1].startswith("example_3") and "the interactor says WA" in errors[1]
+
+
 def test_java_class_name():
     assert _java_class_name(OK_JAVA) == "Solution"
     assert _java_class_name("import x;\nclass Main {\n}\n") == "Main"

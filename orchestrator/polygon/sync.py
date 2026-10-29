@@ -105,6 +105,11 @@ def dialogue_keys(number: int) -> tuple[str, str]:
     )
 
 
+def verify_key(number: int) -> str:
+    """Ключ флага "verify input/output for statements" примера."""
+    return f"statement/examples/example_{number}.verify_for_statement.txt"
+
+
 def interactive_digest(interactive: bool) -> str:
     return digest(f"interactive={str(interactive).lower()}")
 
