@@ -27,7 +27,8 @@ Python-оркестратор, который берёт структуриро�
 - выбор ограничений (N/TL/ML, тестовые группы) — **только на основе
   асимптотики, явно данной автором в спеке**, без самостоятельного вывода
   сложности из текста легенды;
-- генераторы (C++/testlib) и FreeMarker test-script;
+- план тестов (какие генераторы и тесты нужны), затем по нему генераторы
+  (C++/testlib) и FreeMarker test-script;
 - опциональные черновики авторских решений (ok/wa/tle) для последующей
   ручной проверки автором;
 - опциональный черновик кастомного чекера (C++/testlib, по паттерну
@@ -52,11 +53,11 @@ Python-оркестратор, который берёт структуриро�
   интерактором (`upload_interactor`, только у интерактивной задачи; флаг
   интерактивности выставляет `set_constraints`),
   загрузка `problems/<путь задачи>/authoring/` — `spec.yaml`,
-  `constraints.yaml` (результат `constraints_pick` целиком) и копии
-  черновика `draft.<расширение>` — как есть в раздел Attachments (по имени
-  файла, без `authoring/`) (aux-файлы, `upload_attachments`) — чтобы
-  `polygon pull` восстанавливал задачу вместе со спеком, ограничениями и
-  черновиком.
+  `constraints.yaml` (результат `constraints_pick` целиком), `tests_plan.yaml`
+  (план тестов) и копии черновика `draft.<расширение>` — как есть в раздел
+  Attachments (по имени файла, без `authoring/`) (aux-файлы,
+  `upload_attachments`) — чтобы `polygon pull` восстанавливал задачу вместе
+  со спеком, ограничениями, планом тестов и черновиком.
   Шаги загружают только то, что изменилось с последней синхронизации с
   Polygon (база — `revision`/`synced` в `polygon_state.json`, см.
   `orchestrator/polygon/sync.py`). После каждого polygon-шага, который
@@ -93,6 +94,7 @@ Python-оркестратор, который берёт структуриро�
 │   │                             # Шаблоны автора — НЕ трогать структуру, использовать как основу для генерации
 │   ├── problem_lib.h             # шаблон: копируется в problems/<путь задачи>/problem_lib.h, если там его нет
 │   ├── constraints_format.yaml   # формат constraints.yaml (результат constraints_pick)
+│   ├── tests_plan_format.yaml    # формат tests_plan.yaml (результат tests_plan)
 │   ├── spec_template.yaml        # черновик спека для `orchestrator <задача> init` (и основа для `init --draft`); шагам не прикладывается
 │   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
 │   ├── testlib.h
@@ -102,8 +104,8 @@ Python-оркестратор, который берёт структуриро�
 │       ├── statement.md          # правила по условию (statement_draft)
 │       ├── limits.md             # правила по TL/ML (constraints_pick)
 │       ├── validator.md          # правила по валидатору (constraints_pick)
-│       ├── tests.md              # правила по тестам, генераторам и test-script (generators_and_script)
-│       ├── freemarker.md         # правила по FreeMarker-скриптам (generators_and_script)
+│       ├── tests.md              # правила по тестам, генераторам и test-script (tests_plan, generators_draft, test_script_draft)
+│       ├── freemarker.md         # правила по FreeMarker-скриптам (test_script_draft)
 │       ├── solutions.md          # правила по решениям (solutions_draft)
 │       ├── checker.md            # правила по чекеру (checker_draft)
 │       ├── interactive.md        # правила интерактивных задач (interactor_draft; statement_draft и solutions_draft — только у интерактивной задачи)
@@ -112,7 +114,8 @@ Python-оркестратор, который берёт структуриро�
 │   └── <вид-входа>/<суть>/       # например array/prefix-sums; раскладка как у problems/<путь задачи>/
 │       ├── authoring/
 │       │   ├── spec.yaml         # спек учебной задачи (problem_id = путь через "--": array--prefix-sums) — пара "спек -> результат"
-│       │   └── constraints.yaml  # ожидаемый результат constraints_pick для spec.yaml
+│       │   ├── constraints.yaml  # ожидаемый результат constraints_pick для spec.yaml
+│       │   └── tests_plan.yaml   # ожидаемый результат tests_plan — его генераторы ровно generators/*.cpp
 │       ├── validator.cpp
 │       ├── checker.cpp
 │       ├── generators/           # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
@@ -125,7 +128,13 @@ Python-оркестратор, который берёт структуриро�
 │   ├── constraints_pick/
 │   │   ├── system.md
 │   │   └── user.md.j2
-│   ├── generators_and_script/
+│   ├── tests_plan/
+│   │   ├── system.md
+│   │   └── user.md.j2
+│   ├── generators_draft/
+│   │   ├── system.md
+│   │   └── user.md.j2
+│   ├── test_script_draft/
 │   │   ├── system.md
 │   │   └── user.md.j2
 │   ├── solutions_draft/
@@ -156,7 +165,9 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── statement_draft.py
 │   │   ├── constraints_pick.py
 │   │   ├── limits_from_constraints.py  # механический шаг (без модели): limits.yaml из TL/ML constraints.yaml
-│   │   ├── generators_and_script.py
+│   │   ├── tests_plan.py              # план тестов authoring/tests_plan.yaml; разбор и проверка плана — общие для трёх шагов тестов
+│   │   ├── generators_draft.py        # генераторы по плану
+│   │   ├── test_script_draft.py       # test-script по плану
 │   │   ├── solutions_draft.py
 │   │   ├── checker_draft.py
 │   │   └── interactor_draft.py
@@ -194,11 +205,14 @@ Python-оркестратор, который берёт структуриро�
         ├── authoring/              # файлы, с которыми работают только модель и автор; на Polygon — в Attachments (upload_attachments / pull), по имени файла
         │   ├── spec.yaml           # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` (из шаблона, по --ref и/или моделью по --draft)
         │   ├── draft.<расширение>  # копия черновика автора, по которому `init --draft` написал спек
-        │   └── constraints.yaml    # результат constraints_pick: выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
+        │   ├── constraints.yaml    # результат constraints_pick: выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
+        │   └── tests_plan.yaml     # результат tests_plan: генераторы и тесты скрипта; вход generators_draft и test_script_draft, можно править руками
         ├── .cache/
         │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
         │   ├── constraints_pick.json
-        │   ├── generators_and_script.json
+        │   ├── tests_plan.json
+        │   ├── generators_draft.json
+        │   ├── test_script_draft.json
         │   ├── solutions_draft.json
         │   ├── checker_draft.json
         │   ├── interactor_draft.json
@@ -266,31 +280,55 @@ Python-оркестратор, который берёт структуриро�
    или руками, переживают `llm generate`. Если `limits.yaml` уже есть, а шаг
    ещё не запускался (файл скачал `polygon pull`), файл принимается как есть;
    `llm generate --step limits_from_constraints --force` выводит его заново.
-3. **`generators_and_script`** — вход: секция `generation` спека +
-   формат ввода из `statement_draft` (`formal_input_sketch`, `indexing`,
-   input примеров — отдельного поля `generation.input_shape` в спеке нет,
-   чтобы не дублировать описание формата входа) +
-   `legend_sketch` + зафиксированные ограничения из шага 2 + (если секция
-   `solutions` в спеке задана) `solutions.known_wrong_approaches` и
-   `solutions.algorithm_hint`. Выход: C++/testlib-
-   генераторы (на основе `generators/*.cpp` из референсов спека) и
-   FreeMarker test-script (`flat`-стиль — по образцу `test_script` из
-   референсов; если образца `test_script_groups` нет, скрипт
-   `test_script_groups` строится на той же структуре с разбивкой тестов по
-   группам и помечается `proposed`). Внутри шаг делает две разные по
-   характеру вещи, и это важно не смешивать: если `generation.generator_ideas`
-   уже описывает нужный генератор — это механическая реализация; для каждого
-   пункта `known_wrong_approaches`, под который в спеке ещё нет готового
-   генератора, шаг обязан сам придумать тест/генератор, целенаправленно
-   проверяющий именно этот сценарий, и вернуть его с `status: proposed` +
-   обоснованием в `notes` (почему этот тест ловит именно такую ошибку) —
-   как и с любым другим предположением модели, это не самостоятельное
-   решение, а предложение для проверки автором. Если ни `generator_ideas`,
-   ни `known_wrong_approaches` не дают зацепок для стресс-тестов — шаг не
-   должен молчать об этом: явно указать в `notes`, что adversarial-случаи
-   не придуманы и нужна ручная проверка. Сверх заказанного автором шаг
-   может предложить свои тесты под вероятные ошибки, которых нет в спеке
-   (по легенде и `algorithm_hint`) — см. "Предложения модели сверх спека".
+3. **Подготовка тестов** — три шага: содержательная часть отдельно от
+   объёмной, чтобы ни один вызов модели не делал и то и другое сразу.
+   - **`tests_plan`** — вход: секция `generation` спека + формат ввода из
+     `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
+     отдельного поля `generation.input_shape` в спеке нет, чтобы не
+     дублировать описание формата входа) + `legend_sketch` + зафиксированные
+     ограничения из шага 2 без TL/ML + (если секция `solutions` в спеке
+     задана) `solutions.known_wrong_approaches` и `solutions.algorithm_hint`.
+     Выход: план тестов `authoring/tests_plan.yaml` по формату
+     `templates/tests_plan_format.yaml` — генераторы (имя, параметры с
+     типами, что читают и печатают, алгоритм) и блоки test-script'а
+     (команды-цепочки генераторов, именованные значения, группа, какие
+     пункты спека блок покрывает — `covers`). План самодостаточен:
+     следующие два шага спека не видят. Оркестратор проверяет его до записи
+     (`parse_tests_plan`: команды вызывают только генераторы плана и только
+     их параметры; не разбирается — конфликт) и сообщает заметками
+     `uncovered` о пунктах `specific_test_ideas`/`known_wrong_approaches`,
+     которые не покрыты ни одним блоком, и о генераторах без тестов. Внутри
+     шаг делает две разные по характеру вещи, и это важно не смешивать:
+     если `generation.generator_ideas` уже описывает нужный генератор — это
+     механическая часть; для каждого пункта `known_wrong_approaches` шаг
+     обязан сам придумать тест (и, если нужно, генератор), целенаправленно
+     проверяющий именно этот сценарий, и пометить его `status: proposed` с
+     обоснованием в `rationale` (почему этот тест ловит именно такую
+     ошибку) — как и с любым другим предположением модели, это не
+     самостоятельное решение, а предложение для проверки автором. Если ни
+     `generator_ideas`, ни `known_wrong_approaches` не дают зацепок для
+     стресс-тестов — шаг не должен молчать об этом: явно указать в `notes`,
+     что adversarial-случаи не придуманы и нужна ручная проверка. Сверх
+     заказанного автором шаг может предложить свои тесты под вероятные
+     ошибки, которых нет в спеке (по легенде и `algorithm_hint`) — см.
+     "Предложения модели сверх спека".
+   - **`generators_draft`** — вход: генераторы плана (каждый — отдельная
+     часть входа: правка одной записи плана — правка одного генератора в
+     режиме доработки, правка тестов плана шаг не трогает) + формат ввода из
+     `statement_draft` + `constraints.yaml` без TL/ML (гарантии входа,
+     которые генератор обязан соблюдать). Выход: `generators/<name>.cpp` на
+     каждый генератор плана (на основе `generators/*.cpp` из референсов
+     спека); недостающие дозапрашиваются, о генераторах вне плана и
+     параметрах `opt<T>(...)`, отличных от плана, — заметки `plan_mismatch`.
+     Если запись плана не реализуется однозначно — `uncertain`: план правит
+     автор.
+   - **`test_script_draft`** — вход: `constants`, `tests` и сигнатуры
+     генераторов плана (без алгоритмов — правка кода генератора скрипт не
+     инвалидирует) + `constraints.yaml` без TL/ML + `generation.script_style`.
+     Выход: FreeMarker test-script (`flat` — `test_script` по образцу из
+     референсов; `groups` — `test_script_groups` по группам из `group`
+     блоков плана, на той же структуре, если образца нет).
+
 4. **`solutions_draft`** — вход: секция `solutions` спека +
    `constraints.intended_complexity` + текст `constraints.yaml` из
    шага 2 без TL/ML (вердикты по времени модель выводит из асимптотики и
@@ -372,10 +410,10 @@ git). `llm generate --fresh` — генерация с нуля, без теку
 переименование в занятое или повторяющееся имя: файл задачи остаётся как
 был, версия модели откладывается в `.llm_conflicts/<шаг>-<время>/` (по
 своему пути в каталоге задачи) с отчётом `CONFLICTS.md` — что и почему не
-применено. Файлы `generators_and_script` и `solutions_draft` независимы
-и применяются по одному (`partial_apply`); `statement_draft`,
-`constraints_pick` (`constraints.yaml` и `validator.cpp` — 1-в-1) и
-`checker_draft` при любом конфликте не применяются целиком — как и ответ,
+применено. Файлы `generators_draft`, `test_script_draft` и
+`solutions_draft` независимы и применяются по одному (`partial_apply`);
+`statement_draft`, `constraints_pick` (`constraints.yaml` и `validator.cpp`
+— 1-в-1), `tests_plan` и `checker_draft` при любом конфликте не применяются целиком — как и ответ,
 не прошедший проверку набора файлов шага (`validate_artifacts`). Шаг с
 конфликтом останавливает пайплайн; пока автор не разберёт конфликты
 (удалит их каталог) и не сделает `llm accept`, `llm generate` модель для
@@ -611,7 +649,7 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   задач с таким именем несколько), сравнивает с ней части задачи, которыми
   пользуется оркестратор (условие и примеры, TL/ML, валидатор,
   нестандартный чекер, генераторы, test-script, решения, спек,
-  `constraints.yaml` и черновик из Attachments), скачивает в
+  `constraints.yaml`, план тестов и черновик из Attachments), скачивает в
   каталог задачи недостающие локально и переписывает базу
   синхронизации по текущей ревизии Polygon. Файлы с временем изменения в
   листинге Polygon (валидатор, чекер, генераторы, решения, `problem_lib.h`,
@@ -625,7 +663,7 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   или базы нет (`differs`) — остаётся локальный, с `--overwrite` — заменяется версией
   с Polygon. Заменённые файлы переносятся в `.pull_backup/`. Файлы, которых
   нет на Polygon, явно перечисляются и никогда не удаляются;
-  файлы из Attachments (спек, `constraints.yaml`, черновик) сверяются
+  файлы из Attachments (спек, `constraints.yaml`, `tests_plan.yaml`, черновик) сверяются
   только со своими версиями в Attachments, а TL/ML задачи — только с
   `limits.yaml` (сверка та же, по значениям TL/ML; `constraints.yaml` они
   не трогают). Отказывается
@@ -673,14 +711,18 @@ status|pull` спек не нужен, а команда на момент до�
   (`statement_draft` → секция `statement_draft`; `constraints_pick` →
   секция `constraints` + формат ввода из `statement_draft`
   (`formal_input_sketch`, `indexing`, input примеров — правка формата входа
-  должна инвалидировать и `validator.cpp`); `generators_and_script` → секция
+  должна инвалидировать и `validator.cpp`); `tests_plan` → секция
   `generation` + тот же формат ввода из `statement_draft` (правка
-  формата входа в условии должна инвалидировать кэш генераторов, даже если
+  формата входа в условии должна инвалидировать план, даже если
   секция `generation` не менялась) + `legend_sketch` +
-  содержимое `problems/<путь задачи>/authoring/constraints.yaml`, полученное на шаге 2, +
+  `problems/<путь задачи>/authoring/constraints.yaml` из шага 2 без TL/ML +
   `solutions.known_wrong_approaches` и `solutions.algorithm_hint` (если
-  секция `solutions` задана — их правка тоже должна инвалидировать кэш
-  этого шага, не только правка `generation`); `solutions_draft` → секция
+  секция `solutions` задана — их правка тоже должна инвалидировать план,
+  не только правка `generation`); `generators_draft` → формат ввода +
+  `constraints.yaml` без TL/ML + каждый генератор `tests_plan.yaml`
+  отдельной частью; `test_script_draft` → `generation.script_style` +
+  `constraints.yaml` без TL/ML + `constants`, `tests` и сигнатуры
+  генераторов плана; `solutions_draft` → секция
   `solutions` + `constraints.intended_complexity` + ввод-вывод из
   `statement_draft` (формат ввода и вывода, `indexing`, примеры с ответами,
   легенда, у интерактивной задачи — протокол) + `constraints.yaml` без TL/ML;
@@ -764,9 +806,10 @@ status|pull` спек не нужен, а команда на момент до�
   `intended_complexity`, — с замечанием, не пересмотреть ли ограничения;
   заметно более простое) и вероятные ошибки участников, которых нет в
   `known_wrong_approaches`, — отдельными файлами;
-- `generators_and_script` — тесты под ошибки и граничные случаи, не
-  покрытые заказанными автором, — отдельными генераторами и отдельным
-  блоком скрипта;
+- `tests_plan` — тесты под ошибки и граничные случаи, не покрытые
+  заказанными автором, — отдельными генераторами и блоками плана со
+  `status: suggestion` (`generators_draft` и `test_script_draft` переносят
+  их в код с комментарием `SUGGESTION: ...`, своего не добавляют);
 - `constraints_pick` — только заметками, не меняя `constraints.yaml`:
   нестыковки `complexity_reasoning`, лимиты, при которых медленное решение
   проходит, полезные группы.
@@ -795,7 +838,9 @@ status|pull` спек не нужен, а команда на момент до�
 | `solutions_draft`           | высокая     | сильная модель             |
 | `checker_draft`              | высокая (при неполном `custom_comparison_notes`) | средняя модель |
 | `statement_draft` (LaTeX)   | средняя     | средняя модель              |
-| `generators_and_script`     | средняя     | средняя модель             |
+| `tests_plan`                | средняя — дизайн adversarial-тестов | средняя модель, high effort |
+| `generators_draft`          | низкая — реализация плана | средняя модель, medium effort |
+| `test_script_draft`         | низкая — реализация плана | средняя модель, medium effort |
 | `interactor_draft`          | высокая — протокол целиком, ошибка ломает все тесты | сильная модель |
 | `spec_from_draft` (`init --draft`) | высокая — спек вход всех шагов | сильная модель |
 
@@ -809,18 +854,18 @@ read_and_check) — но ошибка здесь дороже, чем в сре�
 (что само по себе не страшно — так и задумано), можно поднять шаг до сильной
 модели, как `constraints_pick`/`solutions_draft`.
 
-`generators_and_script` изначально был помечен как чисто механический —
-это оказалось неточно. Реализация генератора по уже готовой идее (из
-`generation.generator_ideas`) действительно механическая, но
-**придумывание** хитрых/adversarial тестов — самостоятельное рассуждение
-о том, как сломать конкретный неверный алгоритм, — не менее содержательная
-задача, чем `constraints_pick`. Явный источник для такого рассуждения —
-`solutions.known_wrong_approaches` (см. "Роль каждого генеративного шага",
-п.3, обновлено). Поэтому шаг поднят до "средняя модель": реализация
-шаблонного генератора не требует Opus-уровня, но для содержательного
-дизайна стресс-тестов быстрой модели может не хватать — если на практике
-качество предложенных тестов будет слабым, следующий шаг эскалации — до
-сильной модели, как у `constraints_pick`/`solutions_draft`.
+Подготовка тестов изначально была одним шагом (`generators_and_script`),
+помеченным как чисто механический, — это оказалось неточно дважды.
+Реализация генератора по уже готовой идее (из `generation.generator_ideas`)
+действительно механическая, но **придумывание** хитрых/adversarial тестов —
+самостоятельное рассуждение о том, как сломать конкретный неверный алгоритм,
+— не менее содержательная задача, чем `constraints_pick`; и одним вызовом
+с высоким effort и десятками файлов в ответе шаг не укладывался в таймаут
+вызова. Поэтому рассуждение вынесено в `tests_plan` (средняя модель, high
+effort, небольшой ответ), а код — в `generators_draft`/`test_script_draft`
+(средняя модель, medium effort). Если качество предложенных тестов будет
+слабым, следующий шаг эскалации — `tests_plan` до сильной модели, как у
+`constraints_pick`/`solutions_draft`.
 
 Классы моделей ("strong-model"/"medium-model"/"fast-model") и `effort` на
 шаг живут в `orchestrator/model_router.py` — этот модуль вендоронезависим,
@@ -861,7 +906,8 @@ CLI, расход из лимитов подписки, а не с API-бала�
 - `templates/` — общее для всех задач и прикладывается к шагам
   всегда (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`); там же
   `constraints_format.yaml` — формат результата `constraints_pick`, который
-  читают следующие шаги и `polygon push`. `examples/` — учебные
+  читают следующие шаги и `polygon push`, и `tests_plan_format.yaml` —
+  формат плана тестов. `examples/` — учебные
   задачи, по каталогу `<вид входных данных>/<суть задачи>` на каждую
   (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
   спек `authoring/spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
@@ -869,8 +915,10 @@ CLI, расход из лимитов подписки, а не с API-бала�
   `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `llm_reports/`, `*.removed` — в `.gitignore`;
   `limits.yaml` коммитится — актуальные TL/ML задачи, после подгонки на
   Polygon они расходятся с `constraints.yaml`, и это нормально; ожидаемый по нему
-  результат `constraints_pick` — `authoring/constraints.yaml` рядом; при правке
-  образцов держать оба согласованными с ними и с `constraints_format.yaml`
+  результат `constraints_pick` — `authoring/constraints.yaml` рядом, `tests_plan`
+  — `authoring/tests_plan.yaml` (его генераторы — ровно `generators/*.cpp` с
+  теми же параметрами, и он покрывает все пункты спека); при правке
+  образцов держать их согласованными с ними и с `constraints_format.yaml`
   — это проверяет `tests/test_example_templates.py`, там же compile-check
   всех `.cpp` образцов).
 - `templates/solutions/<verdict>_<description>.<language>` — скелеты

@@ -11,9 +11,10 @@ CLI (`cli.py`) строит парсер (`choices` у `--step`) при кажд
 from __future__ import annotations
 
 # Порядок шагов фиксирован (CLAUDE.md, "Роль каждого генеративного шага"):
-# каждый следующий шаг может зависеть от артефактов предыдущих. `checker_draft`
-# ни от чего не зависит (в отличие от соседей по порядку), но держится рядом
-# с `generators_and_script` — логически это тоже часть тестовой инфраструктуры
+# каждый следующий шаг может зависеть от артефактов предыдущих. `tests_plan`,
+# `generators_draft` и `test_script_draft` — подготовка тестов: план, затем
+# код по нему. `checker_draft` ни от чего не зависит (в отличие от соседей по
+# порядку), но держится рядом с ними — логически это тоже часть тестовой инфраструктуры
 # задачи, а не решений (CLAUDE.md, пункт 5). `interactor_draft` — туда же и по
 # той же причине (CLAUDE.md, пункт 6). `limits_from_constraints` — сразу
 # после `constraints_pick`, из TL/ML которого выводит `limits.yaml`.
@@ -21,7 +22,9 @@ STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
     "limits_from_constraints",
-    "generators_and_script",
+    "tests_plan",
+    "generators_draft",
+    "test_script_draft",
     "checker_draft",
     "interactor_draft",
     "solutions_draft",

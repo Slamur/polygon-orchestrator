@@ -1,0 +1,168 @@
+problem_id: interactive--guess-number
+
+# Тест читает интерактор: N в первой строке, загаданное X во второй.
+generators:
+  - name: gen_fixed
+    status: confirmed
+    params:
+      - name: n
+        type: int
+        description: верхняя граница диапазона, 1 <= n <= 1000
+      - name: x
+        type: int
+        description: загаданное число, 1 <= x <= n
+    input: null
+    output: весь тест — N и X
+    algorithm: |
+      Печатает n и x как есть. Падает, если n вне [1, 1000] или x вне [1, n].
+
+  - name: gen_pow2_delta
+    status: confirmed
+    params:
+      - name: p
+        type: int
+        description: показатель степени двойки
+      - name: delta
+        type: int
+        description: сдвиг N от 2^p, из {-1, 0, 1}
+      - name: x
+        type: int
+        description: загаданное число, 1 <= x <= N
+    input: null
+    output: весь тест — N и X
+    algorithm: |
+      N = 2^p + delta (в 64-битном типе). Падает, если delta вне {-1, 0, 1},
+      N вне [1, 1000] или x вне [1, N].
+
+  - name: gen_rand
+    status: confirmed
+    params:
+      - name: minN
+        type: int
+        description: наименьшее N
+      - name: maxN
+        type: int
+        description: наибольшее N
+    input: null
+    output: весь тест — N и X
+    algorithm: |
+      N — случайное из [minN, maxN], X — случайное из [1, N]. Падает, если не
+      1 <= minN <= maxN <= 1000.
+
+  - name: gen_worst_x
+    status: confirmed
+    params:
+      - name: n
+        type: int
+        description: верхняя граница диапазона, 1 <= n <= 1000
+    input: null
+    output: весь тест — N и X
+    algorithm: |
+      Для каждого X из [1, n] симулируется стандартный бинпоиск (lo = 1,
+      hi = n, mid = (lo + hi) / 2, запрос mid, остановка при mid = X, иначе
+      lo = mid + 1 или hi = mid - 1) и считается число запросов; X —
+      случайное среди дающих наибольшее число запросов. Падает, если n вне
+      [1, 1000].
+
+constants:
+  - name: minN
+    value: "1"
+    description: N.min из constraints.yaml
+  - name: maxN
+    value: "1000"
+    description: N.max из constraints.yaml
+  - name: minX
+    value: "1"
+    description: X.min из constraints.yaml
+  - name: maxXList
+    value: "[1, 2, 500, 501, 512, 513, 999, 1000]"
+    description: загаданные числа при N = maxN из specific_test_ideas[3]
+  - name: worstNs
+    value: "[maxN, maxN - 1, 512, 513]"
+    description: N для худшего загаданного числа из specific_test_ideas[5]
+  - name: randBands
+    value: "[[minN, maxN], [minN, maxN / 2], [maxN / 2, maxN], [minN, 20], [maxN - 20, maxN]]"
+    description: различные диапазоны N для случайных тестов — чтобы строки скрипта не совпадали
+
+tests:
+  - description: Все пары (N, X) для N от 1 до 8
+    status: confirmed
+    covers:
+      - specific_test_ideas[2]
+      - specific_test_ideas[4]
+      - known_wrong_approaches[2]
+      - known_wrong_approaches[3]
+      - known_wrong_approaches[5]
+    commands:
+      - gen_fixed -n=n -x=x
+    repeat: n = minN..8, x = minX..n
+
+  - description: N = 2^p + delta для всех p, при которых N в [minN, maxN], X = 1 и X = N
+    status: confirmed
+    covers:
+      - specific_test_ideas[0]
+      - specific_test_ideas[1]
+      - known_wrong_approaches[3]
+    commands:
+      - gen_pow2_delta -p=p -delta=delta -x=minX
+      - gen_pow2_delta -p=p -delta=delta -x=n
+    repeat: |
+      p = 0..10, delta по [-1, 0, 1], n = 2^p + delta; только n в
+      [minN, maxN]; вторая команда — только при n > minX (иначе совпала бы
+      с первой)
+
+  - description: N = maxN с явно заданными граничными и произвольными X
+    status: confirmed
+    covers:
+      - specific_test_ideas[1]
+      - specific_test_ideas[3]
+    commands:
+      - gen_fixed -n=maxN -x=x
+    repeat: x по maxXList
+
+  - description: N у maxN с несколькими случайными X
+    status: proposed
+    covers:
+      - specific_test_ideas[3]
+    commands:
+      - gen_rand -minN=maxN -maxN=maxN
+      - gen_rand -minN=maxN-9 -maxN=maxN
+      - gen_rand -minN=maxN-49 -maxN=maxN
+    repeat: null
+    rationale: |
+      "Несколько случайных" X при N = 1000 — разные диапазоны N, чтобы
+      строки скрипта не совпадали (одинаковые строки дают одинаковые тесты).
+
+  - description: Худшее X — ровно максимум запросов, ловит решения, которым нужен 11-й запрос
+    status: confirmed
+    covers:
+      - specific_test_ideas[5]
+      - known_wrong_approaches[0]
+      - known_wrong_approaches[1]
+      - known_wrong_approaches[4]
+    commands:
+      - gen_worst_x -n=n
+    repeat: n по worstNs
+
+  - description: Случайные N во всём диапазоне со случайными X, несколько различных диапазонов
+    status: proposed
+    covers:
+      - specific_test_ideas[6]
+    commands:
+      - gen_rand -minN=band0 -maxN=band1
+    repeat: "[band0, band1] по randBands"
+    rationale: |
+      Разные диапазоны вместо повторов одного вызова — одинаковые строки
+      скрипта дали бы одинаковые тесты.
+
+  - description: Граница чуть ниже порога N = 512
+    status: suggestion
+    covers: []
+    commands:
+      - gen_worst_x -n=511
+    repeat: null
+    rationale: |
+      Тесты gen_worst_x выше проверяют N, где верному алгоритму нужно ровно
+      10 запросов; N = 511 — симметричный случай на шаг ниже порога (9
+      запросов): решение с ошибкой в расчёте бюджета запросов в другую
+      сторону прошло бы все тесты автора.

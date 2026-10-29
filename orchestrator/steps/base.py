@@ -1,7 +1,7 @@
 """Общий цикл одного генеративного шага.
 
-Каждый из шагов (`statement_draft`, `constraints_pick`,
-`generators_and_script`, `solutions_draft`, `checker_draft`,
+Каждый из шагов (`statement_draft`, `constraints_pick`, `tests_plan`,
+`generators_draft`, `test_script_draft`, `solutions_draft`, `checker_draft`,
 `interactor_draft`, см. CLAUDE.md,
 "Роль каждого генеративного шага") — это одна и та же последовательность
 действий над разными данными:
@@ -158,10 +158,17 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         "constraints_format.yaml",
         "problem_lib.h",
     ],
-    "generators_and_script": [
+    "tests_plan": [
+        "tutorials/tests.md",
+        "tests_plan_format.yaml",
+    ],
+    "generators_draft": [
+        "tutorials/tests.md",
+        "problem_lib.h",
+    ],
+    "test_script_draft": [
         "tutorials/tests.md",
         "tutorials/freemarker.md",
-        "problem_lib.h",
         "test_script_functions.ftl",
     ],
     "solutions_draft": [
@@ -182,6 +189,52 @@ STATUS_CONFIRMED = "confirmed"
 STATUS_PROPOSED = "proposed"
 STATUS_UNCERTAIN = "uncertain"
 _VALID_STATUSES = {STATUS_CONFIRMED, STATUS_PROPOSED, STATUS_UNCERTAIN}
+
+
+# Результат `constraints_pick`, который читают следующие шаги (через
+# `upstream_artifacts`, CLAUDE.md, "Кэширование по хешу спека").
+CONSTRAINTS_ARTIFACT = "constraints.yaml"
+
+# TL/ML в `constraints.yaml`: секция `limits` и пара ключей, которую
+# `set_constraints` принимает и прямо в корне документа, см.
+# `constraints_without_limits`.
+_LIMITS_BLOCK_RE = re.compile(r"limits\s*:")
+_LIMITS_KEY_RE = re.compile(r"(time_limit_seconds|memory_limit_mb)\s*:")
+
+
+def require_constraints_yaml(
+    step_name: str, problem_id: str, upstream_artifacts: Optional[dict[str, Any]]
+) -> str:
+    """`constraints.yaml` из `upstream_artifacts` шага, который от него
+    зависит; нет — `ValueError` (шаги запущены не по порядку). `step_name` —
+    чтобы сообщение называло шаг, вызвавший проверку."""
+    if not upstream_artifacts or CONSTRAINTS_ARTIFACT not in upstream_artifacts:
+        raise ValueError(
+            f"Step '{step_name}' for '{problem_id}': upstream_artifacts has no "
+            f"'{CONSTRAINTS_ARTIFACT}' — the 'constraints_pick' step must "
+            "succeed first"
+        )
+    return upstream_artifacts[CONSTRAINTS_ARTIFACT]
+
+
+def constraints_without_limits(constraints_yaml: str) -> str:
+    """`constraints.yaml` без TL/ML: секции `limits` верхнего уровня (вместе
+    с вложенными строками) и ключей `time_limit_seconds`/`memory_limit_mb`
+    в корне. Тесты и решения строятся по асимптотике и диапазонам
+    переменных: TL модель проверить не может, а его подгонка (в том числе на
+    Polygon) не должна инвалидировать шаги. Вырезается текстом, а не через
+    YAML, чтобы остальной файл, с комментариями, модель видела как есть.
+    """
+    kept: list[str] = []
+    in_limits = False
+    for line in constraints_yaml.splitlines(keepends=True):
+        if in_limits and (line[:1] in (" ", "\t") or not line.strip()):
+            continue
+        in_limits = bool(_LIMITS_BLOCK_RE.match(line))
+        if in_limits or _LIMITS_KEY_RE.match(line):
+            continue
+        kept.append(line)
+    return "".join(kept)
 
 
 class StepUncertainError(Exception):

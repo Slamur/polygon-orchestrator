@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+_TESTS_PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8")
 
 _CONSTRAINTS_YAML = "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
 
@@ -28,7 +29,13 @@ _RESPONSES = {
     "constraints_pick": ModelResponse(
         status="confirmed", artifacts={"constraints.yaml": _CONSTRAINTS_YAML}, notes=[]
     ),
-    "generators_and_script": ModelResponse(
+    "tests_plan": ModelResponse(
+        status="confirmed", artifacts={"tests_plan.yaml": _TESTS_PLAN_YAML}, notes=[]
+    ),
+    "generators_draft": ModelResponse(
+        status="confirmed", artifacts={"gen_rand.cpp": "int main(){}"}, notes=[]
+    ),
+    "test_script_draft": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
     ),
     "solutions_draft": ModelResponse(
@@ -271,7 +278,7 @@ def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(spec_f
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
         result = pipeline.run_pipeline(
             "p1",
-            only_step="generators_and_script",
+            only_step="tests_plan",
             prompts_dir=PROMPTS_DIR,
             problems_dir=problems_dir,
             templates_dir=TEMPLATES_DIR,
@@ -279,7 +286,7 @@ def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(spec_f
 
     assert not result.ok
     assert result.stopped_uncertain is True
-    assert result.outcomes[0].step_name == "generators_and_script"
+    assert result.outcomes[0].step_name == "tests_plan"
     assert result.outcomes[0].status == "error"
     assert "constraints.yaml" in result.outcomes[0].detail
     mock_call.assert_not_called()
@@ -299,7 +306,7 @@ def test_only_step_picks_up_constraints_yaml_written_by_earlier_run(spec_file, t
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
         result = pipeline.run_pipeline(
             "p1",
-            only_step="generators_and_script",
+            only_step="tests_plan",
             prompts_dir=PROMPTS_DIR,
             problems_dir=problems_dir,
             templates_dir=TEMPLATES_DIR,
@@ -308,10 +315,45 @@ def test_only_step_picks_up_constraints_yaml_written_by_earlier_run(spec_file, t
     assert result.ok
     assert result.outcomes[0].status == "confirmed"
     assert mock_call.call_count == 1
-    assert mock_call.call_args.args[0] == "generators_and_script"
+    assert mock_call.call_args.args[0] == "tests_plan"
 
 
 # --- compute_step_statuses ----------------------------------------------------
+
+
+def test_only_step_picks_up_tests_plan_from_disk(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        pipeline.run_pipeline(
+            "p1",
+            only_step="constraints_pick",
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=problems_dir,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    def run_generators():
+        with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+            result = pipeline.run_pipeline(
+                "p1",
+                only_step="generators_draft",
+                prompts_dir=PROMPTS_DIR,
+                problems_dir=problems_dir,
+                templates_dir=TEMPLATES_DIR,
+            )
+        return result, mock_call
+
+    result, mock_call = run_generators()
+    assert result.outcomes[0].status == pipeline.OUTCOME_ERROR
+    assert "'tests_plan' step must succeed first" in result.outcomes[0].detail
+    mock_call.assert_not_called()
+
+    plan_path = problems_dir / "p1" / "authoring" / "tests_plan.yaml"
+    plan_path.write_text(_TESTS_PLAN_YAML, encoding="utf-8")
+    result, mock_call = run_generators()
+    assert result.ok
+    assert "### gen_rand.cpp" in mock_call.call_args.args[2]
+    assert (problems_dir / "p1" / "generators" / "gen_rand.cpp").exists()
 
 
 def test_compute_step_statuses_matches_cache_hits_after_full_run(spec_file, tmp_path):
@@ -574,15 +616,15 @@ def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(spec
     (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
 
     before = _statuses(problems_dir)
-    assert before["generators_and_script"].detail == (
+    assert before["tests_plan"].detail == (
         "spec (or upstream artifact) changed: upstream: constraints.yaml"
     )
 
     accepted = _accept(problems_dir)
-    assert accepted["generators_and_script"].state == pipeline.STATUS_ACCEPTED
+    assert accepted["tests_plan"].state == pipeline.STATUS_ACCEPTED
     assert accepted["solutions_draft"].state == pipeline.STATUS_ACCEPTED
     after = _statuses(problems_dir)
-    assert after["generators_and_script"].state == pipeline.STATUS_CACHE_HIT
+    assert after["tests_plan"].state == pipeline.STATUS_CACHE_HIT
     assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
 
 
@@ -596,7 +638,7 @@ def test_accept_only_step_leaves_other_steps_stale(spec_file, tmp_path):
     assert list(accepted) == ["solutions_draft"]
     after = _statuses(problems_dir)
     assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
-    assert after["generators_and_script"].state == pipeline.STATUS_STALE
+    assert after["tests_plan"].state == pipeline.STATUS_STALE
 
 
 def test_accept_refuses_steps_never_generated(spec_file, tmp_path):

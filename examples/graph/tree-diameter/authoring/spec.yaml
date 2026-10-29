@@ -81,7 +81,7 @@ constraints:
   references: []
 
 # ---------------------------------------------------------------------------
-# 3. ГЕНЕРАТОРЫ И TEST-SCRIPT — шаг generators_and_script
+# 3. ГЕНЕРАТОРЫ И TEST-SCRIPT — шаги tests_plan, generators_draft, test_script_draft
 # ---------------------------------------------------------------------------
 generation:
   generator_ideas:

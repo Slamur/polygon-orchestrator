@@ -14,6 +14,7 @@ from orchestrator.problem_paths import authoring_path
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, SpecInitError, set_problem_id
 from orchestrator.steps.base import (
+    CONSTRAINTS_ARTIFACT,
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -26,8 +27,6 @@ from orchestrator.steps.base import (
 )
 
 STEP_NAME = "constraints_pick"
-# Имя артефакта в ответе модели; файл — в `authoring/` каталога задачи.
-CONSTRAINTS_ARTIFACT = "constraints.yaml"
 
 # Optional[list[...]]-поля секции constraints, по которым user.md.j2 делает
 # {% for %} без проверки на null (см. base.with_default_lists).
@@ -49,16 +48,17 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
     }
 
 
-def _set_spec_problem_id(
-    problem_id: str,
+def set_spec_problem_id(
+    problem_id: str, artifact: Optional[str] = None
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
     """`postprocess_artifacts` для `run_generative_step`: `problem_id` в
-    `constraints.yaml` ставит оркестратор из спека, а не модель — она
-    могла переписать его неверно. Строки `problem_id:` в ответе нет — файл
-    как есть."""
+    YAML-артефакте шага (`artifact`, по умолчанию `constraints.yaml`) ставит
+    оркестратор из спека, а не модель — она могла переписать его неверно.
+    Строки `problem_id:` в ответе нет — файл как есть."""
+    artifact = artifact or CONSTRAINTS_ARTIFACT
 
     def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
-        text = artifacts.get(CONSTRAINTS_ARTIFACT)
+        text = artifacts.get(artifact)
         if text is None:
             return artifacts, []
         try:
@@ -71,11 +71,11 @@ def _set_spec_problem_id(
             "field": "problem_id",
             "kind": "restored",
             "explanation": (
-                f"problem_id в {CONSTRAINTS_ARTIFACT} заменён оркестратором "
+                f"problem_id в {artifact} заменён оркестратором "
                 f"на '{problem_id}' из спека"
             ),
         }
-        return {**artifacts, CONSTRAINTS_ARTIFACT: fixed}, [note]
+        return {**artifacts, artifact: fixed}, [note]
 
     return postprocess
 
@@ -210,5 +210,5 @@ def run_step(
         problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
-        postprocess_artifacts=_set_spec_problem_id(spec.problem_id),
+        postprocess_artifacts=set_spec_problem_id(spec.problem_id),
     )

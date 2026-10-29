@@ -67,7 +67,7 @@ references:                        # [optional] общие референсы �
 # ---------------------------------------------------------------------------
 # Формат ввода-вывода отсюда передаётся и в следующие шаги:
 # formal_input_sketch, indexing и input примеров — в constraints_pick
-# (порядок чтения для валидатора) и generators_and_script; всё это плюс
+# (порядок чтения для валидатора), tests_plan и generators_draft; всё это плюс
 # formal_output_sketch, output примеров и legend_sketch — в solutions_draft.
 statement_draft:
   legend_sketch: |                 # [required]
@@ -166,8 +166,12 @@ constraints:
   references: []                     # [optional] референсы только для constraints_pick (см. "Референсы")
 
 # ---------------------------------------------------------------------------
-# 3. ГЕНЕРАТОРЫ / FREEMARKER — вход для шага generators_and_script
+# 3. ГЕНЕРАТОРЫ / FREEMARKER — вход для шага tests_plan
 # ---------------------------------------------------------------------------
+# По этой секции (и solutions.known_wrong_approaches/algorithm_hint) шаг
+# tests_plan составляет план тестов authoring/tests_plan.yaml, а по плану
+# generators_draft пишет генераторы и test_script_draft — test-script; спек
+# эти два шага не видят.
 # Форма входных данных для генераторов берётся автоматически из
 # statement_draft.formal_input_sketch — отдельно в generation: её указывать
 # не нужно и нельзя (лишнее поле, extra="forbid").
@@ -189,7 +193,7 @@ generation:
     # должно быть протестировано", который автор формулирует сам, не
     # выводя его из легенды/асимптотики.
   script_style: "groups"             # [required] "flat" | "groups" — простой скрипт (test_script) или по группам тестов (test_script_groups)
-  references:                        # [optional] референсы только для шага generators_and_script, добавляются к общим
+  references:                        # [optional] референсы только для шагов tests_plan, generators_draft и test_script_draft, добавляются к общим
     - "problems/old-task"
     - "my_examples/gen_tree.cpp"
 
@@ -289,7 +293,7 @@ interactor:
 |--------|-----|
 | `statement_draft.references` | `statement_draft` |
 | `constraints.references` | `constraints_pick` (и валидатор) |
-| `generation.references` | `generators_and_script` |
+| `generation.references` | `tests_plan`, `generators_draft`, `test_script_draft` |
 | `solutions.references` | `solutions_draft` |
 | `checker.references` | `checker_draft` |
 | `interactor.references` | `interactor_draft` |
@@ -306,7 +310,9 @@ interactor:
 |-----|-------------------|
 | `statement_draft` | `statement/*.tex` (у интерактивной задачи — и `interaction.tex`) |
 | `constraints_pick` | `authoring/constraints.yaml`, `validator.cpp` |
-| `generators_and_script` | `authoring/constraints.yaml`, `generators/*.cpp`, `test_script`, `test_script_groups` |
+| `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` |
+| `generators_draft` | `authoring/tests_plan.yaml`, `generators/*.cpp` (без спека — пара "план → генераторы") |
+| `test_script_draft` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` (без спека) |
 | `solutions_draft` | `solutions/*` на языках из `solutions.languages` |
 | `checker_draft` | `checker.cpp` |
 | `interactor_draft` | `interactor.cpp` |

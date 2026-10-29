@@ -30,14 +30,15 @@ __all__ = [
 
 # Соответствие шага и условного класса модели. Критичные по содержанию шаги
 # (constraints_pick, solutions_draft) — через сильную модель.
-# generators_and_script — через среднюю: реализация уже заданных
-# generator_ideas механическая, но дизайн adversarial-тестов под
-# `solutions.known_wrong_approaches` — самостоятельное рассуждение о том, как
-# сломать конкретный неверный алгоритм, не менее содержательное, чем
-# constraints_pick/solutions_draft (см. CLAUDE.md, "Маршрутизация моделей по
-# критичности шага") — поэтому шаг поднят с быстрой модели до средней; если
-# качество предложенных тестов окажется слабым, следующий шаг эскалации —
-# до сильной модели.
+# Подготовка тестов разбита на три шага, чтобы содержательная часть шла
+# отдельно от объёмной. tests_plan — дизайн тестов, в том числе
+# adversarial-тестов под `solutions.known_wrong_approaches`: самостоятельное
+# рассуждение о том, как сломать конкретный неверный алгоритм (см. CLAUDE.md,
+# "Маршрутизация моделей по критичности шага"), но ответ небольшой — план, а
+# не код; средняя модель с high effort, следующий шаг эскалации — до сильной.
+# generators_draft и test_script_draft — реализация готового плана: кода
+# много, а рассуждения мало, поэтому средняя модель с medium effort — иначе
+# один вызов рассуждал бы дольше таймаута.
 # statement_draft — средняя модель: задача там в основном про форматирование
 # по явным правилам из tutorials/statement.md, а не про рассуждение, так
 # что Opus-уровень для неё не нужен (см. CLAUDE.md).
@@ -62,7 +63,9 @@ __all__ = [
 STEP_TO_MODEL: dict[str, str] = {
     "statement_draft": "medium-model",
     "constraints_pick": "strong-model",
-    "generators_and_script": "medium-model",
+    "tests_plan": "medium-model",
+    "generators_draft": "medium-model",
+    "test_script_draft": "medium-model",
     "solutions_draft": "strong-model",
     "checker_draft": "medium-model",
     "interactor_draft": "strong-model",
@@ -71,15 +74,18 @@ STEP_TO_MODEL: dict[str, str] = {
 
 # Уровень effort на шаг (общее для вендоров, поддерживающих такую ручку;
 # кто не поддерживает — вправе игнорировать). constraints_pick/
-# solutions_draft — самые рискованные по цене ошибки; generators_and_script —
-# high из-за дизайна adversarial-тестов; checker_draft — high по той же
+# solutions_draft — самые рискованные по цене ошибки; tests_plan — high
+# из-за дизайна adversarial-тестов, generators_draft/test_script_draft —
+# medium, это реализация плана; checker_draft — high по той же
 # причине, что и класс модели: цена ошибки в сравнении ответов высока даже
 # при формально механической реализации; statement_draft — medium, это
 # оформление, а не рассуждение; spec_from_draft — high, как и класс модели.
 STEP_TO_EFFORT: dict[str, str] = {
     "statement_draft": "medium",
     "constraints_pick": "high",
-    "generators_and_script": "high",
+    "tests_plan": "high",
+    "generators_draft": "medium",
+    "test_script_draft": "medium",
     "solutions_draft": "high",
     "checker_draft": "high",
     "interactor_draft": "high",

@@ -1,0 +1,171 @@
+problem_id: array--prefix-sums
+
+generators:
+  - name: gen_array_rand
+    status: confirmed
+    params:
+      - name: n
+        type: int
+        description: длина массива
+      - name: minA
+        type: int
+        description: наименьшее значение элемента
+      - name: maxA
+        type: int
+        description: наибольшее значение элемента
+    input: null
+    output: начало теста — N в первой строке, массив A во второй; K допишет следующий генератор цепочки
+    algorithm: |
+      Каждый элемент — независимое случайное число из [minA, maxA].
+
+  - name: gen_array_distinct
+    status: confirmed
+    params:
+      - name: n
+        type: int
+        description: длина массива
+      - name: minA
+        type: int
+        description: наименьшее значение элемента
+      - name: maxA
+        type: int
+        description: наибольшее значение элемента, maxA - minA + 1 >= n
+    input: null
+    output: начало теста — N в первой строке, массив A во второй
+    algorithm: |
+      n попарно различных случайных значений из [minA, maxA]
+      (rnd.distinct), перемешанных в случайном порядке.
+
+  - name: gen_k_rand
+    status: confirmed
+    params:
+      - name: minK
+        type: ll
+        description: наименьшее K
+      - name: maxK
+        type: ll
+        description: наибольшее K
+    input: N в первой строке и массив A во второй (от gen_array_*)
+    output: весь тест — N и K в первой строке, массив A во второй
+    algorithm: |
+      K — случайное число из [minK, maxK].
+
+  - name: gen_k_too_large
+    status: confirmed
+    params:
+      - name: maxK
+        type: ll
+        description: наибольшее K, не меньше суммы массива
+    input: N в первой строке и массив A во второй (от gen_array_*)
+    output: весь тест — N и K в первой строке, массив A во второй
+    algorithm: |
+      K — случайное число из [сумма всего массива, maxK] (сумма — в 64-битном
+      типе), так что ни один префикс не больше K и ответ — NO.
+
+  - name: gen_k_eq_pref
+    status: confirmed
+    params:
+      - name: minK
+        type: ll
+        description: наименьшее K
+      - name: maxK
+        type: ll
+        description: наибольшее K
+      - name: delta
+        type: int
+        description: сдвиг K от суммы префикса (обычно -1, 0, 1)
+    input: N в первой строке и массив A во второй (от gen_array_*)
+    output: весь тест — N и K в первой строке, массив A во второй
+    algorithm: |
+      Считаются суммы всех префиксов (включая пустой) в 64-битном типе; K —
+      случайная из них плюс delta, приведённая к [minK, maxK].
+
+  - name: upd_array_sort
+    status: confirmed
+    params:
+      - name: desc
+        type: bool
+        description: флаг сортировки по убыванию
+    input: готовый тест — N и K в первой строке, массив A во второй
+    output: тот же тест с отсортированным массивом
+    algorithm: |
+      Массив сортируется по возрастанию, с флагом desc — по убыванию; N и K
+      не меняются.
+
+constants:
+  - name: minN
+    value: "1"
+    description: N.min из constraints.yaml
+  - name: maxN
+    value: 2 * 10^5
+    description: N.max из constraints.yaml
+  - name: minK
+    value: "0"
+    description: K.min из constraints.yaml
+  - name: maxK
+    value: 10^15
+    description: K.max из constraints.yaml
+  - name: minA
+    value: "0"
+    description: A_i.min из constraints.yaml
+  - name: maxA
+    value: 10^9
+    description: A_i.max из constraints.yaml
+  - name: smallN
+    value: "10"
+    description: граница маленьких тестов
+  - name: smallA
+    value: 10^2
+    description: маленькие значения A_i
+  - name: smallK
+    value: n * smallA
+    description: маленькое K для теста с n элементами — порядка суммы массива
+
+tests:
+  - description: Все N от 1 до 10 с маленькими A_i и K
+    status: confirmed
+    covers:
+      - specific_test_ideas[0]
+    commands:
+      - gen_array_rand -n=n -minA=minA -maxA=smallA | gen_k_rand -minK=minK -maxK=smallK
+    repeat: n = minN..smallN
+
+  - description: Все N от 1 до 10 с полным диапазоном A_i и K
+    status: proposed
+    covers: []
+    commands:
+      - gen_array_rand -n=n -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK
+    repeat: n = minN..smallN
+    rationale: |
+      Маленькие N с большими значениями — переполнение без максимальных N.
+
+  - description: Максимальные N с попарно различными A_i, в случайном порядке и отсортированные
+    status: proposed
+    covers:
+      - known_wrong_approaches[2]
+      - known_wrong_approaches[3]
+    commands:
+      - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK
+      - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK | upd_array_sort
+      - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK | upd_array_sort --desc
+    repeat: null
+    rationale: |
+      Максимальный N ловит O(N^2) и медленный ввод-вывод.
+
+  - description: N = maxN, A_i от startA до maxA (при startA = maxA все A_i = maxA) — случайное K, ответ NO, K около суммы префикса
+    status: confirmed
+    covers:
+      - specific_test_ideas[1]
+      - specific_test_ideas[2]
+      - specific_test_ideas[3]
+      - specific_test_ideas[4]
+      - known_wrong_approaches[0]
+      - known_wrong_approaches[1]
+    commands:
+      - gen_array_rand -n=maxN -minA=startA -maxA=maxA | gen_k_rand -minK=startK -maxK=maxK
+      - gen_array_rand -n=maxN -minA=startA -maxA=maxA | gen_k_too_large -maxK=maxK
+      - gen_array_rand -n=maxN -minA=startA -maxA=maxA | gen_k_eq_pref -minK=minK -maxK=maxK -delta=delta
+    repeat: |
+      startA по [minA, maxA]; для каждого — первая команда для startK по
+      [minK, maxK] (при startK = maxK — K = K_max), вторая один раз, третья
+      для delta = -1..1

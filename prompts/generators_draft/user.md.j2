@@ -1,0 +1,24 @@
+Генераторы задачи (problem_id: {{ problem_id }}) по плану тестов.
+
+## Формат входных данных (из statement_draft спека)
+{{ statement.formal_input_sketch }}
+
+Индексация: {{ statement.indexing }}
+
+Входы примеров из условия (иллюстрация формата — генерируемые тесты должны
+печататься ровно в таком же виде):
+{% for ex in statement.sample_examples %}
+### Пример {{ loop.index }}
+{{ ex.input }}
+{% endfor %}
+
+## Зафиксированные ограничения (результат шага constraints_pick)
+{{ constraints_yaml }}
+
+## Генераторы плана (из tests_plan.yaml)
+{% for generator in generators %}
+### {{ generator.name }}.cpp
+{{ generator.plan }}{% endfor %}
+
+Задача: напиши по файлу `<name>.cpp` на каждый генератор плана выше по
+правилам из системного сообщения.

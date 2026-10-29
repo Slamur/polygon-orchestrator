@@ -28,7 +28,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from orchestrator.problem_paths import find_authoring_file, is_authoring_name, is_removed_mark
+from orchestrator.problem_paths import (
+    TESTS_PLAN_FILENAME,
+    find_authoring_file,
+    is_authoring_name,
+    is_removed_mark,
+)
 from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 
 # Что каждый шаг берёт из каталога-референса: пути относительно каталога,
@@ -36,14 +41,24 @@ from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 # `constraints.yaml` — из `authoring/` (`problem_paths.find_authoring_file`). `spec.yaml`
 # прикладывается, только если из каталога взят хотя бы один другой файл —
 # спек без результата образцом не служит. Файлы, помеченные шагом как
-# удалённые (`<имя>.removed`), под glob не попадают.
+# удалённые (`<имя>.removed`), под glob не попадают. Шаги подготовки тестов
+# берут пары "вход → результат" своего уровня: `tests_plan` — спек → план (и
+# скрипт, если плана у образца нет), `generators_draft` — план → генераторы,
+# `test_script_draft` — план → скрипт.
 REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [SPEC_FILENAME, "statement/*.tex"],
     "constraints_pick": [SPEC_FILENAME, "constraints.yaml", "validator.cpp"],
-    "generators_and_script": [
+    "tests_plan": [
         SPEC_FILENAME,
         "constraints.yaml",
-        "generators/*.cpp",
+        TESTS_PLAN_FILENAME,
+        "test_script",
+        "test_script_groups",
+    ],
+    "generators_draft": [TESTS_PLAN_FILENAME, "generators/*.cpp"],
+    "test_script_draft": [
+        "constraints.yaml",
+        TESTS_PLAN_FILENAME,
         "test_script",
         "test_script_groups",
     ],
@@ -56,7 +71,9 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
 STEP_SECTIONS: dict[str, str] = {
     "statement_draft": "statement_draft",
     "constraints_pick": "constraints",
-    "generators_and_script": "generation",
+    "tests_plan": "generation",
+    "generators_draft": "generation",
+    "test_script_draft": "generation",
     "solutions_draft": "solutions",
     "checker_draft": "checker",
     "interactor_draft": "interactor",
@@ -113,7 +130,7 @@ def reference_documents(
                 raise SpecReferenceError(
                     f"{section_name}.references: directory '{ref}' has no files for "
                     f"step '{step_name}' (expected any of "
-                    f"{REFERENCE_DOCUMENTS[step_name][1:]})"
+                    f"{[e for e in REFERENCE_DOCUMENTS[step_name] if e != SPEC_FILENAME]})"
                 )
             paths.extend(files)
         else:

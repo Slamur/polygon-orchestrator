@@ -49,7 +49,7 @@ def compute_input_hash(
 
     `spec_section` — часть спека, от которой зависит шаг (см. CLAUDE.md:
     `statement_draft` -> секция `statement_draft`, `constraints_pick` ->
-    секция `constraints`, `generators_and_script` -> секция `generation`,
+    секция `constraints`, `tests_plan` -> секция `generation`,
     `solutions_draft` -> секция `solutions`).
     `upstream_artifacts` — артефакты предыдущих шагов, от которых зависит
     текущий (например, содержимое `constraints.yaml` для шагов 3 и 4);

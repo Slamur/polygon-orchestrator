@@ -48,6 +48,8 @@ PROBLEM_ROOTS = (PROBLEMS_DIR, EXAMPLES_DIR)
 AUTHORING_DIRNAME = "authoring"
 SPEC_FILENAME = "spec.yaml"
 CONSTRAINTS_FILENAME = "constraints.yaml"
+# Результат шага `tests_plan` — план генераторов и тестов.
+TESTS_PLAN_FILENAME = "tests_plan.yaml"
 # Копия черновика автора (`init --draft`): `draft<расширение>`, см.
 # `orchestrator/drafts.py`.
 DRAFT_STEM = "draft"
@@ -89,9 +91,11 @@ def is_draft_name(name: str) -> bool:
 
 
 def is_authoring_name(name: str) -> bool:
-    """Файл, который лежит в `authoring/`: спек, `constraints.yaml`, копия
-    черновика (по имени файла, без каталога)."""
-    return name in (SPEC_FILENAME, CONSTRAINTS_FILENAME) or is_draft_name(name)
+    """Файл, который лежит в `authoring/`: спек, `constraints.yaml`,
+    `tests_plan.yaml`, копия черновика (по имени файла, без каталога)."""
+    return name in (SPEC_FILENAME, CONSTRAINTS_FILENAME, TESTS_PLAN_FILENAME) or is_draft_name(
+        name
+    )
 
 
 def authoring_dir(problem_dir: Path) -> Path:

@@ -24,7 +24,9 @@ from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
 from orchestrator.spec import load_spec
 from orchestrator.problem_paths import AUTHORING_DIRNAME, SPEC_FILENAME
 from orchestrator.steps.base import EXAMPLES_DIR
-from orchestrator.steps.generators_and_script import (
+from orchestrator.steps.generators_draft import generator_params
+from orchestrator.steps.tests_plan import parse_tests_plan, plan_generators, uncovered_notes
+from orchestrator.steps.test_script_draft import (
     SCRIPT_FUNCTIONS_FILENAME,
     SCRIPT_NAMES,
     fix_script_comparisons,
@@ -137,7 +139,7 @@ def test_example_validator_uses_constraints_bounds(example_dir):
 
 @examples
 def test_example_test_scripts_contain_standard_functions(example_dir):
-    # Шаблон стандартных функций приложен к generators_and_script всегда, а
+    # Шаблон стандартных функций приложен к test_script_draft всегда, а
     # скрипт-образец — через референсы: если в образце окажется другой набор,
     # модель получит два противоречащих друг другу образца.
     functions = (TEMPLATES_DIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
@@ -156,6 +158,26 @@ def test_example_test_scripts_have_no_comparison_signs_in_directives(example_dir
         if script_path.exists():
             _, fixed = fix_script_comparisons(script_path.read_text(encoding="utf-8"))
             assert fixed == 0, script_path
+
+
+@examples
+def test_example_tests_plan_matches_spec_and_generators(example_dir):
+    # Пара "спек -> план" для tests_plan и "план -> генераторы" для
+    # generators_draft: план разбирается, покрывает все пункты
+    # specific_test_ideas/known_wrong_approaches спека, и его генераторы — это
+    # ровно generators/*.cpp с теми же параметрами opt<T>(...).
+    plan = parse_tests_plan(
+        (example_dir / AUTHORING_DIRNAME / "tests_plan.yaml").read_text(encoding="utf-8")
+    )
+    spec = _example_spec(example_dir)
+    assert plan["problem_id"] == spec.problem_id
+    assert uncovered_notes(plan, spec) == []
+    planned = {g["name"]: sorted(p["name"] for p in g.get("params") or []) for g in plan_generators(plan)}
+    actual = {
+        path.stem: sorted(generator_params(path.read_text(encoding="utf-8")))
+        for path in (example_dir / "generators").glob("*.cpp")
+    }
+    assert planned == actual
 
 
 def _compile(cpp_path: Path) -> str | None:

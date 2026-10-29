@@ -1,6 +1,6 @@
 """Polygon-шаг 7 — загрузка всех `problems/<problem_id>/generators/*.cpp`
-(результат генеративного шага `generators_and_script`; имена файлов модель
-выбирает сама) в Polygon как source-файлов (`problem.saveFile`,
+(результат генеративного шага `generators_draft`; имена файлов — из
+плана тестов) в Polygon как source-файлов (`problem.saveFile`,
 `type=source`).
 
 `sourceType` не передаётся — как и в `upload_validator`, предполагается, что
@@ -43,7 +43,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Загружает каждый `generators/*.cpp`, отличающийся от базы
     синхронизации (`ctx.spec` не используется).
 
-    Обе зависимости (`create_problem`, `generators_and_script`) проверяются
+    Обе зависимости (`create_problem`, `generators_draft`) проверяются
     до первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
@@ -92,8 +92,8 @@ def _read_generators(problem_id: str, problems_dir: Path) -> list[tuple[str, byt
         address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': directory {generators_dir} not found — first "
-            f"run the generative step generators_and_script (`orchestrator {address} llm generate "
-            f"--step generators_and_script`)"
+            f"run the generative step generators_draft (`orchestrator {address} llm generate "
+            f"--step generators_draft`)"
         )
     paths = sorted(generators_dir.glob("*.cpp"), key=lambda p: p.name)
     if not paths:
