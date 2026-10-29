@@ -32,9 +32,9 @@ from orchestrator.steps.base import (
     PROMPTS_DIR,
     STATUS_CONFIRMED,
     TEMPLATES_DIR,
+    Backup,
     StepResult,
     StepRevision,
-    _Backup,
     _write_artifacts,
     existing_artifacts,
 )
@@ -114,7 +114,7 @@ def run_step(
     section, upstream = hash_inputs(problem_id, spec, upstream_artifacts)
     limits = upstream[_LIMITS_INPUT]
     path = primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
-    backup = _Backup(Path(problems_dir) / problem_id)
+    backup = Backup(Path(problems_dir) / problem_id)
     created: list[Path] = []
     written = _write_artifacts(
         {LIMITS_FILENAME: render_limits(limits["time_limit_ms"], limits["memory_limit_mb"])},

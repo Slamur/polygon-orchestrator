@@ -900,7 +900,7 @@ def _whole_step_conflict(
     )
 
 
-class _Backup:
+class Backup:
     """Прежние версии файлов задачи — в `.llm_backup/<время>/` (создаётся при
     первом файле)."""
 
@@ -920,7 +920,7 @@ class _Backup:
 def _write_artifacts(
     artifacts: dict[str, str],
     resolve_path: Callable[[str], Path],
-    backup: _Backup,
+    backup: Backup,
     *,
     skip_backup: set[Path] = frozenset(),
     created: Optional[list[Path]] = None,
@@ -988,7 +988,7 @@ def _write_conflicts(
     return directory
 
 
-def _apply_removals_and_renames(plan: _ApplyPlan, backup: _Backup) -> list[tuple[Path, str]]:
+def _apply_removals_and_renames(plan: _ApplyPlan, backup: Backup) -> list[tuple[Path, str]]:
     """Помечает удалённые файлы (`<имя>.removed`; прежняя пометка с тем же
     именем — в бэкап) и переименовывает файлы (старая версия — в бэкап).
     Возвращает `(путь пометки, причина)` удалённых."""
@@ -1203,7 +1203,7 @@ def run_generative_step(
         )
 
     problem_dir = Path(problems_dir) / problem_id
-    backup = _Backup(problem_dir)
+    backup = Backup(problem_dir)
     marks = _apply_removals_and_renames(plan, backup)
     renamed = plan.renamed
     created: list[Path] = []
