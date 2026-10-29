@@ -1,9 +1,9 @@
 """Polygon-шаг — загрузка FreeMarker test-script'а (результат генеративного
-шага `generators_and_script`) в Polygon (`problem.saveScript`,
+шага `test_script_draft`) в Polygon (`problem.saveScript`,
 `testset=tests`).
 
 Путь к файлу скрипта берётся из
-`orchestrator.steps.generators_and_script.primary_artifact_path` — единый
+`orchestrator.steps.test_script_draft.primary_artifact_path` — единый
 источник истины для имени (`test_script`/`test_script_groups` по
 `generation.script_style`), здесь ветвление flat/groups не дублируется.
 
@@ -80,7 +80,7 @@ from orchestrator.polygon.steps.base import (
 )
 from orchestrator.polygon.sync import SCRIPT_KEY, digest
 from orchestrator.problem_paths import problem_address
-from orchestrator.steps.generators_and_script import (
+from orchestrator.steps.test_script_draft import (
     primary_artifact_path as script_artifact_path,
 )
 
@@ -284,8 +284,8 @@ def _read_script(problem_id: str, problems_dir: Path, script_path: Path) -> byte
         address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': {script_path} not found — first run "
-            f"the generative step generators_and_script (`orchestrator {address} llm generate "
-            f"--step generators_and_script`)"
+            f"the generative step test_script_draft (`orchestrator {address} llm generate "
+            f"--step test_script_draft`)"
         )
     return script_path.read_bytes()
 

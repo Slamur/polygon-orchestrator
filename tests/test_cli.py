@@ -10,6 +10,7 @@ REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+_TESTS_PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8")
 
 _CONSTRAINTS_YAML = "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
 
@@ -28,7 +29,13 @@ _RESPONSES = {
     "constraints_pick": ModelResponse(
         status="confirmed", artifacts={"constraints.yaml": _CONSTRAINTS_YAML}, notes=[]
     ),
-    "generators_and_script": ModelResponse(
+    "tests_plan": ModelResponse(
+        status="confirmed", artifacts={"tests_plan.yaml": _TESTS_PLAN_YAML}, notes=[]
+    ),
+    "generators_draft": ModelResponse(
+        status="confirmed", artifacts={"gen_rand.cpp": "int main(){}"}, notes=[]
+    ),
+    "test_script_draft": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
     ),
     "solutions_draft": ModelResponse(
@@ -228,7 +235,7 @@ def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert out.count("cache hit") == 5
+    assert out.count("cache hit") == 7
 
 
 def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
@@ -246,18 +253,18 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     out = capsys.readouterr().out
     # В консоли — только что изменилось в целом, список частей — в отчёте.
     assert (
-        "generators_and_script: accepted — was stale: spec (or upstream artifact) changed\n"
+        "tests_plan: accepted — was stale: spec (or upstream artifact) changed\n"
         in out
     )
     assert "upstream: constraints.yaml" not in out
     report = problems_dir / "p1" / "llm_reports" / "accept.md"
     assert f"report: {report}" in out
     report_text = report.read_text(encoding="utf-8")
-    assert "## generators_and_script: accepted" in report_text
+    assert "## tests_plan: accepted" in report_text
     assert "upstream: constraints.yaml" in report_text
 
     cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
-    assert capsys.readouterr().out.count("cache hit") == 5
+    assert capsys.readouterr().out.count("cache hit") == 7
 
 
 def test_accept_before_any_run_exits_nonzero(problems_dir, tmp_path, capsys):

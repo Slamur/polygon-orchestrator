@@ -34,6 +34,8 @@ _NOTE_SECTIONS = (
     ("uncertain", "Uncertain — the spec needs fixing"),
     ("proposed", "Proposed — review"),
     ("suggestion", "Suggestions beyond the spec"),
+    ("uncovered", "Not covered by the tests plan — review"),
+    ("plan_mismatch", "Differs from the tests plan — review"),
     ("changed", "Changed"),
 )
 _OTHER_NOTES_TITLE = "Other notes"

@@ -28,6 +28,7 @@ from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits, rend
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
+    CONSTRAINTS_ARTIFACT,
     PROBLEMS_DIR,
     PROMPTS_DIR,
     STATUS_CONFIRMED,
@@ -37,10 +38,7 @@ from orchestrator.steps.base import (
     StepRevision,
     _write_artifacts,
     existing_artifacts,
-)
-from orchestrator.steps.generators_and_script import (
-    CONSTRAINTS_ARTIFACT,
-    _require_constraints_yaml,
+    require_constraints_yaml,
 )
 
 STEP_NAME = "limits_from_constraints"
@@ -62,7 +60,7 @@ def hash_inputs(
     из `constraints.yaml` — только TL/ML. `ValueError` (`LimitsError`) —
     TL/ML в `constraints.yaml` не читаются: пайплайн останавливается с этой
     ошибкой, как без `constraints.yaml` вовсе."""
-    constraints_yaml = _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
+    constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     try:
         time_limit_ms, memory_limit_mb = parse_limits(constraints_yaml)
     except LimitsError as exc:

@@ -43,6 +43,7 @@ from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
     CONSTRAINTS_FILENAME,
     SPEC_FILENAME,
+    TESTS_PLAN_FILENAME,
     is_authoring_name,
     is_draft_name,  # noqa: F401 — часть интерфейса модуля (pull, upload_attachments)
 )
@@ -62,6 +63,7 @@ SCRIPT_KEY = "test_script"  # один на testset, какой бы локал�
 # имени файла, без каталога.
 SPEC_KEY = SPEC_FILENAME
 CONSTRAINTS_KEY = CONSTRAINTS_FILENAME  # файл целиком; TL/ML задачи — `LIMITS_KEY`
+TESTS_PLAN_KEY = TESTS_PLAN_FILENAME
 
 # Заголовок `constraints.yaml`, который писали прежние версии `polygon pull`,
 # когда на Polygon есть только TL/ML (теперь TL/ML — в `limits.yaml`): такой
@@ -71,7 +73,7 @@ PULLED_CONSTRAINTS_HEADER = (
     "# Pulled from Polygon (orchestrator <problem> polygon pull): TL/ML only.\n"
     "# This is NOT a constraints_pick result — there are no variable ranges,\n"
     "# test groups or validator section here. Steps that take constraints.yaml\n"
-    "# as input (generators_and_script, solutions_draft) will see only this.\n"
+    "# as input (tests_plan and the steps after it) will see only this.\n"
 )
 
 # Локальные имена валидатора, чекера и интерактора: source-файлы с такими
@@ -84,7 +86,8 @@ STANDARD_CHECKER_PREFIX = "std::"
 
 def is_attachment_name(name: str) -> bool:
     """Aux-файл на Polygon, который хранит файл `authoring/` каталога задачи
-    (шаг `upload_attachments`): спек, `constraints.yaml`, копия черновика.
+    (шаг `upload_attachments`): спек, `constraints.yaml`, `tests_plan.yaml`,
+    копия черновика.
     Ключ в базе синхронизации — само имя."""
     return is_authoring_name(name)
 

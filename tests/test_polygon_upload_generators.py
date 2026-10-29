@@ -77,11 +77,11 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
     client.call.assert_not_called()
 
 
-def test_missing_generators_dir_points_to_generators_and_script(problems_dir, spec):
+def test_missing_generators_dir_points_to_generators_draft(problems_dir, spec):
     _link(problems_dir)
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="generators_and_script"):
+    with pytest.raises(PolygonStepError, match="generators_draft"):
         _run(spec, problems_dir, client)
 
     client.call.assert_not_called()

@@ -38,7 +38,9 @@ def test_step_to_model_covers_all_steps_and_spec_from_draft():
     assert set(STEP_TO_MODEL) == {
         "statement_draft",
         "constraints_pick",
-        "generators_and_script",
+        "tests_plan",
+        "generators_draft",
+        "test_script_draft",
         "solutions_draft",
         "checker_draft",
         "interactor_draft",
@@ -53,8 +55,10 @@ def test_critical_steps_use_strong_model():
     assert STEP_TO_MODEL["interactor_draft"] == "strong-model"
 
 
-def test_generators_and_script_uses_medium_model():
-    assert STEP_TO_MODEL["generators_and_script"] == "medium-model"
+def test_tests_steps_use_medium_model():
+    assert STEP_TO_MODEL["tests_plan"] == "medium-model"
+    assert STEP_TO_MODEL["generators_draft"] == "medium-model"
+    assert STEP_TO_MODEL["test_script_draft"] == "medium-model"
 
 
 def test_statement_draft_uses_medium_model():
@@ -69,7 +73,9 @@ def test_step_to_effort_covers_all_five_steps():
     assert set(STEP_TO_EFFORT) == set(STEP_TO_MODEL)
     assert STEP_TO_EFFORT["constraints_pick"] == "high"
     assert STEP_TO_EFFORT["solutions_draft"] == "high"
-    assert STEP_TO_EFFORT["generators_and_script"] == "high"
+    assert STEP_TO_EFFORT["tests_plan"] == "high"
+    assert STEP_TO_EFFORT["generators_draft"] == "medium"
+    assert STEP_TO_EFFORT["test_script_draft"] == "medium"
     assert STEP_TO_EFFORT["statement_draft"] == "medium"
     assert STEP_TO_EFFORT["checker_draft"] == "high"
     assert STEP_TO_EFFORT["interactor_draft"] == "high"

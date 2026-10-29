@@ -49,13 +49,16 @@ from orchestrator.step_order import MECHANICAL_STEPS, STEP_ORDER
 from orchestrator.steps import (
     checker_draft,
     constraints_pick,
-    generators_and_script,
+    generators_draft,
     interactor_draft,
     limits_from_constraints,
     solutions_draft,
     statement_draft,
+    test_script_draft,
+    tests_plan,
 )
 from orchestrator.steps.base import (
+    CONSTRAINTS_ARTIFACT,
     PROBLEMS_DIR,
     CONFLICTS_REPORT,
     PROMPTS_DIR,
@@ -70,18 +73,28 @@ _STEP_MODULES: dict[str, ModuleType] = {
     "statement_draft": statement_draft,
     "constraints_pick": constraints_pick,
     "limits_from_constraints": limits_from_constraints,
-    "generators_and_script": generators_and_script,
+    "tests_plan": tests_plan,
+    "generators_draft": generators_draft,
+    "test_script_draft": test_script_draft,
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
     "solutions_draft": solutions_draft,
 }
 
-# Имя артефакта constraints_pick, который generators_and_script и
-# solutions_draft читают с диска как upstream-вход (см. CLAUDE.md,
-# "Кэширование по хешу спека"). Совпадает с
-# generators_and_script.CONSTRAINTS_ARTIFACT — дублируем константу здесь,
-# чтобы pipeline.py не тянул лишнюю зависимость от шага 3 ради одной строки.
-CONSTRAINTS_ARTIFACT = "constraints.yaml"
+# Артефакты шагов, которые следующие шаги получают как upstream-вход (см.
+# CLAUDE.md, "Кэширование по хешу спека"): шаг-источник -> имя артефакта
+# (файл — `primary_artifact_path` источника) и шаг -> какие из них ему нужны.
+_UPSTREAM_PRODUCERS: dict[str, str] = {
+    "constraints_pick": CONSTRAINTS_ARTIFACT,
+    "tests_plan": tests_plan.TESTS_PLAN_ARTIFACT,
+}
+_STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
+    "limits_from_constraints": ("constraints_pick",),
+    "tests_plan": ("constraints_pick",),
+    "generators_draft": ("constraints_pick", "tests_plan"),
+    "test_script_draft": ("constraints_pick", "tests_plan"),
+    "solutions_draft": ("constraints_pick",),
+}
 
 # Статусы StepOutcome.status:
 OUTCOME_CACHE_HIT = "cache_hit"
@@ -173,26 +186,29 @@ def _optional_skip_detail(step_name: str, spec: Any) -> Optional[str]:
     return None
 
 
-def _load_constraints_upstream(
+def _load_upstream(
     step_name: str,
     problem_id: str,
     spec: Any,
     upstream_artifacts: dict[str, Any],
     problems_dir: Path,
 ) -> None:
-    """limits_from_constraints, generators_and_script и solutions_draft
-    зависят от constraints.yaml с диска. Если constraints_pick в этом прогоне
-    не запускался (только --step или пропущен по кэшу), артефакт
-    подхватывается с диска."""
-    if step_name not in ("limits_from_constraints", "generators_and_script", "solutions_draft"):
-        return
-    if CONSTRAINTS_ARTIFACT in upstream_artifacts:
-        return
-    constraints_path = constraints_pick.primary_artifact_path(
-        problem_id, spec, problems_dir=problems_dir
-    )
-    if constraints_path.exists():
-        upstream_artifacts[CONSTRAINTS_ARTIFACT] = constraints_path.read_text(encoding="utf-8")
+    """Подхватывает с диска upstream-артефакты шага (`_STEP_UPSTREAM`),
+    которых ещё нет в `upstream_artifacts`: шаг-источник в этом прогоне не
+    запускался (только --step или пропущен по кэшу)."""
+    for producer in _STEP_UPSTREAM.get(step_name, ()):
+        name = _UPSTREAM_PRODUCERS[producer]
+        if name in upstream_artifacts:
+            continue
+        path = _STEP_MODULES[producer].primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
+        if path.exists():
+            upstream_artifacts[name] = path.read_text(encoding="utf-8")
+
+
+def _remember_upstream(step_name: str, path: Path, upstream_artifacts: dict[str, Any]) -> None:
+    """После шага-источника — его артефакт, как он теперь на диске."""
+    if step_name in _UPSTREAM_PRODUCERS and path.exists():
+        upstream_artifacts[_UPSTREAM_PRODUCERS[step_name]] = path.read_text(encoding="utf-8")
 
 
 def _compute_step_hashes(
@@ -532,7 +548,7 @@ def run_pipeline(
                 )
                 continue
 
-        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
+        _load_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
 
         try:
             hashes = _compute_step_hashes(
@@ -670,8 +686,7 @@ def run_pipeline(
             ):
                 return result
 
-        if step_name == "constraints_pick":
-            upstream_artifacts[CONSTRAINTS_ARTIFACT] = primary_path.read_text(encoding="utf-8")
+        _remember_upstream(step_name, primary_path, upstream_artifacts)
 
     return result
 
@@ -761,7 +776,7 @@ def accept_steps(
     выставляется `accepted: true`.
 
     Шаги обходятся по порядку: принятый `constraints.yaml` — тот, что на
-    диске, — сразу же входит в хеш `generators_and_script`/`solutions_draft`.
+    диске, — сразу же входит в хеш следующих шагов, так же и `tests_plan.yaml`.
     Возвращает `(состояния, spec_error)` как `compute_step_statuses`.
     """
     return _walk_steps(
@@ -784,7 +799,7 @@ def _walk_steps(
     templates_dir: Path,
 ) -> tuple[list[StepStatus], Optional[str]]:
     """Общий обход шагов для `llm status`/`llm accept`: опциональные шаги,
-    подхват `constraints.yaml`, хеши — как в `run_pipeline`;
+    подхват upstream-артефактов (`_load_upstream`), хеши — как в `run_pipeline`;
     `visit(problem_id, step_name, entry, hashes, artifact_present, problems_dir)`
     решает, что сказать (и сделать) про шаг."""
     try:
@@ -803,7 +818,7 @@ def _walk_steps(
             statuses.append(StepStatus(step_name, STATUS_SKIPPED_OPTIONAL, skip_detail))
             continue
 
-        _load_constraints_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
+        _load_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
 
         try:
@@ -830,8 +845,7 @@ def _walk_steps(
                 )
             )
 
-        if step_name == "constraints_pick" and primary_path.exists():
-            upstream_artifacts[CONSTRAINTS_ARTIFACT] = primary_path.read_text(encoding="utf-8")
+        _remember_upstream(step_name, primary_path, upstream_artifacts)
 
     return statuses, None
 

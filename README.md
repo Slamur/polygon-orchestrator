@@ -325,8 +325,9 @@ orchestrator [--base-dir DIR] <задача> <init|llm|local|polygon> [кома�
 ### `llm` — генеративные шаги
 
 Шаги по порядку: `statement_draft` → `constraints_pick` →
-`limits_from_constraints` (механический, без модели) →
-`generators_and_script` → `checker_draft` (только при
+`limits_from_constraints` (механический, без модели) → `tests_plan` (план
+тестов) → `generators_draft` (генераторы по плану) → `test_script_draft`
+(test-script по плану) → `checker_draft` (только при
 `checker.custom_needed: true`) → `interactor_draft` (только у интерактивных)
 → `solutions_draft`.
 
@@ -418,6 +419,7 @@ drafts/                    черновики задач для init --draft (н
 problems/<путь задачи>/    ваши задачи (не в git)
   authoring/spec.yaml        спек — вход всех шагов
   authoring/constraints.yaml ограничения, группы, что проверяет валидатор
+  authoring/tests_plan.yaml  план тестов: генераторы и тесты скрипта (можно править руками)
   statement/                 условие (.tex) и примеры
   limits.yaml                актуальные TL/ML (можно править руками)
   validator.cpp, checker.cpp, interactor.cpp
@@ -448,7 +450,7 @@ Polygon:
    `WRITE`).
 2. Второй участник: `orchestrator problems/<путь>/<problem_id> polygon pull` —
    задача найдётся по имени, скачаются её файлы, а из Attachments — спек,
-   `constraints.yaml` и черновик.
+   `constraints.yaml`, план тестов и черновик.
 3. Дальше обычный цикл: правки → `llm generate` / руками → `polygon push`.
    Если другой человек успел что-то запушить, `push` остановится и попросит
    сначала `pull`.

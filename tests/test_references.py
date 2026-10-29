@@ -26,6 +26,7 @@ def _reference_dir(tmp_path: Path, name: str = "example-problem") -> Path:
     directory = tmp_path / name
     _write(directory / "authoring" / "spec.yaml")
     _write(directory / "authoring" / "constraints.yaml")
+    _write(directory / "authoring" / "tests_plan.yaml")
     _write(directory / "validator.cpp")
     _write(directory / "generators" / "gen_b.cpp")
     _write(directory / "generators" / "gen_a.cpp")
@@ -49,13 +50,22 @@ def test_no_references_gives_none(spec):
 def test_directory_gives_only_files_of_the_step(spec, tmp_path):
     directory = _reference_dir(tmp_path)
 
-    documents = reference_documents("generators_and_script", _with_common(spec, [directory]))
+    common = _with_common(spec, [directory])
 
-    assert documents == [
+    assert reference_documents("tests_plan", common) == [
         str(directory / "authoring" / "spec.yaml"),
         str(directory / "authoring" / "constraints.yaml"),
+        str(directory / "authoring" / "tests_plan.yaml"),
+        str(directory / "test_script"),
+    ]
+    assert reference_documents("generators_draft", common) == [
+        str(directory / "authoring" / "tests_plan.yaml"),
         str(directory / "generators" / "gen_a.cpp"),
         str(directory / "generators" / "gen_b.cpp"),
+    ]
+    assert reference_documents("test_script_draft", common) == [
+        str(directory / "authoring" / "constraints.yaml"),
+        str(directory / "authoring" / "tests_plan.yaml"),
         str(directory / "test_script"),
     ]
     assert reference_documents("constraints_pick", _with_common(spec, [directory])) == [
@@ -91,7 +101,7 @@ def test_files_marked_removed_are_not_references(spec, tmp_path):
     common = _with_common(spec, [directory])
 
     assert str(directory / "generators" / "gen_old.cpp.removed") not in reference_documents(
-        "generators_and_script", common
+        "generators_draft", common
     )
     assert reference_documents("solutions_draft", common) == [
         str(directory / "authoring" / "spec.yaml"),
@@ -125,9 +135,9 @@ def test_common_references_come_before_section_references(spec, tmp_path):
     section_file = _write(tmp_path / "my_examples" / "gen_tree.cpp")
     spec = _with_section(_with_common(spec, [common]), "generation", [section_file])
 
-    documents = reference_documents("generators_and_script", spec)
+    documents = reference_documents("generators_draft", spec)
 
-    assert documents[0] == str(common / "authoring" / "spec.yaml")
+    assert documents[0] == str(common / "authoring" / "tests_plan.yaml")
     assert documents[-1] == str(section_file)
 
 
@@ -167,13 +177,11 @@ def test_keep_filters_directory_files_only(spec, tmp_path):
     spec = _with_section(_with_common(spec, [directory]), "generation", [file_ref])
 
     documents = reference_documents(
-        "generators_and_script", spec, keep=lambda rel_path: not rel_path.startswith("generators/")
+        "generators_draft", spec, keep=lambda rel_path: not rel_path.startswith("generators/")
     )
 
     assert documents == [
-        str(directory / "authoring" / "spec.yaml"),
-        str(directory / "authoring" / "constraints.yaml"),
-        str(directory / "test_script"),
+        str(directory / "authoring" / "tests_plan.yaml"),
         str(file_ref),
     ]
 

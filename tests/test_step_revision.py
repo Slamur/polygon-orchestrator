@@ -30,6 +30,7 @@ REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+_TESTS_PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -488,7 +489,13 @@ _PIPELINE_RESPONSES = {
             "constraints.yaml": "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
         },
     ),
-    "generators_and_script": ModelResponse(
+    "tests_plan": ModelResponse(
+        status="confirmed", artifacts={"tests_plan.yaml": _TESTS_PLAN_YAML}
+    ),
+    "generators_draft": ModelResponse(
+        status="confirmed", artifacts={"gen_rand.cpp": "int main(){}"}
+    ),
+    "test_script_draft": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}
     ),
     "solutions_draft": ModelResponse(
@@ -550,10 +557,11 @@ def test_pipeline_revises_stale_step_with_spec_diff(spec_file, tmp_path):
     result, mock_call = _run_pipeline(problems_dir, responses)
 
     assert result.ok
-    # Легенда — вход statement_draft, generators_and_script и solutions_draft.
+    # Легенда — вход statement_draft, tests_plan и solutions_draft; план не
+    # изменился, поэтому generators_draft и test_script_draft — из кэша.
     assert [c.args[0] for c in mock_call.call_args_list] == [
         "statement_draft",
-        "generators_and_script",
+        "tests_plan",
         "solutions_draft",
     ]
     assert result.outcomes[0].detail.endswith("; revising 4 current file(s)")
@@ -660,8 +668,8 @@ def test_statement_current_artifacts_sort_dialogues_numerically(tmp_path):
     ]
 
 
-def test_generators_current_artifacts(tmp_path):
-    from orchestrator.steps import generators_and_script
+def test_generators_and_script_current_artifacts(tmp_path):
+    from orchestrator.steps import generators_draft, test_script_draft
 
     problem = tmp_path / "p1"
     _touch(problem / "generators" / "gen_b.cpp")
@@ -670,11 +678,11 @@ def test_generators_current_artifacts(tmp_path):
     _touch(problem / "generators" / "notes.txt")
     _touch(problem / "test_script")
 
-    current = generators_and_script.current_artifacts("p1", _spec(), problems_dir=tmp_path)
-
-    assert current == {
+    assert generators_draft.current_artifacts("p1", _spec(), problems_dir=tmp_path) == {
         "gen_a.cpp": problem / "generators" / "gen_a.cpp",
         "gen_b.cpp": problem / "generators" / "gen_b.cpp",
+    }
+    assert test_script_draft.current_artifacts("p1", _spec(), problems_dir=tmp_path) == {
         "test_script": problem / "test_script",
     }
 

@@ -31,7 +31,7 @@ def _report(problem_dir: Path, outcome: StepOutcome) -> str:
 def test_notes_are_grouped_by_kind_most_important_first(tmp_path):
     problem_dir = _problem(tmp_path)
     outcome = StepOutcome(
-        "generators_and_script",
+        "tests_plan",
         "proposed",
         notes=[
             _note("changed", "test_script", "added a block"),
@@ -44,7 +44,7 @@ def test_notes_are_grouped_by_kind_most_important_first(tmp_path):
 
     report = _report(problem_dir, outcome)
 
-    assert report.startswith("# generators_and_script: proposed\n")
+    assert report.startswith("# tests_plan: proposed\n")
     assert "`orchestrator problems/my-task llm generate`" in report
     positions = [
         report.index(title)
@@ -73,7 +73,7 @@ def test_diff_only_for_files_that_existed_before(tmp_path):
     same = problem_dir / "test_script"
     same.write_text("x\n", encoding="utf-8")
     outcome = StepOutcome(
-        "generators_and_script",
+        "tests_plan",
         "confirmed",
         ran=True,
         artifact_paths={"gen_a.cpp": changed, "gen_b.cpp": new, "test_script": same},

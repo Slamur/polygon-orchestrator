@@ -49,8 +49,8 @@ def test_compute_input_hash_changes_when_spec_section_changes():
 
 def test_compute_input_hash_changes_when_upstream_artifacts_change():
     spec_section = {"input_shape": "array"}
-    h1 = compute_input_hash("generators_and_script", spec_section, upstream_artifacts={"tl": 1})
-    h2 = compute_input_hash("generators_and_script", spec_section, upstream_artifacts={"tl": 2})
+    h1 = compute_input_hash("tests_plan", spec_section, upstream_artifacts={"tl": 1})
+    h2 = compute_input_hash("tests_plan", spec_section, upstream_artifacts={"tl": 2})
     assert h1 != h2
 
 
@@ -129,13 +129,13 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
 def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
-    _write_prompt(prompts_dir, "generators_and_script", "rule v1", "user v1")
-    _write_step_context_docs(templates_dir, "generators_and_script")
+    _write_prompt(prompts_dir, "tests_plan", "rule v1", "user v1")
+    _write_step_context_docs(templates_dir, "tests_plan")
     extra_file = tmp_path / "extra_gen.cpp"
     extra_file.write_text("extra v1", encoding="utf-8")
 
     h1 = compute_prompt_hash(
-        "generators_and_script",
+        "tests_plan",
         prompts_dir=prompts_dir,
         templates_dir=templates_dir,
         extra_context_documents=[str(extra_file)],
@@ -143,7 +143,7 @@ def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
 
     extra_file.write_text("extra v2", encoding="utf-8")
     h2 = compute_prompt_hash(
-        "generators_and_script",
+        "tests_plan",
         prompts_dir=prompts_dir,
         templates_dir=templates_dir,
         extra_context_documents=[str(extra_file)],

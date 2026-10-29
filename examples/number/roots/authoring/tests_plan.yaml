@@ -1,0 +1,169 @@
+problem_id: number--roots
+
+# Тест — одно число N в единственной строке.
+generators:
+  - name: gen_n_rand
+    status: confirmed
+    params:
+      - name: minN
+        type: ll
+        description: наименьшее N
+      - name: maxN
+        type: ll
+        description: наибольшее N
+    input: null
+    output: весь тест — N
+    algorithm: |
+      N — случайное из [minN, maxN].
+
+  - name: gen_n_power
+    status: confirmed
+    params:
+      - name: k
+        type: int
+        description: показатель степени
+      - name: maxN
+        type: ll
+        description: наибольшее N
+      - name: minB
+        type: ll
+        description: наименьшее основание
+      - name: delta
+        type: ll
+        description: сдвиг N от B^k
+    input: null
+    output: весь тест — N
+    algorithm: |
+      maxB — наибольшее B, для которого B^k <= maxN - delta (бинпоиск по
+      ответу без переполнения 64-битного типа); B — случайное из [minB, maxB],
+      N = B^k + delta. Падает, если minB > maxB.
+
+  - name: gen_n_pow_of_base
+    status: confirmed
+    params:
+      - name: b
+        type: ll
+        description: основание
+      - name: p
+        type: int
+        description: показатель степени
+    input: null
+    output: весь тест — N
+    algorithm: |
+      N = b^p + delta, delta — случайное из {-1, 0, 1} (выбирает сам
+      генератор: так строки скрипта для разных delta не нужны). Падает, если
+      b^p не помещается в 64-битный знаковый тип. Диапазон N не проверяет —
+      скрипт вызывает генератор только для допустимых N.
+
+constants:
+  - name: minN
+    value: "1"
+    description: N.min из constraints.yaml
+  - name: maxNExp
+    value: "18"
+    description: N.max = 10^maxNExp из constraints.yaml
+  - name: maxN
+    value: 10^maxNExp
+    description: N.max из constraints.yaml
+  - name: tinyMaxN
+    value: "20"
+    description: все N подряд до этой границы
+  - name: smallMaxN
+    value: "1000"
+    description: граница маленьких случайных тестов
+  - name: deltas
+    value: "[-1, 0, 1]"
+    description: сдвиги от точной степени
+  - name: pow2Exps
+    value: "[6, 10, 20, 30, 31, 32, 48, 53, 54, 59]"
+    description: |
+      степени двойки: 2^6 = 4^3 = 8^2, 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 —
+      границы int / unsigned int, 2^48 = 65536^3, 2^53 / 2^54 — граница
+      точности double, 2^59 — наибольшая степень 2 <= 10^18
+  - name: pow10Exps
+    value: "[2, 3, 6, 9, 12, 15, 16, 17]"
+    description: степени десятки — квадраты, кубы и ни то ни другое, все меньше maxN - 1
+  - name: powerExps
+    value: "[2, 3, 4, 5, 6, 12]"
+    description: показатели для случайных B^k + delta
+  - name: topExps
+    value: "[2, 3, 6]"
+    description: показатели, для которых maxN — точная степень topB = 10^(maxNExp / k)
+
+tests:
+  - description: Все N от 1 до 20
+    status: proposed
+    covers:
+      - specific_test_ideas[0]
+    commands:
+      - gen_n_rand -minN=n -maxN=n
+    repeat: n = minN..tinyMaxN
+    rationale: |
+      Граница 20 вместо 30 из спека: N от 21 до 30 покрываются случайными
+      маленькими тестами и точными степенями ниже.
+
+  - description: Случайные маленькие и средние N
+    status: proposed
+    covers: []
+    commands:
+      - gen_n_rand -minN=minN -maxN=smallMaxN
+      - gen_n_rand -minN=smallMaxN -maxN=smallMaxN*smallMaxN
+    repeat: null
+
+  - description: Степени двойки и десятки ± 1
+    status: confirmed
+    covers:
+      - specific_test_ideas[6]
+      - specific_test_ideas[7]
+      - known_wrong_approaches[2]
+      - known_wrong_approaches[4]
+    commands:
+      - gen_n_pow_of_base -b=2 -p=p
+      - gen_n_pow_of_base -b=10 -p=q
+    repeat: первая команда — p по pow2Exps, затем вторая — q по pow10Exps
+
+  - description: Случайные B^k + delta до наибольшего допустимого B
+    status: confirmed
+    covers:
+      - specific_test_ideas[3]
+      - specific_test_ideas[4]
+      - specific_test_ideas[5]
+      - known_wrong_approaches[0]
+      - known_wrong_approaches[1]
+      - known_wrong_approaches[3]
+      - known_wrong_approaches[6]
+    commands:
+      - gen_n_power -k=k -maxN=maxN -minB=minB -delta=delta
+    repeat: k по powerExps, delta по deltas; minB = max(1, 1 - delta) — при delta = -1 B >= 2, иначе N = 0
+
+  - description: B^k + delta для наибольшего B (topB - 1)
+    status: confirmed
+    covers:
+      - specific_test_ideas[3]
+      - specific_test_ideas[4]
+      - specific_test_ideas[5]
+    commands:
+      - gen_n_pow_of_base -b=b -p=k
+    repeat: k по topExps, b = 10^(maxNExp / k) - 1 — наибольшее B, для которого допустима любая delta
+
+  - description: Максимальные тесты — N = 10^18 и N = 10^18 - 1
+    status: confirmed
+    covers:
+      - specific_test_ideas[1]
+      - specific_test_ideas[2]
+      - known_wrong_approaches[5]
+      - known_wrong_approaches[7]
+    commands:
+      - gen_n_rand -minN=maxN -maxN=maxN
+      - gen_n_rand -minN=maxN-1 -maxN=maxN-1
+    repeat: null
+
+  - description: Случайные N во всём диапазоне
+    status: confirmed
+    covers:
+      - specific_test_ideas[8]
+    commands:
+      - gen_n_rand -minN=minN -maxN=maxN
+      - gen_n_rand -minN=maxN/2 -maxN=maxN
+      - gen_n_rand -minN=minN -maxN=maxN/2
+    repeat: null

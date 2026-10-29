@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any, Optional
 
@@ -14,6 +13,7 @@ from orchestrator.model_contracts import ModelResponse
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, split_solution_stem
 from orchestrator.steps.base import (
+    CONSTRAINTS_ARTIFACT,
     INTERACTIVE_TUTORIAL,
     PROBLEMS_DIR,
     PROMPTS_DIR,
@@ -24,11 +24,9 @@ from orchestrator.steps.base import (
     artifact_filename,
     run_generative_step,
     statement_io_section,
+    constraints_without_limits,
+    require_constraints_yaml,
     with_default_lists,
-)
-from orchestrator.steps.generators_and_script import (
-    CONSTRAINTS_ARTIFACT,
-    _require_constraints_yaml,
 )
 
 STEP_NAME = "solutions_draft"
@@ -50,13 +48,6 @@ SOLUTION_TEMPLATES_SUBDIR = "solutions"
 # варианты записи к тому, как язык назван в именах файлов шаблонов.
 _LANGUAGE_ALIASES = {"c++": "cpp", "python": "py", "python3": "py"}
 
-# TL/ML в `constraints.yaml`: секция `limits` и пара ключей, которую
-# `set_constraints` принимает и прямо в корне документа. Шагу они не
-# передаются, см. `_without_limits`.
-_LIMITS_BLOCK_RE = re.compile(r"limits\s*:")
-_LIMITS_KEY_RE = re.compile(r"(time_limit_seconds|memory_limit_mb)\s*:")
-
-
 def _require_solutions_section(problem_id: str, spec: ProblemSpec) -> None:
     if spec.solutions is None:
         raise ValueError(
@@ -64,26 +55,6 @@ def _require_solutions_section(problem_id: str, spec: ProblemSpec) -> None:
             "'solutions' section — solution drafts not requested, the step is not run "
             "(see SPEC_FORMAT.md, section 4 — optional)"
         )
-
-
-def _without_limits(constraints_yaml: str) -> str:
-    """`constraints.yaml` без TL/ML: секции `limits` верхнего уровня (вместе
-    с вложенными строками) и ключей `time_limit_seconds`/`memory_limit_mb`
-    в корне. Решения пишутся по асимптотике и диапазонам переменных: TL
-    модель проверить не может, а его подгонка (в том числе на Polygon) не
-    должна инвалидировать решения. Вырезается текстом, а не через YAML,
-    чтобы остальной файл, с комментариями, модель видела как есть.
-    """
-    kept: list[str] = []
-    in_limits = False
-    for line in constraints_yaml.splitlines(keepends=True):
-        if in_limits and (line[:1] in (" ", "\t") or not line.strip()):
-            continue
-        in_limits = bool(_LIMITS_BLOCK_RE.match(line))
-        if in_limits or _LIMITS_KEY_RE.match(line):
-            continue
-        kept.append(line)
-    return "".join(kept)
 
 
 def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
@@ -114,7 +85,7 @@ def compute_input_hash(
     и CLAUDE.md, "Кэширование по хешу спека". Как и `run_step`, требует
     секцию `solutions` в спеке и `upstream_artifacts["constraints.yaml"]`.
     Вход — `_build_context_sections` + содержимое `constraints.yaml` без
-    TL/ML (`_without_limits`).
+    TL/ML (`base.constraints_without_limits`).
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
@@ -128,8 +99,8 @@ def hash_inputs(
     общий источник для `compute_input_hash` и хешей по частям
     (`cache.compute_input_values`), чтобы они не разошлись."""
     _require_solutions_section(problem_id, spec)
-    constraints_yaml = _without_limits(
-        _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
+    constraints_yaml = constraints_without_limits(
+        require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     )
     return _build_context_sections(spec), {CONSTRAINTS_ARTIFACT: constraints_yaml}
 
@@ -231,7 +202,7 @@ def run_step(
     индексация, примеры с ответами, легенда — см. `_build_context_sections`)
     и полный текст апстрим-артефакта `constraints_pick`
     (`upstream_artifacts["constraints.yaml"]`: диапазоны переменных, группы,
-    гарантии валидатора; без TL/ML — `_without_limits`) — без них модель
+    гарантии валидатора; без TL/ML — `base.constraints_without_limits`) — без них модель
     вынуждена угадывать формат ввода-вывода и типы величин.
 
     Требует, чтобы в спеке была включена опциональная секция `solutions`
@@ -251,8 +222,8 @@ def run_step(
     При успехе пишет файлы решений в `problems/<problem_id>/solutions/`.
     """
     _require_solutions_section(problem_id, spec)
-    constraints_yaml = _without_limits(
-        _require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
+    constraints_yaml = constraints_without_limits(
+        require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     )
 
     context = {
