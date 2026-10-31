@@ -375,3 +375,129 @@ def test_local_check_does_not_run_solutions(tmp_path, capsys):
 
     assert cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "check"]) == 0
     assert "running" not in capsys.readouterr().out
+
+
+# Синтетический генератор: печатает аргументы одной строкой через пробел.
+GEN_PAIR_CPP = (
+    "#include <iostream>\n"
+    'int main(int argc, char** argv) { std::cout << argv[1] << " " << argv[2] << "\\n"; }\n'
+)
+# Верно везде, кроме входа с a = 7: примеры (1 2, 10 20) этого не видят.
+WA_ON_SEVEN_PY = (
+    "a, b = map(int, input().split())\nprint(a + b + (1 if a == 7 else 0))\n"
+)
+
+
+def _full_problem(tmp_path: Path, solutions: dict[str, str], script: str, **kwargs) -> Path:
+    if shutil.which("java") is None:
+        pytest.skip("java not found")
+    problem_dir = _problem(tmp_path, solutions, **kwargs)
+    (problem_dir / "generators").mkdir()
+    (problem_dir / "generators" / "gen_pair.cpp").write_text(GEN_PAIR_CPP, encoding="utf-8")
+    (problem_dir / "test_script").write_text(script, encoding="utf-8")
+    return problem_dir
+
+
+def _by_name(result) -> dict:
+    return {s.name: s for s in result.solutions}
+
+
+def test_full_wa_caught_by_generated_test_stops_there(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        "gen_pair 7 1 > $\ngen_pair 7 2 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert not result.failed
+    wa = _by_name(result)["wa_py_seven_draft.py"]
+    # Два примера, потом первый же сгенерированный — и стоп.
+    assert [t.verdict for t in wa.tests] == ["OK", "OK", "WA"]
+    assert wa.stopped_early
+    assert wa.tests[-1].command == "gen_pair 7 1"
+    assert len(_by_name(result)["ok_py_main_draft.py"].tests) == 4
+
+
+def test_full_wa_not_caught_by_any_test_fails(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        "gen_pair 3 1 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert result.failed
+    unexpected = dict((title, lines) for title, lines, _ in result.groups())["unexpected verdicts"]
+    assert any("never got WA: no test catches it" in line for line in unexpected)
+
+
+def test_without_full_wa_passing_everything_is_fine(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        "gen_pair 7 1 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    assert not result.failed
+    assert len(_by_name(result)["wa_py_seven_draft.py"].tests) == 2
+
+
+def test_full_wa_caught_on_example_skips_generated_tests(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ok_py_main_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
+        "gen_pair 3 1 > $\n",
+    )
+    wa = _by_name(run_solutions(problem_dir, TEMPLATES_DIR, full=True))["wa_py_minus_draft.py"]
+    assert len(wa.tests) == 2
+    assert wa.stopped_early
+
+
+def test_full_ok_failing_generated_test_reports_its_command(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ok_py_main_draft.py": OK_PY, "ok_py_other_draft.py": WA_ON_SEVEN_PY},
+        "gen_pair 3 1 > $\ngen_pair 7 1 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert result.failed
+    unexpected = dict((title, lines) for title, lines, _ in result.groups())["unexpected verdicts"]
+    assert "    gen_pair 7 1" in unexpected
+
+
+def test_full_tl_never_reached_is_only_a_warning(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ok_py_main_draft.py": OK_PY, "tl_py_fast_draft.py": OK_PY},
+        "gen_pair 3 1 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert not result.failed
+    assert any("never got TL" in line for line in result.warnings)
+
+
+def test_full_generated_tests_without_ok_solution_is_an_error(tmp_path):
+    problem_dir = _full_problem(tmp_path, {"wa_py_minus_draft.py": WA_PY}, "gen_pair 3 1 > $\n")
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert any("no ok solution" in error for error in result.errors)
+
+
+def test_full_validator_runs_on_generated_tests(tmp_path):
+    problem_dir = _full_problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, "gen_pair 500 1 > $\n")
+    (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert any("rejects test 3" in error for error in result.errors)
+
+
+def test_runs_are_summarized_on_many_tests(tmp_path):
+    script = "".join(f"gen_pair {i} 1 > $\n" for i in range(1, 11))
+    problem_dir = _full_problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, script)
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert "OK x12, max " in _by_name(result)["ok_py_main_draft.py"].runs
+
+
+def test_local_run_full_flag_reaches_generated_tests(tmp_path, capsys):
+    _full_problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, "gen_pair 3 1 > $\n")
+    rc = cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "run", "--full"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "tests: 1 (1 generated" in out
