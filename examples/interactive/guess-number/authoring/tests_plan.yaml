@@ -74,6 +74,9 @@ constants:
   - name: minX
     value: "1"
     description: X.min из constraints.yaml
+  - name: maxExhaustiveN
+    value: "8"
+    description: наибольшее N с полным перебором пар (N, X) из specific_test_ideas[4]
   - name: maxXList
     value: "[1, 2, 500, 501, 512, 513, 999, 1000]"
     description: загаданные числа при N = maxN из specific_test_ideas[3]
@@ -95,9 +98,9 @@ tests:
       - known_wrong_approaches[5]
     commands:
       - gen_fixed -n=n -x=x
-    repeat: n = minN..8, x = minX..n
+    repeat: n = minN..maxExhaustiveN, x = minX..n
 
-  - description: N = 2^p + delta для всех p, при которых N в [minN, maxN], X = 1 и X = N
+  - description: N = 2^p + delta для всех p, при которых N в (maxExhaustiveN, maxN], X = 1 и X = N
     status: confirmed
     covers:
       - specific_test_ideas[0]
@@ -108,8 +111,8 @@ tests:
       - gen_pow2_delta -p=p -delta=delta -x=n
     repeat: |
       p = 0..10, delta по [-1, 0, 1], n = 2^p + delta; только n в
-      [minN, maxN]; вторая команда — только при n > minX (иначе совпала бы
-      с первой)
+      (maxExhaustiveN, maxN] — меньшие n дали бы те же тесты, что и полный
+      перебор выше
 
   - description: N = maxN с явно заданными граничными и произвольными X
     status: confirmed
