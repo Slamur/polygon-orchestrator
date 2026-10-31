@@ -44,23 +44,23 @@
 <#assign minN = 1/>
 <#assign maxN = 1000/>
 <#assign minX = 1/>
+<#assign maxExhaustiveN = 8/>
 
-<#assign description = "Small tests: exhaustive N and X for every N from minN to 8"/>
-<#list minN..8 as n>
+<#assign description = "Small tests: exhaustive N and X for every N from minN to maxExhaustiveN"/>
+<#list minN..maxExhaustiveN as n>
     <#list minX..n as x>
 ${fixed} -n=${n} -x=${x} > $
     </#list>
 </#list>
 
-<#assign description = "Edge cases: N = 2^p + delta for every p with N in [minN, maxN], X = 1 and X = N"/>
+<#-- N up to maxExhaustiveN are skipped: the exhaustive tests above already contain the same tests -->
+<#assign description = "Edge cases: N = 2^p + delta for every p with N in (maxExhaustiveN, maxN], X = 1 and X = N"/>
 <#list 0..10 as p>
     <#list [-1, 0, 1] as delta>
         <#assign n = pow(2, p) + delta/>
-        <#if n gte minN && n lte maxN>
+        <#if n gt maxExhaustiveN && n lte maxN>
 ${pow2delta} -p=${p} -delta=${delta} -x=${minX} > $
-            <#if n gt minX>
 ${pow2delta} -p=${p} -delta=${delta} -x=${n} > $
-            </#if>
         </#if>
     </#list>
 </#list>
