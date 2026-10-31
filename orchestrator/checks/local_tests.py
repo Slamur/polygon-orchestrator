@@ -22,7 +22,9 @@ Polygon, а не гарантия: `rnd` testlib детерминирован, �
    теста, для ручного разбора.
 4. Одинаковые тесты ищутся по содержимому (`find_equal_tests`), вместе с
    примерами: разные команды могут дать один и тот же тест. Концы строк
-   нормализуются, остальное сравнивается побайтово.
+   нормализуются, остальное сравнивается побайтово. Это сведения для автора,
+   а не ошибка: `format_equal_tests` показывает, каким строкам скрипта они
+   соответствуют, код возврата от них не зависит.
 5. Валидатор (`validator.cpp`, если есть) прогоняется на каждом тесте.
 """
 
@@ -71,6 +73,9 @@ class LocalTest:
     number: int
     command: str
     path: Path
+    # Имя файла скрипта и строка, напечатавшая команду (`None` — не опознана).
+    script: str = ""
+    script_line: int | None = None
 
     @property
     def name(self) -> str:
@@ -277,7 +282,9 @@ def generate_tests(
             part.replace(path)
             result.generated += 1
         keep_keys.add(key)
-        result.tests.append(LocalTest(number, command, path))
+        result.tests.append(
+            LocalTest(number, command, path, script.name, line.source.line if line.source else None)
+        )
         manifest.append(f"{number}\t{path.relative_to(cache_dir).as_posix()}\t{command}")
 
     for path in objects_dir.iterdir():
@@ -326,6 +333,23 @@ def find_equal_tests(problem_dir: Path, tests: list[LocalTest]) -> list[EqualTes
     for test in tests:
         groups.setdefault(_normalized_hash(test.path), []).append(test.name)
     return [EqualTests(names) for names in groups.values() if len(names) > 1]
+
+
+def format_equal_tests(groups: list[EqualTests], tests: list[LocalTest]) -> str:
+    """Отчёт: какие тесты получаются одинаковыми при запуске и какие строки
+    скрипта им соответствуют."""
+    by_name = {test.name: test for test in tests}
+    lines = [f"equal tests: {len(groups)} group(s) come out identical when generated:"]
+    for group in groups:
+        lines.append("  " + " = ".join(group.names))
+        for name in group.names:
+            test = by_name.get(name)
+            if test is None:
+                lines.append(f"    {name}: example of the statement")
+                continue
+            where = f" ({test.script} line {test.script_line})" if test.script_line else ""
+            lines.append(f"    {name}: {test.command}{where}")
+    return "\n".join(lines)
 
 
 def validate_tests(

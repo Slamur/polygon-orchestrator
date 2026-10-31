@@ -65,6 +65,7 @@ from orchestrator.checks.local_tests import (
     MANIFEST_FILENAME,
     TESTS_CACHE_DIRNAME,
     find_equal_tests,
+    format_equal_tests,
     generate_tests,
     validate_tests,
 )
@@ -608,7 +609,8 @@ def cmd_local_check(args: argparse.Namespace) -> int:
 
 def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     """`local check --full`: тесты по скрипту (с кэшем), валидатор на них и
-    поиск одинаковых по содержимому (`orchestrator/checks/local_tests.py`)."""
+    поиск одинаковых по содержимому (`orchestrator/checks/local_tests.py`).
+    Одинаковые тесты только показываются, ошибкой не считаются."""
     progress = lambda line: print(line, flush=True)
     generated = generate_tests(problem_dir, templates_dir, progress=progress)
     print(
@@ -624,19 +626,10 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     elif not validator_errors:
         print(f"{VALIDATOR_FILENAME} accepts all {len(generated.tests)} test(s)")
     equal = find_equal_tests(problem_dir, generated.tests)
-    if equal:
-        commands = {test.name: test.command for test in generated.tests}
-        print(f"{len(equal)} group(s) of equal tests:")
-        for group in equal:
-            print("  " + " = ".join(group.names))
-            for name in group.names:
-                if name in commands:
-                    print(f"    {name}: {commands[name]}")
-    else:
-        print("no equal tests")
+    print(format_equal_tests(equal, generated.tests) if equal else "no equal tests")
     for error in errors:
         print(error)
-    return not errors and not equal
+    return not errors
 
 
 def cmd_local_run(args: argparse.Namespace) -> int:

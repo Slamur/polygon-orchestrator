@@ -248,16 +248,26 @@ def test_cli_full_passes_on_good_tests(tmp_path, capsys):
     assert "no equal tests" in out
 
 
-def test_cli_full_fails_on_equal_tests(tmp_path, capsys):
+def test_cli_full_shows_equal_tests_with_script_lines_without_failing(tmp_path, capsys):
     _problem(
         tmp_path,
-        "gen_args a > $\ngen_other a > $\n",
+        "gen_args a > $\n\ngen_other a > $\ngen_args x > $\n",
         generators={"gen_args": GEN_ARGS_CPP, "gen_other": GEN_ARGS_CPP},
+        examples=("x\n",),
     )
-    assert _check(tmp_path, "--full") == 1
+    assert _check(tmp_path, "--full") == 0
     out = capsys.readouterr().out
-    assert "test 1 = test 2" in out
-    assert "gen_other a" in out
+    assert "equal tests: 2 group(s)" in out
+    assert "test 2 = test 3" in out
+    assert "test 2: gen_args a (test_script line 1)" in out
+    assert "test 3: gen_other a (test_script line 3)" in out
+    assert "example_1 = test 4" in out
+    assert "example_1: example of the statement" in out
+
+
+def test_cli_full_fails_on_generator_error(tmp_path):
+    _problem(tmp_path, "gen_fail a > $\n", generators={"gen_fail": GEN_FAIL_CPP})
+    assert _check(tmp_path, "--full") == 1
 
 
 def test_cli_without_full_generates_nothing(tmp_path):
