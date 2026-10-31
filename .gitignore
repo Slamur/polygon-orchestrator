@@ -22,6 +22,7 @@ examples/**/.pull_backup/
 examples/**/.llm_backup/
 examples/**/.llm_conflicts/
 examples/**/.fix_backup/
+examples/**/.tests_cache/
 examples/**/*.removed
 examples/**/polygon_state.json
 examples/**/llm_generation.log

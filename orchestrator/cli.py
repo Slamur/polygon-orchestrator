@@ -193,6 +193,12 @@ def build_parser() -> argparse.ArgumentParser:
         "(Polygon refuses to generate tests from them) and the script lines printing them "
         "(the script check needs java, downloads FreeMarker once)",
     )
+    local_check_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="also generate the tests from the script locally (cached in .tests_cache/, only "
+        "new tests are generated), run the validator on them and look for equal tests",
+    )
     local_check_parser.set_defaults(handler="cmd_local_check")
 
     local_run_parser = local_commands.add_parser(

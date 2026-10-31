@@ -78,6 +78,8 @@ Python-оркестратор, который берёт структуриро�
 - **решения на примерах** (`local run`) — запуск валидатора и решений
   только на примерах условия, с проверкой, что вердикт совместим с именем
   решения;
+- **локальные тесты** (`local check --full`) — генерация тестов по скрипту,
+  валидатор на них и поиск одинаковых тестов;
 - **timeout-обёртка** вокруг любого запуска сгенерированного бинаря
   (например, прогон генератора для смоук-теста) — просто убить процесс по
   таймауту, без анализа TLE/MLE отдельно.
@@ -195,6 +197,7 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
 │   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
 │   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker, поиск одинаковых строк и параметров с кавычками/`>` (local check, upload_test_script)
+│   │   ├── local_tests.py         # генерация тестов по test-script'у с кэшем в .tests_cache/, поиск одинаковых по содержимому, валидатор на них (local check --full)
 │   │   ├── statement_check.py     # оформление statement/*.tex: Markdown-списки и кавычки не <<…>> (local check) и их исправление (local fix)
 │   │   ├── solutions_run.py       # валидатор и решения на примерах: сборка (C++/Java/Python), запуск с TL из limits.yaml, чекер, допустимые вердикты (local run)
 │   │   ├── std_checkers/          # исходники стандартных чекеров testlib (ncmp, wcmp, …) для solutions_run — копия из репозитория testlib (откуда и как обновить — README.md там же), MIT
@@ -223,6 +226,7 @@ Python-оркестратор, который берёт структуриро�
         ├── polygon.log             # лог `orchestrator <задача> polygon push` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
         ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256, stamps: файл -> отметка его версии на Polygon); не в .cache/ — это факт состояния на Polygon, не кэш шага
         ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull`
+        ├── .tests_cache/           # тесты и сборки генераторов `local check --full`, manifest.txt — номер, файл и команда теста; можно удалять
         ├── .fix_backup/<время>/    # прежние версии файлов условия, исправленных `local fix`
         ├── .llm_backup/<время>/    # прежние версии файлов, перезаписанных или переименованных `llm generate`
         ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
@@ -576,6 +580,15 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   FreeMarker не раскрыл скрипт — только предупреждение
   (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
   докстринге `orchestrator/checks/test_script_check.py`.
+  С `--full` ещё генерирует тесты по скрипту локально, прогоняет на них
+  валидатор и показывает одинаковые по содержимому, вместе с примерами, и
+  соответствующие им строки скрипта (код возврата от них не зависит). Кэш —
+  `.tests_cache/`: ключ теста — хеш команды и сборки её генераторов, поэтому
+  перенумерация ничего не перегенерирует, правка генератора — только тесты
+  с ним, тесты с пропавшими ключами удаляются (`manifest.txt` — номер, файл
+  и команда каждого). Перед push не запускается. Это приближение: на Polygon
+  другой компилятор, и тесты могут отличаться. Детали — в докстринге
+  `orchestrator/checks/local_tests.py`.
 - `orchestrator <задача> local run` — без модели и без сети: прогоняет
   на примерах (`statement/examples/example_<N>.txt`) валидатор и все
   решения из `solutions/`. Отдельно от `local check` и не запускается
@@ -920,7 +933,7 @@ CLI, расход из лимитов подписки, а не с API-бала�
   (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
   спек `authoring/spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
   служебные файлы оркестратора в них — кэш, логи, `polygon_state.json`,
-  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `llm_reports/`, `*.removed` — в `.gitignore`;
+  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `.tests_cache/`, `llm_reports/`, `*.removed` — в `.gitignore`;
   `limits.yaml` коммитится — актуальные TL/ML задачи, после подгонки на
   Polygon они расходятся с `constraints.yaml`, и это нормально; ожидаемый по нему
   результат `constraints_pick` — `authoring/constraints.yaml` рядом, `tests_plan`

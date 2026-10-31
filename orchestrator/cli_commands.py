@@ -61,7 +61,16 @@ from orchestrator.checks.statement_check import (
     fix_text as fix_statement_text,
     statement_files,
 )
+from orchestrator.checks.local_tests import (
+    MANIFEST_FILENAME,
+    TESTS_CACHE_DIRNAME,
+    find_equal_tests,
+    format_equal_tests,
+    generate_tests,
+    validate_tests,
+)
 from orchestrator.checks.solutions_run import run_solutions
+from orchestrator.polygon.sync import VALIDATOR_FILENAME
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptRenderError,
@@ -588,8 +597,39 @@ def cmd_local_check(args: argparse.Namespace) -> int:
         failed |= not _check_statement(problem_dir, tex_files)
     else:
         print(f"no statement ({STATEMENT_DIRNAME}/*.tex) — skipped")
-    failed |= not _check_scripts(problem_dir)
+    scripts_ok = _check_scripts(problem_dir)
+    failed |= not scripts_ok
+    if args.full:
+        if scripts_ok:
+            failed |= not _check_generated_tests(problem_dir, Path(args.templates_dir))
+        else:
+            print("tests are not generated: fix the test script first")
     return 1 if failed else 0
+
+
+def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
+    """`local check --full`: тесты по скрипту (с кэшем), валидатор на них и
+    поиск одинаковых по содержимому (`orchestrator/checks/local_tests.py`).
+    Одинаковые тесты только показываются, ошибкой не считаются."""
+    progress = lambda line: print(line, flush=True)
+    generated = generate_tests(problem_dir, templates_dir, progress=progress)
+    print(
+        f"tests: {len(generated.tests)} ({generated.generated} generated, "
+        f"{generated.reused} from cache, {generated.removed} removed), "
+        f"see {TESTS_CACHE_DIRNAME}/{MANIFEST_FILENAME}"
+    )
+    errors = list(generated.errors)
+    validator_errors, validated = validate_tests(problem_dir, templates_dir, generated.tests)
+    errors += validator_errors
+    if not validated:
+        print(f"no {VALIDATOR_FILENAME}: tests are not validated")
+    elif not validator_errors:
+        print(f"{VALIDATOR_FILENAME} accepts all {len(generated.tests)} test(s)")
+    equal = find_equal_tests(problem_dir, generated.tests)
+    print(format_equal_tests(equal, generated.tests) if equal else "no equal tests")
+    for error in errors:
+        print(error)
+    return not errors
 
 
 def cmd_local_run(args: argparse.Namespace) -> int:

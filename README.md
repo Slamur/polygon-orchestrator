@@ -283,6 +283,7 @@ orchestrator problems/my-task llm generate   # все шаги по порядк
 
 ```bash
 orchestrator problems/my-task local check    # оформление условия, дубли и кавычки в скрипте
+orchestrator problems/my-task local check --full  # ещё и сгенерировать тесты: валидатор, одинаковые тесты
 orchestrator problems/my-task local run      # валидатор и решения на примерах
 orchestrator problems/my-task local fix      # автоматически исправить то, что можно
 orchestrator problems/my-task polygon push   # создать задачу на Polygon и загрузить
@@ -360,8 +361,16 @@ orchestrator [--base-dir DIR] <задача> <init|llm|local|polygon> [кома�
 | Команда | Что делает |
 |---|---|
 | `local check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`), дублей строк и параметров с кавычками/`>` в раскрытом test-script'е (нужна `java`) |
+| `local check --full` | То же плюс локальная генерация тестов по скрипту: валидатор на каждом тесте и поиск одинаковых по содержимому (в том числе с примерами) |
 | `local run` | Собрать валидатор и решения и прогнать на примерах (дольше, чем `check`) |
 | `local fix` | Исправить найденное `check`: списки → `itemize`/`enumerate`, кавычки → `<<…>>`; бэкап в `.fix_backup/` |
+
+`local check --full`: одинаковые тесты только показываются, с командами и строками
+скрипта, ошибкой не считаются. Тесты и сборки генераторов лежат в `.tests_cache/`, их
+можно удалять; номер, файл и команда каждого теста — в `.tests_cache/manifest.txt`.
+Заново генерируются только новые строки скрипта и тесты изменившихся генераторов.
+Тесты сгенерированы другим компилятором, чем на Polygon, поэтому в редких случаях
+(`long`, `std::shuffle`, порядок `unordered_*`) могут отличаться от тестов Polygon.
 
 `local run`: каждое решение из `solutions/` собирается и
 запускается на `statement/examples/example_<N>.txt`, ответ проверяет чекер

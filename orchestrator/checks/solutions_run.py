@@ -75,6 +75,7 @@ from typing import Callable
 import yaml
 
 from orchestrator.checks.compile_check import compile_check
+from orchestrator.checks.local_tests import EXAMPLES_SUBDIR, example_files
 from orchestrator.checks.run_with_timeout import RunResult, _raise_stack_limit, run_with_timeout
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
 from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits
@@ -119,10 +120,8 @@ SLOW_FRACTION = 0.5
 _TL_VERDICTS = frozenset({"tl", "tle"})
 
 STD_CHECKERS_DIR = Path(__file__).with_name("std_checkers")
-EXAMPLES_SUBDIR = "examples"
 SOLUTIONS_DIRNAME = "solutions"
 
-_EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 _STD_PREFIX = "std::"
 # Без `limits.yaml` и `constraints.yaml`.
 _DEFAULT_TIME_LIMIT_MS = 2000
@@ -373,16 +372,9 @@ def _section(spec: dict | None, name: str) -> dict:
 
 def _sample_tests(problem_dir: Path, spec: dict | None) -> list[SampleTest]:
     examples_dir = problem_dir / STATEMENT_DIRNAME / EXAMPLES_SUBDIR
-    if not examples_dir.is_dir():
-        return []
     spec_examples = _section(spec, "statement_draft").get("sample_examples") or []
-    numbered = sorted(
-        (int(match.group(1)), path)
-        for path in examples_dir.iterdir()
-        if path.is_file() and (match := _EXAMPLE_NAME.match(path.name))
-    )
     tests = []
-    for number, path in numbered:
+    for number, path in example_files(examples_dir):
         answer = None
         if 0 < number <= len(spec_examples) and isinstance(spec_examples[number - 1], dict):
             output = spec_examples[number - 1].get("output")
