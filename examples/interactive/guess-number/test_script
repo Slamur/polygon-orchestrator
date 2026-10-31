@@ -76,7 +76,7 @@ ${rand} -minN=${maxN} -maxN=${maxN} > $
 ${rand} -minN=${maxN - 9} -maxN=${maxN} > $
 ${rand} -minN=${maxN - 49} -maxN=${maxN} > $
 
-<#assign description = "Specific tests: worst-case X forcing exactly the maximum allowed number of queries; catches solutions that need an 11th query (final separate '=' query after narrowing to one candidate, or off-by-one narrowing)"/>
+<#assign description = "Specific tests: worst-case X forcing exactly the maximum allowed number of queries; catches solutions that need an 11th query"/>
 <#assign worstNs = [maxN, maxN - 1, 512, 513]/>
 <#list worstNs as n>
 ${worst} -n=${n} > $
