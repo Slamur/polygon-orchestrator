@@ -228,6 +228,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="upload everything, even if unchanged or if the problem was changed on Polygon",
     )
+    polygon_push_parser.add_argument(
+        "--no-commit",
+        action="store_true",
+        help="leave the uploads uncommitted in the Polygon working copy: commit them on Polygon "
+        "yourself, then run `polygon pull`",
+    )
     polygon_push_parser.set_defaults(handler="cmd_polygon_push")
 
     polygon_status_parser = polygon_commands.add_parser(
