@@ -537,6 +537,70 @@ def test_uncommitted_changes_on_polygon_stop_push_even_with_force(problems_dir, 
     assert client.methods() == ["problems.list"]
 
 
+def test_no_commit_uploads_without_commit_base_or_stamps(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir, synced={"other": "x"})
+    calls = fake_steps(commits_changes=True)
+    client = RevisionClient(revision=10)
+
+    result = run_polygon_pipeline(
+        PROBLEM_ID, no_commit=True, problems_dir=problems_dir, client=client
+    )
+
+    assert result.ok
+    assert calls == ["step_a", "step_b", "step_c"]
+    assert client.methods() == ["problems.list"]  # только сверка ревизии
+    assert result.outcomes[0].uploaded == ("step_a/item",)
+    assert result.outcomes[0].detail == "step_a done; not committed"
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
+    assert state.revision == 10
+    assert state.synced == {"other": "x"}
+    assert state.stamps == {}
+
+
+def test_no_commit_continues_over_uncommitted_changes_with_warning(problems_dir, fake_steps, caplog):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
+    calls = fake_steps(commits_changes=True)
+    client = RevisionClient(revision=10, modified=True)
+
+    result = run_polygon_pipeline(
+        PROBLEM_ID, only_step="step_a", no_commit=True, problems_dir=problems_dir, client=client
+    )
+
+    assert result.ok
+    assert calls == ["step_a"]
+    assert client.commits() == []
+    assert "uncommitted changes" in caplog.text
+
+
+def test_no_commit_still_stops_on_changed_polygon(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
+    calls = fake_steps(commits_changes=True)
+
+    result = run_polygon_pipeline(
+        PROBLEM_ID, no_commit=True, problems_dir=problems_dir, client=RevisionClient(revision=11)
+    )
+
+    assert calls == []
+    assert result.outcomes[0].status == "error"
+    assert "polygon pull" in result.outcomes[0].detail
+
+
+def test_push_after_no_commit_stops_on_uncommitted_changes(problems_dir, fake_steps):
+    _write_spec(problems_dir, PROBLEM_ID)
+    _link(problems_dir)
+    calls = fake_steps(commits_changes=True)
+    # После `--no-commit` загруженное лежит в рабочей копии на Polygon.
+    client = RevisionClient(revision=10, modified=True)
+
+    result = run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
+
+    assert calls == []
+    assert "uncommitted changes" in result.outcomes[0].detail
+
+
 def test_create_problem_does_not_commit(problems_dir):
     _write_spec(problems_dir, PROBLEM_ID)
     client = MagicMock()
@@ -849,6 +913,33 @@ def test_cli_polygon_push_force_flag_is_passed_to_pipeline(problems_dir):
         cli.main(_cli_args(problems_dir) + [f"problems/{PROBLEM_ID}", "polygon", "push", "--force"])
 
     assert run.call_args.kwargs["force"] is True
+
+
+def test_cli_polygon_push_no_commit_flag_is_passed_to_pipeline(problems_dir):
+    with patch.object(cli_commands, "run_polygon_pipeline") as run:
+        run.return_value = MagicMock(spec_error=None, ok=True)
+        cli.main(_cli_args(problems_dir) + [f"problems/{PROBLEM_ID}", "polygon", "push", "--no-commit"])
+
+    assert run.call_args.kwargs["no_commit"] is True
+
+
+def test_cli_polygon_push_no_commit_says_nothing_is_committed(problems_dir, capsys):
+    _write_spec(problems_dir, PROBLEM_ID, flat_script=True)
+    _write_generated_outputs(problems_dir)
+    client = MagicMock()
+    client.call.side_effect = _new_problem_polygon
+
+    with patch.object(polygon_pipeline, "PolygonClient", return_value=client):
+        rc = cli.main(
+            _cli_args(problems_dir) + [f"problems/{PROBLEM_ID}", "polygon", "push", "--no-commit"]
+        )
+
+    assert rc == 0
+    pushed = capsys.readouterr().out.split("=== pushed ===\n")[1].split("\n\n")[0].splitlines()
+    assert "validator.cpp" in pushed
+    assert pushed[-1] == "(not committed: commit on Polygon id=555, then run `polygon pull`)"
+    methods = [c.args[0] for c in client.call.call_args_list]
+    assert "problem.commitChanges" not in methods
 
 
 def test_cli_polygon_requires_subcommand(problems_dir):

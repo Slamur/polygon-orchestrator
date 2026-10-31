@@ -507,6 +507,7 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
             args.problem_id,
             only_step=args.step,
             force=args.force,
+            no_commit=args.no_commit,
             problems_dir=args.problems_dir,
             on_step_start=_print_progress,
         )
@@ -535,11 +536,14 @@ def cmd_polygon_push(args: argparse.Namespace) -> int:
             if status.step_name in remaining and status.status != POLYGON_STATUS_DONE
         ]
     state = load_polygon_state(args.problem_id, problems_dir=args.problems_dir)
-    committed = (
-        f"committed on Polygon id={state.polygon_id}, revision {state.revision}"
-        if pushed and state is not None
-        else ""
-    )
+    if not pushed or state is None:
+        committed = ""
+    elif args.no_commit:
+        committed = (
+            f"not committed: commit on Polygon id={state.polygon_id}, then run `polygon pull`"
+        )
+    else:
+        committed = f"committed on Polygon id={state.polygon_id}, revision {state.revision}"
     printed = _print_groups(
         [
             ("pushed", pushed, committed),

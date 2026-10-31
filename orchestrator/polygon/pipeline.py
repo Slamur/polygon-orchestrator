@@ -35,6 +35,15 @@ pull` не скачивал загруженное: `_record_stamps`, если �
 Polygon после листинга всё ещё та, что в базе, и незакоммиченных правок
 нет — иначе листинг мог захватить чужую правку. Ошибка здесь push не
 роняет: без отметок следующий pull просто скачает эти файлы.
+
+`no_commit` (`polygon push --no-commit`) — загруженное остаётся в рабочей
+копии на Polygon, автор разбирается с ним там и коммитит сам, одной пачкой.
+Коммитов нет, поэтому незакоммиченные правки push не останавливают (можно
+загружать по одному шагу), только предупреждение: загрузка перезапишет те
+же файлы рабочей копии. База и отметки не меняются: на Polygon в ревизии
+загруженного ещё нет. После коммита на Polygon ревизия станет другой, и
+обычный push потребует `polygon pull` — он увидит те же файлы, что локально,
+и обновит базу.
 """
 
 from __future__ import annotations
@@ -105,7 +114,7 @@ class PolygonStepOutcome:
     # однострочный, с подсказкой в конце, — CLI печатает его целиком, а не
     # обрезает, как ответы Polygon API и неожиданные исключения.
     full_detail: bool = False
-    # Что шаг загрузил и закоммитил (ключи базы, см. `sync.describe_keys`).
+    # Что шаг загрузил (ключи базы, см. `sync.describe_keys`).
     uploaded: tuple[str, ...] = ()
     notice: str = ""  # `StepResult.notice`
 
@@ -130,6 +139,7 @@ def run_polygon_pipeline(
     *,
     only_step: Optional[str] = None,
     force: bool = False,
+    no_commit: bool = False,
     problems_dir: Path = PROBLEMS_DIR,
     client: PolygonClient | None = None,
     on_outcome: Callable[[PolygonStepOutcome], None] | None = None,
@@ -141,7 +151,8 @@ def run_polygon_pipeline(
     Каждый шаг вызывается всегда; что загружать, шаг решает сам по базе
     синхронизации (см. докстринг модуля). `force` — загружать всё, не
     сверяясь ни с базой, ни с ревизией на Polygon (незакоммиченные правки
-    на Polygon останавливают push и с `force`).
+    на Polygon останавливают push и с `force`). `no_commit` — только
+    загрузить, без коммитов и записи в базу (см. докстринг модуля).
 
     После каждого шага с `commits_changes=True`, который что-то загрузил, —
     `problem.commitChanges` и запись базы (см. `_commit_and_record`). Ошибка
@@ -196,7 +207,11 @@ def run_polygon_pipeline(
             try:
                 if step.commits_changes and not baseline_checked:
                     synced = _sync_baseline(
-                        problem_id, force=force, problems_dir=problems_dir, client=client
+                        problem_id,
+                        force=force,
+                        no_commit=no_commit,
+                        problems_dir=problems_dir,
+                        client=client,
                     )
                     baseline_checked = True
                 step_result = run_step(
@@ -205,16 +220,19 @@ def run_polygon_pipeline(
                 detail = step_result.message
                 uploaded: tuple[str, ...] = ()
                 if step.commits_changes and step_result.uploaded:
-                    detail += "; " + _commit_and_record(
-                        problem_id,
-                        step_name,
-                        step_result.uploaded,
-                        replace=replace_base,
-                        problems_dir=problems_dir,
-                        client=client,
-                    )
-                    committed = True
-                    replace_base = False
+                    if no_commit:
+                        detail += "; not committed"
+                    else:
+                        detail += "; " + _commit_and_record(
+                            problem_id,
+                            step_name,
+                            step_result.uploaded,
+                            replace=replace_base,
+                            problems_dir=problems_dir,
+                            client=client,
+                        )
+                        committed = True
+                        replace_base = False
                     uploaded = tuple(step_result.uploaded)
             except (PolygonApiError, PolygonStepError) as exc:
                 logger.error("[%s] %s", step_name, exc)
@@ -243,14 +261,14 @@ def run_polygon_pipeline(
                 )
             )
     finally:
-        if baseline_checked:
+        if baseline_checked and not no_commit:
             _record_stamps(problem_id, committed=committed, problems_dir=problems_dir, client=client)
 
     return result
 
 
 def _sync_baseline(
-    problem_id: str, *, force: bool, problems_dir: Path, client: PolygonClient
+    problem_id: str, *, force: bool, no_commit: bool, problems_dir: Path, client: PolygonClient
 ) -> dict[str, str] | None:
     """База синхронизации для шагов этого прогона (см. докстринг модуля);
     `None` — загружать всё.
@@ -262,7 +280,8 @@ def _sync_baseline(
     Незакоммиченные правки в рабочей копии на Polygon останавливают push
     всегда, в том числе с `force`: коммит после шага коммитит рабочую копию
     целиком и унёс бы чужие правки в ревизию оркестратора (а правки в
-    перезаписанных файлах потерялись бы без следа в истории).
+    перезаписанных файлах потерялись бы без следа в истории). Исключение —
+    `no_commit`: коммитов не будет.
     """
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
@@ -270,7 +289,13 @@ def _sync_baseline(
 
     address = problem_address(problems_dir, problem_id)
     current = fetch_revision(client, state.polygon_id)
-    if current.modified:
+    if current.modified and no_commit:
+        logger.warning(
+            "Polygon problem id=%s has uncommitted changes — files uploaded now overwrite "
+            "them in its working copy",
+            state.polygon_id,
+        )
+    elif current.modified:
         raise PolygonStepError(
             f"'{problem_id}': Polygon problem id={state.polygon_id} has uncommitted changes "
             "in its working copy — commit or discard them on Polygon first (push refuses "
