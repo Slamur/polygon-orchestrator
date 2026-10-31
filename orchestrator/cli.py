@@ -3,8 +3,9 @@
 "Запуск"): `init` — каталог задачи с черновиком спека (из шаблона, по
 спеку задачи-основы `--ref` и/или моделью по черновику автора `--draft`),
 `llm generate|apply|status|accept` — генеративные шаги,
-`local check|fix` — проверка файлов задачи и механическое исправление
-найденного в условии, без модели и без сети, `polygon push|status|pull` —
+`local check|run|fix|clear` — проверка файлов задачи, прогон решений,
+механическое исправление найденного в условии и удаление локальных кэшей
+проверок, без модели и без сети, `polygon push|status|pull` —
 загрузка задачи в Polygon и выгрузка из него. Группы разделены по тому, чего
 стоит команда: `llm` вызывает модель, `polygon` ходит в сеть, `local` — ни то,
 ни другое.
@@ -215,6 +216,13 @@ def build_parser() -> argparse.ArgumentParser:
         "stop at the first one, expected outputs come from the main ok solution",
     )
     local_run_parser.set_defaults(handler="cmd_local_run")
+
+    local_clear_parser = local_commands.add_parser(
+        "clear",
+        help="delete local caches of the checks (.tests_cache/: tests and generator builds of "
+        "--full); does not touch the caches of the llm steps, Polygon state or backups",
+    )
+    local_clear_parser.set_defaults(handler="cmd_local_clear")
 
     local_fix_parser = local_commands.add_parser(
         "fix",

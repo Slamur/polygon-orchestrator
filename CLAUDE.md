@@ -158,7 +158,7 @@ Python-оркестратор, который берёт структуриро�
 │   └── missing_artifacts.md.j2   # общий блок дозапроса файлов, которых не было в ответе (см. "Конфликты")
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, local check|run|fix, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, local check|run|fix|clear, polygon push|status|pull; импортируется из cli.py лениво
 │   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER / MECHANICAL_STEPS — имена шагов без импорта самих шагов
 │   ├── limits.py                  # формат limits.yaml (актуальные TL/ML задачи): чтение, запись, TL/ML из constraints.yaml
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; файлы authoring/ и перенос в него задач старой раскладки; без тяжёлых импортов
@@ -633,6 +633,10 @@ Polygon. Задачу, у которой эти файлы ещё лежат п�
   изменённых файлов — в `.fix_backup/<время>/` каталога задачи; следующий
   `polygon push` загрузит исправленное как обычную правку. Детали — в
   докстринге `orchestrator/checks/statement_check.py`.
+- `orchestrator <задача> local clear` — без модели и без сети: удаляет
+  локальные кэши проверок, которые они пересоздают сами (`.tests_cache/`,
+  `LOCAL_CACHE_DIRNAMES` в `orchestrator/checks/local_tests.py`). Кэш шагов
+  модели (`.cache/`), `polygon_state.json` и бэкапы не трогает.
 - `orchestrator <задача> polygon push [--step NAME] [--force]` — прогон
   polygon-шагов по порядку `POLYGON_STEP_ORDER`; каждый шаг загружает
   только элементы задачи, изменившиеся с последней синхронизации (как
