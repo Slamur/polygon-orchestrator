@@ -652,7 +652,10 @@ def cmd_local_run(args: argparse.Namespace) -> int:
         print(f"no problem directory {problem_dir}", file=sys.stderr)
         return 1
     result = run_solutions(
-        problem_dir, Path(args.templates_dir), progress=lambda line: print(line, flush=True)
+        problem_dir,
+        Path(args.templates_dir),
+        progress=lambda line: print(line, flush=True),
+        full=args.full,
     )
     _print_groups(result.groups())
     return 1 if result.failed else 0

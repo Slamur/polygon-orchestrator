@@ -57,6 +57,18 @@ verify на Polygon:
   его `tout` — пройти чекер против `tout` Main correct.
 
 Расхождение — ошибка (группа `errors`).
+
+С `--full` (`full=True`) к примерам добавляются тесты по test-script'у
+(`local_tests.generate_tests`, с кэшем), на которых тоже прогоняется
+валидатор. Ответ на них — вывод Main correct (у интерактивной задачи — его
+`tout`): Main correct идёт первым, остальные решения на тесте без ответа не
+запускаются. На полном наборе заявленный вердикт требуется, а не только
+допускается (`REQUIRED_VERDICTS`): `wa`, `re`, `il` без него — ошибка (тесты не
+ловят заявленную ошибку), `tl` — только предупреждение (локальное время — не
+Polygon), у `ml` память не меряется, поэтому требования нет. Такие решения
+останавливаются на первом заявленном вердикте, в том числе полученном на
+примере: прогон до конца нужен только `ok` и `tl_ok`, у которых важен каждый
+тест. Посторонний вердикт после остановки поэтому не будет замечен.
 """
 
 from __future__ import annotations
@@ -75,7 +87,15 @@ from typing import Callable
 import yaml
 
 from orchestrator.checks.compile_check import compile_check
-from orchestrator.checks.local_tests import EXAMPLES_SUBDIR, example_files
+from orchestrator.checks.local_tests import (
+    EXAMPLES_SUBDIR,
+    MANIFEST_FILENAME,
+    TESTS_CACHE_DIRNAME,
+    LocalTest,
+    example_files,
+    generate_tests,
+    validate_tests,
+)
 from orchestrator.checks.run_with_timeout import RunResult, _raise_stack_limit, run_with_timeout
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
 from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits
@@ -114,6 +134,18 @@ ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "mle": frozenset({VERDICT_OK, VERDICT_RE}),
     "il": frozenset({VERDICT_OK, VERDICT_IL}),
 }
+
+# Вердикт из имени решения -> что оно обязано получить хоть раз на полном наборе.
+REQUIRED_VERDICTS: dict[str, str] = {
+    "wa": VERDICT_WA,
+    "re": VERDICT_RE,
+    "il": VERDICT_IL,
+    "tl": VERDICT_TL,
+    "tle": VERDICT_TL,
+}
+# Сколько тестов решения перечисляется по одному, дальше — сводка.
+_MAX_LISTED_RUNS = 8
+_MAX_LISTED_UNEXPECTED = 10
 
 # Доля TL, дольше которой решение не с вердиктом `tl` — предупреждение.
 SLOW_FRACTION = 0.5
@@ -155,6 +187,8 @@ class TestOutcome:
     verdict: str
     seconds: float | None = None
     comment: str = ""
+    # Команда из test-script'а; у примеров — пусто.
+    command: str = ""
 
 
 @dataclass
@@ -165,16 +199,40 @@ class SolutionOutcome:
     tests: list[TestOutcome] = field(default_factory=list)
     # Не разобралось имя, не собралось, не запустилось.
     error: str | None = None
+    # Вердикт, который решение обязано получить (только `--full`).
+    required: str | None = None
+    stopped_early: bool = False
+
+    @property
+    def got_required(self) -> bool:
+        return self.required is None or any(t.verdict == self.required for t in self.tests)
 
     @property
     def failed(self) -> bool:
-        return self.error is not None or any(t.verdict not in self.allowed for t in self.tests)
+        return (
+            self.error is not None
+            or any(t.verdict not in self.allowed for t in self.tests)
+            or (not self.got_required and self.verdict not in _TL_VERDICTS)
+        )
 
     @property
     def runs(self) -> str:
-        return ", ".join(
-            t.verdict + (f" {t.seconds:.2f}s" if t.seconds is not None else "") for t in self.tests
-        )
+        if len(self.tests) <= _MAX_LISTED_RUNS:
+            text = ", ".join(
+                t.verdict + (f" {t.seconds:.2f}s" if t.seconds is not None else "")
+                for t in self.tests
+            )
+        else:
+            counts: dict[str, int] = {}
+            for t in self.tests:
+                counts[t.verdict] = counts.get(t.verdict, 0) + 1
+            text = ", ".join(f"{verdict} x{count}" for verdict, count in counts.items())
+            seconds = [t.seconds for t in self.tests if t.seconds is not None]
+            if seconds:
+                text += f", max {max(seconds):.2f}s"
+        if self.stopped_early:
+            text += f", stopped at the first {self.required}"
+        return text
 
 
 Progress = Callable[[str], None]
@@ -206,14 +264,25 @@ class SolutionsRunResult:
         if self.time_limit is None:
             return []
         threshold = SLOW_FRACTION * self.time_limit
-        return [
-            f"{s.name}: {t.test} {t.seconds:.2f}s — more than {SLOW_FRACTION:g} of TL "
-            f"{self.time_limit:g}s"
-            for s in self.solutions
-            if s.verdict not in _TL_VERDICTS
-            for t in s.tests
-            if t.seconds is not None and threshold < t.seconds <= self.time_limit
-        ]
+        warnings = []
+        for s in self.solutions:
+            if not s.got_required and s.verdict in _TL_VERDICTS and s.error is None:
+                warnings.append(f"{s.name}: never got {s.required} (local time, not Polygon's)")
+            if s.verdict in _TL_VERDICTS:
+                continue
+            slow = [
+                t
+                for t in s.tests
+                if t.seconds is not None and threshold < t.seconds <= self.time_limit
+            ]
+            if slow:
+                slowest = max(slow, key=lambda t: t.seconds)
+                more = f" (and {len(slow) - 1} more)" if len(slow) > 1 else ""
+                warnings.append(
+                    f"{s.name}: {slowest.test} {slowest.seconds:.2f}s — more than "
+                    f"{SLOW_FRACTION:g} of TL {self.time_limit:g}s{more}"
+                )
+        return warnings
 
     def groups(self) -> list[tuple[str, list[str], str]]:
         """Итог по группам `(заголовок, строки, подсказка)` — как у `polygon
@@ -228,12 +297,17 @@ class SolutionsRunResult:
                 not_run.extend(f"    {line}" for line in rest[:10])
             elif s.failed:
                 unexpected.append(f"{s.name}: {s.runs}")
-                for t in s.tests:
-                    if t.verdict in s.allowed:
-                        continue
+                if not s.got_required and s.verdict not in _TL_VERDICTS:
+                    unexpected.append(f"  never got {s.required}: no test catches it")
+                bad = [t for t in s.tests if t.verdict not in s.allowed]
+                for t in bad[:_MAX_LISTED_UNEXPECTED]:
                     allowed = ", ".join(sorted(s.allowed))
                     unexpected.append(f"  {t.test}: {t.verdict}, expected {allowed} for '{s.verdict}'")
+                    if t.command:
+                        unexpected.append(f"    {t.command}")
                     unexpected.extend(f"    {line}" for line in t.comment.strip().splitlines()[-5:])
+                if len(bad) > _MAX_LISTED_UNEXPECTED:
+                    unexpected.append(f"  ... and {len(bad) - _MAX_LISTED_UNEXPECTED} more test(s)")
         return [
             ("expected verdicts", expected, ""),
             ("unexpected verdicts", unexpected, ""),
@@ -263,16 +337,22 @@ class _BuildError(Exception):
 
 
 def run_solutions(
-    problem_dir: Path, templates_dir: Path, progress: Progress | None = None
+    problem_dir: Path,
+    templates_dir: Path,
+    progress: Progress | None = None,
+    *,
+    full: bool = False,
 ) -> SolutionsRunResult:
-    """Прогоняет валидатор и решения задачи на её примерах (см. докстринг
-    модуля). Ничего в каталоге задачи не пишет. `progress` получает строки
-    по ходу: заметки и запуск каждого решения."""
+    """Прогоняет валидатор и решения задачи на её примерах, с `full` — ещё и
+    на тестах по test-script'у (см. докстринг модуля). В каталоге задачи
+    пишет только кэш тестов (`full`). `progress` получает строки по ходу:
+    заметки и запуск каждого решения."""
     problem_dir = Path(problem_dir)
     result = SolutionsRunResult(progress=progress)
     spec = _read_spec(problem_dir, result)
     tests = _sample_tests(problem_dir, spec)
-    if not tests:
+    generated = _generated_tests(problem_dir, templates_dir, result) if full else []
+    if not tests and not generated:
         result.note(f"no {STATEMENT_DIRNAME}/{EXAMPLES_SUBDIR}/example_<N>.txt — skipped")
         return result
 
@@ -280,7 +360,10 @@ def run_solutions(
     interactive = _is_interactive(problem_dir, spec)
     with tempfile.TemporaryDirectory(prefix="solutions_run_") as tmp:
         work_dir = Path(tmp)
-        _check_validator(problem_dir, include_dirs, tests, work_dir, result, interactive=interactive)
+        if tests:
+            _check_validator(
+                problem_dir, include_dirs, tests, work_dir, result, interactive=interactive
+            )
 
         sources = _solution_sources(problem_dir)
         if not sources:
@@ -322,16 +405,20 @@ def run_solutions(
                     programs[path.name] = str(exc)
             return programs[path.name]
 
-        tests = _fill_answers(
-            tests, parsed, program_for, time_limit, work_dir, interactor, result
-        )
+        if tests:
+            tests = _fill_answers(
+                tests, parsed, program_for, time_limit, work_dir, interactor, result
+            )
         _check_statement_io(
             tests, parsed, program_for, checker, time_limit, work_dir, interactor, result
         )
 
         for name, solution in parsed.items():
             outcome = SolutionOutcome(
-                name, solution.verdict, ALLOWED_VERDICTS.get(solution.verdict, frozenset())
+                name,
+                solution.verdict,
+                ALLOWED_VERDICTS.get(solution.verdict, frozenset()),
+                required=REQUIRED_VERDICTS.get(solution.verdict) if generated else None,
             )
             result.solutions.append(outcome)
             if progress is not None:
@@ -346,8 +433,109 @@ def run_solutions(
                 )
         if interactor is None:
             _note_suspicious_answers(tests, result)
+        if generated:
+            _run_generated(
+                generated, parsed, program_for, checker, time_limit, work_dir, interactor, result
+            )
     result.solutions.sort(key=lambda s: s.name)
     return result
+
+
+def _generated_tests(
+    problem_dir: Path, templates_dir: Path, result: SolutionsRunResult
+) -> list[LocalTest]:
+    """Тесты по test-script'у, проверенные валидатором."""
+    generated = generate_tests(problem_dir, templates_dir, progress=result.progress)
+    result.errors.extend(generated.errors)
+    result.note(
+        f"tests: {len(generated.tests)} ({generated.generated} generated, "
+        f"{generated.reused} from cache, {generated.removed} removed), "
+        f"see {TESTS_CACHE_DIRNAME}/{MANIFEST_FILENAME}"
+    )
+    errors, validated = validate_tests(problem_dir, templates_dir, generated.tests)
+    result.errors.extend(errors)
+    if validated and not errors:
+        result.note(f"{VALIDATOR_FILENAME} accepts all {len(generated.tests)} test(s)")
+    return generated.tests
+
+
+def _run_generated(
+    generated: list[LocalTest],
+    parsed: dict,
+    program_for,
+    checker: _Program,
+    time_limit: float,
+    work_dir: Path,
+    interactor: _Program | None,
+    result: SolutionsRunResult,
+) -> None:
+    """Решения на тестах по test-script'у (см. докстринг модуля). Тесты и
+    ответы читаются по одному: в памяти весь набор не держится."""
+    try:
+        main_name = _choose_main(list(parsed.values()))
+    except PolygonStepError:
+        result.errors.append("no ok solution to produce expected outputs: generated tests are not run")
+        return
+    main_program = program_for(parsed[main_name].path)
+    if isinstance(main_program, str):
+        result.errors.append(f"main solution {main_name} is not built: generated tests are not run")
+        return
+    outcomes = {outcome.name: outcome for outcome in result.solutions}
+    answers_dir = work_dir / "answers"
+    answers_dir.mkdir()
+
+    def report(outcome: SolutionOutcome) -> None:
+        if result.progress is not None:
+            result.progress(f"  {outcome.name}: {outcome.runs}")
+
+    def load(test: LocalTest, answer: str | None = None) -> SampleTest:
+        return SampleTest(test.name, test.path.read_text(encoding="utf-8", errors="replace"), answer)
+
+    if result.progress is not None:
+        result.progress(
+            f"running {main_name} on {len(generated)} generated test(s): expected outputs"
+        )
+    main_outcome = outcomes[main_name]
+    answered = []
+    for test in generated:
+        sample = load(test)
+        execution = _execute(main_program, sample, time_limit, work_dir, interactor)
+        if execution.verdict is not None:
+            main_outcome.tests.append(
+                TestOutcome(test.name, execution.verdict, execution.seconds, execution.comment, test.command)
+            )
+            continue
+        (answers_dir / str(test.number)).write_text(execution.output, encoding="utf-8")
+        answered.append(test)
+        # Ответ — его же вывод: чекер обязан принять, иначе чекер неверен.
+        verdict, comment = _judge(checker, sample.input, execution.output, execution.output, work_dir)
+        main_outcome.tests.append(TestOutcome(test.name, verdict, execution.seconds, comment, test.command))
+    report(main_outcome)
+    if len(answered) < len(generated):
+        result.errors.append(
+            f"{len(generated) - len(answered)} generated test(s) have no expected output — "
+            f"{main_name} did not finish them: other solutions skip these tests"
+        )
+
+    for name, solution in parsed.items():
+        outcome = outcomes[name]
+        if name == main_name or outcome.error is not None:
+            continue
+        if outcome.required is not None and outcome.got_required:
+            outcome.stopped_early = True
+            report(outcome)
+            continue
+        if result.progress is not None:
+            result.progress(f"running {name} on generated tests")
+        program = program_for(solution.path)
+        for test in answered:
+            answer = (answers_dir / str(test.number)).read_text(encoding="utf-8")
+            tested = _run_test(program, checker, load(test, answer), time_limit, work_dir, interactor)
+            outcome.tests.append(replace(tested, command=test.command))
+            if outcome.required == tested.verdict:
+                outcome.stopped_early = True
+                break
+        report(outcome)
 
 
 def _read_spec(problem_dir: Path, result: SolutionsRunResult) -> dict | None:

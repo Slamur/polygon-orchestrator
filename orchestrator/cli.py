@@ -207,6 +207,13 @@ def build_parser() -> argparse.ArgumentParser:
         "solution must get the verdict its name allows (X: OK or X), the problem checker "
         "judges the output, TL from limits.yaml (local time)",
     )
+    local_run_parser.add_argument(
+        "--full",
+        action="store_true",
+        help="also generate the tests from the script locally (see 'local check --full') and "
+        "run the solutions on them: 'wa', 're', 'il' must get their verdict at least once and "
+        "stop at the first one, expected outputs come from the main ok solution",
+    )
     local_run_parser.set_defaults(handler="cmd_local_run")
 
     local_fix_parser = local_commands.add_parser(
