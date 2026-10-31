@@ -64,6 +64,10 @@ _COMPILE_TIMEOUT_SECONDS = 60.0
 _GENERATOR_TIMEOUT_SECONDS = 60.0
 _VALIDATOR_TIMEOUT_SECONDS = 30.0
 _NEXT_TEST_TARGET = "$"
+# Что удаляет `local clear`: только то, что локальные проверки пересоздают
+# сами. Кэш шагов модели (`.cache/`), `polygon_state.json` и бэкапы сюда не
+# входят: их не восстановить без затрат или вообще.
+LOCAL_CACHE_DIRNAMES = (TESTS_CACHE_DIRNAME,)
 
 Progress = Callable[[str], None]
 
@@ -333,6 +337,22 @@ def find_equal_tests(problem_dir: Path, tests: list[LocalTest]) -> list[EqualTes
     for test in tests:
         groups.setdefault(_normalized_hash(test.path), []).append(test.name)
     return [EqualTests(names) for names in groups.values() if len(names) > 1]
+
+
+def clear_local_caches(problem_dir: Path) -> list[tuple[str, int]]:
+    """Удаляет локальные кэши проверок задачи (`LOCAL_CACHE_DIRNAMES`).
+    Возвращает (имя каталога, сколько байт занимал) по каждому удалённому."""
+    removed = []
+    for name in LOCAL_CACHE_DIRNAMES:
+        path = Path(problem_dir) / name
+        if path.is_symlink():
+            path.unlink()
+            removed.append((name, 0))
+        elif path.is_dir():
+            size = sum(p.stat().st_size for p in path.rglob("*") if p.is_file())
+            shutil.rmtree(path)
+            removed.append((name, size))
+    return removed
 
 
 def format_equal_tests(groups: list[EqualTests], tests: list[LocalTest]) -> str:

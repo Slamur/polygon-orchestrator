@@ -64,6 +64,7 @@ from orchestrator.checks.statement_check import (
 from orchestrator.checks.local_tests import (
     MANIFEST_FILENAME,
     TESTS_CACHE_DIRNAME,
+    clear_local_caches,
     find_equal_tests,
     format_equal_tests,
     generate_tests,
@@ -630,6 +631,21 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     for error in errors:
         print(error)
     return not errors
+
+
+def cmd_local_clear(args: argparse.Namespace) -> int:
+    """Удаляет локальные кэши проверок задачи (`.tests_cache/`). Кэш шагов
+    модели, состояние Polygon и бэкапы не трогает."""
+    problem_dir = Path(args.problems_dir) / args.problem_id
+    if not problem_dir.is_dir():
+        print(f"no problem directory {problem_dir}", file=sys.stderr)
+        return 1
+    removed = clear_local_caches(problem_dir)
+    for name, size in removed:
+        print(f"removed {name}/ ({size / (1024 * 1024):.1f} MB)")
+    if not removed:
+        print("nothing to clear")
+    return 0
 
 
 def cmd_local_run(args: argparse.Namespace) -> int:

@@ -274,3 +274,44 @@ def test_cli_without_full_generates_nothing(tmp_path):
     problem_dir = _problem(tmp_path, "gen_args a > $\n")
     assert _check(tmp_path) == 0
     assert not (problem_dir / TESTS_CACHE_DIRNAME).exists()
+
+
+def test_cli_clear_removes_only_local_caches(tmp_path, capsys):
+    problem_dir = _problem(tmp_path, "gen_args a > $\n")
+    assert _check(tmp_path, "--full") == 0
+    kept = [
+        problem_dir / ".cache" / "statement_draft.json",
+        problem_dir / "polygon_state.json",
+        problem_dir / ".llm_backup" / "old.txt",
+        problem_dir / ".fix_backup" / "old.txt",
+        problem_dir / ".pull_backup" / "old.txt",
+    ]
+    for path in kept:
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("{}", encoding="utf-8")
+    capsys.readouterr()
+
+    args = ["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "clear"]
+    assert cli.main(args) == 0
+
+    assert "removed .tests_cache/" in capsys.readouterr().out
+    assert not (problem_dir / TESTS_CACHE_DIRNAME).exists()
+    assert all(path.exists() for path in kept)
+    assert (problem_dir / "test_script").is_file()
+    assert (problem_dir / "generators" / "gen_args.cpp").is_file()
+
+
+def test_cli_clear_with_nothing_to_clear(tmp_path, capsys):
+    _problem(tmp_path, "gen_args a > $\n")
+    args = ["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "clear"]
+    assert cli.main(args) == 0
+    assert "nothing to clear" in capsys.readouterr().out
+
+
+def test_cli_clear_regenerates_after_clearing(tmp_path, capsys):
+    _problem(tmp_path, "gen_args a > $\n")
+    _check(tmp_path, "--full")
+    cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "clear"])
+    capsys.readouterr()
+    assert _check(tmp_path, "--full") == 0
+    assert "1 generated" in capsys.readouterr().out
