@@ -93,9 +93,9 @@ tests:
     covers:
       - specific_test_ideas[2]
       - specific_test_ideas[4]
+      - known_wrong_approaches[1]
       - known_wrong_approaches[2]
       - known_wrong_approaches[3]
-      - known_wrong_approaches[5]
     commands:
       - gen_fixed -n=n -x=x
     repeat: n = minN..maxExhaustiveN, x = minX..n
@@ -105,7 +105,7 @@ tests:
     covers:
       - specific_test_ideas[0]
       - specific_test_ideas[1]
-      - known_wrong_approaches[3]
+      - known_wrong_approaches[2]
     commands:
       - gen_pow2_delta -p=p -delta=delta -x=minX
       - gen_pow2_delta -p=p -delta=delta -x=n
@@ -141,8 +141,6 @@ tests:
     covers:
       - specific_test_ideas[5]
       - known_wrong_approaches[0]
-      - known_wrong_approaches[1]
-      - known_wrong_approaches[4]
     commands:
       - gen_worst_x -n=n
     repeat: n по worstNs

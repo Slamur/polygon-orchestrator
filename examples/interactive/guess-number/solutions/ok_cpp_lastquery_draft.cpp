@@ -14,20 +14,21 @@ void solve() {
     auto guess = [&]() {
         int lo = 1;
         int hi = n;
-        while (lo <= hi) {
+        while (lo < hi) {
             int mid = (lo + hi) / 2;
             std::string answer = ask(mid);
             if (answer == "=") {
                 return;
             }
             if (answer == "<") {
-                // BUG: off-by-one — hi = mid вместо hi = mid - 1, кандидат mid
-                // остаётся в отрезке, из-за чего при N = 1000 нужно 11 запросов
-                hi = mid;
+                hi = mid - 1;
             } else {
                 lo = mid + 1;
             }
         }
+        // Цикл идёт, пока кандидатов больше одного, поэтому последний
+        // спрашивается отдельно: в лимит 10 запросов это укладывается.
+        ask(lo);
     };
 
     guess();
