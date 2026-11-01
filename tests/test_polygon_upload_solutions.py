@@ -290,6 +290,40 @@ def test_polygon_main_keeps_tag_regardless_of_verdict_in_name(problems_dir, spec
     assert _tags(client) == {"ok_cpp_alt_draft.cpp": "OK", "tl_cpp_slow_draft.cpp": "MA"}
 
 
+def test_solution_on_polygon_keeps_its_tag_instead_of_verdict_in_name(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(
+        problems_dir,
+        {"ok_cpp_main_draft.cpp": b"", "wa_cpp_tagged_draft.cpp": b"", "wa_cpp_new_draft.cpp": b""},
+    )
+    client = _client_with_solutions(
+        [
+            {"name": "ok_cpp_main_draft.cpp", "tag": "MA"},
+            {"name": "wa_cpp_tagged_draft.cpp", "tag": "TL"},
+        ]
+    )
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {
+        "ok_cpp_main_draft.cpp": "MA",
+        "wa_cpp_new_draft.cpp": "WA",
+        "wa_cpp_tagged_draft.cpp": "TL",
+    }
+
+
+def test_existing_solution_becomes_main_when_polygon_has_no_main(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "ok_py_alt_draft.py": b""})
+    client = _client_with_solutions(
+        [{"name": "ok_cpp_alt_draft.cpp", "tag": "OK"}, {"name": "ok_py_alt_draft.py", "tag": "TO"}]
+    )
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "MA", "ok_py_alt_draft.py": "TO"}
+
+
 def test_main_is_chosen_when_polygon_has_solutions_without_main(problems_dir, spec):
     _link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b""})

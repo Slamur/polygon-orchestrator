@@ -2,17 +2,17 @@
 (результат генеративного шага `solutions_draft`) в Polygon
 (`problem.saveSolution`) с тегом вердикта для каждого.
 
-Тег выводится из имени файла по схеме
-`<verdict>_<language>_<description>_<author>.<ext>`
+Решение, которое уже есть на Polygon, загружается со своим текущим тегом:
+теги там выставляет автор, и push их не меняет. Тег нового решения выводится
+из имени файла по схеме `<verdict>_<language>_<description>_<author>.<ext>`
 (`prompts/solutions_draft/system.md`, правило 5):
 
 - `MA` (Main correct — эталон для генерации ответов на тесты,
   `templates/tutorials/solutions.md`, "Решения в Polygon") назначается, только
-  если на Polygon его ещё нет: тогда его получает один `ok`-файл, выбор — по
-  приоритету языков `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по алфавиту
-  имён. Если Main correct на Polygon уже есть, он не меняется: этот файл
-  загружается с `MA`, какой бы вердикт ни был в его имени, остальные — по
-  своим вердиктам (второй `MA` Polygon отклоняет);
+  если на Polygon его ещё нет (второй `MA` Polygon отклоняет): тогда его
+  получает один `ok`-файл, выбор — по приоритету языков
+  `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по алфавиту имён; это единственный
+  случай, когда меняется тег решения, которое уже есть на Polygon;
 - остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL или OK"),
   `wa` -> `WA`, `ml`/`mle` -> `ML`;
 - всё прочее допустимое (`re`, `il` — Idleness limit exceeded в
@@ -32,16 +32,14 @@
 
 Все имена файлов разбираются и наличие `ok`-файла проверяется до первого
 сетевого вызова: файл с неподходящим именем — `PolygonStepError`, а не тихий
-пропуск. Текущий Main correct читается из `problem.solutions` — одним
-запросом и только если есть что загружать.
+пропуск. Текущие теги читаются из `problem.solutions` — одним запросом и
+только если есть что загружать.
 
 Загружаются только решения, чьё содержимое отличается от базы
-синхронизации; тег в базу не входит и отправляется только вместе с
-загружаемым файлом. Поэтому тег, поправленный в UI Polygon (например, `TO`),
-следующий push не откатывает, но и смена тега без правки файла сама на Polygon
-не уходит: её нужно сделать в UI или через `polygon push --force`. Переезд Main
-correct на другое решение — только в UI: снять `MA` там, и следующая загрузка
-решения назначит его заново.
+синхронизации; тег в базу не входит. Менять теги решений, которые уже есть на
+Polygon, — в том числе переносить Main correct — нужно в UI, `polygon push
+--force` их тоже не меняет. Если снять там `MA`, следующая загрузка решения
+назначит его заново.
 
 Если решение удалено или переименовано с прошлой загрузки, старый файл на
 Polygon остаётся — шаг его не удаляет.
@@ -116,8 +114,9 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     if not changed:
         return StepResult(NO_CHANGES_MESSAGE)
 
-    main_name = _main_on_polygon(client, polygon_id) or _choose_main(parsed)
-    tags = {item.path.name: _tag_for(item, main_name) for item in parsed}
+    polygon_tags = _tags_on_polygon(client, polygon_id)
+    main_name = None if "MA" in polygon_tags.values() else _choose_main(parsed)
+    tags = {item.path.name: _tag_to_send(item, main_name, polygon_tags) for item in parsed}
 
     sent = []
     for name, content in solutions:
@@ -209,14 +208,10 @@ def _require_ok_solution(parsed: list[_ParsedSolution]) -> None:
         )
 
 
-def _main_on_polygon(client: PolygonClient, polygon_id: int) -> str | None:
-    """Имя решения с тегом `MA` на Polygon, `None` — если такого нет."""
+def _tags_on_polygon(client: PolygonClient, polygon_id: int) -> dict[str, str]:
+    """Имя решения на Polygon -> его текущий тег."""
     solutions = client.call("problem.solutions", {"problemId": str(polygon_id)}) or []
-    for solution in solutions:
-        if solution.get("tag") == "MA":
-            logger.info("Main correct on Polygon is %s, keeping it", solution["name"])
-            return solution["name"]
-    return None
+    return {solution["name"]: solution["tag"] for solution in solutions}
 
 
 def _choose_main(parsed: list[_ParsedSolution]) -> str:
@@ -244,7 +239,18 @@ def _choose_main(parsed: list[_ParsedSolution]) -> str:
     return ok_names[0]
 
 
-def _tag_for(parsed: _ParsedSolution, main_name: str) -> str:
+def _tag_to_send(
+    parsed: _ParsedSolution, main_name: str | None, polygon_tags: dict[str, str]
+) -> str:
+    """Текущий тег решения на Polygon, кроме выбранного сейчас Main correct;
+    `main_name` — `None`, если Main correct на Polygon уже есть."""
+    name = parsed.path.name
+    if name != main_name and name in polygon_tags:
+        return polygon_tags[name]
+    return _tag_for(parsed, main_name)
+
+
+def _tag_for(parsed: _ParsedSolution, main_name: str | None) -> str:
     if parsed.path.name == main_name:
         return "MA"
     if parsed.verdict == "ok":
