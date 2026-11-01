@@ -65,7 +65,8 @@ Polygon равна записанной в базе (с последней си�
   `input_format.tex`, `output_format.tex`, `notes.tex`. Пустой на Polygon
   раздел выгружается пустым файлом — `upload_statement` требует все четыре.
   Протокол взаимодействия интерактивной задачи -> `statement/interaction.tex`
-  — только если он непуст на Polygon или файл есть локально.
+  — только если он непуст на Polygon или файл есть локально. Разбор ->
+  `statement/tutorial.tex` — так же.
   Название задачи из условия -> `statement/name.txt` (сравнивается без
   окружающих пробелов и переводов строк);
 - тесты с флагом "use in statements" (`problem.tests`, testset `tests`) ->
@@ -141,6 +142,7 @@ from orchestrator.polygon.steps.upload_statement import (
     INTERACTION_FILENAME,
     INTERACTION_PARAM,
     NAME_FILENAME,
+    TUTORIAL_PARAM,
     dialogue_filenames,
     verify_filename,
 )
@@ -177,6 +179,7 @@ from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
     PROBLEMS_DIR,
     ProblemPathError,
+    TUTORIAL_FILENAME,
     authoring_dir,
     check_new_problem_location,
     is_removed_mark,
@@ -449,6 +452,7 @@ class _Puller:
         statements = self._call("problem.statements") or {}
         statement = statements.get(_LANG)
         name_file = f"statement/{NAME_FILENAME}"
+        tutorial_file = f"statement/{TUTORIAL_FILENAME}"
         if statement is None:
             for filename in _STATEMENT_FILES.values():
                 self._missing_on_polygon(
@@ -462,6 +466,7 @@ class _Puller:
                 f"no {_LANG!r} statement on Polygon",
                 push_condition=_INTERACTIVE_CONDITION,
             )
+            self._missing_if_local(tutorial_file, f"no {_LANG!r} statement on Polygon")
             return
         for field_name, filename in _STATEMENT_FILES.items():
             self._sync_file(
@@ -478,6 +483,11 @@ class _Puller:
                 "no interaction protocol on Polygon",
                 push_condition=_INTERACTIVE_CONDITION,
             )
+        tutorial = statement.get(TUTORIAL_PARAM) or ""
+        if tutorial:
+            self._sync_file(tutorial_file, lambda: tutorial.encode("utf-8"))
+        else:
+            self._missing_if_local(tutorial_file, "no tutorial on Polygon")
         name = (statement.get("name") or "").strip()
         if not name:
             self._missing_on_polygon(

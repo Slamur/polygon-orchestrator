@@ -141,6 +141,16 @@ def test_common_references_come_before_section_references(spec, tmp_path):
     assert documents[-1] == str(section_file)
 
 
+def test_statement_reference_skips_tutorial(spec, tmp_path):
+    directory = _reference_dir(tmp_path)
+    legend = _write(directory / "statement" / "legend.tex")
+    _write(directory / "statement" / "tutorial.tex")
+
+    documents = reference_documents("statement_draft", _with_common(spec, [directory]))
+
+    assert documents == [str(directory / "authoring" / "spec.yaml"), str(legend)]
+
+
 def test_common_file_reference_goes_to_every_step(spec, tmp_path):
     file_ref = _write(tmp_path / "notes.md")
     spec = _with_common(spec, [file_ref])

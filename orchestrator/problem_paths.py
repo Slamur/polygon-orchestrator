@@ -57,6 +57,8 @@ TESTS_PLAN_FILENAME = "tests_plan.yaml"
 # `orchestrator/drafts.py`.
 DRAFT_STEM = "draft"
 POLYGON_STATE_FILENAME = "polygon_state.json"
+# Разбор в `statement/` — необязательный файл автора, не вход и не результат шагов.
+TUTORIAL_FILENAME = "tutorial.tex"
 # `spec.yaml` прямо в каталоге задачи — задача, ещё не перенесённая в
 # `authoring/` (`migrate_to_authoring`): её тоже находят дополнение и
 # проверка уникальности `problem_id`.

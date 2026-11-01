@@ -1309,6 +1309,51 @@ def test_pull_plain_problem_statement_output_and_verify_flag(problems_dir, polyg
     )
 
 
+def test_pull_downloads_tutorial_and_push_sees_no_changes(problems_dir, polygon):
+    polygon.statements["russian"]["tutorial"] = "Tutorial\n"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    path = problems_dir / PROBLEM_ID / "statement" / "tutorial.tex"
+    assert result.ok
+    assert path.read_text() == "Tutorial\n"
+    assert _statuses(result)["statement/tutorial.tex"] == ITEM_DOWNLOADED
+    assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    # Правка на Polygon при неизменном локальном файле — fast-forward с бэкапом.
+    polygon.statements["russian"]["tutorial"] = "New tutorial\n"
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["statement/tutorial.tex"] == ITEM_UPDATED
+    assert path.read_text() == "New tutorial\n"
+    assert (result.backup_dir / "statement" / "tutorial.tex").read_text() == "Tutorial\n"
+
+    # Правка обеих сторон — конфликт, локальная версия остаётся.
+    path.write_text("Local tutorial\n")
+    polygon.statements["russian"]["tutorial"] = "Newer tutorial\n"
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["statement/tutorial.tex"] == ITEM_CONFLICT
+    assert path.read_text() == "Local tutorial\n"
+
+
+def test_pull_without_tutorial_on_polygon(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    path = problems_dir / PROBLEM_ID / "statement" / "tutorial.tex"
+    assert not path.exists()
+    assert "statement/tutorial.tex" not in _statuses(result)
+
+    path.write_text("Local tutorial\n")
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "statement/tutorial.tex")
+    assert item.status == ITEM_LOCAL_ONLY
+    assert item.push_condition == ""
+    assert path.read_text() == "Local tutorial\n"
+    assert "statement/tutorial.tex" not in _synced(problems_dir)
+
+
 def test_pull_plain_problem_does_not_ask_for_interactor(problems_dir, polygon):
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 

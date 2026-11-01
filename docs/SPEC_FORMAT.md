@@ -308,7 +308,7 @@ interactor:
 
 | Шаг | Файлы из каталога |
 |-----|-------------------|
-| `statement_draft` | `statement/*.tex` (у интерактивной задачи — и `interaction.tex`) |
+| `statement_draft` | `statement/*.tex`, кроме разбора `tutorial.tex` (у интерактивной задачи — и `interaction.tex`) |
 | `constraints_pick` | `authoring/constraints.yaml`, `validator.cpp` |
 | `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `authoring/tests_plan.yaml`, `generators/*.cpp` (без спека — пара "план → генераторы") |

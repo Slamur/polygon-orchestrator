@@ -29,6 +29,11 @@
 взаимодействия `statement/interaction.tex` уходит в `problem.saveStatement`
 параметром `interaction` (без файла — ошибка).
 
+Разбор `statement/tutorial.tex` (необязательный, пишет автор или `polygon
+pull`, модель его не видит) уходит туда же параметром `tutorial`. Файла нет —
+параметр не передаётся (Polygon оставляет разбор как есть), но если в базе
+синхронизации разбор был, а файл удалили, разбор очищается пустой строкой.
+
 Input/output for statements примера (`example_<N>.input_for_statement.txt`,
 `example_<N>.output_for_statement.txt` — каждый сам по себе, у обычной
 задачи их задаёт автор, у интерактивной это диалог решения с интерактором)
@@ -56,6 +61,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
+from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import (
     NO_CHANGES_MESSAGE,
     PolygonStep,
@@ -75,6 +81,7 @@ from orchestrator.polygon.sync import (
     statement_file_key,
     verify_key,
 )
+from orchestrator.problem_paths import TUTORIAL_FILENAME
 from orchestrator.steps.statement_draft import (
     INTERACTION_FILE,
     dialogue_filenames,
@@ -100,6 +107,7 @@ _EXAMPLE_PATTERN = re.compile(r"^example_(\d+)\.txt$")
 NAME_FILENAME = "name.txt"
 INTERACTION_FILENAME = INTERACTION_FILE
 INTERACTION_PARAM = "interaction"
+TUTORIAL_PARAM = "tutorial"
 
 _VERIFY_VALUE = b"true"
 
@@ -155,7 +163,15 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     uploaded: dict[str, str | None] = {}
     done: list[str] = []
 
-    if changed_items(ctx, statement_items):
+    tutorial_key = statement_file_key(TUTORIAL_FILENAME)
+    # Без базы (`push --force`) неизвестно, что на Polygon, — не очищается ничего.
+    tutorial_cleared = (
+        TUTORIAL_FILENAME not in tex_files
+        and ctx.synced is not None
+        and ctx.synced.get(tutorial_key) is not None
+    )
+
+    if changed_items(ctx, statement_items) or tutorial_cleared:
         client.call(
             "problem.saveStatement",
             {
@@ -166,9 +182,12 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
                     _tex_param(filename): content.decode("utf-8")
                     for filename, content in tex_files.items()
                 },
+                **({TUTORIAL_PARAM: ""} if tutorial_cleared else {}),
             },
         )
         uploaded.update(statement_items)
+        if tutorial_cleared:
+            uploaded[tutorial_key] = None
         done.append(f"saved statement (name={name!r})")
 
     changed_examples: dict[str, str | None] = dict(changed_items(ctx, example_items))
@@ -213,6 +232,11 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
         name_path = statement_dir / NAME_FILENAME
         if name_path.exists():
             items[STATEMENT_NAME_KEY] = digest(read_name(name_path))
+        # Удалённый разбор push очистит на Polygon — это тоже несинхронизированная правка.
+        tutorial_key = statement_file_key(TUTORIAL_FILENAME)
+        state = load_polygon_state(problem_id, problems_dir=problems_dir)
+        if tutorial_key not in items and state is not None and state.synced.get(tutorial_key):
+            items[tutorial_key] = digest(b"")
         return items
 
     return sync_status(problem_id, problems_dir, key_prefix="statement/", read_items=read_items)
@@ -232,7 +256,11 @@ def _tex_items(tex_files: dict[str, bytes]) -> dict[str, str]:
 
 
 def _tex_param(filename: str) -> str:
-    return INTERACTION_PARAM if filename == INTERACTION_FILENAME else _TEX_PARAM_NAMES[filename]
+    return {
+        **_TEX_PARAM_NAMES,
+        INTERACTION_FILENAME: INTERACTION_PARAM,
+        TUTORIAL_FILENAME: TUTORIAL_PARAM,
+    }[filename]
 
 
 def _example_items(examples: list[Example]) -> dict[str, str]:
@@ -259,7 +287,8 @@ def _statement_dir(problem_id: str, problems_dir: Path) -> Path:
 def _read_statement_dir(statement_dir: Path, *, interactive: bool = False) -> dict[str, bytes]:
     """Содержимое 4 фиксированных tex-файлов (имя файла -> содержимое), у
     интерактивной задачи — ещё `interaction.tex`. Если какого-то нет —
-    `PolygonStepError` с его именем, а не пустая строка вместо содержимого."""
+    `PolygonStepError` с его именем, а не пустая строка вместо содержимого.
+    Необязательный `tutorial.tex` — только если он есть."""
     names = [*_TEX_PARAM_NAMES, *([INTERACTION_FILENAME] if interactive else [])]
     missing = [name for name in names if not (statement_dir / name).exists()]
     if missing:
@@ -267,6 +296,8 @@ def _read_statement_dir(statement_dir: Path, *, interactive: bool = False) -> di
             f"files missing in {statement_dir}: {missing} — first "
             "run the generative step statement_draft"
         )
+    if (statement_dir / TUTORIAL_FILENAME).exists():
+        names.append(TUTORIAL_FILENAME)
     return {filename: (statement_dir / filename).read_bytes() for filename in names}
 
 

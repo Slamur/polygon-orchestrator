@@ -425,6 +425,11 @@ OK или TL); всё остальное — ошибка. TL — из `limits.y
 `push` останавливается, если задачу на Polygon меняли в обход оркестратора
 (или там есть незакоммиченные правки), и предлагает сначала сделать `pull`.
 
+Разбор задачи — необязательный `statement/tutorial.tex`: его пишете вы, модель
+его не генерирует и не читает. `polygon push` загружает его вместе с условием,
+`polygon pull` скачивает разбор, если он есть на Polygon. Удалили файл —
+следующий push очистит разбор на Polygon.
+
 ### Переменные окружения (`.env`)
 
 | Переменная | Значение |
@@ -448,7 +453,7 @@ problems/<путь задачи>/    ваши задачи (не в git)
   authoring/spec.yaml        спек — вход всех шагов
   authoring/constraints.yaml ограничения, группы, что проверяет валидатор
   authoring/tests_plan.yaml  план тестов: генераторы и тесты скрипта (можно править руками)
-  statement/                 условие (.tex) и примеры
+  statement/                 условие (.tex), разбор (необязательный tutorial.tex) и примеры
   limits.yaml                актуальные TL/ML (можно править руками)
   validator.cpp, checker.cpp, interactor.cpp
   generators/*.cpp, test_script, test_script_groups

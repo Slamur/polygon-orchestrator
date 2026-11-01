@@ -52,6 +52,9 @@ Python-оркестратор, который берёт структуриро�
   загрузка `problems/<путь задачи>/interactor.cpp` и назначение его
   интерактором (`upload_interactor`, только у интерактивной задачи; флаг
   интерактивности выставляет `set_constraints`),
+  разбор `problems/<путь задачи>/statement/tutorial.tex` (необязательный;
+  пишет автор или `polygon pull`, модель его не генерирует и не видит) —
+  вместе с условием в `upload_statement`,
   загрузка `problems/<путь задачи>/authoring/` — `spec.yaml`,
   `constraints.yaml` (результат `constraints_pick` целиком), `tests_plan.yaml`
   (план тестов) и копии черновика `draft.<расширение>` — как есть в раздел
@@ -232,7 +235,7 @@ Python-оркестратор, который берёт структуриро�
         ├── .fix_backup/<время>/    # прежние версии файлов условия, исправленных `local fix`
         ├── .llm_backup/<время>/    # прежние версии файлов, перезаписанных или переименованных `llm generate`
         ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
-        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи)
+        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи; + необязательный tutorial.tex — разбор: пишет автор или pull, удалённый файл push очищает на Polygon)
         │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ example_<N>.{input,output}_for_statement.txt — input/output for statements, каждый сам по себе: у интерактивной задачи — диалог от statement_draft, у обычной — только от автора; example_<N>.verify_for_statement.txt — флаг verify, пишет автор или pull)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
@@ -690,7 +693,7 @@ pull --polygon-id` с группой — ошибка: они про одну з
   с именем `problem_id` — с теми же проверками места, что у `init`;
   `--polygon-id` дополнительно сужает поиск, если
   задач с таким именем несколько), сравнивает с ней части задачи, которыми
-  пользуется оркестратор (условие и примеры, TL/ML, валидатор,
+  пользуется оркестратор (условие, разбор и примеры, TL/ML, валидатор,
   нестандартный чекер, генераторы, test-script, решения, спек,
   `constraints.yaml`, план тестов и черновик из Attachments), скачивает в
   каталог задачи недостающие локально и переписывает базу
