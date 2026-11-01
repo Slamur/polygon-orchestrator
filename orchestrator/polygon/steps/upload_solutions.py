@@ -6,10 +6,13 @@
 `<verdict>_<language>_<description>_<author>.<ext>`
 (`prompts/solutions_draft/system.md`, правило 5):
 
-- ровно один `ok`-файл получает `MA` (Main correct — эталон для генерации
-  ответов на тесты, `templates/tutorials/solutions.md`, "Решения в Polygon"),
-  выбор — по приоритету языков `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по
-  алфавиту имён;
+- `MA` (Main correct — эталон для генерации ответов на тесты,
+  `templates/tutorials/solutions.md`, "Решения в Polygon") назначается, только
+  если на Polygon его ещё нет: тогда его получает один `ok`-файл, выбор — по
+  приоритету языков `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по алфавиту
+  имён. Если Main correct на Polygon уже есть, он не меняется: этот файл
+  загружается с `MA`, какой бы вердикт ни был в его имени, остальные — по
+  своим вердиктам (второй `MA` Polygon отклоняет);
 - остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL или OK"),
   `wa` -> `WA`, `ml`/`mle` -> `ML`;
 - всё прочее допустимое (`re`, `il` — Idleness limit exceeded в
@@ -27,15 +30,18 @@
 расширению, как в `upload_validator`/`upload_generators`. Первый реальный
 вызов обязательно сверить в UI.
 
-Все имена файлов разбираются и Main correct выбирается до первого сетевого
-вызова: файл с неподходящим именем — `PolygonStepError`, а не тихий пропуск.
+Все имена файлов разбираются и наличие `ok`-файла проверяется до первого
+сетевого вызова: файл с неподходящим именем — `PolygonStepError`, а не тихий
+пропуск. Текущий Main correct читается из `problem.solutions` — одним
+запросом и только если есть что загружать.
 
 Загружаются только решения, чьё содержимое отличается от базы
 синхронизации; тег в базу не входит и отправляется только вместе с
 загружаемым файлом. Поэтому тег, поправленный в UI Polygon (например, `TO`),
-следующий push не откатывает, но и смена тега без правки файла — в том
-числе переезд Main correct на другое решение — сама на Polygon не уходит:
-её нужно сделать в UI или через `polygon push --force`.
+следующий push не откатывает, но и смена тега без правки файла сама на Polygon
+не уходит: её нужно сделать в UI или через `polygon push --force`. Переезд Main
+correct на другое решение — только в UI: снять `MA` там, и следующая загрузка
+решения назначит его заново.
 
 Если решение удалено или переименовано с прошлой загрузки, старый файл на
 Polygon остаётся — шаг его не удаляет.
@@ -98,18 +104,20 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     из `_tag_for` (`ctx.spec` не используется).
 
     Обе зависимости (`create_problem`, `solutions_draft`), разбор имён и
-    выбор Main correct — по всему набору и до первого сетевого вызова.
+    наличие `ok`-файла — по всему набору и до первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
     solutions = _read_solutions(ctx.problem_id, ctx.problems_dir)
 
     parsed = [_parse_solution_filename(Path(name)) for name, _ in solutions]
-    main_name = _choose_main(parsed)
-    tags = {item.path.name: _tag_for(item, main_name) for item in parsed}
+    _require_ok_solution(parsed)
 
     changed = changed_items(ctx, _items(solutions))
     if not changed:
         return StepResult(NO_CHANGES_MESSAGE)
+
+    main_name = _main_on_polygon(client, polygon_id) or _choose_main(parsed)
+    tags = {item.path.name: _tag_for(item, main_name) for item in parsed}
 
     sent = []
     for name, content in solutions:
@@ -193,17 +201,31 @@ def _parse_solution_filename(path: Path) -> _ParsedSolution:
     return _ParsedSolution(path=path, verdict=verdict, language=language)
 
 
+def _require_ok_solution(parsed: list[_ParsedSolution]) -> None:
+    if not any(p.verdict == "ok" for p in parsed):
+        raise PolygonStepError(
+            "no solution with verdict 'ok' — nothing to pick as Main "
+            "correct (expected at least one ok_* file)"
+        )
+
+
+def _main_on_polygon(client: PolygonClient, polygon_id: int) -> str | None:
+    """Имя решения с тегом `MA` на Polygon, `None` — если такого нет."""
+    solutions = client.call("problem.solutions", {"problemId": str(polygon_id)}) or []
+    for solution in solutions:
+        if solution.get("tag") == "MA":
+            logger.info("Main correct on Polygon is %s, keeping it", solution["name"])
+            return solution["name"]
+    return None
+
+
 def _choose_main(parsed: list[_ParsedSolution]) -> str:
     """Имя файла Main correct — первый по алфавиту `ok`-файл первого языка из
     `_MAIN_LANGUAGE_PRIORITY`, для которого такой файл есть. Если ни один
     язык из приоритета не встретился — WARNING и первый по алфавиту
     `ok`-файл (риск 1 в докстринге модуля), не ошибка."""
+    _require_ok_solution(parsed)
     ok_names = sorted(p.path.name for p in parsed if p.verdict == "ok")
-    if not ok_names:
-        raise PolygonStepError(
-            "no solution with verdict 'ok' — nothing to pick as Main "
-            "correct (expected at least one ok_* file)"
-        )
 
     for lang in _MAIN_LANGUAGE_PRIORITY:
         candidates = sorted(
