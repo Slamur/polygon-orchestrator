@@ -18,6 +18,9 @@
 Внутри оркестратора адрес передаётся парой: `problems_dir` — корень
 (`problems/` или `examples/`), аргумент `problem_id` функций — путь каталога
 задачи внутри корня (у задачи прямо в корне он совпадает с её `problem_id`).
+Адрес группы — такой же путь до промежуточного каталога или сам корень
+(`problems/contest/2026`, `examples`): команда применяется ко всем задачам
+под ним (`problems_under`).
 
 `problem_id` задачи — поле `problem_id` спека и имя задачи на Polygon —
 выводится из пути (`problem_id_for`):
@@ -165,17 +168,23 @@ def problem_address(problems_dir: Path, problem_path: str) -> str:
     return f"{Path(problems_dir).name}/{problem_path}"
 
 
-def parse_problem_address(address: str) -> tuple[Path, str]:
-    """(корень, путь задачи внутри корня) по адресу из CLI. Завершающий `/`
-    (его подставляет дополнение путей shell) допускается."""
+def _address_root_error(address: str) -> ProblemPathError:
+    allowed = " or ".join(f"'{root.name}/'" for root in PROBLEM_ROOTS)
+    return ProblemPathError(
+        f"problem address '{address}' must start with {allowed} followed by the problem "
+        "directory, e.g. problems/my-task or examples/array/prefix-sums"
+    )
+
+
+def parse_address_path(address: str) -> tuple[Path, str]:
+    """(корень, путь внутри корня) по адресу из CLI — задачи или группы задач,
+    поэтому путь может быть пустым (сам корень), а имя последнего каталога не
+    обязано подходить под `problem_id`. Завершающий `/` (его подставляет
+    дополнение путей shell) допускается."""
     parts = [part for part in address.strip().split("/") if part]
     roots = {root.name: root for root in PROBLEM_ROOTS}
-    allowed = " or ".join(f"'{name}/'" for name in roots)
-    if len(parts) < 2 or parts[0] not in roots:
-        raise ProblemPathError(
-            f"problem address '{address}' must start with {allowed} followed by the problem "
-            "directory, e.g. problems/my-task or examples/array/prefix-sums"
-        )
+    if not parts or parts[0] not in roots:
+        raise _address_root_error(address)
     root, rest = roots[parts[0]], parts[1:]
     for part in rest:
         if not _COMPONENT_PATTERN.match(part):
@@ -193,7 +202,14 @@ def parse_problem_address(address: str) -> tuple[Path, str]:
                 f"problem address '{address}': directory names in {root.name}/ must not contain "
                 f"'{EXAMPLE_ID_SEPARATOR}' — it joins them into the problem_id"
             )
-    problem_path = "/".join(rest)
+    return root, "/".join(rest)
+
+
+def parse_problem_address(address: str) -> tuple[Path, str]:
+    """(корень, путь задачи внутри корня) по адресу задачи из CLI."""
+    root, problem_path = parse_address_path(address)
+    if not problem_path:
+        raise _address_root_error(address)
     problem_id = problem_id_for(root, problem_path)
     if not PROBLEM_ID_PATTERN.match(problem_id):
         raise ProblemPathError(
@@ -228,6 +244,18 @@ def problem_paths(problems_dir: Path) -> list[str]:
     """Пути задач внутри корня `problems_dir` (posix, отсортированы)."""
     return sorted(
         path.relative_to(problems_dir).as_posix() for path in iter_problem_dirs(problems_dir)
+    )
+
+
+def problems_under(problems_dir: Path, group_path: str) -> list[str]:
+    """Пути задач (внутри корня) в группе `group_path` — каталоге внутри корня
+    (`""` — сам корень). Пусто, если задач под ним нет или это сама задача."""
+    problems_dir = Path(problems_dir)
+    if group_path and is_problem_dir(problems_dir / group_path):
+        return []
+    return sorted(
+        path.relative_to(problems_dir).as_posix()
+        for path in iter_problem_dirs(problems_dir / group_path)
     )
 
 
