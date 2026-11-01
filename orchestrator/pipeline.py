@@ -42,10 +42,10 @@ from orchestrator.cache import (
     load_pending_response,
     save_cache_entry,
 )
-from orchestrator.problem_paths import is_removed_mark, problem_address
+from orchestrator.problem_paths import TUTORIAL_DRAFT_FILENAME, is_removed_mark, problem_address
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
-from orchestrator.step_order import MECHANICAL_STEPS, STEP_ORDER
+from orchestrator.step_order import LLM_STEPS, MECHANICAL_STEPS, ON_DEMAND_STEPS, STEP_ORDER
 from orchestrator.steps import (
     checker_draft,
     constraints_pick,
@@ -56,6 +56,7 @@ from orchestrator.steps import (
     statement_draft,
     test_script_draft,
     tests_plan,
+    tutorial_draft,
 )
 from orchestrator.steps.base import (
     CONSTRAINTS_ARTIFACT,
@@ -79,6 +80,7 @@ _STEP_MODULES: dict[str, ModuleType] = {
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
     "solutions_draft": solutions_draft,
+    "tutorial_draft": tutorial_draft,
 }
 
 # Артефакты шагов, которые следующие шаги получают как upstream-вход (см.
@@ -175,8 +177,22 @@ class _StepHashes:
     input_values: dict[str, Any]
 
 
-def _optional_skip_detail(step_name: str, spec: Any) -> Optional[str]:
-    """Почему опциональный шаг не нужен этому спеку; `None` — нужен."""
+def _generate_command(step_name: str) -> str:
+    """Какой командой запускается шаг."""
+    if step_name in ON_DEMAND_STEPS:
+        return "llm tutorial"
+    return f"llm generate --step {step_name}"
+
+
+def _optional_skip_detail(
+    step_name: str, spec: Any, problem_id: str, problems_dir: Path
+) -> Optional[str]:
+    """Почему опциональный шаг не нужен этой задаче; `None` — нужен."""
+    if (
+        step_name == "tutorial_draft"
+        and not tutorial_draft.draft_path(problem_id, problems_dir=problems_dir).is_file()
+    ):
+        return f"no authoring/{TUTORIAL_DRAFT_FILENAME} — the tutorial was not requested by the author"
     if step_name == "solutions_draft" and spec.solutions is None:
         return "spec has no 'solutions' section — solution drafts were not requested by the author"
     if step_name == "checker_draft" and spec.checker.custom_needed is False:
@@ -192,10 +208,29 @@ def _load_upstream(
     spec: Any,
     upstream_artifacts: dict[str, Any],
     problems_dir: Path,
+    *,
+    tutorial_refs: Optional[list[str]] = None,
 ) -> None:
     """Подхватывает с диска upstream-артефакты шага (`_STEP_UPSTREAM`),
     которых ещё нет в `upstream_artifacts`: шаг-источник в этом прогоне не
-    запускался (только --step или пропущен по кэшу)."""
+    запускался (только --step или пропущен по кэшу). У `tutorial_draft` —
+    файлы его входа (`tutorial_draft.read_inputs`); `tutorial_refs` — решения
+    из `--ref`, `None` — те же, что в прошлом прогоне. `ValueError` — входа
+    шага нет на диске."""
+    if step_name == "tutorial_draft":
+        if tutorial_refs is None:
+            pending = load_pending_response(problem_id, step_name, problems_dir=problems_dir)
+            entry = (
+                pending.cache_entry
+                if pending is not None
+                else load_cache_entry(problem_id, step_name, problems_dir=problems_dir)
+            )
+            tutorial_refs = tutorial_draft.remembered_refs(
+                entry.input_values if entry is not None else None
+            )
+        upstream_artifacts[tutorial_draft.INPUTS_KEY] = tutorial_draft.read_inputs(
+            problem_id, tutorial_refs, problems_dir=problems_dir
+        )
     for producer in _STEP_UPSTREAM.get(step_name, ()):
         name = _UPSTREAM_PRODUCERS[producer]
         if name in upstream_artifacts:
@@ -483,6 +518,7 @@ def run_pipeline(
     fresh: bool = False,
     apply_pending: bool = False,
     only_step: Optional[str] = None,
+    tutorial_refs: Optional[list[str]] = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -508,7 +544,11 @@ def run_pipeline(
     сохранённым неприменённым ответом (`cache.PendingResponse` — ответ, не
     прошедший проверку) применяют его, если он получен на текущий вход шага
     (те же хеши, что у кэша) и в том же режиме (доработка или с нуля);
-    остальные шаги пропускаются.
+    остальные шаги пропускаются. Только в этом режиме без `only_step`
+    участвуют и шаги по команде (`ON_DEMAND_STEPS`): их сохранённый ответ тоже
+    нужно применить, а вызвать модель они могут только через `only_step`.
+
+    `tutorial_refs` — решения из `--ref` для `tutorial_draft` (`_load_upstream`).
 
     Останавливается (не бросая исключение) на первом `StepUncertainError` —
     `result.stopped_uncertain=True`, `result.outcomes` содержит всё, что
@@ -526,13 +566,16 @@ def run_pipeline(
     result = PipelineResult(problem_id=problem_id)
     upstream_artifacts: dict[str, Any] = {}
 
-    steps_to_run = STEP_ORDER if only_step is None else [only_step]
+    if only_step is not None:
+        steps_to_run = [only_step]
+    else:
+        steps_to_run = LLM_STEPS if apply_pending else STEP_ORDER
 
     for step_name in steps_to_run:
         module = _STEP_MODULES[step_name]
         logger.info("[%s] step started", step_name)
 
-        skip_detail = _optional_skip_detail(step_name, spec)
+        skip_detail = _optional_skip_detail(step_name, spec, problem_id, problems_dir)
         if skip_detail is not None:
             result.outcomes.append(StepOutcome(step_name, OUTCOME_SKIPPED_OPTIONAL, skip_detail))
             continue
@@ -548,9 +591,15 @@ def run_pipeline(
                 )
                 continue
 
-        _load_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
-
         try:
+            _load_upstream(
+                step_name,
+                problem_id,
+                spec,
+                upstream_artifacts,
+                problems_dir,
+                tutorial_refs=tutorial_refs,
+            )
             hashes = _compute_step_hashes(
                 problem_id,
                 step_name,
@@ -561,7 +610,7 @@ def run_pipeline(
             )
         except (ValueError, SpecReferenceError) as exc:
             # ValueError — нет constraints.yaml (constraints_pick ещё не
-            # запускался успешно), SpecReferenceError — референс спека не
+            # запускался успешно) или входа шага, SpecReferenceError — референс спека не
             # найден: спек или запуск нужно поправить. Это не uncertain, но
             # пайплайн останавливается так же — с сообщением, а не traceback.
             result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, str(exc)))
@@ -571,6 +620,10 @@ def run_pipeline(
         cache_entry = load_cache_entry(problem_id, step_name, problems_dir=problems_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
         artifact_present = _artifact_present(primary_path)
+
+        if step_name == "tutorial_draft":
+            names = tutorial_draft.solution_names(upstream_artifacts[tutorial_draft.INPUTS_KEY])
+            logger.info("[%s] solutions as context: %s", step_name, ", ".join(names) or "none")
 
         if pending is not None:
             revision, problem = _pending_revision(
@@ -583,7 +636,7 @@ def run_pipeline(
                         OUTCOME_ERROR,
                         f"{problem} — run "
                         f"'orchestrator {problem_address(problems_dir, problem_id)} "
-                        f"llm generate --step {step_name}'",
+                        f"{_generate_command(step_name)}'",
                     )
                 )
                 result.stopped_uncertain = True
@@ -611,7 +664,7 @@ def run_pipeline(
                     step_name,
                     OUTCOME_CONFLICT,
                     _conflicts_detail(problem_id, step_name, cache_entry, problems_dir)
-                    + " (or 'llm generate --force' to call the model again)",
+                    + f" (or '{_generate_command(step_name)} --force' to call the model again)",
                 )
             )
             result.stopped_uncertain = True
@@ -810,18 +863,18 @@ def _walk_steps(
     statuses: list[StepStatus] = []
     upstream_artifacts: dict[str, Any] = {}
 
-    for step_name in STEP_ORDER if only_step is None else [only_step]:
+    for step_name in LLM_STEPS if only_step is None else [only_step]:
         module = _STEP_MODULES[step_name]
 
-        skip_detail = _optional_skip_detail(step_name, spec)
+        skip_detail = _optional_skip_detail(step_name, spec, problem_id, problems_dir)
         if skip_detail is not None:
             statuses.append(StepStatus(step_name, STATUS_SKIPPED_OPTIONAL, skip_detail))
             continue
 
-        _load_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
 
         try:
+            _load_upstream(step_name, problem_id, spec, upstream_artifacts, problems_dir)
             hashes = _compute_step_hashes(
                 problem_id,
                 step_name,
@@ -951,7 +1004,8 @@ def _accept_step(
             step_name,
             STATUS_NOT_ACCEPTED,
             f"{current.state}: {detail} — run "
-            f"'orchestrator {problem_address(problems_dir, problem_id)} llm generate'",
+            f"'orchestrator {problem_address(problems_dir, problem_id)} "
+            f"{_generate_command(step_name)}'",
         )
     else:
         assert cache_entry is not None

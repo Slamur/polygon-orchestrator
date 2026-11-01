@@ -42,7 +42,7 @@ from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 # `constraints.yaml` — из `authoring/` (`problem_paths.find_authoring_file`). `spec.yaml`
 # прикладывается, только если из каталога взят хотя бы один другой файл —
 # спек без результата образцом не служит. Файлы, помеченные шагом как
-# удалённые (`<имя>.removed`), и разбор `statement/tutorial.tex` (автора, не
+# удалённые (`<имя>.removed`), и разбор `statement/tutorial.tex` (по драфту автора, не
 # образец условия) под glob не попадают. Шаги подготовки тестов
 # берут пары "вход → результат" своего уровня: `tests_plan` — спек → план (и
 # скрипт, если плана у образца нет), `generators_draft` — план → генераторы,

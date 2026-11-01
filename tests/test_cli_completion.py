@@ -117,7 +117,7 @@ def test_importing_cli_does_not_import_pipelines():
 
 
 def test_step_order_matches_registered_steps():
-    assert list(pipeline._STEP_MODULES) == step_order.STEP_ORDER
+    assert list(pipeline._STEP_MODULES) == step_order.LLM_STEPS
     assert list(polygon_pipeline._POLYGON_STEPS) == step_order.POLYGON_STEP_ORDER
     for name, step in polygon_pipeline._POLYGON_STEPS.items():
         assert step.name == name

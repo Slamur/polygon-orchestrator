@@ -1,4 +1,4 @@
-"""Реализация команд CLI: `init`, `llm generate|apply|status|accept`,
+"""Реализация команд CLI: `init`, `llm generate|tutorial|apply|status|accept`,
 `polygon push|status|check|fix|pull`.
 
 Парсер аргументов и входная точка — в `cli.py`; этот модуль он импортирует
@@ -93,7 +93,8 @@ from orchestrator.spec import (
     spec_validation_errors,
     write_spec,
 )
-from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
+from orchestrator.step_order import LLM_STEPS, POLYGON_STEP_ORDER
+from orchestrator.steps import tutorial_draft
 
 _OUTCOME_LABELS = {
     OUTCOME_CACHE_HIT: "cache hit",
@@ -351,6 +352,17 @@ def cmd_llm_generate(args: argparse.Namespace) -> int:
     return _run_llm_pipeline(args, force=args.force, fresh=args.fresh)
 
 
+def cmd_llm_tutorial(args: argparse.Namespace) -> int:
+    draft = tutorial_draft.draft_path(args.problem_id, problems_dir=args.problems_dir)
+    if not draft.is_file():
+        print(f"error: {draft} does not exist — write the tutorial draft first", file=sys.stderr)
+        return 1
+    args.step = tutorial_draft.STEP_NAME
+    return _run_llm_pipeline(
+        args, force=args.force, fresh=args.fresh, tutorial_refs=[] if args.no_ref else args.ref
+    )
+
+
 def cmd_llm_apply(args: argparse.Namespace) -> int:
     return _run_llm_pipeline(args, apply_pending=True)
 
@@ -360,8 +372,8 @@ def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
     `llm_generation.log`; `mode` — режим `run_pipeline`."""
     logger = _configure_console_logging()
 
-    if args.step is not None and args.step not in STEP_ORDER:
-        print(f"unknown step '{args.step}', allowed: {', '.join(STEP_ORDER)}", file=sys.stderr)
+    if args.step is not None and args.step not in LLM_STEPS:
+        print(f"unknown step '{args.step}', allowed: {', '.join(LLM_STEPS)}", file=sys.stderr)
         return 2
 
     with _problem_log_handler(

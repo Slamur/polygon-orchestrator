@@ -2,7 +2,7 @@
 `orchestrator <адрес задачи> <pipeline> <command> [аргументы]` (CLAUDE.md,
 "Запуск"): `init` — каталог задачи с черновиком спека (из шаблона, по
 спеку задачи-основы `--ref` и/или моделью по черновику автора `--draft`),
-`llm generate|apply|status|accept` — генеративные шаги,
+`llm generate|tutorial|apply|status|accept` — генеративные шаги,
 `local check|run|fix|clear` — проверка файлов задачи, прогон решений,
 механическое исправление найденного в условии и удаление локальных кэшей
 проверок, без модели и без сети, `polygon push|status|pull` —
@@ -48,6 +48,7 @@ from orchestrator.drafts import DRAFTS_DIR, draft_names
 from orchestrator.problem_paths import (
     PROBLEM_ROOTS,
     ProblemPathError,
+    is_removed_mark,
     migrate_to_authoring,
     parse_address_path,
     parse_problem_address,
@@ -56,7 +57,7 @@ from orchestrator.problem_paths import (
     problem_paths,
     problems_under,
 )
-from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
+from orchestrator.step_order import LLM_STEPS, POLYGON_STEP_ORDER, STEP_ORDER
 
 # Команды, которые к группе задач применяются без подтверждения: только
 # показывают состояние, модель и сеть не трогают.
@@ -89,6 +90,20 @@ def _complete_draft_names(prefix: str, parsed_args: argparse.Namespace, **kwargs
     нажатии Tab."""
     base_dir = Path(getattr(parsed_args, "base_dir", None) or ".")
     return draft_names(base_dir / DRAFTS_DIR)
+
+
+def _complete_solution_names(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
+    """Кандидаты Tab-дополнения `llm tutorial --ref`: файлы `solutions/` задачи,
+    адрес которой уже набран (с учётом `--base-dir`)."""
+    base_dir = Path(getattr(parsed_args, "base_dir", None) or ".")
+    solutions_dir = base_dir / getattr(parsed_args, "problem", "") / "solutions"
+    if not solutions_dir.is_dir():
+        return []
+    return sorted(
+        path.name
+        for path in solutions_dir.iterdir()
+        if path.is_file() and not is_removed_mark(path)
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -174,13 +189,47 @@ def build_parser() -> argparse.ArgumentParser:
     )
     generate_parser.set_defaults(handler="cmd_llm_generate")
 
+    tutorial_parser = llm_commands.add_parser(
+        "tutorial",
+        help="write statement/tutorial.tex from authoring/draft-tutorial.md: the model expands "
+        "the author's thoughts and adds only what the draft explicitly asks for (calls the "
+        "model; not a part of 'llm generate')",
+    )
+    tutorial_refs = tutorial_parser.add_mutually_exclusive_group()
+    tutorial_refs.add_argument(
+        "--ref",
+        metavar="SOLUTION",
+        action="append",
+        default=None,
+        help="file of solutions/ given to the model as context, repeat for several; replaces "
+        "the list of the previous run, without --ref that list is used again",
+    ).completer = _complete_solution_names
+    tutorial_refs.add_argument(
+        "--no-ref",
+        action="store_true",
+        help="clear the list of solutions of the previous run",
+    )
+    tutorial_mode = tutorial_parser.add_mutually_exclusive_group()
+    tutorial_mode.add_argument(
+        "--force",
+        action="store_true",
+        help="ignore the cache and call the model again (revising the current tutorial)",
+    )
+    tutorial_mode.add_argument(
+        "--fresh",
+        action="store_true",
+        help="write from scratch without showing the current tutorial to the model "
+        "(implies --force)",
+    )
+    tutorial_parser.set_defaults(handler="cmd_llm_tutorial")
+
     apply_parser = llm_commands.add_parser(
         "apply",
         help="apply model responses saved by a failed 'llm generate' (the response did not pass "
         "the checks) without calling the model",
     )
     apply_parser.add_argument(
-        "--step", choices=STEP_ORDER, default=None, help="apply only one step"
+        "--step", choices=LLM_STEPS, default=None, help="apply only one step"
     )
     apply_parser.set_defaults(handler="cmd_llm_apply")
 
@@ -195,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
         "hashes) without calling the model",
     )
     accept_parser.add_argument(
-        "--step", choices=STEP_ORDER, default=None, help="accept only one step"
+        "--step", choices=LLM_STEPS, default=None, help="accept only one step"
     )
     accept_parser.set_defaults(handler="cmd_llm_accept")
 
@@ -339,6 +388,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error(str(exc))
     if group and getattr(args, "polygon_id", None) is not None:
         parser.error(f"--polygon-id names one problem, but {args.problem} is a group of problems")
+    if group and args.handler == "cmd_llm_tutorial" and args.ref:
+        parser.error(f"--ref names solutions of one problem, but {args.problem} is a group of problems")
     args.problems_dir = args.base_dir / root
     if group:
         return _run_group(args, root, group)

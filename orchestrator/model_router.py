@@ -60,6 +60,9 @@ __all__ = [
 # автора, `orchestrator/spec_from_draft.py`): спек — вход всех шагов, и
 # ошибка в нём (или незаметно домысленное значение) расходится по всем —
 # поэтому сильная модель.
+# tutorial_draft — разбор по драфту автора (`llm tutorial`): по команде автора
+# модель пишет доказательства, а незаметная ошибка в них уходит участникам —
+# поэтому сильная модель, хотя остальной текст — раскрытие тезисов автора.
 STEP_TO_MODEL: dict[str, str] = {
     "statement_draft": "medium-model",
     "constraints_pick": "strong-model",
@@ -70,6 +73,7 @@ STEP_TO_MODEL: dict[str, str] = {
     "checker_draft": "medium-model",
     "interactor_draft": "strong-model",
     "spec_from_draft": "strong-model",
+    "tutorial_draft": "strong-model",
 }
 
 # Уровень effort на шаг (общее для вендоров, поддерживающих такую ручку;
@@ -79,7 +83,8 @@ STEP_TO_MODEL: dict[str, str] = {
 # medium, это реализация плана; checker_draft — high по той же
 # причине, что и класс модели: цена ошибки в сравнении ответов высока даже
 # при формально механической реализации; statement_draft — medium, это
-# оформление, а не рассуждение; spec_from_draft — high, как и класс модели.
+# оформление, а не рассуждение; spec_from_draft и tutorial_draft — high, как
+# и класс модели.
 STEP_TO_EFFORT: dict[str, str] = {
     "statement_draft": "medium",
     "constraints_pick": "high",
@@ -90,6 +95,7 @@ STEP_TO_EFFORT: dict[str, str] = {
     "checker_draft": "high",
     "interactor_draft": "high",
     "spec_from_draft": "high",
+    "tutorial_draft": "high",
 }
 
 _client: LLMClient | None = None

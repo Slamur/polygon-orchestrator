@@ -175,8 +175,8 @@ def current_artifacts(
     statements автора. Не артефакты модели: `examples/example_<N>.txt` (их
     пишет оркестратор из спека, `_example_inputs`), флаги
     `example_<N>.verify_for_statement.txt`, `name.txt` (его пишут
-    `polygon push`/`pull`) и разбор `tutorial.tex` (его пишет автор или
-    `polygon pull`)."""
+    `polygon push`/`pull`) и разбор `tutorial.tex` (его пишет автор, `polygon
+    pull` или шаг `tutorial_draft`)."""
     statement_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR
     candidates = {
         name: statement_dir / name for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]

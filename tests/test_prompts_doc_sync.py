@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.step_order import MECHANICAL_STEPS, STEP_ORDER
+from orchestrator.step_order import LLM_STEPS, MECHANICAL_STEPS
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -36,7 +36,7 @@ def _doc_blocks() -> dict[tuple[str, str], str]:
 
 
 @pytest.mark.parametrize(
-    "step_name", [*(s for s in STEP_ORDER if s not in MECHANICAL_STEPS), "spec_from_draft"]
+    "step_name", [*(s for s in LLM_STEPS if s not in MECHANICAL_STEPS), "spec_from_draft"]
 )
 @pytest.mark.parametrize("filename", PROMPT_FILES)
 def test_prompts_doc_matches_prompt_file(step_name, filename):
