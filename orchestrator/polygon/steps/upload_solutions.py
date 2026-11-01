@@ -99,7 +99,7 @@ class _ParsedSolution:
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Загружает каждое решение, отличающееся от базы синхронизации, с тегом
-    из `_tag_for` (`ctx.spec` не используется).
+    из `_tag_to_send` (`ctx.spec` не используется).
 
     Обе зависимости (`create_problem`, `solutions_draft`), разбор имён и
     наличие `ok`-файла — по всему набору и до первого сетевого вызова.
