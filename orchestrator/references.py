@@ -30,6 +30,7 @@ from typing import Callable, Optional
 
 from orchestrator.problem_paths import (
     TESTS_PLAN_FILENAME,
+    TUTORIAL_FILENAME,
     find_authoring_file,
     is_authoring_name,
     is_removed_mark,
@@ -41,7 +42,8 @@ from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 # `constraints.yaml` — из `authoring/` (`problem_paths.find_authoring_file`). `spec.yaml`
 # прикладывается, только если из каталога взят хотя бы один другой файл —
 # спек без результата образцом не служит. Файлы, помеченные шагом как
-# удалённые (`<имя>.removed`), под glob не попадают. Шаги подготовки тестов
+# удалённые (`<имя>.removed`), и разбор `statement/tutorial.tex` (автора, не
+# образец условия) под glob не попадают. Шаги подготовки тестов
 # берут пары "вход → результат" своего уровня: `tests_plan` — спек → план (и
 # скрипт, если плана у образца нет), `generators_draft` — план → генераторы,
 # `test_script_draft` — план → скрипт.
@@ -165,7 +167,7 @@ def _directory_files(
             matches = sorted(
                 path
                 for path in directory.glob(entry)
-                if path.is_file() and not is_removed_mark(path)
+                if path.is_file() and not is_removed_mark(path) and path.name != TUTORIAL_FILENAME
             )
         else:
             matches = [directory / entry] if (directory / entry).is_file() else []

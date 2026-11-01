@@ -360,6 +360,89 @@ def test_removed_statement_output_is_cleared_on_polygon(problems_dir, interactiv
     client.call.assert_not_called()
 
 
+def _write_tutorial(problems_dir: Path, content: str = "Разбор.\n") -> Path:
+    path = _statement_dir(problems_dir) / "tutorial.tex"
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def test_no_tutorial_file_sends_no_tutorial(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert "tutorial" not in statement
+
+
+def test_tutorial_is_uploaded_and_synced(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    path = _write_tutorial(problems_dir)
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert statement["tutorial"] == "Разбор.\n"
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    client = MagicMock()
+    assert "no changes" in _run(spec, problems_dir, client, incremental=True)
+    client.call.assert_not_called()
+
+    path.write_text("Новый разбор.\n", encoding="utf-8")
+    status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
+    assert status == "stale" and "statement/tutorial.tex" in detail
+    _run(spec, problems_dir, client, incremental=True)
+    [statement] = _calls(client, "problem.saveStatement")
+    assert statement["tutorial"] == "Новый разбор.\n"
+    assert statement["legend"] == TEX_CONTENT["legend.tex"]
+
+
+def test_removed_tutorial_is_cleared_on_polygon(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    path = _write_tutorial(problems_dir)
+    _run(spec, problems_dir, MagicMock())
+    path.unlink()
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
+    client = MagicMock()
+
+    _run(spec, problems_dir, client, incremental=True)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert statement["tutorial"] == ""
+    synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
+    assert "statement/tutorial.tex" not in synced
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    client = MagicMock()
+    assert "no changes" in _run(spec, problems_dir, client, incremental=True)
+    client.call.assert_not_called()
+
+
+def test_force_without_tutorial_file_does_not_clear_it(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    _write_tutorial(problems_dir)
+    _run(spec, problems_dir, MagicMock())
+    (_statement_dir(problems_dir) / "tutorial.tex").unlink()
+    client = MagicMock()
+
+    # Без `incremental` база неизвестна, как у `push --force`.
+    _run(spec, problems_dir, client)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert "tutorial" not in statement
+
+
 def test_plain_problem_uploads_only_statement_output(problems_dir, spec):
     _link(problems_dir)
     _write_tex(problems_dir)
