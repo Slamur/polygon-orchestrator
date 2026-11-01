@@ -11,10 +11,12 @@ from orchestrator.problem_paths import (
     ProblemPathError,
     check_new_problem_location,
     migrate_to_authoring,
+    parse_address_path,
     parse_problem_address,
     problem_address,
     problem_id_for,
     problem_paths,
+    problems_under,
 )
 
 
@@ -154,3 +156,51 @@ def test_migrate_to_authoring_refuses_when_file_is_in_both_places(tmp_path):
     with pytest.raises(ProblemPathError, match="spec.yaml"):
         migrate_to_authoring(problem_dir)
     assert (problem_dir / "draft.md").exists()
+
+
+@pytest.mark.parametrize(
+    ("address", "root", "path"),
+    [
+        ("problems", PROBLEMS_DIR, ""),
+        ("examples/", EXAMPLES_DIR, ""),
+        ("problems/contest/2026", PROBLEMS_DIR, "contest/2026"),
+    ],
+)
+def test_parse_address_path_accepts_roots_and_group_names(address, root, path):
+    assert parse_address_path(address) == (root, path)
+
+
+def test_parse_address_path_rejects_unknown_root_and_authoring():
+    with pytest.raises(ProblemPathError, match="must start with"):
+        parse_address_path("other/my-task")
+    with pytest.raises(ProblemPathError, match="authoring"):
+        parse_address_path("problems/my-task/authoring")
+
+
+def test_parse_problem_address_rejects_root_alone():
+    with pytest.raises(ProblemPathError, match="must start with"):
+        parse_problem_address("problems")
+
+
+def test_problems_under_finds_problems_of_a_group(tmp_path):
+    _touch(tmp_path / "contest" / "2026" / "task-a" / "authoring" / "spec.yaml")
+    _touch(tmp_path / "contest" / "task-b" / "polygon_state.json")
+    _touch(tmp_path / "other" / "task-c" / "authoring" / "spec.yaml")
+    (tmp_path / "contest" / "empty").mkdir()
+
+    assert problems_under(tmp_path, "contest") == ["contest/2026/task-a", "contest/task-b"]
+    assert problems_under(tmp_path, "contest/2026") == ["contest/2026/task-a"]
+    assert problems_under(tmp_path, "") == [
+        "contest/2026/task-a",
+        "contest/task-b",
+        "other/task-c",
+    ]
+
+
+def test_problems_under_is_empty_for_a_problem_and_a_missing_or_empty_directory(tmp_path):
+    _touch(tmp_path / "contest" / "task-a" / "authoring" / "spec.yaml")
+    (tmp_path / "contest" / "empty").mkdir()
+
+    assert problems_under(tmp_path, "contest/task-a") == []
+    assert problems_under(tmp_path, "contest/empty") == []
+    assert problems_under(tmp_path, "cont") == []

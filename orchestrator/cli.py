@@ -14,6 +14,13 @@
 первым: обычно работа идёт над одной задачей, и разные команды к ней удобнее
 менять в конце строки.
 
+Вместо адреса задачи можно указать каталог-группу или сам корень
+(`problems/contest/2026`, `examples`): команда применяется ко всем задачам под
+ним по очереди, сбой одной задачи не останавливает остальные (`_run_group`).
+Перед этим печатается список задач и спрашивается подтверждение — кроме команд,
+которые только показывают состояние (`_NO_CONFIRM_HANDLERS`). `init` создаёт
+одну задачу и групп не принимает.
+
 Здесь только парсер аргументов и диспетчеризация; сами команды — в
 `cli_commands.py`, и импортируется он лениво, уже после разбора аргументов.
 Причина — Tab-дополнение (`argcomplete`, настройка shell — в `docs/SETUP.md`):
@@ -33,6 +40,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import traceback
 from pathlib import Path
 
 from orchestrator.cache import PROMPTS_DIR, TEMPLATES_DIR
@@ -41,11 +49,18 @@ from orchestrator.problem_paths import (
     PROBLEM_ROOTS,
     ProblemPathError,
     migrate_to_authoring,
+    parse_address_path,
     parse_problem_address,
     problem_address,
+    problem_id_for,
     problem_paths,
+    problems_under,
 )
 from orchestrator.step_order import POLYGON_STEP_ORDER, STEP_ORDER
+
+# Команды, которые к группе задач применяются без подтверждения: только
+# показывают состояние, модель и сеть не трогают.
+_NO_CONFIRM_HANDLERS = ("cmd_llm_status", "cmd_polygon_status")
 
 
 def _complete_problem_addresses(
@@ -101,7 +116,9 @@ def build_parser() -> argparse.ArgumentParser:
         "problem",
         metavar="PROBLEM",
         help="problem directory with its root: problems/<path> or examples/<path>, "
-        "e.g. problems/contest/my-task (spec: <PROBLEM>/spec.yaml)",
+        "e.g. problems/contest/my-task (spec: <PROBLEM>/authoring/spec.yaml); or a directory "
+        "above problems, e.g. problems/contest or examples: the command runs for every problem "
+        "under it, after a confirmation",
     ).completer = _complete_problem_addresses
 
     pipelines = parser.add_subparsers(dest="pipeline", required=True)
@@ -314,10 +331,23 @@ def main(argv: list[str] | None = None) -> int:
     # Дальше задача адресуется парой (корень, путь внутри корня) — см.
     # `orchestrator/problem_paths.py`.
     try:
-        root, args.problem_id = parse_problem_address(args.problem)
+        root, path = parse_address_path(args.problem)
+        group = [] if args.handler == "cmd_init" else problems_under(args.base_dir / root, path)
+        if not group:
+            root, path = parse_problem_address(args.problem)
     except ProblemPathError as exc:
         parser.error(str(exc))
+    if group and getattr(args, "polygon_id", None) is not None:
+        parser.error(f"--polygon-id names one problem, but {args.problem} is a group of problems")
     args.problems_dir = args.base_dir / root
+    if group:
+        return _run_group(args, root, group)
+    return _run_problem(args, path)
+
+
+def _run_problem(args: argparse.Namespace, problem_path: str) -> int:
+    """Команда для одной задачи в корне `args.problems_dir`."""
+    args.problem_id = problem_path
     # Задача, созданная до `authoring/`, переносится при первой же команде
     # к ней — дальше все команды видят только новую раскладку.
     problem_dir = args.problems_dir / args.problem_id
@@ -332,6 +362,49 @@ def main(argv: list[str] | None = None) -> int:
     from orchestrator import cli_commands
 
     return getattr(cli_commands, args.handler)(args)
+
+
+def _confirm_group(args: argparse.Namespace, root: Path, group: list[str]) -> bool:
+    """Печатает задачи группы (`problem_id` и адрес) и спрашивает подтверждение.
+    Закрытый ввод — отказ: без ответа пользователя команда не запускается."""
+    print(f"{args.problem}: {len(group)} problem(s)")
+    ids = [problem_id_for(root, path) for path in group]
+    width = max(map(len, ids))
+    for problem_id, path in zip(ids, group):
+        print(f"  {problem_id:<{width}}  {problem_address(root, path)}")
+    command = f"{args.pipeline} {args.command}"
+    try:
+        answer = input(f"Run '{command}' for these {len(group)} problem(s)? [y/N] ")
+    except EOFError:
+        print()
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
+def _run_group(args: argparse.Namespace, root: Path, group: list[str]) -> int:
+    """Команда для каждой задачи группы по очереди. Задачи независимы, поэтому
+    сбой одной — в том числе необработанное исключение — не останавливает
+    остальные; в конце — сколько прошло и какие задачи не прошли."""
+    if args.handler not in _NO_CONFIRM_HANDLERS and not _confirm_group(args, root, group):
+        print("aborted: nothing was run")
+        return 1
+    failed = []
+    for number, path in enumerate(group, start=1):
+        address = problem_address(root, path)
+        print(f"\n##### [{number}/{len(group)}] {address} #####", flush=True)
+        try:
+            code = _run_problem(args, path)
+        except Exception:
+            traceback.print_exc()
+            code = 1
+        if code != 0:
+            failed.append(address)
+    print(f"\n{len(group) - len(failed)} of {len(group)} problem(s) ok")
+    if failed:
+        print("failed:")
+        for address in failed:
+            print(f"  {address}")
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
