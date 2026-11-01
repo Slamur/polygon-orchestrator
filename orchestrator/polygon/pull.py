@@ -179,6 +179,7 @@ from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
     PROBLEMS_DIR,
     ProblemPathError,
+    TUTORIAL_DRAFT_FILENAME,
     TUTORIAL_FILENAME,
     authoring_dir,
     check_new_problem_location,
@@ -762,7 +763,7 @@ class _Puller:
 
     def pull_attachments(self) -> None:
         """Aux-файлы задачи (`is_attachment_name`: спек, `constraints.yaml`,
-        `tests_plan.yaml`, копия черновика), их загружает шаг `upload_attachments`; локально они
+        `tests_plan.yaml`, копия черновика, драфт разбора), их загружает шаг `upload_attachments`; локально они
         в `authoring/`, ключ базы — имя на Polygon. Прочие aux-файлы на
         Polygon не трогаются."""
         remote_names = sorted(
@@ -797,6 +798,12 @@ class _Puller:
         if TESTS_PLAN_KEY not in remote_names:
             self._missing_if_local(
                 _authoring_name(TESTS_PLAN_KEY), "no attachment on Polygon", key=TESTS_PLAN_KEY
+            )
+        if TUTORIAL_DRAFT_FILENAME not in remote_names:
+            self._missing_if_local(
+                _authoring_name(TUTORIAL_DRAFT_FILENAME),
+                "no attachment on Polygon",
+                key=TUTORIAL_DRAFT_FILENAME,
             )
         directory = authoring_dir(self.problem_dir)
         local_drafts = sorted(

@@ -182,6 +182,9 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         INTERACTIVE_TUTORIAL,
         "problem_lib.h",
     ],
+    "tutorial_draft": [
+        "tutorials/tutorial.md",
+    ],
 }
 
 # Статусы ответа модели по контракту из docs/PROMPTS.md.

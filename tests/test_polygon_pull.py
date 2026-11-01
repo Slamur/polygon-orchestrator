@@ -580,6 +580,7 @@ def test_attachments_are_downloaded(problems_dir, polygon):
             "constraints.yaml": _CONSTRAINTS_PICK.encode(),
             "tests_plan.yaml": b"generators: []\n",
             "draft.md": b"idea\n",
+            "draft-tutorial.md": b"tutorial draft\n",
             "other.txt": b"x",
         }
     )
@@ -588,6 +589,7 @@ def test_attachments_are_downloaded(problems_dir, polygon):
 
     problem_dir = problems_dir / PROBLEM_ID
     assert result.ok
+    assert (problem_dir / "authoring" / "draft-tutorial.md").read_text() == "tutorial draft\n"
     assert (problem_dir / "authoring" / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
     assert (problem_dir / "authoring" / "draft.md").read_text() == "idea\n"
     assert (problem_dir / "authoring" / "tests_plan.yaml").read_text() == "generators: []\n"
@@ -655,6 +657,17 @@ def test_local_tests_plan_missing_on_polygon(problems_dir, polygon):
 
     assert _statuses(result)["authoring/tests_plan.yaml"] == ITEM_LOCAL_ONLY
     assert "tests_plan.yaml" not in _synced(problems_dir)
+
+
+def test_local_tutorial_draft_missing_on_polygon(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    assert "authoring/draft-tutorial.md" not in _statuses(result)
+
+    _write(problems_dir / PROBLEM_ID, "authoring/draft-tutorial.md", "tutorial draft\n")
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["authoring/draft-tutorial.md"] == ITEM_LOCAL_ONLY
+    assert "draft-tutorial.md" not in _synced(problems_dir)
 
 
 def test_local_draft_missing_on_polygon(problems_dir, polygon):

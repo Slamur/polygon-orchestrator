@@ -30,6 +30,15 @@ STEP_ORDER: list[str] = [
     "solutions_draft",
 ]
 
+# Шаги по отдельной команде, вне `STEP_ORDER`: `llm generate` их не запускает,
+# но `llm status|apply|accept` видят. Разбор пишется последним и по явной
+# просьбе автора (`llm tutorial`, CLAUDE.md, "Роль каждого генеративного
+# шага", пункт 7): иначе любая правка условия или решения при полном прогоне
+# тратила бы вызов сильной модели.
+ON_DEMAND_STEPS: list[str] = ["tutorial_draft"]
+
+LLM_STEPS: list[str] = [*STEP_ORDER, *ON_DEMAND_STEPS]
+
 # Шаги из `STEP_ORDER` без вызова модели и без промптов: результат выводится
 # механически из файлов предыдущих шагов.
 MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints"})

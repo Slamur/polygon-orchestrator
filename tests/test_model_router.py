@@ -45,6 +45,7 @@ def test_step_to_model_covers_all_steps_and_spec_from_draft():
         "checker_draft",
         "interactor_draft",
         "spec_from_draft",
+        "tutorial_draft",
     }
 
 

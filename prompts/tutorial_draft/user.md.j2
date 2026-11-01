@@ -1,0 +1,52 @@
+Задача problem_id: {{ problem_id }}.
+
+## Драфт разбора (от автора)
+
+````
+{{ draft }}
+````
+
+## Условие (источник обозначений)
+
+{% for file in statement_files %}
+### `{{ file.name }}`
+
+````
+{{ file.content }}
+````
+
+{% endfor %}
+## Примеры из условия
+
+{% for example in sample_examples %}
+### Пример {{ loop.index }}
+
+Input:
+````
+{{ example.input }}
+````
+{% if example.output is not none %}
+Output:
+````
+{{ example.output }}
+````
+{% endif %}
+
+{% endfor %}
+## Решения автора (только чтобы понять драфт)
+
+{% if solutions %}
+{% for file in solutions %}
+### `{{ file.name }}`
+
+````
+{{ file.content }}
+````
+
+{% endfor %}
+{% else %}
+Решения не приложены.
+{% endif %}
+
+Задача: напиши `tutorial.tex` по драфту выше — раскрой мысли автора и выполни
+его прямые просьбы, ничего не дописывая от себя.
