@@ -65,8 +65,20 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     ).message
 
 
+def _uploads(client: MagicMock) -> list:
+    return [c for c in client.call.call_args_list if c.args[0] == "problem.saveSolution"]
+
+
 def _tags(client: MagicMock) -> dict[str, str]:
-    return {c.args[1]["name"]: c.args[1]["tag"] for c in client.call.call_args_list}
+    return {c.args[1]["name"]: c.args[1]["tag"] for c in _uploads(client)}
+
+
+def _client_with_solutions(solutions: list[dict]) -> MagicMock:
+    client = MagicMock()
+    client.call.side_effect = lambda method, params: (
+        solutions if method == "problem.solutions" else None
+    )
+    return client
 
 
 def test_step_is_a_polygon_step_with_expected_name():
@@ -141,7 +153,7 @@ def test_uploads_each_solution_with_its_tag(problems_dir, spec):
         "tl_py_slow_draft.py": "TL",
         "wa_cpp_offbyone_draft.cpp": "WA",
     }
-    assert [c.args for c in client.call.call_args_list] == [
+    assert [c.args for c in _uploads(client)] == [
         (
             "problem.saveSolution",
             {"problemId": str(POLYGON_ID), "name": name, "tag": tag, "file": SOLUTIONS[name]},
@@ -246,6 +258,93 @@ def test_unprioritized_language_falls_back_to_alphabetical_with_warning(
     assert "ok_pascal_alt_draft.pas" in warnings[0].getMessage()
 
 
+def test_existing_main_on_polygon_is_kept_when_new_solution_sorts_first(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_b_draft.cpp": b"", "ok_cpp_a_draft.cpp": b""})
+    client = _client_with_solutions(
+        [{"name": "ok_cpp_b_draft.cpp", "tag": "MA"}, {"name": "wa_cpp_c_draft.cpp", "tag": "WA"}]
+    )
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_a_draft.cpp": "OK", "ok_cpp_b_draft.cpp": "MA"}
+
+
+def test_no_solution_gets_main_when_polygon_main_is_not_local(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_new_draft.cpp": b""})
+    client = _client_with_solutions([{"name": "old_main.cpp", "tag": "MA"}])
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_new_draft.cpp": "OK"}
+
+
+def test_polygon_main_keeps_tag_regardless_of_verdict_in_name(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "tl_cpp_slow_draft.cpp": b""})
+    client = _client_with_solutions([{"name": "tl_cpp_slow_draft.cpp", "tag": "MA"}])
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "OK", "tl_cpp_slow_draft.cpp": "MA"}
+
+
+def test_solution_on_polygon_keeps_its_tag_instead_of_verdict_in_name(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(
+        problems_dir,
+        {"ok_cpp_main_draft.cpp": b"", "wa_cpp_tagged_draft.cpp": b"", "wa_cpp_new_draft.cpp": b""},
+    )
+    client = _client_with_solutions(
+        [
+            {"name": "ok_cpp_main_draft.cpp", "tag": "MA"},
+            {"name": "wa_cpp_tagged_draft.cpp", "tag": "TL"},
+        ]
+    )
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {
+        "ok_cpp_main_draft.cpp": "MA",
+        "wa_cpp_new_draft.cpp": "WA",
+        "wa_cpp_tagged_draft.cpp": "TL",
+    }
+
+
+def test_existing_solution_becomes_main_when_polygon_has_no_main(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "ok_py_alt_draft.py": b""})
+    client = _client_with_solutions(
+        [{"name": "ok_cpp_alt_draft.cpp", "tag": "OK"}, {"name": "ok_py_alt_draft.py", "tag": "TO"}]
+    )
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "MA", "ok_py_alt_draft.py": "TO"}
+
+
+def test_main_is_chosen_when_polygon_has_solutions_without_main(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b""})
+    client = _client_with_solutions([{"name": "ok_py_old_draft.py", "tag": "OK"}])
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "MA"}
+
+
+def test_nothing_changed_makes_no_requests(problems_dir, spec):
+    _link(problems_dir)
+    _write_solutions(problems_dir)
+    _run(spec, problems_dir, MagicMock())
+    client = MagicMock()
+
+    _run(spec, problems_dir, client, incremental=True)
+
+    client.call.assert_not_called()
+
+
 def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
     _link(problems_dir)
     _write_solutions(
@@ -285,12 +384,12 @@ def test_save_solution_error_propagates_and_is_not_recorded(problems_dir, spec):
     _link(problems_dir)
     _write_solutions(problems_dir)
     client = MagicMock()
-    client.call.side_effect = [None, PolygonApiError("problem.saveSolution", "boom")]
+    client.call.side_effect = [[], None, PolygonApiError("problem.saveSolution", "boom")]
 
     with pytest.raises(PolygonApiError):
         _run(spec, problems_dir, client)
 
-    assert client.call.call_count == 2
+    assert len(_uploads(client)) == 2
     assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced == {}
 
 
@@ -314,7 +413,7 @@ def test_incremental_run_uploads_only_changed_solution_with_its_tag(problems_dir
 
     _run(spec, problems_dir, client, incremental=True)
 
-    assert [(c.args[1]["name"], c.args[1]["tag"]) for c in client.call.call_args_list] == [
+    assert [(c.args[1]["name"], c.args[1]["tag"]) for c in _uploads(client)] == [
         ("ok_py_main_draft.py", "OK")
     ]
 
