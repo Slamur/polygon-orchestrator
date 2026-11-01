@@ -39,6 +39,9 @@ Python-оркестратор, который берёт структуриро�
 - интерактивные задачи (секция `interactor` в спеке): протокол
   взаимодействия в условии (`interaction.tex`, диалоги примеров) и
   черновик интерактора (C++/testlib), только если задача интерактивная;
+- черновик разбора `statement/tutorial.tex` по драфту автора
+  `authoring/draft-tutorial.md` (`orchestrator <задача> llm tutorial`): модель
+  раскрывает мысли автора и дописывает только то, о чём он прямо просит;
 - создание задачи на Polygon по `problem_id` из спека через Polygon API
   (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
   хранится в `problems/<путь задачи>/polygon_state.json`) и перенос
@@ -53,11 +56,12 @@ Python-оркестратор, который берёт структуриро�
   интерактором (`upload_interactor`, только у интерактивной задачи; флаг
   интерактивности выставляет `set_constraints`),
   разбор `problems/<путь задачи>/statement/tutorial.tex` (необязательный;
-  пишет автор или `polygon pull`, модель его не генерирует и не видит) —
+  пишет автор, `polygon pull` или шаг `tutorial_draft`) —
   вместе с условием в `upload_statement`,
   загрузка `problems/<путь задачи>/authoring/` — `spec.yaml`,
   `constraints.yaml` (результат `constraints_pick` целиком), `tests_plan.yaml`
-  (план тестов) и копии черновика `draft.<расширение>` — как есть в раздел
+  (план тестов), копии черновика `draft.<расширение>` и драфта разбора
+  `draft-tutorial.md` — как есть в раздел
   Attachments (по имени файла, без `authoring/`) (aux-файлы,
   `upload_attachments`) — чтобы `polygon pull` восстанавливал задачу вместе
   со спеком, ограничениями, планом тестов и черновиком.
@@ -117,6 +121,7 @@ Python-оркестратор, который берёт структуриро�
 │       ├── solutions.md          # правила по решениям (solutions_draft)
 │       ├── checker.md            # правила по чекеру (checker_draft)
 │       ├── interactive.md        # правила интерактивных задач (interactor_draft; statement_draft и solutions_draft — только у интерактивной задачи)
+│       ├── tutorial.md           # правила разбора (tutorial_draft)
 │       └── polygon.md            # справка по интерфейсу Polygon — шагам не прикладывается
 ├── examples/                     # учебные задачи-образцы, по каталогу на задачу
 │   └── <вид-входа>/<суть>/       # например array/prefix-sums; раскладка как у problems/<путь задачи>/
@@ -154,6 +159,9 @@ Python-оркестратор, который берёт структуриро�
 │   ├── interactor_draft/
 │   │   ├── system.md
 │   │   └── user.md.j2
+│   ├── tutorial_draft/
+│   │   ├── system.md
+│   │   └── user.md.j2
 │   ├── spec_from_draft/          # не шаг пайплайна: спек по черновику автора для `init --draft`
 │   │   ├── system.md
 │   │   └── user.md.j2
@@ -161,8 +169,8 @@ Python-оркестратор, который берёт структуриро�
 │   └── missing_artifacts.md.j2   # общий блок дозапроса файлов, которых не было в ответе (см. "Конфликты")
 ├── orchestrator/
 │   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|apply|status|accept, local check|run|fix|clear, polygon push|status|pull; импортируется из cli.py лениво
-│   ├── step_order.py              # STEP_ORDER / POLYGON_STEP_ORDER / MECHANICAL_STEPS — имена шагов без импорта самих шагов
+│   ├── cli_commands.py            # реализация команд init, llm generate|tutorial|apply|status|accept, local check|run|fix|clear, polygon push|status|pull; импортируется из cli.py лениво
+│   ├── step_order.py              # STEP_ORDER / ON_DEMAND_STEPS / POLYGON_STEP_ORDER / MECHANICAL_STEPS — имена шагов без импорта самих шагов
 │   ├── limits.py                  # формат limits.yaml (актуальные TL/ML задачи): чтение, запись, TL/ML из constraints.yaml
 │   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; файлы authoring/ и перенос в него задач старой раскладки; без тяжёлых импортов
 │   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/authoring/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
@@ -178,7 +186,8 @@ Python-оркестратор, который берёт структуриро�
 │   │   ├── test_script_draft.py       # test-script по плану
 │   │   ├── solutions_draft.py
 │   │   ├── checker_draft.py
-│   │   └── interactor_draft.py
+│   │   ├── interactor_draft.py
+│   │   └── tutorial_draft.py          # разбор по драфту; вне STEP_ORDER, запускается `llm tutorial`
 │   ├── model_router.py            # маршрутизация по классу модели/effort — вендоронезависимо,
 │   │                               # делегирует в LLMClient (см. ниже)
 │   ├── llm_client.py               # Protocol LLMClient — единственная точка подмены вендора
@@ -214,6 +223,7 @@ Python-оркестратор, который берёт структуриро�
         ├── authoring/              # файлы, с которыми работают только модель и автор; на Polygon — в Attachments (upload_attachments / pull), по имени файла
         │   ├── spec.yaml           # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` (из шаблона, по --ref и/или моделью по --draft)
         │   ├── draft.<расширение>  # копия черновика автора, по которому `init --draft` написал спек
+        │   ├── draft-tutorial.md   # драфт разбора: пишет автор, вход `llm tutorial`
         │   ├── constraints.yaml    # результат constraints_pick: выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
         │   └── tests_plan.yaml     # результат tests_plan: генераторы и тесты скрипта; вход generators_draft и test_script_draft, можно править руками
         ├── .cache/
@@ -225,6 +235,7 @@ Python-оркестратор, который берёт структуриро�
         │   ├── solutions_draft.json
         │   ├── checker_draft.json
         │   ├── interactor_draft.json
+        │   ├── tutorial_draft.json
         │   └── <step>.response.json        # ответ модели, ещё не применённый (до `llm apply`, `llm accept` или нового прогона шага)
         ├── llm_generation.log      # лог `orchestrator <задача> llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
         ├── llm_reports/<шаг>.md    # человеко-читаемый отчёт последнего прогона шага (и spec_from_draft.md от `init --draft`, accept.md от `llm accept`): заметки модели, файлы, диффы
@@ -235,7 +246,7 @@ Python-оркестратор, который берёт структуриро�
         ├── .fix_backup/<время>/    # прежние версии файлов условия, исправленных `local fix`
         ├── .llm_backup/<время>/    # прежние версии файлов, перезаписанных или переименованных `llm generate`
         ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
-        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи; + необязательный tutorial.tex — разбор: пишет автор или pull, удалённый файл push очищает на Polygon)
+        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи; + необязательный tutorial.tex — разбор: пишет автор, pull или `llm tutorial`, удалённый файл push очищает на Polygon)
         │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ example_<N>.{input,output}_for_statement.txt — input/output for statements, каждый сам по себе: у интерактивной задачи — диалог от statement_draft, у обычной — только от автора; example_<N>.verify_for_statement.txt — флаг verify, пишет автор или pull)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
@@ -384,6 +395,23 @@ Python-оркестратор, который берёт структуриро�
    что вывело, для "input/output for statements" на Polygon) и
    `solutions_draft`; правила — `templates/tutorials/interactive.md`,
    которые эти два шага получают только у интерактивной задачи.
+7. **`tutorial_draft`** (опциональный, только по команде `llm tutorial`, вне
+   `STEP_ORDER`: `llm generate` его не запускает, `llm status|apply|accept`
+   видят; без драфта — `skipped`) — вход: драфт автора
+   `authoring/draft-tutorial.md` + `statement/*.tex` с диска (обозначения) +
+   `sample_examples` спека + решения из `--ref`; остальной спек модель не видит,
+   чтобы ей не из чего было дописывать своё. Выход: `statement/tutorial.tex`.
+   Драфт — единственный источник содержания: модель раскрывает мысли автора
+   и пишет новые куски только там, где он прямо просит («докажи», «допиши»,
+   «распиши»); обращение («мы»/«вы») — как в тексте драфта. Решения — только
+   чтобы понять драфт: детали реализации из них не переносятся, код — только по
+   просьбе. Заметное сверх драфта — заметкой `suggestion`, расхождение драфта с
+   решением или ошибка в рассуждении — заметкой `uncertain` при `status:
+   proposed`: файл пишется с версией автора (`status: uncertain` шаг не
+   использует, в отличие от правила эскалации: драфт — черновик, а не спек).
+   Решения из `--ref` — часть входа: их правка делает шаг `stale`. Список
+   запоминается: без `--ref` берётся прошлый (из `input_values` записи кэша или
+   сохранённого ответа), новые `--ref` заменяют его целиком, `--no-ref` очищает.
 
 Каждый шаг — чистая функция от (спек + результаты предыдущих шагов) к
 артефакту(-ам) + отчёту о неуверенности. Шаги идемпотентны: повторный запуск
@@ -545,6 +573,15 @@ pull --polygon-id` с группой — ошибка: они про одну з
   `# SUGGESTION`) — перед прогоном печатается предупреждение со строками
   пометок (`spec.spec_review_marks`); прогон оно не останавливает. То же
   предупреждение — в `llm status`.
+- `orchestrator <задача> llm tutorial [--ref SOLUTION ... | --no-ref] [--force | --fresh]`
+  — шаг `tutorial_draft` (см. "Роль каждого генеративного шага", пункт 7):
+  `statement/tutorial.tex` по `authoring/draft-tutorial.md`. `--ref` повторяется,
+  значение — файл из `solutions/` задачи (`ok.cpp` или `solutions/ok.cpp`), Tab
+  дополняет. Кэш, отчёт и режим доработки — как у `llm generate`, разбор,
+  написанный автором или скачанный с Polygon, дорабатывается, а не затирается;
+  `--fresh` — с нуля. Нет драфта — ошибка до вызова модели; `--ref` с группой
+  задач — ошибка разбора аргументов. Вызывает модель — те же ограничения на
+  запуск без явной команды, что и для `llm generate`.
 - `orchestrator <задача> llm status` — без вызовов модели: печатает
   таблицу "шаг → cache hit / stale / not run", используя те же хеши, что и
   `llm generate`. Полезно, чтобы до реального запуска увидеть, что вообще
@@ -695,7 +732,7 @@ pull --polygon-id` с группой — ошибка: они про одну з
   задач с таким именем несколько), сравнивает с ней части задачи, которыми
   пользуется оркестратор (условие, разбор и примеры, TL/ML, валидатор,
   нестандартный чекер, генераторы, test-script, решения, спек,
-  `constraints.yaml`, план тестов и черновик из Attachments), скачивает в
+  `constraints.yaml`, план тестов, черновик и драфт разбора из Attachments), скачивает в
   каталог задачи недостающие локально и переписывает базу
   синхронизации по текущей ревизии Polygon. Файлы с временем изменения в
   листинге Polygon (валидатор, чекер, генераторы, решения, `problem_lib.h`,
@@ -709,7 +746,7 @@ pull --polygon-id` с группой — ошибка: они про одну з
   или базы нет (`differs`) — остаётся локальный, с `--overwrite` — заменяется версией
   с Polygon. Заменённые файлы переносятся в `.pull_backup/`. Файлы, которых
   нет на Polygon, явно перечисляются и никогда не удаляются;
-  файлы из Attachments (спек, `constraints.yaml`, `tests_plan.yaml`, черновик) сверяются
+  файлы из Attachments (спек, `constraints.yaml`, `tests_plan.yaml`, черновик, драфт разбора) сверяются
   только со своими версиями в Attachments, а TL/ML задачи — только с
   `limits.yaml` (сверка та же, по значениям TL/ML; `constraints.yaml` они
   не трогают). Отказывается
@@ -864,7 +901,8 @@ status|pull` спек не нужен, а команда на момент до�
 Файлы с идеями модели начинаются с комментария `SUGGESTION: ...` — автор
 видит их и в каталоге задачи, и на Polygon. `statement_draft`,
 `checker_draft` и `interactor_draft` своего не предлагают: условие,
-правило сравнения и поведение интерактора задаёт только автор.
+правило сравнения и поведение интерактора задаёт только автор. `tutorial_draft`
+предлагает своё только заметками, в разбор не пишет: его содержание задаёт драфт.
 
 Спек по черновику (`init --draft`) — место, где автор только формулирует
 свои решения, поэтому там модель дозаполняет и их (асимптотику, идею
@@ -890,6 +928,7 @@ status|pull` спек не нужен, а команда на момент до�
 | `test_script_draft`         | низкая — реализация плана | средняя модель, medium effort |
 | `interactor_draft`          | высокая — протокол целиком, ошибка ломает все тесты | сильная модель |
 | `spec_from_draft` (`init --draft`) | высокая — спек вход всех шагов | сильная модель |
+| `tutorial_draft` (`llm tutorial`) | высокая — доказательства по просьбе автора | сильная модель |
 
 `checker_draft` формально механический, когда `custom_comparison_notes`
 полон и однозначен (перевод текстового описания в код по паттерну
@@ -1108,8 +1147,8 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 ## Ручные прогоны с реальным API — запрещены без явной команды
 
-`orchestrator <задача> llm generate` (с `--step`, `--force` или без) и
-`orchestrator <задача> init --draft` вызывают
+`orchestrator <задача> llm generate` (с `--step`, `--force` или без),
+`orchestrator <задача> llm tutorial` и `orchestrator <задача> init --draft` вызывают
 реальную модель и стоит каждый раз: через `AnthropicClient.generate` — денег
 с API-баланса, через `ClaudeCodeClient.generate` (`claude -p`) — лимитов
 подписки автора, общих с его интерактивной работой. Это не "проверка кода"
@@ -1117,7 +1156,7 @@ githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует pus
 
 СТРОГО ЗАПРЕЩЕНО Claude Code самостоятельно, без явной команды пользователя
 в текущем сообщении, запускать:
-- `orchestrator <задача> llm generate ...` и `orchestrator <задача> init --draft ...` на любом `problem_id` (реальном или синтетическом);
+- `orchestrator <задача> llm generate ...`, `orchestrator <задача> llm tutorial ...` и `orchestrator <задача> init --draft ...` на любом `problem_id` (реальном или синтетическом);
 - любой другой код, который инстанцирует `AnthropicClient` и реально
   доходит до `client.messages.create` — включая "быстро проверить одним
   шагом", "smoke test", "прогоним и посмотрим, что вернётся";
