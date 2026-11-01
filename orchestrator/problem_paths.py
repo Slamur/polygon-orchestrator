@@ -8,7 +8,7 @@
 каталога задачи поиск не спускается, задачи друг в друга не вкладываются.
 
 Файлы, с которыми работает только модель и автор, — спек, результат
-`constraints_pick` и копия черновика (`AUTHORING_FILES`) — лежат в подкаталоге
+`constraints_pick`, копия черновика и драфт разбора (`is_authoring_name`) — лежат в подкаталоге
 `authoring/` каталога задачи; всё остальное (условие, валидатор, генераторы,
 `limits.yaml`, ...) — в самом каталоге задачи, как на Polygon. Задачи,
 созданные до `authoring/`, переносит `migrate_to_authoring`.
@@ -57,8 +57,10 @@ TESTS_PLAN_FILENAME = "tests_plan.yaml"
 # `orchestrator/drafts.py`.
 DRAFT_STEM = "draft"
 POLYGON_STATE_FILENAME = "polygon_state.json"
-# Разбор в `statement/` — необязательный файл автора, не вход и не результат шагов.
+# Разбор в `statement/`: необязательный файл, пишет автор, `polygon pull` или
+# шаг `tutorial_draft` — по драфту автора `authoring/draft-tutorial.md`.
 TUTORIAL_FILENAME = "tutorial.tex"
+TUTORIAL_DRAFT_FILENAME = "draft-tutorial.md"
 # `spec.yaml` прямо в каталоге задачи — задача, ещё не перенесённая в
 # `authoring/` (`migrate_to_authoring`): её тоже находят дополнение и
 # проверка уникальности `problem_id`.
@@ -97,10 +99,14 @@ def is_draft_name(name: str) -> bool:
 
 def is_authoring_name(name: str) -> bool:
     """Файл, который лежит в `authoring/`: спек, `constraints.yaml`,
-    `tests_plan.yaml`, копия черновика (по имени файла, без каталога)."""
-    return name in (SPEC_FILENAME, CONSTRAINTS_FILENAME, TESTS_PLAN_FILENAME) or is_draft_name(
-        name
-    )
+    `tests_plan.yaml`, копия черновика, драфт разбора (по имени файла, без
+    каталога)."""
+    return name in (
+        SPEC_FILENAME,
+        CONSTRAINTS_FILENAME,
+        TESTS_PLAN_FILENAME,
+        TUTORIAL_DRAFT_FILENAME,
+    ) or is_draft_name(name)
 
 
 def authoring_dir(problem_dir: Path) -> Path:

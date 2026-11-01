@@ -47,7 +47,7 @@ from orchestrator.polygon.sync import (
     digest,
     is_draft_name,
 )
-from orchestrator.problem_paths import DRAFT_STEM, authoring_dir
+from orchestrator.problem_paths import DRAFT_STEM, TUTORIAL_DRAFT_FILENAME, authoring_dir
 
 STEP_NAME = "upload_attachments"
 
@@ -55,7 +55,7 @@ STEP_NAME = "upload_attachments"
 def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
     """[(имя, содержимое), ...]: спек, `constraints.yaml` (если он есть и это
     результат `constraints_pick`), `tests_plan.yaml` (если есть), копии
-    черновика по алфавиту. Имя — и имя
+    черновика по алфавиту, драфт разбора (если есть). Имя — и имя
     aux-файла на Polygon, и ключ базы синхронизации. Нет спека —
     `PolygonStepError`."""
     directory = authoring_dir(Path(problems_dir) / problem_id)
@@ -80,6 +80,10 @@ def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, byt
         if path.is_file() and is_draft_name(path.name)
     )
     attachments.extend((path.name, path.read_bytes()) for path in drafts)
+
+    tutorial_draft_path = directory / TUTORIAL_DRAFT_FILENAME
+    if tutorial_draft_path.is_file():
+        attachments.append((TUTORIAL_DRAFT_FILENAME, tutorial_draft_path.read_bytes()))
     return attachments
 
 
