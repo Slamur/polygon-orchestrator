@@ -5,7 +5,7 @@
 генеративных шагов — каждый шаг это вызов модели Claude плюс механическая
 проверка результата — и получает черновики артефактов задачи:
 
-- условие в LaTeX (`statement/*.tex`) и примеры;
+- условие в LaTeX (`statement/<язык>/*.tex`) и примеры;
 - ограничения, TL/ML, тестовые группы и валидатор;
 - генераторы (C++/testlib) и FreeMarker test-script;
 - черновики решений (ok / wa / tl);
@@ -350,7 +350,7 @@ pull --polygon-id`: они про одну задачу.
 | `llm generate --step NAME` | Только один шаг | **да** |
 | `llm generate --force` | Игнорировать кэш, доработать текущие файлы заново | **да** |
 | `llm generate --fresh` | С нуля, не показывая модели текущие файлы | **да** |
-| `llm tutorial [--ref SOLUTION ...]` | `statement/tutorial.tex` по `authoring/draft-tutorial.md`: модель раскрывает ваши мысли и дописывает только то, о чём вы прямо просите («докажи», «распиши»). `--ref` (можно несколько) — файлы из `solutions/` как контекст; список запоминается, новые `--ref` заменяют его, `--no-ref` очищает. Есть `--force` и `--fresh` | **да** |
+| `llm tutorial [--ref SOLUTION ...]` | `statement/<язык>/tutorial.tex` по `authoring/draft-tutorial.md`: модель раскрывает ваши мысли и дописывает только то, о чём вы прямо просите («докажи», «распиши»). `--ref` (можно несколько) — файлы из `solutions/` как контекст; список запоминается, новые `--ref` заменяют его, `--no-ref` очищает. Есть `--force` и `--fresh` | **да** |
 | `llm apply [--step NAME]` | Применить сохранённый, но не применённый ответ модели (например, после конфликта или ошибки) | нет |
 | `llm accept [--step NAME]` | Пометить текущие файлы `stale`-шагов актуальными (если правка не должна менять результат, или вы уже поправили файлы руками); что именно изменилось у каждого шага — в `llm_reports/accept.md` | нет |
 
@@ -427,22 +427,23 @@ OK или TL); всё остальное — ошибка. TL — из `limits.y
 `push` останавливается, если задачу на Polygon меняли в обход оркестратора
 (или там есть незакоммиченные правки), и предлагает сначала сделать `pull`.
 
-Разбор задачи — необязательный `statement/tutorial.tex`: его пишете вы или
+Разбор задачи — необязательный `statement/<язык>/tutorial.tex`: его пишете вы или
 модель по вашему драфту (`llm tutorial`). `polygon push` загружает его вместе с условием,
 `polygon pull` скачивает разбор, если он есть на Polygon. Удалили файл —
 следующий push очистит разбор на Polygon.
 
-Условие на нескольких языках. Основной язык — поле `language` спека
-(`russian` по умолчанию или `english`): на нём пишут модель (`llm generate`,
-`llm tutorial`), и его условие лежит прямо в `statement/`. Условие на любом
-другом языке Polygon кладите в `statement/<язык>/` (`statement/english/`,
-`statement/kazakh/`) — те же `legend.tex`, `input_format.tex`,
-`output_format.tex`, `notes.tex` (и `interaction.tex`, `tutorial.tex`) и
-`name.txt` с названием; примеры общие и лежат только в
-`statement/examples/`. Эти языки пишете вы (модель их не генерирует):
-`polygon push` загружает каждый язык отдельно, `polygon pull` раскладывает
-языки с Polygon по таким же подкаталогам. Удалили подкаталог — условие на
-этом языке на Polygon остаётся, его удаляйте там руками.
+Условие на нескольких языках. Условие каждого языка лежит в своём каталоге
+`statement/<код>/` (`statement/ru/`, `statement/en/`, `statement/kk/`; язык
+Polygon без кода в таблице `orchestrator/statement_languages.py` — каталог с
+его именем на Polygon): `legend.tex`, `input_format.tex`, `output_format.tex`,
+`notes.tex` (и `interaction.tex`, `tutorial.tex`) и `name.txt` с названием;
+примеры общие и лежат только в `statement/examples/`. Основной язык — поле
+`language` спека (`ru` по умолчанию или `en`): на нём пишет модель
+(`llm generate`, `llm tutorial`). Остальные языки пишете вы: `polygon push`
+загружает каждый язык отдельно, `polygon pull` раскладывает языки с Polygon по
+таким же каталогам. Удалили каталог — условие на этом языке на Polygon
+остаётся, его удаляйте там руками. Задачу, у которой условие лежит прямо в
+`statement/`, первая же команда к ней переносит в `statement/<основной язык>/`.
 
 ### Переменные окружения (`.env`)
 
@@ -468,8 +469,8 @@ problems/<путь задачи>/    ваши задачи (не в git)
   authoring/constraints.yaml ограничения, группы, что проверяет валидатор
   authoring/tests_plan.yaml  план тестов: генераторы и тесты скрипта (можно править руками)
   authoring/draft-tutorial.md драфт разбора в свободной форме для llm tutorial
-  statement/                 условие (.tex) на основном языке, разбор (необязательный tutorial.tex) и примеры
-  statement/<язык>/          условие на другом языке Polygon (необязательное, пишете вы или pull)
+  statement/<код>/           условие (.tex) и разбор (необязательный tutorial.tex) на языке: ru/, en/, …
+  statement/examples/        примеры — общие для всех языков
   limits.yaml                актуальные TL/ML (можно править руками)
   validator.cpp, checker.cpp, interactor.cpp
   generators/*.cpp, test_script, test_script_groups
