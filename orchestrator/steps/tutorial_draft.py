@@ -40,8 +40,10 @@ from orchestrator.steps.base import (
     StepRevision,
     check_artifact_names,
     existing_artifacts,
+    language_input,
     run_generative_step,
 )
+from orchestrator.statement_languages import language_name
 from orchestrator.steps.solutions_draft import SOLUTIONS_SUBDIR
 from orchestrator.steps.statement_draft import STATEMENT_SUBDIR
 
@@ -144,7 +146,8 @@ def _section_data(spec: ProblemSpec) -> dict[str, Any]:
         "sample_examples": [
             {"input": example.input, "output": example.output}
             for example in spec.statement_draft.sample_examples
-        ]
+        ],
+        **language_input(spec),
     }
 
 
@@ -225,6 +228,8 @@ def run_step(
         "statement_files": files_under(STATEMENT_SUBDIR),
         "solutions": files_under(SOLUTIONS_SUBDIR),
         **_section_data(spec),
+        # После `_section_data`: в промпт — название языка, а не имя Polygon.
+        "language": language_name(spec.language),
     }
 
     def resolve_artifact_path(filename: str) -> Path:

@@ -476,3 +476,27 @@ def test_example_inputs_no_longer_in_the_spec_are_marked_removed(spec, tmp_path)
     ]
     # прежняя версия перезаписанного input — в бэкапе
     assert (result.backup_dir / "statement" / "examples" / "example_1.txt").is_file()
+
+
+def test_default_language_is_not_in_hash_input(spec):
+    # Как и с `interaction_sketch`: появление поля не меняет хеш задач на
+    # языке по умолчанию.
+    from orchestrator.steps.statement_draft import hash_inputs
+
+    section, _ = hash_inputs("valid-spec", spec)
+    assert "language" not in section
+
+
+def test_language_goes_to_prompt_and_hash(spec, tmp_path):
+    from orchestrator.steps.statement_draft import compute_input_hash, hash_inputs
+
+    english = spec.model_copy(
+        update={"language": "english", "title": spec.title.model_copy(update={"en": "T"})}
+    )
+    assert hash_inputs("valid-spec", english)[0]["language"] == "english"
+    assert compute_input_hash("valid-spec", english) != compute_input_hash("valid-spec", spec)
+
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        _run(english, "valid-spec", tmp_path)
+    assert "Пиши условие на этом языке: английский" in mock_call.call_args.args[2]

@@ -23,9 +23,11 @@ from orchestrator.steps.base import (
     StepRevision,
     check_artifact_names,
     existing_artifacts,
+    language_input,
     run_generative_step,
     with_default_lists,
 )
+from orchestrator.statement_languages import language_name
 
 STEP_NAME = "statement_draft"
 
@@ -85,13 +87,15 @@ def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
 def _section_data(spec: ProblemSpec) -> dict[str, Any]:
     """Секция `statement_draft` для промпта и хеша. `interaction_sketch`
     только у интерактивной задачи — у обычной поля в хеше нет, как и до его
-    появления (иначе его добавление инвалидировало бы кэш всех задач)."""
+    появления (иначе его добавление инвалидировало бы кэш всех задач).
+    Язык условия (`language` спека) — так же, только не `DEFAULT_LANGUAGE`."""
     exclude = set(SPEC_REFERENCES_FIELD)
     if not spec.interactive:
         exclude.add("interaction_sketch")
-    return with_default_lists(
+    section = with_default_lists(
         spec.statement_draft.model_dump(mode="json", exclude=exclude), _LIST_FIELDS
     )
+    return {**section, **language_input(spec)}
 
 
 def _example_inputs(spec: ProblemSpec) -> dict[str, str]:
@@ -261,7 +265,11 @@ def run_step(
     только ради общей сигнатуры `run_step(problem_id, spec,
     upstream_artifacts)` у всех шагов.
     """
-    context = {"problem_id": spec.problem_id, "statement_draft": _section_data(spec)}
+    context = {
+        "problem_id": spec.problem_id,
+        "language": language_name(spec.language),
+        "statement_draft": _section_data(spec),
+    }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 

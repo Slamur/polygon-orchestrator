@@ -419,3 +419,16 @@ def test_ref_completion_tolerates_no_solutions(tmp_path):
     )
 
     assert cli._complete_solution_names("", args) == []
+
+
+def test_tutorial_is_written_in_the_language_of_the_spec(problems_dir, problem_dir):
+    _, mock_call = _generate(problems_dir)
+    assert "Язык условия и разбора: русский" in _user_prompt(mock_call)
+    assert _status(problems_dir).state == pipeline.STATUS_CACHE_HIT
+
+    spec_path = problem_dir / "authoring" / "spec.yaml"
+    spec_path.write_text("language: english\n" + spec_path.read_text(encoding="utf-8"))
+
+    assert _status(problems_dir).state == pipeline.STATUS_STALE
+    _, mock_call = _generate(problems_dir)
+    assert "Язык условия и разбора: английский" in _user_prompt(mock_call)
