@@ -3,7 +3,7 @@
 
 Запускается только `orchestrator <задача> llm tutorial` (`step_order.ON_DEMAND_STEPS`).
 Вход читается из файлов задачи, а не из спека: драфт `authoring/draft-tutorial.md`,
-условие `statement/*.tex` и решения, которые автор указал в `--ref`. Спек даёт
+условие на языке генерации `statement/<код>/*.tex` и решения, которые автор указал в `--ref`. Спек даёт
 только примеры: остальное (`algorithm_hint`, `known_wrong_approaches`) модель не
 получает, чтобы ей не из чего было дописывать своё.
 
@@ -43,9 +43,9 @@ from orchestrator.steps.base import (
     language_input,
     run_generative_step,
 )
-from orchestrator.statement_languages import language_name
+from orchestrator.statement_languages import DEFAULT_LANGUAGE, language_name
 from orchestrator.steps.solutions_draft import SOLUTIONS_SUBDIR
-from orchestrator.steps.statement_draft import STATEMENT_SUBDIR
+from orchestrator.steps.statement_draft import STATEMENT_SUBDIR, language_dir
 
 STEP_NAME = "tutorial_draft"
 
@@ -76,11 +76,17 @@ def _solution_name(ref: str) -> str:
 
 
 def read_inputs(
-    problem_id: str, refs: list[str], *, problems_dir: Path = PROBLEMS_DIR
+    problem_id: str,
+    refs: list[str],
+    *,
+    language: str = DEFAULT_LANGUAGE,
+    problems_dir: Path = PROBLEMS_DIR,
 ) -> dict[str, str]:
     """Файлы входа шага (см. докстринг модуля): путь относительно каталога
-    задачи -> содержимое. Нет или пуст драфт, нет условия, нет решения из
-    `refs` — `ValueError`: без них вызывать модель незачем."""
+    задачи -> содержимое; файлы условия — под путём без каталога языка
+    (`statement/legend.tex`), как до языков, чтобы перенос раскладки не менял
+    хеш входа. Нет или пуст драфт, нет условия на языке `language`, нет
+    решения из `refs` — `ValueError`: без них вызывать модель незачем."""
     problem_dir = Path(problems_dir) / problem_id
     path = draft_path(problem_id, problems_dir=problems_dir)
     if not path.is_file():
@@ -89,7 +95,7 @@ def read_inputs(
     if not draft.strip():
         raise ValueError(f"Step '{STEP_NAME}': the tutorial draft {path} is empty")
 
-    statement_dir = problem_dir / STATEMENT_SUBDIR
+    statement_dir = problem_dir / STATEMENT_SUBDIR / language
     statement_files = [
         statement_file
         for statement_file in sorted(statement_dir.glob("*.tex"))
@@ -176,7 +182,7 @@ def hash_inputs(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / TUTORIAL_FILENAME
+    return language_dir(problem_id, spec, problems_dir=problems_dir) / TUTORIAL_FILENAME
 
 
 def current_artifacts(
@@ -233,7 +239,7 @@ def run_step(
     }
 
     def resolve_artifact_path(filename: str) -> Path:
-        return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / filename
+        return language_dir(problem_id, spec, problems_dir=problems_dir) / filename
 
     def validate_artifacts(artifacts: dict[str, str]) -> None:
         check_artifact_names(STEP_NAME, {TUTORIAL_FILENAME}, artifacts)

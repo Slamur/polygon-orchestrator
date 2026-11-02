@@ -85,7 +85,7 @@ from orchestrator.llm_report import (
     write_spec_from_draft_report,
     write_step_report,
 )
-from orchestrator.problem_paths import EXAMPLES_DIR
+from orchestrator.problem_paths import EXAMPLES_DIR, ProblemPathError
 from orchestrator.spec import (
     SpecInitError,
     prepare_spec_init,
@@ -606,11 +606,15 @@ def cmd_local_check(args: argparse.Namespace) -> int:
         print(f"no problem directory {problem_dir}", file=sys.stderr)
         return 1
     failed = False
-    tex_files = statement_files(problem_dir)
+    try:
+        tex_files = statement_files(problem_dir)
+    except ProblemPathError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if tex_files:
         failed |= not _check_statement(problem_dir, tex_files)
     else:
-        print(f"no statement ({STATEMENT_DIRNAME}/*.tex) — skipped")
+        print(f"no statement ({STATEMENT_DIRNAME}/<language>/*.tex) — skipped")
     scripts_ok = _check_scripts(problem_dir)
     failed |= not scripts_ok
     if args.full:
@@ -742,9 +746,16 @@ def cmd_local_fix(args: argparse.Namespace) -> int:
     загрузит изменённые файлы как обычно. Код возврата 1 — если остались
     проблемы, которые нужно исправить руками (непарные кавычки)."""
     problem_dir = Path(args.problems_dir) / args.problem_id
-    tex_files = statement_files(problem_dir)
+    try:
+        tex_files = statement_files(problem_dir)
+    except ProblemPathError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if not tex_files:
-        print(f"no statement in {problem_dir / STATEMENT_DIRNAME} (*.tex)", file=sys.stderr)
+        print(
+            f"no statement in {problem_dir / STATEMENT_DIRNAME} (<language>/*.tex)",
+            file=sys.stderr,
+        )
         return 1
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup_dir = problem_dir / FIX_BACKUP_DIRNAME / stamp

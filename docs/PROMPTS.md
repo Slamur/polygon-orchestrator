@@ -87,7 +87,7 @@ Polygon, шагам не прикладывается. `interactive.md` (пра�
 
 | Шаг | Всегда (`templates/`) | Из каталога-референса |
 |-----|--------------------|-----------------------|
-| `statement_draft` | `statement.md` | `spec.yaml`, `statement/*.tex` |
+| `statement_draft` | `statement.md` | `spec.yaml`, `statement/<язык>/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
 | `tests_plan` | `tests.md`, `tests_plan_format.yaml` | `spec.yaml`, `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `tests.md`, `problem_lib.h` | `tests_plan.yaml`, `generators/*.cpp` |
@@ -146,7 +146,7 @@ testlib, композицию генераторов, устройство `wa`/
   пояснения к примерам, блоки условия в Polygon и LaTeX.
 
 Кроме правил могут быть приложены образцы — условия других задач
-(statement/*.tex), которые автор указал в спеке как референсы; образцов
+(statement/<язык>/*.tex), которые автор указал в спеке как референсы; образцов
 может не быть вовсе. Заголовок приложенного документа — путь к файлу:
 файлы из одного каталога относятся к одной задаче, разные каталоги — разные
 задачи. Ни одна из них не имеет отношения к твоей. Если в каталоге есть

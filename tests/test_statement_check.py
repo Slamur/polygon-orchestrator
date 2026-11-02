@@ -102,8 +102,8 @@ def _cli(tmp_path: Path, command: str) -> int:
     return cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", command])
 
 
-def _statement(tmp_path: Path, files: dict[str, str]) -> Path:
-    statement_dir = tmp_path / "problems" / PROBLEM_ID / "statement"
+def _statement(tmp_path: Path, files: dict[str, str], code: str = "ru") -> Path:
+    statement_dir = tmp_path / "problems" / PROBLEM_ID / "statement" / code
     statement_dir.mkdir(parents=True)
     for name, text in files.items():
         (statement_dir / name).write_text(text, encoding="utf-8")
@@ -115,8 +115,8 @@ def test_local_check_reports_statement_issues(tmp_path, capsys):
 
     assert _cli(tmp_path, "check") == 1
     out = capsys.readouterr().out
-    assert "statement/legend.tex:1: markdown list" in out
-    assert "statement/legend.tex:1: quotes" in out
+    assert "statement/ru/legend.tex:1: markdown list" in out
+    assert "statement/ru/legend.tex:1: quotes" in out
     assert "notes.tex" not in out
     assert "local fix" in out
     assert "no test script" in out
@@ -138,7 +138,7 @@ def test_local_fix_rewrites_files_with_backup(tmp_path, capsys):
     assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == (
         "\\begin{itemize}\n\\item <<a>>\n\\end{itemize}\n"
     )
-    backups = list((statement_dir.parent / FIX_BACKUP_DIRNAME).glob("*/statement/*.tex"))
+    backups = list((statement_dir.parent.parent / FIX_BACKUP_DIRNAME).glob("*/statement/ru/*.tex"))
     assert [path.name for path in backups] == ["legend.tex"]
     assert backups[0].read_text(encoding="utf-8") == '- "a"\n'
     assert "legend.tex: fixed" in capsys.readouterr().out
@@ -163,15 +163,14 @@ def test_local_fix_without_statement(tmp_path, capsys):
 
 
 def test_quotes_are_checked_only_in_russian_text(tmp_path, capsys):
-    statement_dir = _statement(tmp_path, {"legend.tex": "Ответ <<YES>>.\n"})
-    english = statement_dir / "english"
-    english.mkdir()
-    (english / "legend.tex").write_text("- Print ``YES''.\n", encoding="utf-8")
+    _statement(tmp_path, {"legend.tex": 'Выведите "YES".\n'})
+    english = _statement(tmp_path, {"legend.tex": "- Print ``YES''.\n"}, code="en")
 
     assert _cli(tmp_path, "check") == 1
     out = capsys.readouterr().out
-    assert "statement/english/legend.tex:1: markdown list" in out
-    assert "quotes" not in out
+    assert "statement/en/legend.tex:1: markdown list" in out
+    assert "statement/ru/legend.tex:1: quotes" in out
+    assert "statement/en/legend.tex:1: quotes" not in out
 
     assert _cli(tmp_path, "fix") == 0
     assert (english / "legend.tex").read_text(encoding="utf-8") == (
@@ -179,21 +178,15 @@ def test_quotes_are_checked_only_in_russian_text(tmp_path, capsys):
     )
 
 
-def test_main_language_from_spec_turns_quote_check_off(tmp_path, capsys):
-    statement_dir = _statement(tmp_path, {"legend.tex": 'Print "YES".\n'})
-    authoring = statement_dir.parent / "authoring"
-    authoring.mkdir()
-    (authoring / "spec.yaml").write_text(
-        f"problem_id: {PROBLEM_ID}\nlanguage: english\n", encoding="utf-8"
-    )
-    russian = statement_dir / "russian"
-    russian.mkdir()
-    (russian / "legend.tex").write_text('Выведите "YES".\n', encoding="utf-8")
+def test_old_layout_is_moved_before_the_check(tmp_path, capsys):
+    statement_dir = _statement(tmp_path, {}, code="")
+    (statement_dir / "legend.tex").write_text("Ответ <<YES>>.\n", encoding="utf-8")
 
-    assert _cli(tmp_path, "check") == 1
-    out = capsys.readouterr().out
-    assert "statement/russian/legend.tex:1: quotes" in out
-    assert "statement/legend.tex" not in out
+    assert _cli(tmp_path, "check") == 0
+    captured = capsys.readouterr()
+    assert "into statement/ru/" in captured.err
+    assert "statement: ok" in captured.out
+    assert (statement_dir / "ru" / "legend.tex").is_file()
 
 
 def test_quotes_off_leaves_quotes_alone():

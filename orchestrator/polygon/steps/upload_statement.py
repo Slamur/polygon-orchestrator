@@ -1,6 +1,7 @@
-"""Polygon-шаг 6 — загрузка условия из `problems/<problem_id>/statement/`
-(результат генеративного шага `statement_draft`): legend/input/output/notes
-через `problem.saveStatement` и тестовые примеры как первые тесты
+"""Polygon-шаг 6 — загрузка условия из `problems/<problem_id>/statement/<код
+языка>/` (на основном языке — результат генеративного шага `statement_draft`):
+legend/input/output/notes через `problem.saveStatement` и тестовые примеры
+из `statement/examples/` как первые тесты
 (`problem.saveTest`, `testIndex` 1..N, `testUseInStatements=true`).
 
 В Polygon уходит только input примеров — output из `sample_examples` в этом
@@ -26,10 +27,10 @@
 индексами > N на Polygon остаются — шаг их не удаляет.
 
 Интерактивная задача (в спеке есть секция `interactor`): протокол
-взаимодействия `statement/interaction.tex` уходит в `problem.saveStatement`
+взаимодействия `statement/<код>/interaction.tex` уходит в `problem.saveStatement`
 параметром `interaction` (без файла — ошибка).
 
-Разбор `statement/tutorial.tex` (необязательный, пишет автор, `polygon pull`
+Разбор `statement/<код>/tutorial.tex` (необязательный, пишет автор, `polygon pull`
 или шаг `tutorial_draft`) уходит туда же параметром `tutorial`. Файла нет —
 параметр не передаётся (Polygon оставляет разбор как есть), но если в базе
 синхронизации разбор был, а файл удалили, разбор очищается пустой строкой.
@@ -45,22 +46,19 @@ Input/output for statements примера (`example_<N>.input_for_statement.txt
 поле было, а файл удалили, поле очищается: пустая строка, у флага —
 `false`.
 
-Название задачи берётся из `statement/name.txt`, а не из спека: название
-спека на основном языке (`title.ru` у `language: russian`) — только
-начальное значение, которым шаг заполняет `name.txt`, если его ещё нет.
-Иначе название, поменянное на Polygon и выгруженное `polygon pull` (он пишет
-его в тот же `name.txt`), следующий push перезаписал бы значением из спека.
+Название задачи берётся из `statement/<код>/name.txt`, а не из спека:
+название спека на этом языке (`title.ru` у `ru`) — только начальное
+значение, которым шаг заполняет `name.txt`, если его ещё нет (нет и
+названия в спеке — ошибка). Иначе название, поменянное на Polygon и
+выгруженное `polygon pull` (он пишет его в тот же `name.txt`), следующий
+push перезаписал бы значением из спека.
 
-Языки (`orchestrator/statement_languages.py`): условие из `statement/`
-уходит на основном языке — `language` спека; каждый подкаталог
-`statement/<язык>/` (те же tex-файлы и `name.txt`, их пишет автор или
-`polygon pull`) — своим `problem.saveStatement` с `lang=<язык>`. Название
-дополнительного языка без `name.txt` берётся из спека, если оно там есть
-(`title.en` у `english`), иначе — ошибка. Примеры общие для всех языков.
-Подкаталог основного языка — ошибка: его условие — сам `statement/`.
-Удалённый подкаталог условие на Polygon не удаляет — это делает автор.
-Смена `language` загружает `statement/` заново на новом языке
-(`STATEMENT_LANGUAGE_KEY`), условие на прежнем языке на Polygon остаётся.
+Языки (`orchestrator/statement_languages.py`): каждый каталог
+`statement/<код>/` уходит своим `problem.saveStatement` с `lang` — именем
+языка в Polygon (`ru` -> `russian`). Каталог основного языка (`language`
+спека) обязателен, остальные пишет автор или `polygon pull`. Примеры общие
+для всех языков. Удалённый каталог языка условие на Polygon не удаляет —
+это делает автор.
 
 Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
@@ -68,7 +66,7 @@ Input/output for statements примера (`example_<N>.input_for_statement.txt
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
@@ -85,22 +83,20 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import (
-    STATEMENT_LANGUAGE_KEY,
     dialogue_keys,
     digest,
     example_key,
     statement_file_key,
-    statement_language_digest,
     statement_name_key,
     verify_key,
-    with_legacy_language,
 )
-from orchestrator.problem_paths import TUTORIAL_FILENAME
+from orchestrator.problem_paths import ProblemPathError, TUTORIAL_FILENAME
 from orchestrator.spec import Title
 from orchestrator.statement_languages import (
-    DEFAULT_LANGUAGE,
-    extra_languages,
-    read_spec_language,
+    EXAMPLES_DIRNAME,
+    STATEMENT_DIRNAME,
+    polygon_language,
+    statement_languages,
 )
 from orchestrator.steps.statement_draft import (
     INTERACTION_FILE,
@@ -131,31 +127,32 @@ _VERIFY_VALUE = b"true"
 
 @dataclass(frozen=True)
 class Statement:
-    """Условие на одном языке: `language` — язык Polygon, `subdir` —
-    подкаталог `statement/` дополнительного языка (`None` у основного),
-    `tex_files` — имя файла -> содержимое (`_read_statement_dir`)."""
+    """Условие на одном языке: `code` — каталог `statement/<code>/`,
+    `tex_files` — имя файла -> содержимое (`_read_statement_dir`), `name` —
+    из `name.txt` (`None` — файла нет)."""
 
-    language: str
-    subdir: str | None
+    code: str
     tex_files: dict[str, bytes]
     name: str | None
 
+    @property
+    def language(self) -> str:
+        """Имя языка в Polygon."""
+        return polygon_language(self.code)
+
     def items(self) -> dict[str, str]:
-        """Элементы базы синхронизации: tex-файлы, название (если известно)
-        и у основного языка — сам язык."""
+        """Элементы базы синхронизации: tex-файлы и название (если известно)."""
         items = {
-            statement_file_key(filename, self.subdir): digest(content)
+            statement_file_key(filename, self.code): digest(content)
             for filename, content in self.tex_files.items()
         }
         if self.name is not None:
-            items[statement_name_key(self.subdir)] = digest(self.name)
-        if self.subdir is None:
-            items[STATEMENT_LANGUAGE_KEY] = statement_language_digest(self.language)
+            items[statement_name_key(self.code)] = digest(self.name)
         return items
 
     @property
     def tutorial_key(self) -> str:
-        return statement_file_key(TUTORIAL_FILENAME, self.subdir)
+        return statement_file_key(TUTORIAL_FILENAME, self.code)
 
 
 @dataclass(frozen=True)
@@ -197,7 +194,6 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     первого сетевого вызова.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
-    ctx = replace(ctx, synced=with_legacy_language(ctx.synced))
     statement_dir = _statement_dir(ctx.problem_id, ctx.problems_dir)
     statements = read_statements(
         statement_dir,
@@ -268,15 +264,13 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     """По базе синхронизации (`sync_status`). Пока `name.txt` нет (его
-    создаст push из названия в спеке), название не сравнивается. Основной
-    язык — из спека, если он читается (`read_spec_language`)."""
+    создаст push из названия в спеке), название не сравнивается."""
 
     def read_items() -> dict[str, str]:
         statement_dir = _statement_dir(problem_id, problems_dir)
-        # Спека здесь нет: interaction.tex сравнивается, если он есть.
-        interactive = (statement_dir / INTERACTION_FILENAME).exists()
-        language = read_spec_language(statement_dir.parent)
-        statements = read_statements(statement_dir, language=language, interactive=interactive)
+        # Спека здесь нет: interaction.tex сравнивается, если он есть, и
+        # обязательного языка нет.
+        statements = read_statements(statement_dir)
         items = _example_items(_read_examples(statement_dir))
         state = load_polygon_state(problem_id, problems_dir=problems_dir)
         synced = state.synced if state is not None else {}
@@ -285,10 +279,6 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
             # Удалённый разбор push очистит на Polygon — это тоже несинхронизированная правка.
             if statement.tutorial_key not in items and synced.get(statement.tutorial_key):
                 items[statement.tutorial_key] = digest(b"")
-        # `sync_status` сравнивает с базой как есть: база без языка — это
-        # `DEFAULT_LANGUAGE` (`with_legacy_language`), с ним язык не сравнивается.
-        if STATEMENT_LANGUAGE_KEY not in synced and language == DEFAULT_LANGUAGE:
-            items.pop(STATEMENT_LANGUAGE_KEY)
         return items
 
     return sync_status(problem_id, problems_dir, key_prefix="statement/", read_items=read_items)
@@ -297,41 +287,51 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
 def read_statements(
     statement_dir: Path,
     *,
-    language: str,
-    interactive: bool = False,
+    language: str | None = None,
+    interactive: bool | None = None,
     title: Title | None = None,
 ) -> list[Statement]:
-    """Условие основного языка `language` (`statement/`), затем
-    дополнительных (`statement/<язык>/`) по алфавиту.
+    """Условие каждого языка `statement/<код>/`, по алфавиту кодов.
 
-    С `title` (push) недостающий `name.txt` создаётся из названия спека на
-    этом языке, а без названия — `PolygonStepError`; без `title` (`polygon
-    status`) название такого условия неизвестно (`Statement.name` — `None`).
+    `language` — основной язык: без его каталога — `PolygonStepError`.
+    `interactive` — нужен ли `interaction.tex`; `None` (`polygon status`, без
+    спека) — читается, если он есть. С `title` (push) недостающий `name.txt`
+    создаётся из названия спека на этом языке, а без названия —
+    `PolygonStepError`; без `title` название такого условия неизвестно
+    (`Statement.name` — `None`).
     """
-    extras = extra_languages(statement_dir)
-    if language in extras:
+    try:
+        codes = statement_languages(statement_dir)
+    except ProblemPathError as exc:
+        raise PolygonStepError(str(exc)) from exc
+    if language is not None and language not in codes:
         raise PolygonStepError(
-            f"{statement_dir / language} duplicates the main statement language "
-            f"{language!r} (spec field `language`): its statement is {statement_dir} itself"
+            f"directory {statement_dir / language} not found — first run "
+            "the generative step statement_draft"
         )
     statements = []
-    for subdir in [None, *extras]:
-        directory = statement_dir / subdir if subdir else statement_dir
-        lang = subdir or language
+    for code in codes:
+        directory = statement_dir / code
         name_path = directory / NAME_FILENAME
         if not name_path.exists() and title is not None:
-            default = title.for_language(lang)
+            default = title.for_language(code)
             if default is None:
                 raise PolygonStepError(
-                    f"{name_path} not found — write the problem name in {lang!r} into it"
+                    f"{name_path} not found — write the problem name in "
+                    f"{polygon_language(code)!r} into it"
                 )
             name_path.write_text(default + "\n", encoding="utf-8")
         statements.append(
             Statement(
-                language=lang,
-                subdir=subdir,
+                code=code,
                 tex_files=_read_statement_dir(
-                    directory, interactive=interactive, extra_language=subdir is not None
+                    directory,
+                    interactive=(
+                        (directory / INTERACTION_FILENAME).exists()
+                        if interactive is None
+                        else interactive
+                    ),
+                    generated=code == language,
                 ),
                 name=read_name(name_path) if name_path.exists() else None,
             )
@@ -374,24 +374,24 @@ def _cleared_fields(ctx: StepContext, example: Example) -> dict[str, tuple[str, 
 
 
 def _statement_dir(problem_id: str, problems_dir: Path) -> Path:
-    return Path(problems_dir) / problem_id / "statement"
+    return Path(problems_dir) / problem_id / STATEMENT_DIRNAME
 
 
 def _read_statement_dir(
-    statement_dir: Path, *, interactive: bool = False, extra_language: bool = False
+    statement_dir: Path, *, interactive: bool = False, generated: bool = True
 ) -> dict[str, bytes]:
     """Содержимое 4 фиксированных tex-файлов (имя файла -> содержимое), у
     интерактивной задачи — ещё `interaction.tex`. Если какого-то нет —
     `PolygonStepError` с его именем, а не пустая строка вместо содержимого.
     Необязательный `tutorial.tex` — только если он есть.
-    `extra_language` — каталог дополнительного языка: его пишет не шаг
-    модели, а автор (или `polygon pull`)."""
+    `generated=False` — каталог не основного языка: его пишет не шаг модели,
+    а автор (или `polygon pull`)."""
     names = [*_TEX_PARAM_NAMES, *([INTERACTION_FILENAME] if interactive else [])]
     missing = [name for name in names if not (statement_dir / name).exists()]
     if missing:
         hint = (
             "write them by hand (a statement in another language) or remove the directory"
-            if extra_language
+            if not generated
             else "first run the generative step statement_draft"
         )
         raise PolygonStepError(f"files missing in {statement_dir}: {missing} — {hint}")
@@ -408,7 +408,7 @@ def _read_examples(statement_dir: Path) -> list[Example]:
     уже проверяет `statement_draft` перед записью, но этот шаг запускается
     независимо от него, поэтому проверка повторяется здесь.
     """
-    examples_dir = statement_dir / "examples"
+    examples_dir = statement_dir / EXAMPLES_DIRNAME
     if not examples_dir.is_dir():
         raise PolygonStepError(
             f"directory {examples_dir} not found — first run "

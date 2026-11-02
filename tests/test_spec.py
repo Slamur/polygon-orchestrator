@@ -335,17 +335,18 @@ def _write_with_title(tmp_path, title: str, language: str | None = None) -> Path
 
 
 def test_language_defaults_to_russian():
-    assert load_spec(FIXTURES_DIR / "valid-spec.yaml").language == "russian"
+    assert load_spec(FIXTURES_DIR / "valid-spec.yaml").language == "ru"
 
 
 def test_english_needs_english_title(tmp_path):
-    spec = load_spec(_write_with_title(tmp_path, 'title:\n  en: "Title"', "english"))
-    assert spec.language == "english"
-    assert spec.title.for_language("english") == "Title"
-    assert spec.title.for_language("russian") is None
+    spec = load_spec(_write_with_title(tmp_path, 'title:\n  en: "Title"', "en"))
+    assert spec.language == "en"
+    assert spec.title.for_language("en") == "Title"
+    assert spec.title.for_language("ru") is None
+    assert spec.title.for_language("kk") is None
 
     with pytest.raises(SpecValidationError, match=r"title\.en"):
-        load_spec(_write_with_title(tmp_path, 'title:\n  ru: "Название"', "english"))
+        load_spec(_write_with_title(tmp_path, 'title:\n  ru: "Название"', "en"))
 
 
 def test_russian_needs_russian_title(tmp_path):
@@ -355,4 +356,4 @@ def test_russian_needs_russian_title(tmp_path):
 
 def test_unknown_language_is_rejected(tmp_path):
     with pytest.raises(SpecValidationError, match="language"):
-        load_spec(_write_with_title(tmp_path, 'title:\n  ru: "Название"', "kazakh"))
+        load_spec(_write_with_title(tmp_path, 'title:\n  ru: "Название"', "kk"))

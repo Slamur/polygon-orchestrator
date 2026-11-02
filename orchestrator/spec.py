@@ -34,7 +34,7 @@ from orchestrator.problem_paths import (
     problem_address,
     problem_id_for,
 )
-from orchestrator.statement_languages import DEFAULT_LANGUAGE, GENERATION_LANGUAGES, title_key
+from orchestrator.statement_languages import DEFAULT_LANGUAGE, GENERATION_LANGUAGES
 
 # `references` секций — какие образцы приложить к вызову (их содержимое входит
 # в `compute_prompt_hash`, см. orchestrator/references.py), а не содержание
@@ -88,10 +88,9 @@ class Title(BaseModel):
     ru: Optional[str] = None
     en: Optional[str] = None
 
-    def for_language(self, language: str) -> Optional[str]:
-        """Название на языке Polygon `language`; `None` — не задано."""
-        key = title_key(language)
-        value = getattr(self, key) if key else None
+    def for_language(self, code: str) -> Optional[str]:
+        """Название на языке с кодом `code` (`ru`); `None` — не задано."""
+        value = getattr(self, code, None) if code in type(self).model_fields else None
         return value if value and value.strip() else None
 
 
@@ -283,9 +282,9 @@ class ProblemSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     problem_id: str
-    # Основной язык условия: на нём пишут шаги модели, его условие — в
-    # `statement/` (см. `orchestrator/statement_languages.py`). Объявлен до
-    # `title`: его проверка (`_check_title`) читает язык.
+    # Основной язык условия (код): на нём пишут шаги модели, его условие — в
+    # `statement/<код>/` (см. `orchestrator/statement_languages.py`). Объявлен
+    # до `title`: его проверка (`_check_title`) читает язык.
     language: Literal[tuple(GENERATION_LANGUAGES)] = DEFAULT_LANGUAGE  # type: ignore[valid-type]
     title: Title
     references: Optional[list[str]] = None
@@ -316,8 +315,7 @@ class ProblemSpec(BaseModel):
         # с ошибкой (его нет в `info.data`) проверяется сам по себе.
         language = info.data.get("language")
         if language is not None:
-            key = title_key(language)
-            _non_blank(getattr(title, key) or "", f"title.{key}")
+            _non_blank(getattr(title, language) or "", f"title.{language}")
         return title
 
     @model_validator(mode="after")

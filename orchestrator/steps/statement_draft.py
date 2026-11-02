@@ -27,7 +27,7 @@ from orchestrator.steps.base import (
     run_generative_step,
     with_default_lists,
 )
-from orchestrator.statement_languages import language_name
+from orchestrator.statement_languages import EXAMPLES_DIRNAME, STATEMENT_DIRNAME, language_name
 
 STEP_NAME = "statement_draft"
 
@@ -35,7 +35,7 @@ STEP_NAME = "statement_draft"
 # делает {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["known_ambiguities"]
 
-STATEMENT_SUBDIR = "statement"
+STATEMENT_SUBDIR = STATEMENT_DIRNAME
 _FIXED_STATEMENT_FILES = ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]
 _EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 
@@ -113,7 +113,7 @@ def _stale_example_inputs(
 ) -> dict[str, Path]:
     """`example_<N>.txt` на диске, которых больше нет в `sample_examples`
     (примеров стало меньше), — их пометят `.removed`."""
-    examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / "examples"
+    examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / EXAMPLES_DIRNAME
     if not examples_dir.is_dir():
         return {}
     n = len(spec.statement_draft.sample_examples)
@@ -163,9 +163,24 @@ def primary_artifact_path(
     """Как у `solutions_draft` — каталог, а не файл: `pipeline.py` считает
     кэш валидным, если каталог существует и не пуст. Раньше здесь был путь к
     единственному `statement.tex` — теперь у шага несколько файлов в
-    подпапке `statement/`.
+    каталоге языка условия `statement/<код>/`.
     """
-    return Path(problems_dir) / problem_id / STATEMENT_SUBDIR
+    return language_dir(problem_id, spec, problems_dir=problems_dir)
+
+
+def language_dir(problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR) -> Path:
+    """Каталог условия на языке генерации (`language` спека): `statement/<код>/`."""
+    return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / spec.language
+
+
+def artifact_path(
+    problem_id: str, spec: ProblemSpec, filename: str, *, problems_dir: Path = PROBLEMS_DIR
+) -> Path:
+    """Путь артефакта шага по его имени в ответе модели: `examples/...` —
+    в общем `statement/examples/`, tex-файлы — в каталоге языка генерации."""
+    if filename.startswith(f"{EXAMPLES_DIRNAME}/"):
+        return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / filename
+    return language_dir(problem_id, spec, problems_dir=problems_dir) / filename
 
 
 def current_artifacts(
@@ -181,11 +196,11 @@ def current_artifacts(
     `example_<N>.verify_for_statement.txt`, `name.txt` (его пишут
     `polygon push`/`pull`) и разбор `tutorial.tex` (его пишет автор, `polygon
     pull` или шаг `tutorial_draft`)."""
-    statement_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR
     candidates = {
-        name: statement_dir / name for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
+        name: artifact_path(problem_id, spec, name, problems_dir=problems_dir)
+        for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
     }
-    examples_dir = statement_dir / "examples"
+    examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / EXAMPLES_DIRNAME
     examples = (
         examples_dir.glob("example_*.txt") if spec.interactive and examples_dir.is_dir() else []
     )
@@ -245,7 +260,7 @@ def run_step(
     `StepUncertainError`, не записав ни одного файла (см. "Правило эскалации
     при неуверенности").
 
-    При успехе пишет в `problems/<problem_id>/statement/` 4 фиксированных
+    При успехе пишет в `problems/<problem_id>/statement/<код языка>/` 4 фиксированных
     файла (`legend.tex`, `input_format.tex`, `output_format.tex`,
     `notes.tex`) и по одному `examples/example_<N>.txt` на каждый элемент
     `sample_examples` (только input примера — копия из спека, её пишет
@@ -276,7 +291,7 @@ def run_step(
     def resolve_artifact_path(filename: str) -> Path:
         # filename приходит как "legend.tex" или "examples/example_1.txt" —
         # вложенный каталог создаст _write_artifacts (parent.mkdir).
-        return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / filename
+        return artifact_path(problem_id, spec, filename, problems_dir=problems_dir)
 
     expected = _expected_artifact_names(spec)
 

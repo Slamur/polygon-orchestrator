@@ -229,7 +229,7 @@ def _load_upstream(
                 entry.input_values if entry is not None else None
             )
         upstream_artifacts[tutorial_draft.INPUTS_KEY] = tutorial_draft.read_inputs(
-            problem_id, tutorial_refs, problems_dir=problems_dir
+            problem_id, tutorial_refs, language=spec.language, problems_dir=problems_dir
         )
     for producer in _STEP_UPSTREAM.get(step_name, ()):
         name = _UPSTREAM_PRODUCERS[producer]

@@ -1,4 +1,4 @@
-"""Проверка оформления LaTeX-условия (`statement/*.tex`) — `orchestrator
+"""Проверка оформления LaTeX-условия (`statement/<код языка>/*.tex`) — `orchestrator
 <задача> local check` — и его механическое исправление — `orchestrator
 <задача> local fix`. К Polygon не обращается.
 
@@ -8,8 +8,7 @@
   (маркированный список) или `1. `, `1) ` (нумерованный). LaTeX их не
   понимает и печатает как обычный текст; исправление — окружения
   `itemize`/`enumerate` с `\\item` (вложенность — по отступу);
-- **кавычки** — только в русскоязычном условии (основной язык — `language`
-  спека, дополнительные — подкаталоги `statement/<язык>/`, см.
+- **кавычки** — только в русскоязычном условии (`statement/ru/`, см.
   `orchestrator/statement_languages.py`): кавычки в нём — `<<`/`>>`
   (лигатуры «ёлочек» в LaTeX). Прямые `"`,
   типографские `“ ” „`, `«»` и английские LaTeX-кавычки ```` ``…'' ````
@@ -29,9 +28,10 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from orchestrator.statement_languages import extra_languages, read_spec_language
-
-STATEMENT_DIRNAME = "statement"
+from orchestrator.statement_languages import (
+    STATEMENT_DIRNAME,  # noqa: F401 — часть интерфейса модуля (local_tests, solutions_run)
+    statement_languages,
+)
 # Прежние версии файлов, изменённых `local fix`: `.fix_backup/<время>/`.
 FIX_BACKUP_DIRNAME = ".fix_backup"
 
@@ -39,8 +39,8 @@ KIND_MARKDOWN_LIST = "markdown list"
 KIND_QUOTES = "quotes"
 KIND_UNPAIRED_QUOTES = "unpaired quotes"
 
-# Язык, в котором кавычки — `<<…>>`.
-QUOTES_LANGUAGE = "russian"
+# Язык (код), в котором кавычки — `<<…>>`.
+QUOTES_LANGUAGE = "ru"
 
 OPEN_QUOTE = "<<"
 CLOSE_QUOTE = ">>"
@@ -54,7 +54,7 @@ _ENUMERATE = "enumerate"
 
 @dataclass(frozen=True)
 class StatementIssue:
-    file: str  # путь относительно каталога задачи (`statement/legend.tex`)
+    file: str  # путь относительно каталога задачи (`statement/ru/legend.tex`)
     line: int  # 1-based
     kind: str
     text: str  # строка файла, без перевода строки
@@ -66,22 +66,15 @@ class StatementIssue:
 
 
 def statement_files(problem_dir: Path) -> list[tuple[Path, str]]:
-    """`.tex`-файлы условия задачи с языком каждого: основного языка
-    (`statement/*.tex`), затем дополнительных (`statement/<язык>/*.tex`).
-    `*.tex.removed` в glob не попадают."""
+    """`.tex`-файлы условия задачи с кодом языка каждого
+    (`statement/<код>/*.tex`), по языкам. `*.tex.removed` в glob не попадают."""
     statement_dir = problem_dir / STATEMENT_DIRNAME
-    if not statement_dir.is_dir():
-        return []
-    main = read_spec_language(problem_dir)
-    files = []
-    for language, directory in [
-        (main, statement_dir),
-        *((extra, statement_dir / extra) for extra in extra_languages(statement_dir)),
-    ]:
-        files.extend(
-            (path, language) for path in sorted(directory.glob("*.tex")) if path.is_file()
-        )
-    return files
+    return [
+        (path, code)
+        for code in statement_languages(statement_dir)
+        for path in sorted((statement_dir / code).glob("*.tex"))
+        if path.is_file()
+    ]
 
 
 def check_text(text: str, file: str, *, quotes: bool = True) -> list[StatementIssue]:
