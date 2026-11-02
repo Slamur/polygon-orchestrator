@@ -157,3 +157,45 @@ def test_local_fix_without_statement(tmp_path, capsys):
     (tmp_path / "problems" / PROBLEM_ID).mkdir(parents=True)
     assert _cli(tmp_path, "fix") == 1
     assert "no statement" in capsys.readouterr().err
+
+
+# --- языки условия ------------------------------------------------------------
+
+
+def test_quotes_are_checked_only_in_russian_text(tmp_path, capsys):
+    statement_dir = _statement(tmp_path, {"legend.tex": "Ответ <<YES>>.\n"})
+    english = statement_dir / "english"
+    english.mkdir()
+    (english / "legend.tex").write_text("- Print ``YES''.\n", encoding="utf-8")
+
+    assert _cli(tmp_path, "check") == 1
+    out = capsys.readouterr().out
+    assert "statement/english/legend.tex:1: markdown list" in out
+    assert "quotes" not in out
+
+    assert _cli(tmp_path, "fix") == 0
+    assert (english / "legend.tex").read_text(encoding="utf-8") == (
+        "\\begin{itemize}\n\\item Print ``YES''.\n\\end{itemize}\n"
+    )
+
+
+def test_main_language_from_spec_turns_quote_check_off(tmp_path, capsys):
+    statement_dir = _statement(tmp_path, {"legend.tex": 'Print "YES".\n'})
+    authoring = statement_dir.parent / "authoring"
+    authoring.mkdir()
+    (authoring / "spec.yaml").write_text(
+        f"problem_id: {PROBLEM_ID}\nlanguage: english\n", encoding="utf-8"
+    )
+    russian = statement_dir / "russian"
+    russian.mkdir()
+    (russian / "legend.tex").write_text('Выведите "YES".\n', encoding="utf-8")
+
+    assert _cli(tmp_path, "check") == 1
+    out = capsys.readouterr().out
+    assert "statement/russian/legend.tex:1: quotes" in out
+    assert "statement/legend.tex" not in out
+
+
+def test_quotes_off_leaves_quotes_alone():
+    assert check_text('Print "YES".\n', FILE, quotes=False) == []
+    assert fix_text('Print "YES".\n', quotes=False) == 'Print "YES".\n'

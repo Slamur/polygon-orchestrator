@@ -8,8 +8,10 @@
   (маркированный список) или `1. `, `1) ` (нумерованный). LaTeX их не
   понимает и печатает как обычный текст; исправление — окружения
   `itemize`/`enumerate` с `\\item` (вложенность — по отступу);
-- **кавычки** — условие русскоязычное (язык в `upload_statement` — `russian`),
-  и кавычки в нём — `<<`/`>>` (лигатуры «ёлочек» в LaTeX). Прямые `"`,
+- **кавычки** — только в русскоязычном условии (основной язык — `language`
+  спека, дополнительные — подкаталоги `statement/<язык>/`, см.
+  `orchestrator/statement_languages.py`): кавычки в нём — `<<`/`>>`
+  (лигатуры «ёлочек» в LaTeX). Прямые `"`,
   типографские `“ ” „`, `«»` и английские LaTeX-кавычки ```` ``…'' ````
   заменяются на `<<…>>`. Кавычки разбираются по абзацам (между пустыми
   строками), вне формул (`$…$`, `$$…$$`, `\\(…\\)`, `\\[…\\]`), вне
@@ -27,6 +29,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from orchestrator.statement_languages import extra_languages, read_spec_language
+
 STATEMENT_DIRNAME = "statement"
 # Прежние версии файлов, изменённых `local fix`: `.fix_backup/<время>/`.
 FIX_BACKUP_DIRNAME = ".fix_backup"
@@ -34,6 +38,9 @@ FIX_BACKUP_DIRNAME = ".fix_backup"
 KIND_MARKDOWN_LIST = "markdown list"
 KIND_QUOTES = "quotes"
 KIND_UNPAIRED_QUOTES = "unpaired quotes"
+
+# Язык, в котором кавычки — `<<…>>`.
+QUOTES_LANGUAGE = "russian"
 
 OPEN_QUOTE = "<<"
 CLOSE_QUOTE = ">>"
@@ -58,21 +65,34 @@ class StatementIssue:
         return f"{self.file}:{self.line}: {self.kind}{suffix}: {self.text.strip()}"
 
 
-def statement_files(problem_dir: Path) -> list[Path]:
-    """`.tex`-файлы условия задачи (`*.tex.removed` в glob не попадают)."""
+def statement_files(problem_dir: Path) -> list[tuple[Path, str]]:
+    """`.tex`-файлы условия задачи с языком каждого: основного языка
+    (`statement/*.tex`), затем дополнительных (`statement/<язык>/*.tex`).
+    `*.tex.removed` в glob не попадают."""
     statement_dir = problem_dir / STATEMENT_DIRNAME
     if not statement_dir.is_dir():
         return []
-    return sorted(path for path in statement_dir.glob("*.tex") if path.is_file())
+    main = read_spec_language(problem_dir)
+    files = []
+    for language, directory in [
+        (main, statement_dir),
+        *((extra, statement_dir / extra) for extra in extra_languages(statement_dir)),
+    ]:
+        files.extend(
+            (path, language) for path in sorted(directory.glob("*.tex")) if path.is_file()
+        )
+    return files
 
 
-def check_text(text: str, file: str) -> list[StatementIssue]:
+def check_text(text: str, file: str, *, quotes: bool = True) -> list[StatementIssue]:
+    """Проблемы оформления `text`; `quotes=False` — без кавычек (условие не
+    на `QUOTES_LANGUAGE`)."""
     lines = text.split("\n")
     issues = [
         StatementIssue(file, number, KIND_MARKDOWN_LIST, lines[number - 1])
         for number in _markdown_list_lines(lines)
     ]
-    for paragraph in _paragraphs(lines):
+    for paragraph in _paragraphs(lines) if quotes else []:
         quotes = _quote_tokens(paragraph)
         paired = _pair_quotes(quotes) is not None
         kind = KIND_QUOTES if paired else KIND_UNPAIRED_QUOTES
@@ -84,10 +104,12 @@ def check_text(text: str, file: str) -> list[StatementIssue]:
     return sorted(issues, key=lambda issue: (issue.line, issue.kind))
 
 
-def fix_text(text: str) -> str:
+def fix_text(text: str, *, quotes: bool = True) -> str:
     """Списки Markdown -> `itemize`/`enumerate`, кавычки -> `<<…>>` (кроме
-    абзацев с непарными кавычками)."""
-    lines = _fix_quotes(text.split("\n"))
+    абзацев с непарными кавычками; `quotes=False` — кавычки не трогаются)."""
+    lines = text.split("\n")
+    if quotes:
+        lines = _fix_quotes(lines)
     return "\n".join(_fix_lists(lines))
 
 
