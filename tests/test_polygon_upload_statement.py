@@ -48,8 +48,12 @@ def _statement_dir(problems_dir: Path) -> Path:
     return problems_dir / PROBLEM_ID / "statement"
 
 
+def _lang_dir(problems_dir: Path, code: str = "ru") -> Path:
+    return _statement_dir(problems_dir) / code
+
+
 def _write_tex(problems_dir: Path, skip: str | None = None) -> None:
-    statement_dir = _statement_dir(problems_dir)
+    statement_dir = _lang_dir(problems_dir)
     statement_dir.mkdir(parents=True, exist_ok=True)
     for name, content in TEX_CONTENT.items():
         if name != skip:
@@ -211,7 +215,7 @@ def test_incremental_run_uploads_only_changed_parts(problems_dir, spec):
     assert "1 of 2 sample test(s)" in message
 
     client.reset_mock()
-    (_statement_dir(problems_dir) / "notes.tex").write_text("new notes", encoding="utf-8")
+    (_lang_dir(problems_dir) / "notes.tex").write_text("new notes", encoding="utf-8")
     _run(spec, problems_dir, client, incremental=True)
     [statement_call] = client.call.call_args_list
     assert statement_call.args[0] == "problem.saveStatement"
@@ -231,7 +235,7 @@ def test_status_not_run_then_done_then_stale(problems_dir, spec):
     _write_examples(problems_dir, {1: "2\n"})
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
 
-    (_statement_dir(problems_dir) / "legend.tex").unlink()
+    (_lang_dir(problems_dir) / "legend.tex").unlink()
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
 
 
@@ -239,7 +243,7 @@ def test_name_txt_is_seeded_from_spec_title_once(problems_dir, spec):
     _link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
-    name_path = _statement_dir(problems_dir) / "name.txt"
+    name_path = _lang_dir(problems_dir) / "name.txt"
 
     _run(spec, problems_dir, MagicMock())
     assert name_path.read_text(encoding="utf-8") == spec.title.ru + "\n"
@@ -257,7 +261,7 @@ def test_empty_name_txt_is_an_error(problems_dir, spec):
     _link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
-    (_statement_dir(problems_dir) / "name.txt").write_text("\n", encoding="utf-8")
+    (_lang_dir(problems_dir) / "name.txt").write_text("\n", encoding="utf-8")
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match=r"name\.txt is empty"):
@@ -272,11 +276,11 @@ def test_status_sees_name_change(problems_dir, spec):
     _write_examples(problems_dir, {1: "1\n"})
     _run(spec, problems_dir, MagicMock())
 
-    (_statement_dir(problems_dir) / "name.txt").write_text("Другое\n", encoding="utf-8")
+    (_lang_dir(problems_dir) / "name.txt").write_text("Другое\n", encoding="utf-8")
 
     status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
     assert status == "stale"
-    assert "statement/name" in detail
+    assert "statement/ru/name" in detail
 
 
 @pytest.fixture
@@ -286,7 +290,7 @@ def interactive_spec():
 
 def _write_interactive(problems_dir: Path) -> None:
     _write_tex(problems_dir)
-    (_statement_dir(problems_dir) / "interaction.tex").write_text("Протокол.\n", encoding="utf-8")
+    (_lang_dir(problems_dir) / "interaction.tex").write_text("Протокол.\n", encoding="utf-8")
     _write_examples(problems_dir, {1: "10 3\n"})
     examples_dir = _statement_dir(problems_dir) / "examples"
     (examples_dir / "example_1.input_for_statement.txt").write_text("10\n\n<\n", encoding="utf-8")
@@ -315,7 +319,7 @@ def test_interactive_uploads_protocol_and_dialogues(problems_dir, interactive_sp
 def test_interactive_without_protocol_file_is_named(problems_dir, interactive_spec):
     _link(problems_dir)
     _write_interactive(problems_dir)
-    (_statement_dir(problems_dir) / "interaction.tex").unlink()
+    (_lang_dir(problems_dir) / "interaction.tex").unlink()
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="interaction.tex"):
@@ -361,7 +365,7 @@ def test_removed_statement_output_is_cleared_on_polygon(problems_dir, interactiv
 
 
 def _write_tutorial(problems_dir: Path, content: str = "Разбор.\n") -> Path:
-    path = _statement_dir(problems_dir) / "tutorial.tex"
+    path = _lang_dir(problems_dir) / "tutorial.tex"
     path.write_text(content, encoding="utf-8")
     return path
 
@@ -397,7 +401,7 @@ def test_tutorial_is_uploaded_and_synced(problems_dir, spec):
 
     path.write_text("Новый разбор.\n", encoding="utf-8")
     status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
-    assert status == "stale" and "statement/tutorial.tex" in detail
+    assert status == "stale" and "statement/ru/tutorial.tex" in detail
     _run(spec, problems_dir, client, incremental=True)
     [statement] = _calls(client, "problem.saveStatement")
     assert statement["tutorial"] == "Новый разбор.\n"
@@ -419,7 +423,7 @@ def test_removed_tutorial_is_cleared_on_polygon(problems_dir, spec):
     [statement] = _calls(client, "problem.saveStatement")
     assert statement["tutorial"] == ""
     synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
-    assert "statement/tutorial.tex" not in synced
+    assert "statement/ru/tutorial.tex" not in synced
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
     client = MagicMock()
@@ -433,7 +437,7 @@ def test_force_without_tutorial_file_does_not_clear_it(problems_dir, spec):
     _write_examples(problems_dir, {1: "1\n"})
     _write_tutorial(problems_dir)
     _run(spec, problems_dir, MagicMock())
-    (_statement_dir(problems_dir) / "tutorial.tex").unlink()
+    (_lang_dir(problems_dir) / "tutorial.tex").unlink()
     client = MagicMock()
 
     # Без `incremental` база неизвестна, как у `push --force`.
@@ -499,3 +503,153 @@ def test_plain_problem_sends_no_interaction(problems_dir, spec):
     assert "interaction" not in statement
     [test] = _calls(client, "problem.saveTest")
     assert "testInputForStatements" not in test
+
+
+# --- языки условия ----------------------------------------------------------
+
+
+def _write_language(problems_dir: Path, code: str, *, name: str | None = "Title") -> Path:
+    directory = _lang_dir(problems_dir, code)
+    directory.mkdir(parents=True, exist_ok=True)
+    for filename in TEX_CONTENT:
+        (directory / filename).write_text(f"{code} {filename}\n", encoding="utf-8")
+    if name is not None:
+        (directory / "name.txt").write_text(f"{name}\n", encoding="utf-8")
+    return directory
+
+
+def _statement_calls(client) -> list[dict]:
+    return [c.args[1] for c in client.call.call_args_list if c.args[0] == "problem.saveStatement"]
+
+
+def _english_spec(spec):
+    return spec.model_copy(
+        update={"language": "en", "title": spec.title.model_copy(update={"en": "English title"})}
+    )
+
+
+def test_every_language_is_saved_with_its_polygon_name(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    _write_language(problems_dir, "en", name="English name")
+    _write_language(problems_dir, "latvian", name="Latvian name")
+    client = MagicMock()
+
+    message = _run(spec, problems_dir, client)
+
+    english, latvian, russian = _statement_calls(client)
+    assert russian["lang"] == "russian"
+    assert russian["legend"] == TEX_CONTENT["legend.tex"]
+    assert english["lang"] == "english"
+    assert english["name"] == "English name"
+    assert english["legend"] == "en legend.tex\n"
+    # Язык без кода — каталог с именем Polygon.
+    assert latvian["lang"] == "latvian"
+    # Примеры общие — по одному разу.
+    assert [c.args[0] for c in client.call.call_args_list].count("problem.saveTest") == 1
+    assert "saved english statement" in message
+    synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
+    assert "statement/en/legend.tex" in synced
+    assert "statement/en/name" in synced
+    assert "statement/ru/name" in synced
+
+
+def test_only_the_changed_language_is_saved_again(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    directory = _write_language(problems_dir, "en")
+    _run(spec, problems_dir, MagicMock())
+
+    (directory / "notes.tex").write_text("changed\n", encoding="utf-8")
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
+    client = MagicMock()
+    _run(spec, problems_dir, client, incremental=True)
+
+    [english] = _statement_calls(client)
+    assert english["lang"] == "english"
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_name_of_other_language_comes_from_spec_title(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    directory = _write_language(problems_dir, "en", name=None)
+    spec = spec.model_copy(update={"title": spec.title.model_copy(update={"en": "From spec"})})
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert _statement_calls(client)[0]["name"] == "From spec"
+    assert (directory / "name.txt").read_text(encoding="utf-8") == "From spec\n"
+
+
+def test_language_without_name_is_an_error(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    _write_language(problems_dir, "kk", name=None)
+    client = MagicMock()
+
+    with pytest.raises(PolygonStepError, match=r"kk/name\.txt not found.*'kazakh'"):
+        _run(spec, problems_dir, client)
+    client.call.assert_not_called()
+
+
+def test_other_language_missing_file_is_named(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    (_write_language(problems_dir, "en") / "notes.tex").unlink()
+
+    with pytest.raises(PolygonStepError, match=r"notes\.tex.*write them by hand"):
+        _run(spec, problems_dir, MagicMock())
+
+
+def test_language_directory_named_by_polygon_name_is_an_error(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    _write_language(problems_dir, "english")
+    client = MagicMock()
+
+    with pytest.raises(PolygonStepError, match=r"named by its code \(en for english\)"):
+        _run(spec, problems_dir, client)
+    client.call.assert_not_called()
+
+
+def test_main_language_directory_is_required(problems_dir, spec):
+    _link(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    _write_language(problems_dir, "en")
+
+    with pytest.raises(PolygonStepError, match=r"statement/ru not found.*statement_draft"):
+        _run(spec, problems_dir, MagicMock())
+
+
+def test_main_language_comes_from_spec(problems_dir, spec):
+    _link(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    _write_language(problems_dir, "en", name=None)
+    client = MagicMock()
+
+    _run(_english_spec(spec), problems_dir, client)
+
+    [statement] = _statement_calls(client)
+    assert statement["lang"] == "english"
+    assert statement["name"] == "English title"
+
+
+def test_status_sees_new_language(problems_dir, spec):
+    _link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    _run(spec, problems_dir, MagicMock())
+
+    _write_language(problems_dir, "en")
+
+    status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
+    assert status == "stale"
+    assert "statement/en/legend.tex" in detail

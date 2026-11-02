@@ -285,7 +285,7 @@ def test_interactor_draft_runs_for_interactive_problem(spec_file, tmp_path):
     statuses = {o.step_name: o.status for o in result.outcomes}
     assert statuses["interactor_draft"] == "confirmed"
     assert (problems_dir / "p1" / "interactor.cpp").exists()
-    assert (problems_dir / "p1" / "statement" / "interaction.tex").exists()
+    assert (problems_dir / "p1" / "statement" / "ru" / "interaction.tex").exists()
     interactor_call = next(c for c in mock_call.call_args_list if c.args[0] == "interactor_draft")
     assert "Решение выводит запрос ? v." in interactor_call.args[2]
     assert "Неадаптивный, в tout — ответ решения." in interactor_call.args[2]
@@ -745,7 +745,7 @@ def test_rejected_response_stops_pipeline_with_conflict_and_is_saved(spec_file, 
     assert "llm apply --step statement_draft" in outcome.detail
     problem_dir = problems_dir / "p1"
     assert not (problem_dir / "statement").exists()
-    assert (outcome.conflicts_dir / "statement" / "legend.tex").is_file()
+    assert (outcome.conflicts_dir / "statement" / "ru" / "legend.tex").is_file()
     assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
     status = _statuses(problems_dir)["statement_draft"]
     assert status.state == pipeline.STATUS_CONFLICT
@@ -806,7 +806,7 @@ def test_apply_writes_saved_response_without_calling_model(spec_file, tmp_path):
     assert statuses["statement_draft"] == "confirmed"
     assert statuses["constraints_pick"] == pipeline.OUTCOME_NO_PENDING
     problem_dir = problems_dir / "p1"
-    assert (problem_dir / "statement" / "legend.tex").read_text(encoding="utf-8") == "tex"
+    assert (problem_dir / "statement" / "ru" / "legend.tex").read_text(encoding="utf-8") == "tex"
     assert not (problem_dir / ".cache" / "statement_draft.response.json").exists()
     status = _statuses(problems_dir)["statement_draft"]
     assert (status.state, status.detail) == (pipeline.STATUS_CACHE_HIT, "")
@@ -850,7 +850,7 @@ def test_apply_revises_current_files_like_the_failed_run(spec_file, tmp_path):
     result = _apply(problems_dir, only_step="statement_draft")
 
     assert result.ok
-    statement_dir = problems_dir / "p1" / "statement"
+    statement_dir = problems_dir / "p1" / "statement" / "ru"
     assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == "new tex"
     assert (statement_dir / "notes.tex").read_text(encoding="utf-8") == "tex"
 

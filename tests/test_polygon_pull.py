@@ -190,12 +190,12 @@ def test_pull_into_missing_directory_downloads_everything(problems_dir, polygon)
     assert result.ok
     assert result.polygon_id == POLYGON_ID
     assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).polygon_id == POLYGON_ID
-    assert (problem_dir / "statement" / "legend.tex").read_text() == "L"
-    assert (problem_dir / "statement" / "input_format.tex").read_text() == "I"
-    assert (problem_dir / "statement" / "output_format.tex").read_text() == "O"
+    assert (problem_dir / "statement" / "ru" / "legend.tex").read_text() == "L"
+    assert (problem_dir / "statement" / "ru" / "input_format.tex").read_text() == "I"
+    assert (problem_dir / "statement" / "ru" / "output_format.tex").read_text() == "O"
     # Пустой раздел выгружается пустым файлом — upload_statement требует все 4.
-    assert (problem_dir / "statement" / "notes.tex").read_text() == ""
-    assert (problem_dir / "statement" / "name.txt").read_text() == "Polygon Name\n"
+    assert (problem_dir / "statement" / "ru" / "notes.tex").read_text() == ""
+    assert (problem_dir / "statement" / "ru" / "name.txt").read_text() == "Polygon Name\n"
     assert (problem_dir / "statement" / "examples" / "example_1.txt").read_text() == "1 2\n"
     # Сгенерированный тест: input берётся через problem.testInput.
     assert (problem_dir / "statement" / "examples" / "example_2.txt").read_bytes() == b"3 4\n"
@@ -226,11 +226,11 @@ def test_pull_records_revision_and_baseline(problems_dir, polygon):
         "spec.yaml",
         "statement/examples/example_1.txt",
         "statement/examples/example_2.txt",
-        "statement/input_format.tex",
-        "statement/legend.tex",
-        "statement/name",
-        "statement/notes.tex",
-        "statement/output_format.tex",
+        "statement/ru/input_format.tex",
+        "statement/ru/legend.tex",
+        "statement/ru/name",
+        "statement/ru/notes.tex",
+        "statement/ru/output_format.tex",
         "test_script",
         "validator",
         "validator.cpp",
@@ -270,20 +270,20 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, proble
 
 def test_name_is_compared_without_surrounding_whitespace(problems_dir, polygon):
     problem_dir = problems_dir / PROBLEM_ID
-    _write(problem_dir, "statement/name.txt", "  Polygon Name")
+    _write(problem_dir, "statement/ru/name.txt", "  Polygon Name")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["statement/name.txt"] == ITEM_SAME
-    assert _synced(problems_dir)["statement/name"] == pull_module.digest("Polygon Name")
+    assert _statuses(result)["statement/ru/name.txt"] == ITEM_SAME
+    assert _synced(problems_dir)["statement/ru/name"] == pull_module.digest("Polygon Name")
 
 
 def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(problems_dir, polygon):
     problem_dir = problems_dir / PROBLEM_ID
-    _write(problem_dir, "statement/name.txt", "Old Name\n")
+    _write(problem_dir, "statement/ru/name.txt", "Old Name\n")
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
-    assert _statuses(result)["statement/name.txt"] == ITEM_OVERWRITTEN
+    assert _statuses(result)["statement/ru/name.txt"] == ITEM_OVERWRITTEN
 
     # title.ru спека ("Кратчайшие пути") больше не источник названия
     spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
@@ -295,7 +295,7 @@ def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(problems_dir, pol
         client=MagicMock(),
         synced=_synced(problems_dir),
     ).uploaded
-    assert "statement/name" not in uploaded
+    assert "statement/ru/name" not in uploaded
 
 
 def test_script_without_blank_lines_on_polygon_is_same_and_not_pushed_again(
@@ -356,7 +356,7 @@ def test_fractional_time_limit(problems_dir, polygon):
 
 def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir, polygon):
     problem_dir = problems_dir / PROBLEM_ID
-    _write(problem_dir, "statement/legend.tex", "local legend")
+    _write(problem_dir, "statement/ru/legend.tex", "local legend")
     _write(problem_dir, "statement/examples/example_1.txt", "1 2\n")
     _write(problem_dir, "validator.cpp", "local validator")
     _write(problem_dir, "test_script_groups", "local script")
@@ -366,46 +366,46 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
 
     statuses = _statuses(result)
     # Базы нет — кто менял, неизвестно.
-    assert statuses["statement/legend.tex"] == ITEM_DIFFERS
-    assert statuses["statement/input_format.tex"] == ITEM_DOWNLOADED
+    assert statuses["statement/ru/legend.tex"] == ITEM_DIFFERS
+    assert statuses["statement/ru/input_format.tex"] == ITEM_DOWNLOADED
     assert statuses["statement/examples/example_1.txt"] == ITEM_SAME
     assert statuses["validator.cpp"] == ITEM_DIFFERS
     assert statuses["test_script_groups"] == ITEM_DIFFERS
     assert statuses["solutions/ok_cpp_main_author.cpp"] == ITEM_SAME
-    assert (problem_dir / "statement" / "legend.tex").read_text() == "local legend"
+    assert (problem_dir / "statement" / "ru" / "legend.tex").read_text() == "local legend"
     assert (problem_dir / "validator.cpp").read_text() == "local validator"
     assert not (problem_dir / "test_script").exists()
     synced = _synced(problems_dir)
     # В базе — версия с Polygon: push сравнит с ней локальную и загрузит.
-    assert synced["statement/legend.tex"] == pull_module.digest("L")
+    assert synced["statement/ru/legend.tex"] == pull_module.digest("L")
     assert synced["validator.cpp"] == pull_module.digest(b"// validator\n")
     assert synced["test_script"] == pull_module.digest(normalize_script(polygon.script))
     # Назначение валидатора не подтверждено — push назначит заново.
     assert "validator" not in synced
-    for key in ("statement/input_format.tex", "statement/examples/example_1.txt"):
+    for key in ("statement/ru/input_format.tex", "statement/examples/example_1.txt"):
         assert key in synced, key
     assert result.backup_dir is None
 
 
 def test_overwrite_replaces_differing_files_and_backs_them_up(problems_dir, polygon):
     problem_dir = problems_dir / PROBLEM_ID
-    _write(problem_dir, "statement/legend.tex", "local legend")
+    _write(problem_dir, "statement/ru/legend.tex", "local legend")
     _write(problem_dir, "validator.cpp", "local validator")
     _write(problem_dir, "generators/gen_rand.cpp", "// gen\n")
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
-    assert statuses["statement/legend.tex"] == ITEM_OVERWRITTEN
+    assert statuses["statement/ru/legend.tex"] == ITEM_OVERWRITTEN
     assert statuses["validator.cpp"] == ITEM_OVERWRITTEN
     assert statuses["generators/gen_rand.cpp"] == ITEM_SAME
-    assert (problem_dir / "statement" / "legend.tex").read_text() == "L"
+    assert (problem_dir / "statement" / "ru" / "legend.tex").read_text() == "L"
     assert (problem_dir / "validator.cpp").read_bytes() == b"// validator\n"
     assert result.backup_dir.parent == problem_dir / ".pull_backup"
-    assert (result.backup_dir / "statement" / "legend.tex").read_text() == "local legend"
+    assert (result.backup_dir / "statement" / "ru" / "legend.tex").read_text() == "local legend"
     assert (result.backup_dir / "validator.cpp").read_text() == "local validator"
     assert not (result.backup_dir / "generators").exists()
-    assert {"statement/legend.tex", "validator.cpp", "validator"} <= set(_synced(problems_dir))
+    assert {"statement/ru/legend.tex", "validator.cpp", "validator"} <= set(_synced(problems_dir))
 
 
 def test_line_endings_do_not_make_files_differ(problems_dir, polygon):
@@ -862,8 +862,7 @@ def test_missing_parts_on_polygon_are_reported_as_absent(problems_dir, polygon):
     statuses = _statuses(result)
     assert result.ok
     for name in (
-        "statement/legend.tex",
-        "statement/notes.tex",
+        "statement",
         "statement/examples",
         "validator.cpp",
         "generators",
@@ -911,7 +910,7 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
     assert exit_code == 0
     assert "  validator.cpp..." in out  # прогресс по частям
     pulled = out.split("=== pulled ===\n")[1].split("\n\n")[0].splitlines()
-    assert "validator.cpp" in pulled and "statement/legend.tex" in pulled
+    assert "validator.cpp" in pulled and "statement/ru/legend.tex" in pulled
     # Совпадающее с Polygon и отсутствующее с обеих сторон не печатается.
     assert "up to date" not in out and "absent" not in out
     assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
@@ -958,7 +957,7 @@ def test_cli_pull_overwrite_reports_backup_dir(problems_dir, polygon, capsys, mo
 
 def test_cli_pull_groups_files_to_push_and_conflicts(problems_dir, polygon, capsys, monkeypatch):
     problem_dir = problems_dir / PROBLEM_ID
-    _write(problem_dir, "statement/legend.tex", "local legend")  # базы нет — differs
+    _write(problem_dir, "statement/ru/legend.tex", "local legend")  # базы нет — differs
     _write(problem_dir, "generators/gen_local.cpp", "// local\n")  # local only
     _write(problem_dir, "checker.cpp", "// local checker\n")  # local only, при custom_needed
     _write(problem_dir, "limits.yaml", "time_limit_seconds: 1\nmemory_limit_mb: 256\n")
@@ -977,7 +976,7 @@ def test_cli_pull_groups_files_to_push_and_conflicts(problems_dir, polygon, caps
     ]
     conflicts = out.split("=== conflicts ===\n")[1].split("\n\n")[0].splitlines()
     assert conflicts[:2] == [
-        "statement/legend.tex — no sync base",
+        "statement/ru/legend.tex — no sync base",
         "limits.yaml — no sync base; local 1000ms/256MB, Polygon 2000ms/256MB",
     ]
     assert "--overwrite" in conflicts[2]
@@ -1138,13 +1137,13 @@ def test_polygon_and_local_changes_to_different_files_are_both_kept(problems_dir
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
-    assert statuses["statement/legend.tex"] == ITEM_UPDATED
+    assert statuses["statement/ru/legend.tex"] == ITEM_UPDATED
     assert statuses["test_script"] == ITEM_KEPT
     problem_dir = problems_dir / PROBLEM_ID
-    assert (problem_dir / "statement" / "legend.tex").read_text() == "L, edited on Polygon"
+    assert (problem_dir / "statement" / "ru" / "legend.tex").read_text() == "L, edited on Polygon"
     assert (problem_dir / "test_script").read_text() == "gen_rand 2 > $\n"
     synced = _synced(problems_dir)
-    assert synced["statement/legend.tex"] == pull_module.digest(b"L, edited on Polygon")
+    assert synced["statement/ru/legend.tex"] == pull_module.digest(b"L, edited on Polygon")
     assert synced["test_script"] == pull_module.digest(normalize_script(polygon.script))
 
 
@@ -1285,7 +1284,7 @@ def test_pull_interactive_problem(problems_dir, polygon):
     assert (problem_dir / "interactor.cpp").read_bytes() == b"// interactor\n"
     # Интерактор — не генератор, даже с нестандартным именем.
     assert [p.name for p in (problem_dir / "generators").iterdir()] == ["gen_rand.cpp"]
-    assert (problem_dir / "statement" / "interaction.tex").read_text() == "Protocol"
+    assert (problem_dir / "statement" / "ru" / "interaction.tex").read_text() == "Protocol"
     assert (examples_dir / "example_1.input_for_statement.txt").read_text() == "10\n\n<\n"
     assert (examples_dir / "example_1.output_for_statement.txt").read_text() == "\n? 5\n\n"
     # У второго примера диалога нет — и файлов нет, и в отчёте он не упомянут.
@@ -1327,44 +1326,44 @@ def test_pull_downloads_tutorial_and_push_sees_no_changes(problems_dir, polygon)
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    path = problems_dir / PROBLEM_ID / "statement" / "tutorial.tex"
+    path = problems_dir / PROBLEM_ID / "statement" / "ru" / "tutorial.tex"
     assert result.ok
     assert path.read_text() == "Tutorial\n"
-    assert _statuses(result)["statement/tutorial.tex"] == ITEM_DOWNLOADED
+    assert _statuses(result)["statement/ru/tutorial.tex"] == ITEM_DOWNLOADED
     assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
     # Правка на Polygon при неизменном локальном файле — fast-forward с бэкапом.
     polygon.statements["russian"]["tutorial"] = "New tutorial\n"
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["statement/tutorial.tex"] == ITEM_UPDATED
+    assert _statuses(result)["statement/ru/tutorial.tex"] == ITEM_UPDATED
     assert path.read_text() == "New tutorial\n"
-    assert (result.backup_dir / "statement" / "tutorial.tex").read_text() == "Tutorial\n"
+    assert (result.backup_dir / "statement" / "ru" / "tutorial.tex").read_text() == "Tutorial\n"
 
     # Правка обеих сторон — конфликт, локальная версия остаётся.
     path.write_text("Local tutorial\n")
     polygon.statements["russian"]["tutorial"] = "Newer tutorial\n"
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["statement/tutorial.tex"] == ITEM_CONFLICT
+    assert _statuses(result)["statement/ru/tutorial.tex"] == ITEM_CONFLICT
     assert path.read_text() == "Local tutorial\n"
 
 
 def test_pull_without_tutorial_on_polygon(problems_dir, polygon):
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    path = problems_dir / PROBLEM_ID / "statement" / "tutorial.tex"
+    path = problems_dir / PROBLEM_ID / "statement" / "ru" / "tutorial.tex"
     assert not path.exists()
-    assert "statement/tutorial.tex" not in _statuses(result)
+    assert "statement/ru/tutorial.tex" not in _statuses(result)
 
     path.write_text("Local tutorial\n")
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    item = next(item for item in result.items if item.name == "statement/tutorial.tex")
+    item = next(item for item in result.items if item.name == "statement/ru/tutorial.tex")
     assert item.status == ITEM_LOCAL_ONLY
     assert item.push_condition == ""
     assert path.read_text() == "Local tutorial\n"
-    assert "statement/tutorial.tex" not in _synced(problems_dir)
+    assert "statement/ru/tutorial.tex" not in _synced(problems_dir)
 
 
 def test_pull_plain_problem_does_not_ask_for_interactor(problems_dir, polygon):
@@ -1373,7 +1372,7 @@ def test_pull_plain_problem_does_not_ask_for_interactor(problems_dir, polygon):
     assert "problem.interactor" not in polygon.methods()
     statuses = _statuses(result)
     assert "interactor.cpp" not in statuses
-    assert "statement/interaction.tex" not in statuses
+    assert "statement/ru/interaction.tex" not in statuses
 
 
 def test_pull_plain_problem_reports_local_interactor(problems_dir, polygon):
@@ -1422,3 +1421,47 @@ def test_cli_pull_prints_warnings_as_a_group_after_progress(
     warnings = out.split("=== warnings ===\n")[1].split("\n\n")[0].splitlines()
     assert len(warnings) == 1 and warnings[0].startswith("solutions/sol.cpp: the name does not")
     assert out.index("  solutions...") < out.index("=== warnings ===")
+
+
+# --- языки условия ----------------------------------------------------------
+
+
+def test_pull_puts_every_language_into_its_directory(problems_dir, polygon):
+    polygon.statements["english"] = {
+        "name": "English Name",
+        "legend": "EL",
+        "input": "EI",
+        "output": "EO",
+        "notes": "",
+        "tutorial": "ET\n",
+    }
+    polygon.statements["latvian"] = {"name": "LV", "legend": "LL", "input": "", "output": "", "notes": ""}
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    statement_dir = problems_dir / PROBLEM_ID / "statement"
+    assert result.ok
+    assert (statement_dir / "en" / "legend.tex").read_text() == "EL"
+    assert (statement_dir / "en" / "notes.tex").read_text() == ""
+    assert (statement_dir / "en" / "tutorial.tex").read_text() == "ET\n"
+    assert (statement_dir / "en" / "name.txt").read_text() == "English Name\n"
+    # Язык без кода — каталог с именем Polygon.
+    assert (statement_dir / "latvian" / "legend.tex").read_text() == "LL"
+    assert (statement_dir / "ru" / "legend.tex").read_text() == "L"
+    assert sorted(path.name for path in statement_dir.iterdir()) == ["en", "examples", "latvian", "ru"]
+    assert _statuses(result)["statement/en/legend.tex"] == ITEM_DOWNLOADED
+    assert "statement/en/name" in _synced(problems_dir)
+    assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_local_language_missing_on_polygon_is_local_only(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _write(problems_dir / PROBLEM_ID, "statement/en/legend.tex", "local")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    statuses = _statuses(result)
+    assert statuses["statement/en/legend.tex"] == ITEM_LOCAL_ONLY
+    # Файлов, которых нет ни там, ни там, отчёт не упоминает.
+    assert "statement/en/notes.tex" not in statuses
+    assert (problems_dir / PROBLEM_ID / "statement/en/legend.tex").read_text() == "local"

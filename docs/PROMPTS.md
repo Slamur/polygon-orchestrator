@@ -87,7 +87,7 @@ Polygon, шагам не прикладывается. `interactive.md` (пра�
 
 | Шаг | Всегда (`templates/`) | Из каталога-референса |
 |-----|--------------------|-----------------------|
-| `statement_draft` | `statement.md` | `spec.yaml`, `statement/*.tex` |
+| `statement_draft` | `statement.md` | `spec.yaml`, `statement/<язык>/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
 | `tests_plan` | `tests.md`, `tests_plan_format.yaml` | `spec.yaml`, `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `tests.md`, `problem_lib.h` | `tests_plan.yaml`, `generators/*.cpp` |
@@ -146,7 +146,7 @@ testlib, композицию генераторов, устройство `wa`/
   пояснения к примерам, блоки условия в Polygon и LaTeX.
 
 Кроме правил могут быть приложены образцы — условия других задач
-(statement/*.tex), которые автор указал в спеке как референсы; образцов
+(statement/<язык>/*.tex), которые автор указал в спеке как референсы; образцов
 может не быть вовсе. Заголовок приложенного документа — путь к файлу:
 файлы из одного каталога относятся к одной задаче, разные каталоги — разные
 задачи. Ни одна из них не имеет отношения к твоей. Если в каталоге есть
@@ -206,7 +206,8 @@ spec.yaml — это спек той задачи: сопоставь её `stat
    statement.md (например, "$1 \le N \le 10^9$").
 8. Все `.tex`-файлы — LaTeX, а не Markdown: списки — только окружениями
    `itemize`/`enumerate` с `\item` (не строками, начинающимися с `-`, `*`
-   или `1.`), кавычки — `<<...>>` (не `"..."`, `“...”` или `«...»`), см.
+   или `1.`), кавычки — по правилу statement.md для языка условия (в
+   русском тексте — `<<...>>`, не `"..."`, `“...”` или `«...»`), см.
    statement.md.
 
 Если для формального описания ввода/вывода или для примечаний не хватает
@@ -256,6 +257,10 @@ spec.yaml — это спек той задачи: сопоставь её `stat
 
 ```
 Спек задачи (problem_id: {{ problem_id }}):
+
+## Язык условия
+Пиши условие на этом языке: {{ language }} — даже если черновики автора
+ниже написаны на другом.
 
 ## Легенда (черновик автора)
 {{ statement_draft.legend_sketch }}
@@ -1493,13 +1498,16 @@ proposed` с обоснованием в `notes`.
 
 Отвечай строго в формате JSON из контракта (status/artifacts/notes). `artifacts`
 — один файл `tutorial.tex`: только тело разбора, без `\documentclass`, преамбулы
-и `\begin{document}`. Пиши на языке драфта.
+и `\begin{document}`. Пиши на языке условия, указанном в сообщении, — даже если
+драфт написан на другом.
 ```
 
 ### user.md.j2
 
 ```
 Задача problem_id: {{ problem_id }}.
+
+Язык условия и разбора: {{ language }}.
 
 ## Драфт разбора (от автора)
 

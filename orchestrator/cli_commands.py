@@ -56,6 +56,7 @@ from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.checks.statement_check import (
     FIX_BACKUP_DIRNAME,
+    QUOTES_LANGUAGE,
     STATEMENT_DIRNAME,
     check_text as check_statement_text,
     fix_text as fix_statement_text,
@@ -84,7 +85,7 @@ from orchestrator.llm_report import (
     write_spec_from_draft_report,
     write_step_report,
 )
-from orchestrator.problem_paths import EXAMPLES_DIR
+from orchestrator.problem_paths import EXAMPLES_DIR, ProblemPathError
 from orchestrator.spec import (
     SpecInitError,
     prepare_spec_init,
@@ -605,11 +606,15 @@ def cmd_local_check(args: argparse.Namespace) -> int:
         print(f"no problem directory {problem_dir}", file=sys.stderr)
         return 1
     failed = False
-    tex_files = statement_files(problem_dir)
+    try:
+        tex_files = statement_files(problem_dir)
+    except ProblemPathError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if tex_files:
         failed |= not _check_statement(problem_dir, tex_files)
     else:
-        print(f"no statement ({STATEMENT_DIRNAME}/*.tex) — skipped")
+        print(f"no statement ({STATEMENT_DIRNAME}/<language>/*.tex) — skipped")
     scripts_ok = _check_scripts(problem_dir)
     failed |= not scripts_ok
     if args.full:
@@ -707,16 +712,23 @@ def _check_scripts(problem_dir: Path) -> bool:
     return ok
 
 
-def _check_statement(problem_dir: Path, tex_files: list[Path]) -> bool:
+def _check_statement(problem_dir: Path, tex_files: list[tuple[Path, str]]) -> bool:
     issues = [
         issue
-        for path in tex_files
+        for path, language in tex_files
         for issue in check_statement_text(
-            path.read_text(encoding="utf-8"), path.relative_to(problem_dir).as_posix()
+            path.read_text(encoding="utf-8"),
+            path.relative_to(problem_dir).as_posix(),
+            quotes=language == QUOTES_LANGUAGE,
         )
     ]
     if not issues:
-        print(f"{STATEMENT_DIRNAME}: ok, no Markdown lists, all quotes are <<...>>")
+        quotes = (
+            ", all quotes are <<...>>"
+            if any(language == QUOTES_LANGUAGE for _, language in tex_files)
+            else ""
+        )
+        print(f"{STATEMENT_DIRNAME}: ok, no Markdown lists{quotes}")
         return True
     print(f"{STATEMENT_DIRNAME}: {len(issues)} formatting issue(s):")
     for issue in issues:
@@ -734,18 +746,26 @@ def cmd_local_fix(args: argparse.Namespace) -> int:
     загрузит изменённые файлы как обычно. Код возврата 1 — если остались
     проблемы, которые нужно исправить руками (непарные кавычки)."""
     problem_dir = Path(args.problems_dir) / args.problem_id
-    tex_files = statement_files(problem_dir)
+    try:
+        tex_files = statement_files(problem_dir)
+    except ProblemPathError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     if not tex_files:
-        print(f"no statement in {problem_dir / STATEMENT_DIRNAME} (*.tex)", file=sys.stderr)
+        print(
+            f"no statement in {problem_dir / STATEMENT_DIRNAME} (<language>/*.tex)",
+            file=sys.stderr,
+        )
         return 1
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     backup_dir = problem_dir / FIX_BACKUP_DIRNAME / stamp
     changed = False
     remaining = []
-    for path in tex_files:
+    for path, language in tex_files:
         name = path.relative_to(problem_dir).as_posix()
         text = path.read_text(encoding="utf-8")
-        fixed = fix_statement_text(text)
+        quotes = language == QUOTES_LANGUAGE
+        fixed = fix_statement_text(text, quotes=quotes)
         if fixed != text:
             target = backup_dir / name
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -753,7 +773,7 @@ def cmd_local_fix(args: argparse.Namespace) -> int:
             path.write_text(fixed, encoding="utf-8")
             changed = True
             print(f"  {name}: fixed")
-        remaining.extend(check_statement_text(fixed, name))
+        remaining.extend(check_statement_text(fixed, name, quotes=quotes))
     if changed:
         print(f"old versions: {backup_dir}")
     else:

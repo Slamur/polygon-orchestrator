@@ -409,6 +409,20 @@ def _run_problem(args: argparse.Namespace, problem_path: str) -> int:
         return 1
     for source, target in moves:
         print(f"moved {source} -> {target}", file=sys.stderr)
+    # Так же — условие, лежащее прямо в `statement/`: в каталог своего языка.
+    from orchestrator.statement_languages import migrate_statement_languages
+
+    try:
+        moved = migrate_statement_languages(problem_dir)
+    except ProblemPathError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if moved is not None:
+        language, names = moved
+        print(
+            f"moved {len(names)} statement file(s) of {problem_dir} into statement/{language}/",
+            file=sys.stderr,
+        )
 
     from orchestrator import cli_commands
 

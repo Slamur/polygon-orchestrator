@@ -23,9 +23,11 @@ from orchestrator.steps.base import (
     StepRevision,
     check_artifact_names,
     existing_artifacts,
+    language_input,
     run_generative_step,
     with_default_lists,
 )
+from orchestrator.statement_languages import EXAMPLES_DIRNAME, STATEMENT_DIRNAME, language_name
 
 STEP_NAME = "statement_draft"
 
@@ -33,7 +35,7 @@ STEP_NAME = "statement_draft"
 # делает {% for %} без проверки на null (см. base.with_default_lists).
 _LIST_FIELDS = ["known_ambiguities"]
 
-STATEMENT_SUBDIR = "statement"
+STATEMENT_SUBDIR = STATEMENT_DIRNAME
 _FIXED_STATEMENT_FILES = ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]
 _EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 
@@ -85,13 +87,15 @@ def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
 def _section_data(spec: ProblemSpec) -> dict[str, Any]:
     """Секция `statement_draft` для промпта и хеша. `interaction_sketch`
     только у интерактивной задачи — у обычной поля в хеше нет, как и до его
-    появления (иначе его добавление инвалидировало бы кэш всех задач)."""
+    появления (иначе его добавление инвалидировало бы кэш всех задач).
+    Язык условия (`language` спека) — так же, только не `DEFAULT_LANGUAGE`."""
     exclude = set(SPEC_REFERENCES_FIELD)
     if not spec.interactive:
         exclude.add("interaction_sketch")
-    return with_default_lists(
+    section = with_default_lists(
         spec.statement_draft.model_dump(mode="json", exclude=exclude), _LIST_FIELDS
     )
+    return {**section, **language_input(spec)}
 
 
 def _example_inputs(spec: ProblemSpec) -> dict[str, str]:
@@ -109,7 +113,7 @@ def _stale_example_inputs(
 ) -> dict[str, Path]:
     """`example_<N>.txt` на диске, которых больше нет в `sample_examples`
     (примеров стало меньше), — их пометят `.removed`."""
-    examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / "examples"
+    examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / EXAMPLES_DIRNAME
     if not examples_dir.is_dir():
         return {}
     n = len(spec.statement_draft.sample_examples)
@@ -159,9 +163,24 @@ def primary_artifact_path(
     """Как у `solutions_draft` — каталог, а не файл: `pipeline.py` считает
     кэш валидным, если каталог существует и не пуст. Раньше здесь был путь к
     единственному `statement.tex` — теперь у шага несколько файлов в
-    подпапке `statement/`.
+    каталоге языка условия `statement/<код>/`.
     """
-    return Path(problems_dir) / problem_id / STATEMENT_SUBDIR
+    return language_dir(problem_id, spec, problems_dir=problems_dir)
+
+
+def language_dir(problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR) -> Path:
+    """Каталог условия на языке генерации (`language` спека): `statement/<код>/`."""
+    return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / spec.language
+
+
+def artifact_path(
+    problem_id: str, spec: ProblemSpec, filename: str, *, problems_dir: Path = PROBLEMS_DIR
+) -> Path:
+    """Путь артефакта шага по его имени в ответе модели: `examples/...` —
+    в общем `statement/examples/`, tex-файлы — в каталоге языка генерации."""
+    if filename.startswith(f"{EXAMPLES_DIRNAME}/"):
+        return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / filename
+    return language_dir(problem_id, spec, problems_dir=problems_dir) / filename
 
 
 def current_artifacts(
@@ -177,11 +196,11 @@ def current_artifacts(
     `example_<N>.verify_for_statement.txt`, `name.txt` (его пишут
     `polygon push`/`pull`) и разбор `tutorial.tex` (его пишет автор, `polygon
     pull` или шаг `tutorial_draft`)."""
-    statement_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR
     candidates = {
-        name: statement_dir / name for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
+        name: artifact_path(problem_id, spec, name, problems_dir=problems_dir)
+        for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
     }
-    examples_dir = statement_dir / "examples"
+    examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / EXAMPLES_DIRNAME
     examples = (
         examples_dir.glob("example_*.txt") if spec.interactive and examples_dir.is_dir() else []
     )
@@ -241,7 +260,7 @@ def run_step(
     `StepUncertainError`, не записав ни одного файла (см. "Правило эскалации
     при неуверенности").
 
-    При успехе пишет в `problems/<problem_id>/statement/` 4 фиксированных
+    При успехе пишет в `problems/<problem_id>/statement/<код языка>/` 4 фиксированных
     файла (`legend.tex`, `input_format.tex`, `output_format.tex`,
     `notes.tex`) и по одному `examples/example_<N>.txt` на каждый элемент
     `sample_examples` (только input примера — копия из спека, её пишет
@@ -261,14 +280,18 @@ def run_step(
     только ради общей сигнатуры `run_step(problem_id, spec,
     upstream_artifacts)` у всех шагов.
     """
-    context = {"problem_id": spec.problem_id, "statement_draft": _section_data(spec)}
+    context = {
+        "problem_id": spec.problem_id,
+        "language": language_name(spec.language),
+        "statement_draft": _section_data(spec),
+    }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 
     def resolve_artifact_path(filename: str) -> Path:
         # filename приходит как "legend.tex" или "examples/example_1.txt" —
         # вложенный каталог создаст _write_artifacts (parent.mkdir).
-        return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / filename
+        return artifact_path(problem_id, spec, filename, problems_dir=problems_dir)
 
     expected = _expected_artifact_names(spec)
 

@@ -84,6 +84,7 @@ from orchestrator.problem_paths import (
     is_authoring_name,
     is_removed_mark,
 )
+from orchestrator.statement_languages import DEFAULT_LANGUAGE
 
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
@@ -384,6 +385,14 @@ def with_default_lists(data: dict[str, Any], list_fields: list[str]) -> dict[str
         if result.get(key) is None:
             result[key] = []
     return result
+
+
+def language_input(spec: Any) -> dict[str, Any]:
+    """Язык условия (`language` спека) как часть входа шага, который пишет
+    текст на нём (`statement_draft`, `tutorial_draft`): у `DEFAULT_LANGUAGE`
+    ключа нет — его появление в спеке не инвалидировало кэш этих шагов у
+    задач, написанных до него."""
+    return {} if spec.language == DEFAULT_LANGUAGE else {"language": spec.language}
 
 
 def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[str, Any]:

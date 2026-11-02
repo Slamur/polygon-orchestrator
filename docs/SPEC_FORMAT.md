@@ -56,9 +56,10 @@
 
 ```yaml
 problem_id: unique-slug            # [required] латиница; выводится из пути каталога задачи (см. ниже)
+language: ru                       # [optional] основной язык условия: ru (по умолчанию) | en, см. "Языки условия"
 title:
-  ru: "Название на русском"        # [required] начальное название на Polygon; дальше источник — problems/<путь задачи>/statement/name.txt
-  en: "English title"              # [optional]
+  ru: "Название на русском"        # [required у language: ru] начальное название на Polygon; дальше источник — problems/<путь задачи>/statement/ru/name.txt
+  en: "English title"              # [required у language: en, иначе optional]; то же для statement/en/
 references:                        # [optional] общие референсы — образцы для ВСЕХ шагов, см. "Референсы" ниже
   - "examples/array/prefix-sums"
 
@@ -263,6 +264,35 @@ interactor:
 (`upload_statement`). Чекер у интерактивной задачи остаётся: он сравнивает
 то, что интерактор записал в tout.
 
+## Языки условия
+
+Условие каждого языка лежит в каталоге `problems/<путь задачи>/statement/<код>/`
+— `legend.tex`, `input_format.tex`, `output_format.tex`, `notes.tex`
+(+ `interaction.tex`, `tutorial.tex`) и `name.txt`; примеры общие для всех
+языков (`statement/examples/`). Код — `ru`, `en`, `kk`, … (таблица
+`POLYGON_LANGUAGES` в `orchestrator/statement_languages.py`: код -> имя языка в
+Polygon, `ru` -> `russian`); язык Polygon без кода в таблице — каталог с самим
+именем Polygon. Каталог с именем Polygon языка, у которого есть код
+(`statement/russian/`), — ошибка.
+
+`language` — основной язык условия, код: `ru` (по умолчанию) или `en`. На нём
+пишут `statement_draft` и `tutorial_draft` (даже если наброски автора — на
+другом языке), в `statement/<language>/`; обязательное название — `title` на
+этом языке. В хеш входа этих двух шагов `language` входит, только если он не
+`ru`, — поэтому его появление не сделало `stale` ни одну старую задачу.
+
+Остальные языки — только на уровне Polygon, модель их не пишет: каталог
+пишет автор или скачивает `polygon pull`; `polygon push` загружает каждый язык
+отдельно (`upload_statement`), а `name.txt` без файла берётся из `title` спека,
+если там есть название на этом языке. `local check|fix` проверяют все языки;
+кавычки `<<…>>` — только в `ru`. Смена `language` — просто другой каталог для
+генерации: условие прежнего языка остаётся в своём каталоге и на Polygon.
+
+Задачу, у которой условие лежит прямо в `statement/` (раскладка до языков),
+первая же команда к ней переносит в `statement/<language>/` вместе с ключами
+базы синхронизации (`migrate_statement_languages`): push после переноса не
+загружает условие заново.
+
 ## Почему именно так
 
 - **`intended_complexity` и `complexity_reasoning` обязательны в `constraints`.**
@@ -308,7 +338,7 @@ interactor:
 
 | Шаг | Файлы из каталога |
 |-----|-------------------|
-| `statement_draft` | `statement/*.tex`, кроме разбора `tutorial.tex` (у интерактивной задачи — и `interaction.tex`) |
+| `statement_draft` | `statement/<основной язык образца>/*.tex` (у не перенесённого образца — `statement/*.tex`), кроме разбора `tutorial.tex` (у интерактивной задачи — и `interaction.tex`) |
 | `constraints_pick` | `authoring/constraints.yaml`, `validator.cpp` |
 | `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `authoring/tests_plan.yaml`, `generators/*.cpp` (без спека — пара "план → генераторы") |

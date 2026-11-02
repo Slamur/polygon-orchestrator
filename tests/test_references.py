@@ -151,6 +151,18 @@ def test_statement_reference_skips_tutorial(spec, tmp_path):
     assert documents == [str(directory / "authoring" / "spec.yaml"), str(legend)]
 
 
+def test_statement_reference_takes_its_main_language(spec, tmp_path):
+    directory = _reference_dir(tmp_path)
+    (directory / "authoring" / "spec.yaml").write_text("language: en\n", encoding="utf-8")
+    legend = _write(directory / "statement" / "en" / "legend.tex")
+    _write(directory / "statement" / "en" / "tutorial.tex")
+    _write(directory / "statement" / "ru" / "legend.tex")
+
+    documents = reference_documents("statement_draft", _with_common(spec, [directory]))
+
+    assert documents == [str(directory / "authoring" / "spec.yaml"), str(legend)]
+
+
 def test_common_file_reference_goes_to_every_step(spec, tmp_path):
     file_ref = _write(tmp_path / "notes.md")
     spec = _with_common(spec, [file_ref])

@@ -36,19 +36,22 @@ from orchestrator.problem_paths import (
     is_removed_mark,
 )
 from orchestrator.spec import SPEC_FILENAME, ProblemSpec
+from orchestrator.statement_languages import read_spec_language
 
 # Что каждый шаг берёт из каталога-референса: пути относительно каталога,
 # запись с `*` — glob (файлы в отсортированном порядке); спек и
 # `constraints.yaml` — из `authoring/` (`problem_paths.find_authoring_file`). `spec.yaml`
 # прикладывается, только если из каталога взят хотя бы один другой файл —
 # спек без результата образцом не служит. Файлы, помеченные шагом как
-# удалённые (`<имя>.removed`), и разбор `statement/tutorial.tex` (по драфту автора, не
-# образец условия) под glob не попадают. Шаги подготовки тестов
+# удалённые (`<имя>.removed`), и разбор `tutorial.tex` (по драфту автора, не
+# образец условия) под glob не попадают. `{language}` — основной язык условия
+# каталога-референса (`read_spec_language`); `statement/*.tex` — условие
+# задачи, ещё не перенесённой в каталоги языков. Шаги подготовки тестов
 # берут пары "вход → результат" своего уровня: `tests_plan` — спек → план (и
 # скрипт, если плана у образца нет), `generators_draft` — план → генераторы,
 # `test_script_draft` — план → скрипт.
 REFERENCE_DOCUMENTS: dict[str, list[str]] = {
-    "statement_draft": [SPEC_FILENAME, "statement/*.tex"],
+    "statement_draft": [SPEC_FILENAME, "statement/{language}/*.tex", "statement/*.tex"],
     "constraints_pick": [SPEC_FILENAME, "constraints.yaml", "validator.cpp"],
     "tests_plan": [
         SPEC_FILENAME,
@@ -156,6 +159,7 @@ def _directory_files(
     spec_file: Optional[Path] = None
     files: list[Path] = []
     for entry in REFERENCE_DOCUMENTS[step_name]:
+        entry = entry.format(language=read_spec_language(directory)) if "{" in entry else entry
         if entry == SPEC_FILENAME:
             candidate = find_authoring_file(directory, SPEC_FILENAME)
             spec_file = candidate if candidate.is_file() else None

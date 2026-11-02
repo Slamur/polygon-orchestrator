@@ -809,8 +809,9 @@ def _write_generated_outputs(problems_dir: Path) -> None:
     (problem_dir / "validator.cpp").write_text("int main() {}\n", encoding="utf-8")
     statement_dir = problem_dir / "statement"
     (statement_dir / "examples").mkdir(parents=True, exist_ok=True)
+    (statement_dir / "ru").mkdir(exist_ok=True)
     for name in ("legend.tex", "input_format.tex", "output_format.tex", "notes.tex"):
-        (statement_dir / name).write_text("text\n", encoding="utf-8")
+        (statement_dir / "ru" / name).write_text("text\n", encoding="utf-8")
     (statement_dir / "examples" / "example_1.txt").write_text("1\n", encoding="utf-8")
     generators_dir = problem_dir / "generators"
     generators_dir.mkdir(parents=True, exist_ok=True)

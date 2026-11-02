@@ -182,7 +182,7 @@ def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tm
     out = capsys.readouterr().out
     assert "statement_draft: confirmed — saved model response applied" in out
     assert "constraints_pick: nothing to apply" in out
-    assert (problems_dir / "p1" / "statement" / "legend.tex").is_file()
+    assert (problems_dir / "p1" / "statement" / "ru" / "legend.tex").is_file()
 
 
 def test_status_reports_not_run_before_any_run(problems_dir, tmp_path, capsys):

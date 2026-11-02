@@ -13,7 +13,15 @@ from pathlib import Path
 from typing import Literal, Optional, Union
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from orchestrator.problem_paths import (
     PROBLEM_ID_PATTERN,
@@ -26,6 +34,7 @@ from orchestrator.problem_paths import (
     problem_address,
     problem_id_for,
 )
+from orchestrator.statement_languages import DEFAULT_LANGUAGE, GENERATION_LANGUAGES
 
 # `references` секций — какие образцы приложить к вызову (их содержимое входит
 # в `compute_prompt_hash`, см. orchestrator/references.py), а не содержание
@@ -71,15 +80,18 @@ class SpecValidationError(Exception):
 
 
 class Title(BaseModel):
+    """Название задачи по языкам; обязательно — на основном языке условия
+    (`ProblemSpec._check_title`)."""
+
     model_config = ConfigDict(extra="forbid")
 
-    ru: str
+    ru: Optional[str] = None
     en: Optional[str] = None
 
-    @model_validator(mode="after")
-    def _check_ru(self) -> "Title":
-        _non_blank(self.ru, "title.ru")
-        return self
+    def for_language(self, code: str) -> Optional[str]:
+        """Название на языке с кодом `code` (`ru`); `None` — не задано."""
+        value = getattr(self, code, None) if code in type(self).model_fields else None
+        return value if value and value.strip() else None
 
 
 class SampleExample(BaseModel):
@@ -270,6 +282,10 @@ class ProblemSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     problem_id: str
+    # Основной язык условия (код): на нём пишут шаги модели, его условие — в
+    # `statement/<код>/` (см. `orchestrator/statement_languages.py`). Объявлен
+    # до `title`: его проверка (`_check_title`) читает язык.
+    language: Literal[tuple(GENERATION_LANGUAGES)] = DEFAULT_LANGUAGE  # type: ignore[valid-type]
     title: Title
     references: Optional[list[str]] = None
     statement_draft: StatementDraft
@@ -291,6 +307,16 @@ class ProblemSpec(BaseModel):
                 "(letters/digits/'-'/'_', starting with a letter), see SPEC_FORMAT.md"
             )
         return self
+
+    @field_validator("title")
+    @classmethod
+    def _check_title(cls, title: Title, info: ValidationInfo) -> Title:
+        # Полевой, а не на всю модель: ошибка видна вместе с остальными. Язык
+        # с ошибкой (его нет в `info.data`) проверяется сам по себе.
+        language = info.data.get("language")
+        if language is not None:
+            _non_blank(getattr(title, language) or "", f"title.{language}")
+        return title
 
     @model_validator(mode="after")
     def _check_interactive(self) -> "ProblemSpec":

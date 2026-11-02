@@ -569,7 +569,7 @@ def test_pipeline_revises_stale_step_with_spec_diff(spec_file, tmp_path):
     assert "#### `spec: legend_sketch`" in prompt
     assert "Edited." in prompt
     assert "#### `legend.tex`" in prompt
-    assert (problems_dir / "p1" / "statement" / "legend.tex").read_text() == "edited tex"
+    assert (problems_dir / "p1" / "statement" / "ru" / "legend.tex").read_text() == "edited tex"
 
 
 def test_pipeline_fresh_ignores_cache_and_current_files(spec_file, tmp_path):
@@ -638,7 +638,7 @@ def test_statement_current_artifacts_skip_name_and_example_inputs(tmp_path):
 
     statement = tmp_path / "p1" / "statement"
     for name in ("legend.tex", "notes.tex", "name.txt"):
-        _touch(statement / name)
+        _touch(statement / "ru" / name)
     for name in ("example_10.txt", "example_2.txt", "example_1.txt", "example_3.txt.removed"):
         _touch(statement / "examples" / name)
 

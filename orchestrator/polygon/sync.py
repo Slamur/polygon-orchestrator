@@ -16,7 +16,8 @@
 
 Ключ — путь файла относительно `problems/<problem_id>/` (или
 `templates/` для `problem_lib.h`), кроме нескольких "не-файлов":
-TL/ML, имя назначенного валидатора/чекера, название задачи в условии.
+TL/ML, имя назначенного валидатора/чекера, название задачи в условии
+каждого языка.
 Хеш всегда считается от того, что лежит/легло бы локально, — поэтому
 `push` и `pull` получают одинаковые значения для одинакового содержимого.
 
@@ -57,7 +58,6 @@ CHECKER_KEY = "checker"  # имя назначенного чекера (`checke
 INTERACTIVE_KEY = "interactive"  # флаг интерактивности задачи (`problem.updateInfo`)
 INTERACTOR_FILE_KEY = "interactor.cpp"
 INTERACTOR_KEY = "interactor"  # имя назначенного интерактора
-STATEMENT_NAME_KEY = "statement/name"
 SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
 # Attachments — файлы `authoring/` каталога задачи; на Polygon и в базе — по
 # имени файла, без каталога.
@@ -92,8 +92,15 @@ def is_attachment_name(name: str) -> bool:
     return is_authoring_name(name)
 
 
-def statement_file_key(filename: str) -> str:
-    return f"statement/{filename}"
+def statement_file_key(filename: str, language: str) -> str:
+    """Ключ файла условия на языке `language` (код, `ru`) — как файл лежит
+    локально: `statement/<код>/<файл>`."""
+    return f"statement/{language}/{filename}"
+
+
+def statement_name_key(language: str) -> str:
+    """Ключ названия задачи в условии на языке `language` (`name.txt`)."""
+    return f"statement/{language}/name"
 
 
 def example_key(number: int) -> str:
@@ -158,7 +165,6 @@ _KEY_LABELS = {
     CHECKER_KEY: "checker assignment",
     INTERACTOR_KEY: "interactor assignment",
     INTERACTIVE_KEY: "interactive flag",
-    STATEMENT_NAME_KEY: "statement/name.txt",
     SCRIPT_KEY: "test script",
 }
 # Назначение -> файл, при загрузке которого назначение отдельно не показывается.
@@ -176,10 +182,20 @@ def describe_keys(keys: Iterable[str]) -> list[str]:
     строка, файл."""
     keys = list(keys)
     return [
-        _KEY_LABELS.get(key) or (f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else key)
+        _KEY_LABELS.get(key)
+        or (f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else _statement_label(key))
         for key in keys
         if _ASSIGNED_FILES.get(key) not in keys
     ]
+
+
+def _statement_label(key: str) -> str:
+    """Название в условии (`statement_name_key`) — файлом `name.txt`;
+    остальные ключи и есть пути."""
+    parts = key.split("/")
+    if len(parts) == 3 and parts[0] == "statement" and parts[2] == "name":
+        return f"{key}.txt"
+    return key
 
 
 def is_stamped_key(key: str) -> bool:

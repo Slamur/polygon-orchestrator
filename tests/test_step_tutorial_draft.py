@@ -42,8 +42,8 @@ def problem_dir(problems_dir):
         spec.replace("problem_id: valid-spec", "problem_id: p1"),
     )
     _write(directory / "authoring" / "draft-tutorial.md", DRAFT_TEXT)
-    _write(directory / "statement" / "legend.tex", "legend text\n")
-    _write(directory / "statement" / "input_format.tex", "input text\n")
+    _write(directory / "statement" / "ru" / "legend.tex", "legend text\n")
+    _write(directory / "statement" / "ru" / "input_format.tex", "input text\n")
     _write(directory / "solutions" / "ok.cpp", "// ok solution\n")
     _write(directory / "solutions" / "wa_greedy.cpp", "// wa solution\n")
     return directory
@@ -99,7 +99,7 @@ def test_writes_tutorial_from_draft_statement_and_refs(problems_dir, problem_dir
     result, mock_call = _generate(problems_dir, tutorial_refs=["ok.cpp"])
 
     assert _outcome(result).status == "confirmed"
-    assert (problem_dir / "statement" / "tutorial.tex").read_text(encoding="utf-8") == "tutorial\n"
+    assert (problem_dir / "statement" / "ru" / "tutorial.tex").read_text(encoding="utf-8") == "tutorial\n"
     prompt = _user_prompt(mock_call)
     assert DRAFT_TEXT.strip() in prompt
     assert "legend text" in prompt
@@ -137,8 +137,8 @@ def test_ref_outside_solutions_is_an_error(problems_dir, problem_dir, ref):
     "prepare",
     [
         lambda d: _write(d / "authoring" / "draft-tutorial.md", "  \n"),
-        lambda d: (d / "statement" / "legend.tex").unlink()
-        or (d / "statement" / "input_format.tex").unlink(),
+        lambda d: (d / "statement" / "ru" / "legend.tex").unlink()
+        or (d / "statement" / "ru" / "input_format.tex").unlink(),
     ],
     ids=["empty draft", "no statement"],
 )
@@ -170,7 +170,7 @@ def test_removed_solution_cannot_be_a_ref(problems_dir, problem_dir):
 
 
 def test_existing_tutorial_does_not_get_into_the_statement_input(problems_dir, problem_dir):
-    _write(problem_dir / "statement" / "tutorial.tex", "hand written\n")
+    _write(problem_dir / "statement" / "ru" / "tutorial.tex", "hand written\n")
 
     inputs = tutorial_draft.read_inputs("p1", [], problems_dir=problems_dir)
 
@@ -178,19 +178,19 @@ def test_existing_tutorial_does_not_get_into_the_statement_input(problems_dir, p
 
 
 def test_handwritten_tutorial_is_revised_and_backed_up(problems_dir, problem_dir):
-    _write(problem_dir / "statement" / "tutorial.tex", "hand written\n")
+    _write(problem_dir / "statement" / "ru" / "tutorial.tex", "hand written\n")
 
     _, mock_call = _generate(problems_dir)
 
     prompt = _user_prompt(mock_call)
     assert "Режим доработки" in prompt
     assert "hand written" in prompt
-    backups = list((problem_dir / ".llm_backup").glob("*/statement/tutorial.tex"))
+    backups = list((problem_dir / ".llm_backup").glob("*/statement/ru/tutorial.tex"))
     assert [path.read_text(encoding="utf-8") for path in backups] == ["hand written\n"]
 
 
 def test_fresh_does_not_show_the_current_tutorial(problems_dir, problem_dir):
-    _write(problem_dir / "statement" / "tutorial.tex", "hand written\n")
+    _write(problem_dir / "statement" / "ru" / "tutorial.tex", "hand written\n")
 
     _, mock_call = _generate(problems_dir, fresh=True)
 
@@ -251,23 +251,27 @@ def test_changed_unrelated_solution_keeps_the_cache(problems_dir, problem_dir):
 
 
 @pytest.mark.parametrize(
-    "path",
-    ["authoring/draft-tutorial.md", "statement/legend.tex"],
+    "path, part",
+    [
+        ("authoring/draft-tutorial.md", "authoring/draft-tutorial.md"),
+        # Часть входа — без каталога языка: перенос раскладки хеш не меняет.
+        ("statement/ru/legend.tex", "statement/legend.tex"),
+    ],
 )
-def test_changed_draft_or_statement_makes_the_step_stale(problems_dir, problem_dir, path):
+def test_changed_draft_or_statement_makes_the_step_stale(problems_dir, problem_dir, path, part):
     _generate(problems_dir)
 
     _write(problem_dir / path, "changed\n")
 
     status = _status(problems_dir)
     assert status.state == pipeline.STATUS_STALE
-    assert path in status.detail
+    assert part in status.detail
 
 
 def test_manual_edit_of_the_tutorial_does_not_make_the_step_stale(problems_dir, problem_dir):
     _generate(problems_dir)
 
-    _write(problem_dir / "statement" / "tutorial.tex", "edited by hand\n")
+    _write(problem_dir / "statement" / "ru" / "tutorial.tex", "edited by hand\n")
 
     assert _status(problems_dir).state == pipeline.STATUS_CACHE_HIT
 
@@ -297,7 +301,7 @@ def test_apply_uses_the_refs_of_the_saved_response(problems_dir, problem_dir):
     bad = ModelResponse(status="confirmed", artifacts={"other.tex": "x"}, notes=[])
     with patch("orchestrator.model_router.call_model", return_value=bad):
         _run(problems_dir, tutorial_refs=["ok.cpp"])
-    assert not (problem_dir / "statement" / "tutorial.tex").exists()
+    assert not (problem_dir / "statement" / "ru" / "tutorial.tex").exists()
 
     status = _status(problems_dir)
     assert "llm apply --step tutorial_draft" in status.detail
@@ -419,3 +423,20 @@ def test_ref_completion_tolerates_no_solutions(tmp_path):
     )
 
     assert cli._complete_solution_names("", args) == []
+
+
+def test_tutorial_is_written_in_the_language_of_the_spec(problems_dir, problem_dir):
+    _, mock_call = _generate(problems_dir)
+    assert "Язык условия и разбора: русский" in _user_prompt(mock_call)
+    assert _status(problems_dir).state == pipeline.STATUS_CACHE_HIT
+
+    spec_path = problem_dir / "authoring" / "spec.yaml"
+    spec_path.write_text("language: en\n" + spec_path.read_text(encoding="utf-8"))
+    _write(problem_dir / "statement" / "en" / "legend.tex", "english legend\n")
+
+    assert _status(problems_dir).state == pipeline.STATUS_STALE
+    _, mock_call = _generate(problems_dir)
+    prompt = _user_prompt(mock_call)
+    assert "Язык условия и разбора: английский" in prompt
+    assert "english legend" in prompt and "legend text" not in prompt
+    assert (problem_dir / "statement" / "en" / "tutorial.tex").is_file()

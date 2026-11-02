@@ -73,11 +73,12 @@ def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
 
     assert result.status == "confirmed"
     statement_dir = tmp_path / "valid-spec" / "statement"
-    # и плоские имена, и вложенные examples/... раскладываются под statement/
+    # tex-файлы — в каталог языка генерации, examples/... — в общий statement/examples/
     assert result.artifact_paths == {
-        name: statement_dir / name for name in [*artifacts, *_example_names(2)]
+        **{name: statement_dir / "ru" / name for name in artifacts},
+        **{name: statement_dir / name for name in _example_names(2)},
     }
-    assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == "legend"
+    assert (statement_dir / "ru" / "legend.tex").read_text(encoding="utf-8") == "legend"
     # input примеров — копия из спека, его пишет оркестратор, а не модель
     assert (statement_dir / "examples" / "example_1.txt").read_text(encoding="utf-8") == "1\n"
     assert (statement_dir / "examples" / "example_2.txt").read_text(encoding="utf-8") == "2\n"
@@ -117,14 +118,14 @@ def test_mismatched_artifacts_are_not_applied_at_all(spec, tmp_path):
     assert all(
         reason == "the response is not applied as a whole" for _, reason in result.conflicts
     )
-    assert (result.conflicts_dir / "statement" / "legend.tex").is_file()
+    assert (result.conflicts_dir / "statement" / "ru" / "legend.tex").is_file()
     # Не применено ничего — ответ остаётся для `llm apply`.
     assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
 
 
 def test_primary_artifact_path_is_statement_dir(spec, tmp_path):
     path = primary_artifact_path("valid-spec", spec, problems_dir=tmp_path)
-    assert path == tmp_path / "valid-spec" / "statement"
+    assert path == tmp_path / "valid-spec" / "statement" / "ru"
     assert path.suffix == ""
 
 
@@ -294,7 +295,7 @@ def test_interactive_writes_protocol_and_dialogues(interactive_spec, tmp_path):
         )
 
     statement_dir = tmp_path / "interactive-spec" / "statement"
-    assert (statement_dir / "interaction.tex").read_text() == "protocol"
+    assert (statement_dir / "ru" / "interaction.tex").read_text() == "protocol"
     assert (statement_dir / "examples" / "example_1.output_for_statement.txt").exists()
     user_prompt = mock_call.call_args.args[2]
     assert "## Протокол взаимодействия" in user_prompt
@@ -405,7 +406,7 @@ def test_missing_files_are_asked_for_once_and_applied(interactive_spec, tmp_path
     for name, content in dialogues.items():
         assert (statement_dir / name).read_text(encoding="utf-8") == content
     # из дозапроса берутся только недостающие файлы
-    assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == "legend"
+    assert (statement_dir / "ru" / "legend.tex").read_text(encoding="utf-8") == "legend"
     kinds = [note["kind"] for note in result.notes]
     assert "proposed" in kinds and "retried" in kinds and "ignored" in kinds
     assert not (tmp_path / "interactive-spec" / ".cache" / "statement_draft.response.json").exists()
@@ -476,3 +477,28 @@ def test_example_inputs_no_longer_in_the_spec_are_marked_removed(spec, tmp_path)
     ]
     # прежняя версия перезаписанного input — в бэкапе
     assert (result.backup_dir / "statement" / "examples" / "example_1.txt").is_file()
+
+
+def test_default_language_is_not_in_hash_input(spec):
+    # Как и с `interaction_sketch`: появление поля не меняет хеш задач на
+    # языке по умолчанию.
+    from orchestrator.steps.statement_draft import hash_inputs
+
+    section, _ = hash_inputs("valid-spec", spec)
+    assert "language" not in section
+
+
+def test_language_goes_to_prompt_and_hash(spec, tmp_path):
+    from orchestrator.steps.statement_draft import compute_input_hash, hash_inputs
+
+    english = spec.model_copy(
+        update={"language": "en", "title": spec.title.model_copy(update={"en": "T"})}
+    )
+    assert hash_inputs("valid-spec", english)[0]["language"] == "en"
+    assert compute_input_hash("valid-spec", english) != compute_input_hash("valid-spec", spec)
+
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        _run(english, "valid-spec", tmp_path)
+    assert "Пиши условие на этом языке: английский" in mock_call.call_args.args[2]
+    assert (tmp_path / "valid-spec" / "statement" / "en" / "legend.tex").is_file()
