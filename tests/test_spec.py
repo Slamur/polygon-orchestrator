@@ -322,3 +322,37 @@ def test_blank_protocol_without_interactor_section_is_accepted(tmp_path):
     path.write_text(text, encoding="utf-8")
 
     assert not load_spec(path).interactive
+
+
+def _write_with_title(tmp_path, title: str, language: str | None = None) -> Path:
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    start = text.index("title:")
+    end = text.index("\n", text.index("en:", start))
+    header = f"language: {language}\n" if language else ""
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text[:start] + header + title + text[end:], encoding="utf-8")
+    return path
+
+
+def test_language_defaults_to_russian():
+    assert load_spec(FIXTURES_DIR / "valid-spec.yaml").language == "russian"
+
+
+def test_english_needs_english_title(tmp_path):
+    spec = load_spec(_write_with_title(tmp_path, 'title:\n  en: "Title"', "english"))
+    assert spec.language == "english"
+    assert spec.title.for_language("english") == "Title"
+    assert spec.title.for_language("russian") is None
+
+    with pytest.raises(SpecValidationError, match=r"title\.en"):
+        load_spec(_write_with_title(tmp_path, 'title:\n  ru: "Название"', "english"))
+
+
+def test_russian_needs_russian_title(tmp_path):
+    with pytest.raises(SpecValidationError, match=r"title\.ru"):
+        load_spec(_write_with_title(tmp_path, 'title:\n  en: "Title"'))
+
+
+def test_unknown_language_is_rejected(tmp_path):
+    with pytest.raises(SpecValidationError, match="language"):
+        load_spec(_write_with_title(tmp_path, 'title:\n  ru: "Название"', "kazakh"))
