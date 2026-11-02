@@ -23,7 +23,11 @@ Python-оркестратор, который берёт структуриро�
   (`orchestrator <задача> init --draft`, см. "Запуск") — модель сохраняет
   всё, что написал автор, а недостающее дозаполняет сама с пометкой в
   спеке; автор проверяет спек до генеративных шагов;
-- черновик условия в LaTeX;
+- черновик условия в LaTeX — на одном языке, основном (`language` спека,
+  `russian` по умолчанию или `english`); условие на других языках Polygon
+  (`statement/<язык>/`) пишет автор, оркестратор только синхронизирует его
+  с Polygon (`upload_statement`, `polygon pull`), см. `docs/SPEC_FORMAT.md`,
+  "Языки условия", и `orchestrator/statement_languages.py`;
 - выбор ограничений (N/TL/ML, тестовые группы) — **только на основе
   асимптотики, явно данной автором в спеке**, без самостоятельного вывода
   сложности из текста легенды;
@@ -177,6 +181,7 @@ Python-оркестратор, который берёт структуриро�
 │   ├── drafts.py                  # черновики автора в drafts/ для `init --draft`: поиск по пути или имени, в том числе в подкаталогах; без тяжёлых импортов
 │   ├── spec_from_draft.py         # `init --draft`: спек по черновику через model_router (шаг `spec_from_draft`)
 │   ├── references.py              # референсы спека (`references`): какие файлы каких каталогов получает каждый шаг
+│   ├── statement_languages.py     # языки условия: основной (`language` спека) в statement/, дополнительные в statement/<язык>/; без тяжёлых импортов
 │   ├── steps/
 │   │   ├── statement_draft.py
 │   │   ├── constraints_pick.py
@@ -246,8 +251,9 @@ Python-оркестратор, который берёт структуриро�
         ├── .fix_backup/<время>/    # прежние версии файлов условия, исправленных `local fix`
         ├── .llm_backup/<время>/    # прежние версии файлов, перезаписанных или переименованных `llm generate`
         ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
-        ├── statement/              # legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи; + необязательный tutorial.tex — разбор: пишет автор, pull или `llm tutorial`, удалённый файл push очищает на Polygon)
-        │   ├── name.txt            # название задачи на Polygon: создаёт push из title.ru спека, если файла нет; pull пишет сюда название с Polygon
+        ├── statement/              # на основном языке (`language` спека): legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи; + необязательный tutorial.tex — разбор: пишет автор, pull или `llm tutorial`, удалённый файл push очищает на Polygon)
+        │   ├── name.txt            # название задачи на Polygon: создаёт push из title спека на основном языке (title.ru у russian), если файла нет; pull пишет сюда название с Polygon
+        │   ├── <язык>/             # условие на другом языке Polygon (english, kazakh, …): те же .tex и name.txt, без примеров; пишет автор или pull, push загружает с lang=<язык>
         │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ example_<N>.{input,output}_for_statement.txt — input/output for statements, каждый сам по себе: у интерактивной задачи — диалог от statement_draft, у обычной — только от автора; example_<N>.verify_for_statement.txt — флаг verify, пишет автор или pull)
         ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
         ├── limits.yaml            # актуальные TL/ML (orchestrator/limits.py): выводит из constraints.yaml шаг limits_from_constraints, когда TL/ML там изменились; push выставляет их на Polygon, pull обновляет с Polygon; можно править руками
@@ -262,8 +268,9 @@ Python-оркестратор, который берёт структуриро�
 
 ## Роль каждого генеративного шага
 
-1. **`statement_draft`** — вход: секция `statement_draft` спека. Выход:
-   черновик условия в `problems/<путь задачи>/statement/` — отдельные `.tex` на
+1. **`statement_draft`** — вход: секция `statement_draft` спека и язык
+   условия (`language`; в хеше — только не `russian`). Выход:
+   черновик условия на этом языке в `problems/<путь задачи>/statement/` — отдельные `.tex` на
    легенду/ввод/вывод/примечание (набор имён проверяется до записи на
    диск), следующий структуре и стилистическим правилам из
    `templates/tutorials/statement.md`. Input каждого примера в
@@ -399,8 +406,10 @@ Python-оркестратор, который берёт структуриро�
    `STEP_ORDER`: `llm generate` его не запускает, `llm status|apply|accept`
    видят; без драфта — `skipped`) — вход: драфт автора
    `authoring/draft-tutorial.md` + `statement/*.tex` с диска (обозначения) +
-   `sample_examples` спека + решения из `--ref`; остальной спек модель не видит,
-   чтобы ей не из чего было дописывать своё. Выход: `statement/tutorial.tex`.
+   `sample_examples` спека + язык условия (`language`, как у `statement_draft`) +
+   решения из `--ref`; остальной спек модель не видит,
+   чтобы ей не из чего было дописывать своё. Выход: `statement/tutorial.tex` на
+   языке условия.
    Драфт — единственный источник содержания: модель раскрывает мысли автора
    и пишет новые куски только там, где он прямо просит («докажи», «допиши»,
    «распиши»); обращение («мы»/«вы») — как в тексте драфта. Решения — только
@@ -792,7 +801,8 @@ status|pull` спек не нужен, а команда на момент до�
 `model_router`):
 
 - каноническое JSON-представление той секции спека, от которой зависит шаг
-  (`statement_draft` → секция `statement_draft`; `constraints_pick` →
+  (`statement_draft` → секция `statement_draft` + `language`, если он не
+  `russian`; `constraints_pick` →
   секция `constraints` + формат ввода из `statement_draft`
   (`formal_input_sketch`, `indexing`, input примеров — правка формата входа
   должна инвалидировать и `validator.cpp`); `tests_plan` → секция

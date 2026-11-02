@@ -432,6 +432,18 @@ OK или TL); всё остальное — ошибка. TL — из `limits.y
 `polygon pull` скачивает разбор, если он есть на Polygon. Удалили файл —
 следующий push очистит разбор на Polygon.
 
+Условие на нескольких языках. Основной язык — поле `language` спека
+(`russian` по умолчанию или `english`): на нём пишут модель (`llm generate`,
+`llm tutorial`), и его условие лежит прямо в `statement/`. Условие на любом
+другом языке Polygon кладите в `statement/<язык>/` (`statement/english/`,
+`statement/kazakh/`) — те же `legend.tex`, `input_format.tex`,
+`output_format.tex`, `notes.tex` (и `interaction.tex`, `tutorial.tex`) и
+`name.txt` с названием; примеры общие и лежат только в
+`statement/examples/`. Эти языки пишете вы (модель их не генерирует):
+`polygon push` загружает каждый язык отдельно, `polygon pull` раскладывает
+языки с Polygon по таким же подкаталогам. Удалили подкаталог — условие на
+этом языке на Polygon остаётся, его удаляйте там руками.
+
 ### Переменные окружения (`.env`)
 
 | Переменная | Значение |
@@ -456,7 +468,8 @@ problems/<путь задачи>/    ваши задачи (не в git)
   authoring/constraints.yaml ограничения, группы, что проверяет валидатор
   authoring/tests_plan.yaml  план тестов: генераторы и тесты скрипта (можно править руками)
   authoring/draft-tutorial.md драфт разбора в свободной форме для llm tutorial
-  statement/                 условие (.tex), разбор (необязательный tutorial.tex) и примеры
+  statement/                 условие (.tex) на основном языке, разбор (необязательный tutorial.tex) и примеры
+  statement/<язык>/          условие на другом языке Polygon (необязательное, пишете вы или pull)
   limits.yaml                актуальные TL/ML (можно править руками)
   validator.cpp, checker.cpp, interactor.cpp
   generators/*.cpp, test_script, test_script_groups

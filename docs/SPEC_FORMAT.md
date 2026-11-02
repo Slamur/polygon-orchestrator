@@ -56,9 +56,10 @@
 
 ```yaml
 problem_id: unique-slug            # [required] латиница; выводится из пути каталога задачи (см. ниже)
+language: russian                  # [optional] основной язык условия: russian (по умолчанию) | english, см. ниже
 title:
-  ru: "Название на русском"        # [required] начальное название на Polygon; дальше источник — problems/<путь задачи>/statement/name.txt
-  en: "English title"              # [optional]
+  ru: "Название на русском"        # [required у language: russian] начальное название на Polygon; дальше источник — problems/<путь задачи>/statement/name.txt
+  en: "English title"              # [required у language: english, иначе optional]; у english — то же, что ru у russian
 references:                        # [optional] общие референсы — образцы для ВСЕХ шагов, см. "Референсы" ниже
   - "examples/array/prefix-sums"
 
@@ -262,6 +263,27 @@ interactor:
 условия, а диалоги примеров — в "input/output for statements" тестов-примеров
 (`upload_statement`). Чекер у интерактивной задачи остаётся: он сравнивает
 то, что интерактор записал в tout.
+
+## Языки условия
+
+`language` — основной язык условия, имя языка в Polygon: `russian` (по
+умолчанию) или `english`. На нём пишут `statement_draft` и `tutorial_draft`
+(даже если наброски автора — на другом языке), его условие лежит прямо в
+`problems/<путь задачи>/statement/` и уходит на Polygon с `lang=<language>`;
+обязательное название — `title` на этом языке (`ru` у `russian`, `en` у
+`english`). В хеш входа этих двух шагов `language` входит, только если он не
+`russian`, — поэтому его появление не сделало `stale` ни одну старую задачу.
+
+Остальные языки — только на уровне Polygon, модель их не пишет: условие на
+языке `<язык>` (имя языка в Polygon, строчной латиницей) лежит в
+`statement/<язык>/` — те же `.tex`-файлы и `name.txt`, примеры общие
+(`statement/examples/`). Его пишет автор или скачивает `polygon pull`;
+`polygon push` загружает каждый язык отдельно (`upload_statement`), а
+`name.txt` без файла берётся из `title` спека, если там есть название на этом
+языке. `local check|fix` проверяют и их; кавычки `<<…>>` — только в русском
+тексте. Сменить `language` у задачи с условием на Polygon можно: следующий push
+загрузит `statement/` на новом языке, а условие на прежнем останется на Polygon
+— `polygon pull` скачает его в `statement/<прежний язык>/`.
 
 ## Почему именно так
 
