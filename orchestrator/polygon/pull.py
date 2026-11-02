@@ -61,8 +61,12 @@ Polygon равна записанной в базе (с последней си�
 
 Что с чем сравнивается (имена — те же, что читают polygon-шаги):
 
-- условие (`problem.statements`, язык `russian`) -> `statement/legend.tex`,
-  `input_format.tex`, `output_format.tex`, `notes.tex`. Пустой на Polygon
+- условие (`problem.statements`) на основном языке (`language` спека,
+  по умолчанию `russian`; спек читается без валидации, после Attachments —
+  его может скачать этот же pull) -> `statement/legend.tex`,
+  `input_format.tex`, `output_format.tex`, `notes.tex`; на каждом другом
+  языке — те же файлы в `statement/<язык>/` (о языке, которого нет ни на
+  Polygon, ни локально, не сообщается). Пустой на Polygon
   раздел выгружается пустым файлом — `upload_statement` требует все четыре.
   Протокол взаимодействия интерактивной задачи -> `statement/interaction.tex`
   — только если он непуст на Polygon или файл есть локально. Разбор ->
@@ -161,7 +165,7 @@ from orchestrator.polygon.sync import (
     SCRIPT_KEY,
     SPEC_KEY,
     TESTS_PLAN_KEY,
-    STATEMENT_NAME_KEY,
+    STATEMENT_LANGUAGE_KEY,
     STANDARD_CHECKER_PREFIX,
     VALIDATOR_FILE_KEY,
     VALIDATOR_KEY,
@@ -173,6 +177,13 @@ from orchestrator.polygon.sync import (
     is_draft_name,
     limits_digest,
     remote_stamps,
+    statement_language_digest,
+    statement_name_key,
+)
+from orchestrator.statement_languages import (
+    extra_languages,
+    is_language_dirname,
+    read_spec_language,
 )
 from orchestrator.limits import LIMITS_FILENAME, render_limits
 from orchestrator.problem_paths import (
@@ -202,7 +213,6 @@ ITEM_LOCAL_ONLY = "local only"  # есть только локально — н�
 ITEM_ABSENT = "absent"  # нет ни на Polygon, ни локально
 ITEM_ERROR = "error"
 
-_LANG = "russian"
 _TESTSET = "tests"
 # Содержимое файла флага verify input/output for statements.
 _VERIFY_CONTENT = b"true\n"
@@ -315,10 +325,12 @@ def pull_problem(
         base_stamps=dict(base.stamps),
         revision_unchanged=base.revision is not None and base.revision == current.revision,
     )
+    # Attachments — первыми: основной язык условия берётся из спека, а его
+    # может скачать (или обновить) этот же pull.
     for name, part in (
+        ("attachments", puller.pull_attachments),
         ("statement", puller.pull_statement),
         ("statement/examples", puller.pull_examples),
-        ("attachments", puller.pull_attachments),
         (LIMITS_FILENAME, puller.pull_limits),
         (PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
         (_VALIDATOR_FILENAME, puller.pull_validator),
@@ -450,32 +462,61 @@ class _Puller:
         logger.warning("%s", message)
 
     def pull_statement(self) -> None:
+        """Условие каждого языка: основного (`language` спека, см.
+        `read_spec_language`) — в `statement/`, остальных с Polygon — в
+        `statement/<язык>/`; подкаталоги языков, которых нет на Polygon, —
+        `local only`."""
         statements = self._call("problem.statements") or {}
-        statement = statements.get(_LANG)
-        name_file = f"statement/{NAME_FILENAME}"
-        tutorial_file = f"statement/{TUTORIAL_FILENAME}"
-        if statement is None:
-            for filename in _STATEMENT_FILES.values():
-                self._missing_on_polygon(
-                    f"statement/{filename}", f"no {_LANG!r} statement on Polygon"
-                )
-            self._missing_on_polygon(
-                name_file, f"no {_LANG!r} statement on Polygon", key=STATEMENT_NAME_KEY
+        main = read_spec_language(self.problem_dir)
+        self.synced[STATEMENT_LANGUAGE_KEY] = (
+            statement_language_digest(main) if main in statements else None
+        )
+        self._pull_statement(main, None, statements.get(main))
+        statement_dir = self.problem_dir / "statement"
+        local_extras = set(extra_languages(statement_dir))
+        if main in local_extras:
+            self.warn(
+                f"statement/{main}/ duplicates the main statement language {main!r} "
+                "(spec field `language`) — not compared, and push refuses to run "
+                "until it is removed"
             )
+        for language in sorted((set(statements) | local_extras) - {main}):
+            if not is_language_dirname(language):
+                self.warn(
+                    f"the {language!r} statement on Polygon is not pulled: "
+                    "the language name is not a directory name of statement/"
+                )
+                continue
+            self._pull_statement(language, language, statements.get(language))
+
+    def _pull_statement(self, language: str, subdir: str | None, statement: dict | None) -> None:
+        """Условие на языке `language` (объект Statement, `None` — на Polygon
+        его нет) -> `statement/` (`subdir=None`) или `statement/<subdir>/`."""
+        prefix = f"statement/{subdir}/" if subdir else "statement/"
+        name_file = f"{prefix}{NAME_FILENAME}"
+        name_key = statement_name_key(subdir)
+        tutorial_file = f"{prefix}{TUTORIAL_FILENAME}"
+        if statement is None:
+            absent = f"no {language!r} statement on Polygon"
+            # Нет дополнительного языка ни там, ни там — сообщать не о чем.
+            report = self._missing_on_polygon if subdir is None else self._missing_if_local
+            for filename in _STATEMENT_FILES.values():
+                report(f"{prefix}{filename}", absent)
+            report(name_file, absent, key=name_key)
             self._missing_if_local(
-                f"statement/{INTERACTION_FILENAME}",
-                f"no {_LANG!r} statement on Polygon",
+                f"{prefix}{INTERACTION_FILENAME}",
+                absent,
                 push_condition=_INTERACTIVE_CONDITION,
             )
-            self._missing_if_local(tutorial_file, f"no {_LANG!r} statement on Polygon")
+            self._missing_if_local(tutorial_file, absent)
             return
         for field_name, filename in _STATEMENT_FILES.items():
             self._sync_file(
-                f"statement/{filename}",
+                f"{prefix}{filename}",
                 lambda field_name=field_name: (statement.get(field_name) or "").encode("utf-8"),
             )
         interaction = statement.get(INTERACTION_PARAM) or ""
-        interaction_file = f"statement/{INTERACTION_FILENAME}"
+        interaction_file = f"{prefix}{INTERACTION_FILENAME}"
         if interaction:
             self._sync_file(interaction_file, lambda: interaction.encode("utf-8"))
         else:
@@ -492,13 +533,13 @@ class _Puller:
         name = (statement.get("name") or "").strip()
         if not name:
             self._missing_on_polygon(
-                name_file, "no problem name in the statement on Polygon", key=STATEMENT_NAME_KEY
+                name_file, "no problem name in the statement on Polygon", key=name_key
             )
             return
         self._sync_file(
             name_file,
             lambda: f"{name}\n".encode("utf-8"),
-            key=STATEMENT_NAME_KEY,
+            key=name_key,
             # Как `upload_statement.read_name`: хеш и сравнение — по самому названию.
             normalize=lambda content: content.decode("utf-8").strip().encode("utf-8"),
         )

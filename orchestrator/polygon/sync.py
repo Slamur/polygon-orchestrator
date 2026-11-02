@@ -47,6 +47,7 @@ from orchestrator.problem_paths import (
     is_authoring_name,
     is_draft_name,  # noqa: F401 — часть интерфейса модуля (pull, upload_attachments)
 )
+from orchestrator.statement_languages import DEFAULT_LANGUAGE
 
 LIMITS_KEY = "limits"
 PROBLEM_LIB_KEY = "problem_lib.h"
@@ -58,6 +59,9 @@ INTERACTIVE_KEY = "interactive"  # флаг интерактивности за�
 INTERACTOR_FILE_KEY = "interactor.cpp"
 INTERACTOR_KEY = "interactor"  # имя назначенного интерактора
 STATEMENT_NAME_KEY = "statement/name"
+# Основной язык условия (`language` спека): на каком языке Polygon лежит
+# условие из `statement/` — смена языка загружает его заново.
+STATEMENT_LANGUAGE_KEY = "statement/language"
 SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
 # Attachments — файлы `authoring/` каталога задачи; на Polygon и в базе — по
 # имени файла, без каталога.
@@ -92,8 +96,30 @@ def is_attachment_name(name: str) -> bool:
     return is_authoring_name(name)
 
 
-def statement_file_key(filename: str) -> str:
-    return f"statement/{filename}"
+def statement_file_key(filename: str, language: str | None = None) -> str:
+    """Ключ файла условия: основного языка (`language=None`) —
+    `statement/<файл>`, дополнительного — `statement/<язык>/<файл>`, как
+    файл лежит локально."""
+    return f"statement/{language}/{filename}" if language else f"statement/{filename}"
+
+
+def statement_name_key(language: str | None = None) -> str:
+    """Ключ названия задачи в условии (`name.txt`), см. `statement_file_key`."""
+    return f"statement/{language}/name" if language else STATEMENT_NAME_KEY
+
+
+def statement_language_digest(language: str) -> str:
+    return digest(f"language={language}")
+
+
+def with_legacy_language(synced: dict[str, str] | None) -> dict[str, str] | None:
+    """База синхронизации, в которой у условия есть основной язык: базы,
+    записанные до `STATEMENT_LANGUAGE_KEY`, знали только `russian` — без
+    этого push загрузил бы условие заново, а `polygon status` счёл бы его
+    изменённым."""
+    if synced is None or STATEMENT_LANGUAGE_KEY in synced or STATEMENT_NAME_KEY not in synced:
+        return synced
+    return {**synced, STATEMENT_LANGUAGE_KEY: statement_language_digest(DEFAULT_LANGUAGE)}
 
 
 def example_key(number: int) -> str:
@@ -159,6 +185,7 @@ _KEY_LABELS = {
     INTERACTOR_KEY: "interactor assignment",
     INTERACTIVE_KEY: "interactive flag",
     STATEMENT_NAME_KEY: "statement/name.txt",
+    STATEMENT_LANGUAGE_KEY: "main statement language",
     SCRIPT_KEY: "test script",
 }
 # Назначение -> файл, при загрузке которого назначение отдельно не показывается.
@@ -176,10 +203,20 @@ def describe_keys(keys: Iterable[str]) -> list[str]:
     строка, файл."""
     keys = list(keys)
     return [
-        _KEY_LABELS.get(key) or (f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else key)
+        _KEY_LABELS.get(key)
+        or (f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else _statement_label(key))
         for key in keys
         if _ASSIGNED_FILES.get(key) not in keys
     ]
+
+
+def _statement_label(key: str) -> str:
+    """Название условия дополнительного языка — файлом `name.txt`, как
+    `STATEMENT_NAME_KEY`; остальные ключи и есть пути."""
+    parts = key.split("/")
+    if len(parts) == 3 and parts[0] == "statement" and parts[2] == "name":
+        return f"{key}.txt"
+    return key
 
 
 def is_stamped_key(key: str) -> bool:

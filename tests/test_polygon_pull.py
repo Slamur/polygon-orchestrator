@@ -227,6 +227,7 @@ def test_pull_records_revision_and_baseline(problems_dir, polygon):
         "statement/examples/example_1.txt",
         "statement/examples/example_2.txt",
         "statement/input_format.tex",
+        "statement/language",
         "statement/legend.tex",
         "statement/name",
         "statement/notes.tex",
@@ -1422,3 +1423,60 @@ def test_cli_pull_prints_warnings_as_a_group_after_progress(
     warnings = out.split("=== warnings ===\n")[1].split("\n\n")[0].splitlines()
     assert len(warnings) == 1 and warnings[0].startswith("solutions/sol.cpp: the name does not")
     assert out.index("  solutions...") < out.index("=== warnings ===")
+
+
+# --- языки условия ----------------------------------------------------------
+
+
+def test_pull_puts_other_languages_into_subdirectories(problems_dir, polygon):
+    polygon.statements["english"] = {
+        "name": "English Name",
+        "legend": "EL",
+        "input": "EI",
+        "output": "EO",
+        "notes": "",
+        "tutorial": "ET\n",
+    }
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    english = problems_dir / PROBLEM_ID / "statement" / "english"
+    assert result.ok
+    assert (english / "legend.tex").read_text() == "EL"
+    assert (english / "notes.tex").read_text() == ""
+    assert (english / "tutorial.tex").read_text() == "ET\n"
+    assert (english / "name.txt").read_text() == "English Name\n"
+    assert not (english / "examples").exists()
+    assert (problems_dir / PROBLEM_ID / "statement" / "legend.tex").read_text() == "L"
+    assert _statuses(result)["statement/english/legend.tex"] == ITEM_DOWNLOADED
+    assert "statement/english/name" in _synced(problems_dir)
+    assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_pull_takes_main_language_from_spec_in_attachments(problems_dir, polygon):
+    polygon.aux_files["spec.yaml"] = b"problem_id: example-problem\nlanguage: english\n"
+    polygon.statements["english"] = polygon.statements.pop("russian")
+    polygon.statements["russian"] = {"name": "Русское", "legend": "РЛ", "input": "", "output": "", "notes": ""}
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    statement_dir = problems_dir / PROBLEM_ID / "statement"
+    assert result.ok
+    assert (statement_dir / "legend.tex").read_text() == "L"
+    assert (statement_dir / "name.txt").read_text() == "Polygon Name\n"
+    assert (statement_dir / "russian" / "legend.tex").read_text() == "РЛ"
+    assert not (statement_dir / "english").exists()
+    assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_local_language_missing_on_polygon_is_local_only(problems_dir, polygon):
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _write(problems_dir / PROBLEM_ID, "statement/english/legend.tex", "local")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    statuses = _statuses(result)
+    assert statuses["statement/english/legend.tex"] == ITEM_LOCAL_ONLY
+    # Файлов, которых нет ни там, ни там, отчёт не упоминает.
+    assert "statement/english/notes.tex" not in statuses
+    assert (problems_dir / PROBLEM_ID / "statement/english/legend.tex").read_text() == "local"
