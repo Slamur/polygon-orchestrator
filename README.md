@@ -135,9 +135,10 @@ pip install -e '.[dev]'
 orchestrator --help
 pytest               # unit-тесты; к модели и Polygon не обращаются
 ruff check .         # линтер (настройки — в pyproject.toml); `--fix` чинит что может
+ruff format .        # форматирование кода
 ```
 
-Оба запускаются в CI на каждый PR (`.github/workflows/ci.yml`).
+Все три (форматирование — в режиме `--check`) запускаются в CI на каждый PR (`.github/workflows/ci.yml`).
 
 ### 5. Java и FreeMarker (проверка test-script'а)
 
