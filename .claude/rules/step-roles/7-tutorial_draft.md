@@ -11,8 +11,8 @@ paths:
 # Роль каждого генеративного шага, пункт 7: `tutorial_draft`
 
 Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека, модели) — в `.claude/rules/steps.md`, команды `llm` —
-в `.claude/rules/llm-commands.md`.
+предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
+`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
 
 7. **`tutorial_draft`** (опциональный, только по команде `llm tutorial`, вне
    `STEP_ORDER`: `llm generate` его не запускает, `llm status|apply|accept`

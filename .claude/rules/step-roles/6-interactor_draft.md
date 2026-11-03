@@ -11,8 +11,8 @@ paths:
 # Роль каждого генеративного шага, пункт 6: `interactor_draft`
 
 Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека, модели) — в `.claude/rules/steps.md`, команды `llm` —
-в `.claude/rules/llm-commands.md`.
+предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
+`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
 
 6. **`interactor_draft`** (опциональный) — запускается, только если задача
    интерактивная (в спеке есть секция `interactor`). Вход:

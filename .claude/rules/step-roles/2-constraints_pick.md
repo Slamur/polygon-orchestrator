@@ -15,8 +15,8 @@ paths:
 # Роль каждого генеративного шага, пункт 2: `constraints_pick` и `limits_from_constraints`
 
 Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека, модели) — в `.claude/rules/steps.md`, команды `llm` —
-в `.claude/rules/llm-commands.md`.
+предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
+`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
 
 2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
    очередь `intended_complexity` и `complexity_reasoning`, + формат ввода из

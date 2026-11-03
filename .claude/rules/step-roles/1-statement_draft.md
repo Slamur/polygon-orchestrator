@@ -11,8 +11,8 @@ paths:
 # Роль каждого генеративного шага, пункт 1: `statement_draft`
 
 Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека, модели) — в `.claude/rules/steps.md`, команды `llm` —
-в `.claude/rules/llm-commands.md`.
+предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
+`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
 
 1. **`statement_draft`** — вход: секция `statement_draft` спека и язык
    условия (`language`; в хеше — только не `ru`). Выход:
