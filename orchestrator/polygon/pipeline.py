@@ -129,9 +129,7 @@ class PolygonPipelineResult:
 
     @property
     def ok(self) -> bool:
-        return self.spec_error is None and all(
-            o.status != OUTCOME_ERROR for o in self.outcomes
-        )
+        return self.spec_error is None and all(o.status != OUTCOME_ERROR for o in self.outcomes)
 
 
 def run_polygon_pipeline(
@@ -247,9 +245,7 @@ def run_polygon_pipeline(
                 return result
             except Exception as exc:  # noqa: BLE001 — traceback в лог, а не в консоль
                 logger.exception("[%s] unexpected error", step_name)
-                record(
-                    PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}")
-                )
+                record(PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}"))
                 return result
             record(
                 PolygonStepOutcome(
@@ -262,7 +258,9 @@ def run_polygon_pipeline(
             )
     finally:
         if baseline_checked and not no_commit:
-            _record_stamps(problem_id, committed=committed, problems_dir=problems_dir, client=client)
+            _record_stamps(
+                problem_id, committed=committed, problems_dir=problems_dir, client=client
+            )
 
     return result
 

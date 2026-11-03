@@ -179,9 +179,7 @@ def _log_usage(model_class: str, model_id: str, response: anthropic.types.Messag
     )
 
 
-def _parse_model_response(
-    model_class: str, response: anthropic.types.Message
-) -> ModelResponse:
+def _parse_model_response(model_class: str, response: anthropic.types.Message) -> ModelResponse:
     """Разбирает `ModelResponse` из `input` tool_use-блока `_RESPONSE_TOOL_NAME`.
 
     Не парсим свободный текст: `tool_choice` принудительно указывает именно

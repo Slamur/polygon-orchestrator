@@ -103,7 +103,9 @@ def current_artifacts(
 ) -> dict[str, Path]:
     """Текущие файлы шага для режима доработки: `generators/*.cpp` под
     именами файлов."""
-    return directory_artifacts(primary_artifact_path(problem_id, spec, problems_dir=problems_dir), "*.cpp")
+    return directory_artifacts(
+        primary_artifact_path(problem_id, spec, problems_dir=problems_dir), "*.cpp"
+    )
 
 
 def generator_params(source: str) -> list[str]:
@@ -111,30 +113,34 @@ def generator_params(source: str) -> list[str]:
     return list(dict.fromkeys(_OPT_RE.findall(source)))
 
 
-def plan_mismatch_notes(
-    plan: dict[str, Any], generators_dir: Path
-) -> list[dict[str, Any]]:
+def plan_mismatch_notes(plan: dict[str, Any], generators_dir: Path) -> list[dict[str, Any]]:
     """Заметки `plan_mismatch` после записи файлов: генератор на диске,
     которого нет в плане, и генератор, чьи `opt<T>(...)` не совпадают с
     параметрами плана, — test-script строится по плану и вызовет его с
     другими параметрами."""
-    expected = {g["name"]: [p["name"] for p in g.get("params") or []] for g in plan_generators(plan)}
+    expected = {
+        g["name"]: [p["name"] for p in g.get("params") or []] for g in plan_generators(plan)
+    }
     notes: list[dict[str, Any]] = []
     for path in sorted(Path(generators_dir).glob("*.cpp")):
         name = path.stem
         if name not in expected:
-            notes.append(_note(
-                f"generators/{path.name}",
-                f"not in {TESTS_PLAN_ARTIFACT}: test_script_draft will not use it — "
-                "add it to the plan or delete the file",
-            ))
+            notes.append(
+                _note(
+                    f"generators/{path.name}",
+                    f"not in {TESTS_PLAN_ARTIFACT}: test_script_draft will not use it — "
+                    "add it to the plan or delete the file",
+                )
+            )
             continue
         actual = generator_params(path.read_text(encoding="utf-8"))
         if set(actual) != set(expected[name]):
-            notes.append(_note(
-                f"generators/{path.name}",
-                f"opt parameters {actual} differ from the plan {expected[name]}",
-            ))
+            notes.append(
+                _note(
+                    f"generators/{path.name}",
+                    f"opt parameters {actual} differ from the plan {expected[name]}",
+                )
+            )
     return notes
 
 
@@ -171,7 +177,8 @@ def run_step(
         "statement": statement_io_section(spec, include_output_and_legend=False),
         "constraints_yaml": constraints_without_limits(constraints_yaml),
         "generators": [
-            {"name": generator["name"], "plan": dump_plan_part(generator)} for generator in generators
+            {"name": generator["name"], "plan": dump_plan_part(generator)}
+            for generator in generators
         ],
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)

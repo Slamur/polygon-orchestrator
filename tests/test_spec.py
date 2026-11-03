@@ -92,7 +92,7 @@ def test_specific_test_ideas_loaded():
 def test_specific_test_ideas_absent_defaults_to_none(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(
-        '  specific_test_ideas:\n'
+        "  specific_test_ideas:\n"
         '    - "N = 1 (минимальный случай)"\n'
         '    - "N = N_max, значения максимальные"\n',
         "",
@@ -168,7 +168,7 @@ def test_custom_checker_without_notes_raises(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(
         'checker:\n  standard: "ncmp"\n  custom_needed: false\n  custom_comparison_notes: null',
-        'checker:\n  standard: null\n  custom_needed: true\n  custom_comparison_notes: null',
+        "checker:\n  standard: null\n  custom_needed: true\n  custom_comparison_notes: null",
     )
     path = tmp_path / "valid-spec.yaml"
     path.write_text(text, encoding="utf-8")
@@ -226,7 +226,9 @@ def _spec_without_first_sample_output(tmp_path, replacement: str) -> Path:
     return path
 
 
-@pytest.mark.parametrize("replacement", ["", "      output: |\n"], ids=["key-absent", "empty-block"])
+@pytest.mark.parametrize(
+    "replacement", ["", "      output: |\n"], ids=["key-absent", "empty-block"]
+)
 def test_sample_example_output_is_optional(tmp_path, replacement):
     spec = load_spec(_spec_without_first_sample_output(tmp_path, replacement))
 
@@ -240,13 +242,12 @@ def test_sample_example_input_still_required(tmp_path):
     original = "    - input: |\n        3 2\n        1 2 5\n        2 3 3\n        1 3\n"
     assert original in text
     path = tmp_path / "valid-spec.yaml"
-    path.write_text(text.replace(original, "    - input: \"\"\n"), encoding="utf-8")
+    path.write_text(text.replace(original, '    - input: ""\n'), encoding="utf-8")
 
     with pytest.raises(SpecValidationError) as exc_info:
         load_spec(path)
 
     assert "sample_examples[].input" in "\n".join(exc_info.value.errors)
-
 
 
 def test_split_solution_stem_keeps_combined_verdict_whole():
@@ -275,7 +276,9 @@ def _without_block(text: str, header: str) -> str:
     lines = text.splitlines()
     start = lines.index(header)
     end = start + 1
-    while end < len(lines) and lines[end].startswith(" " * (len(header) - len(header.lstrip()) + 2)):
+    while end < len(lines) and lines[end].startswith(
+        " " * (len(header) - len(header.lstrip()) + 2)
+    ):
         end += 1
     return "\n".join(lines[:start] + lines[end:]) + "\n"
 

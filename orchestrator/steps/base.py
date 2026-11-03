@@ -255,9 +255,10 @@ class StepUncertainError(Exception):
         self.step_name = step_name
         self.problem_id = problem_id
         self.notes = notes
-        details = "; ".join(
-            f"{note.get('field', '?')}: {note.get('explanation', '')}" for note in notes
-        ) or "the model did not provide notes with the missing fields"
+        details = (
+            "; ".join(f"{note.get('field', '?')}: {note.get('explanation', '')}" for note in notes)
+            or "the model did not provide notes with the missing fields"
+        )
         super().__init__(
             f"Step '{step_name}' for '{problem_id}' stopped (status: uncertain): "
             f"{details}. Fix problems/{problem_id}/spec.yaml and run the step again."
@@ -726,12 +727,14 @@ def _plan_response(
 
     if revision is None:
         if response.unchanged or response.removed or response.renamed:
-            plan.notes.append(_note(
-                "response",
-                "ignored",
-                "модель вернула unchanged/removed/renamed, хотя текущие файлы ей "
-                "не показывались (генерация с нуля), — проигнорировано",
-            ))
+            plan.notes.append(
+                _note(
+                    "response",
+                    "ignored",
+                    "модель вернула unchanged/removed/renamed, хотя текущие файлы ей "
+                    "не показывались (генерация с нуля), — проигнорировано",
+                )
+            )
         plan.final_artifacts = dict(plan.artifacts)
         return plan
 
@@ -745,9 +748,9 @@ def _plan_response(
             return None
 
     def ignored(where: str, filename: str) -> None:
-        plan.notes.append(_note(
-            filename, "ignored", f"{where}: not a current file of the step — ignored"
-        ))
+        plan.notes.append(
+            _note(filename, "ignored", f"{where}: not a current file of the step — ignored")
+        )
 
     places: dict[str, list[str]] = {name: [] for name in current_paths}
     modified: dict[str, str] = {}  # текущее имя -> имя в artifacts ответа
@@ -784,17 +787,17 @@ def _plan_response(
     contested = {name for name, where in places.items() if len(where) > 1}
     for name in sorted(contested):
         filename = modified.pop(name, name)
-        plan.conflicts.append(_Conflict(
-            filename,
-            f"in several places of the response ({', '.join(places[name])}) "
-            "— the current file is kept as is",
-            plan.artifacts.pop(filename, None),
-        ))
+        plan.conflicts.append(
+            _Conflict(
+                filename,
+                f"in several places of the response ({', '.join(places[name])}) "
+                "— the current file is kept as is",
+                plan.artifacts.pop(filename, None),
+            )
+        )
     for name, where in places.items():
         if not where:
-            plan.notes.append(_note(
-                name, "kept", "not mentioned in the response — kept as is"
-            ))
+            plan.notes.append(_note(name, "kept", "not mentioned in the response — kept as is"))
 
     gone: set[str] = set(modified)
     for name, reason in removed:
@@ -851,9 +854,9 @@ def _add_generated_artifacts(
             del plan.artifacts[filename]
             plan.final_artifacts.pop(filename, None)
             dropped.add(filename)
-            plan.notes.append(_note(
-                filename, "ignored", f"returned by the model — ignored: {generated.reason}"
-            ))
+            plan.notes.append(
+                _note(filename, "ignored", f"returned by the model — ignored: {generated.reason}")
+            )
     plan.final_artifacts.update(generated.artifacts)
     return dropped
 
@@ -923,9 +926,13 @@ def _merge_missing_artifacts(
     ]
     ignored = sorted(set(retry.artifacts) - set(added))
     if ignored:
-        notes.append(_note(
-            "response", "ignored", f"files from the follow-up call that were not asked for: {ignored}"
-        ))
+        notes.append(
+            _note(
+                "response",
+                "ignored",
+                f"files from the follow-up call that were not asked for: {ignored}",
+            )
+        )
     statuses = {response.status, retry.status}
     if retry.status not in _VALID_STATUSES or STATUS_UNCERTAIN in statuses:
         status = retry.status
@@ -933,9 +940,7 @@ def _merge_missing_artifacts(
         status = STATUS_PROPOSED
     else:
         status = STATUS_CONFIRMED
-    return replace(
-        response, status=status, artifacts={**response.artifacts, **added}, notes=notes
-    )
+    return replace(response, status=status, artifacts={**response.artifacts, **added}, notes=notes)
 
 
 def _whole_step_conflict(
@@ -952,17 +957,20 @@ def _whole_step_conflict(
         if filename not in set_aside | ignored:
             conflicts.append(_Conflict(filename, WHOLE_RESPONSE_NOT_APPLIED, content))
     for entry in response.removed:
-        conflicts.append(_Conflict(
-            entry["filename"], f"proposed removal ({entry['reason']}): {WHOLE_RESPONSE_NOT_APPLIED}"
-        ))
+        conflicts.append(
+            _Conflict(
+                entry["filename"],
+                f"proposed removal ({entry['reason']}): {WHOLE_RESPONSE_NOT_APPLIED}",
+            )
+        )
     for entry in response.renamed:
-        conflicts.append(_Conflict(
-            entry["from"],
-            f"proposed rename to '{entry['to']}' ({entry['reason']}): {WHOLE_RESPONSE_NOT_APPLIED}",
-        ))
-    return _ApplyPlan(
-        artifacts={}, final_artifacts={}, conflicts=conflicts, notes=plan.notes
-    )
+        conflicts.append(
+            _Conflict(
+                entry["from"],
+                f"proposed rename to '{entry['to']}' ({entry['reason']}): {WHOLE_RESPONSE_NOT_APPLIED}",
+            )
+        )
+    return _ApplyPlan(artifacts={}, final_artifacts={}, conflicts=conflicts, notes=plan.notes)
 
 
 class Backup:
@@ -1175,8 +1183,10 @@ def run_generative_step(
         system_prompt = read_system_prompt(step_name, prompts_dir=prompts_dir)
         user_prompt = render_user_prompt(step_name, context, prompts_dir=prompts_dir)
         if revision is not None:
-            user_prompt = user_prompt.rstrip("\n") + "\n\n" + render_revision_prompt(
-                revision, input_values, prompts_dir=prompts_dir
+            user_prompt = (
+                user_prompt.rstrip("\n")
+                + "\n\n"
+                + render_revision_prompt(revision, input_values, prompts_dir=prompts_dir)
             )
         context_documents = load_context_documents(
             step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
@@ -1241,8 +1251,10 @@ def run_generative_step(
     if missing and saved_response is None:
         # Неполный ответ: недостающие файлы — одним дозапросом, а не новым
         # вызовом целиком (`MISSING_ARTIFACTS_PROMPT`).
-        retry_prompt = user_prompt.rstrip("\n") + "\n\n" + render_missing_artifacts_prompt(
-            missing, response.artifacts, prompts_dir=prompts_dir
+        retry_prompt = (
+            user_prompt.rstrip("\n")
+            + "\n\n"
+            + render_missing_artifacts_prompt(missing, response.artifacts, prompts_dir=prompts_dir)
         )
         retry = model_router.call_model(
             step_name, system_prompt, retry_prompt, context_documents=context_documents
@@ -1293,9 +1305,7 @@ def run_generative_step(
         ensure_problem_lib(problem_id, problems_dir=problems_dir, templates_dir=templates_dir)
     compile_results: dict[str, CompileResult] = {
         # `problem_lib.h` задачи — раньше шаблонного.
-        filename: compile_check(
-            path, [Path(problems_dir) / problem_id, Path(templates_dir)]
-        )
+        filename: compile_check(path, [Path(problems_dir) / problem_id, Path(templates_dir)])
         for filename, path in to_compile.items()
         if path.suffix == ".cpp"
     }

@@ -53,6 +53,7 @@ SCRIPT_NAMES = ("test_script", "test_script_groups")
 _SCRIPT_SECTION_MARKER = '<#assign desc = "{}"/>'
 _FUNCTION_RE = re.compile(r"<#function\s+(\w+)\b.*?</#function>", re.S)
 
+
 def _script_functions(script: str) -> dict[str, str]:
     """Имя функции -> её определение `<#function ...>...</#function>`."""
     return {m.group(1): m.group(0) for m in _FUNCTION_RE.finditer(script)}
@@ -69,8 +70,11 @@ def restore_script_functions(script: str, functions_block: str) -> tuple[str, li
     Возвращает новый скрипт и имена дописанных функций (в порядке блока).
     """
     present = _script_functions(script)
-    missing = [(name, body) for name, body in _script_functions(functions_block).items()
-               if name not in present]
+    missing = [
+        (name, body)
+        for name, body in _script_functions(functions_block).items()
+        if name not in present
+    ]
     if not missing:
         return script, []
     names = [name for name, _ in missing]
@@ -154,24 +158,28 @@ def _restore_functions_in_artifacts(
                 continue
             result[name], fixed = fix_script_comparisons(result[name])
             if fixed:
-                notes.append({
-                    "field": name,
-                    "kind": "restored",
-                    "explanation": (
-                        f"знаки сравнения внутри директив FreeMarker ({fixed} шт.) заменены "
-                        "оркестратором на gt/gte/lt/lte: `>` внутри тега закрывает тег"
-                    ),
-                })
+                notes.append(
+                    {
+                        "field": name,
+                        "kind": "restored",
+                        "explanation": (
+                            f"знаки сравнения внутри директив FreeMarker ({fixed} шт.) заменены "
+                            "оркестратором на gt/gte/lt/lte: `>` внутри тега закрывает тег"
+                        ),
+                    }
+                )
             result[name], restored = restore_script_functions(result[name], functions_block)
             if restored:
-                notes.append({
-                    "field": name,
-                    "kind": "restored",
-                    "explanation": (
-                        f"модель не скопировала стандартные функции {', '.join(restored)} "
-                        f"из {SCRIPT_FUNCTIONS_FILENAME} — дописаны оркестратором"
-                    ),
-                })
+                notes.append(
+                    {
+                        "field": name,
+                        "kind": "restored",
+                        "explanation": (
+                            f"модель не скопировала стандартные функции {', '.join(restored)} "
+                            f"из {SCRIPT_FUNCTIONS_FILENAME} — дописаны оркестратором"
+                        ),
+                    }
+                )
         return result, notes
 
     return postprocess

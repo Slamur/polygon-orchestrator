@@ -377,9 +377,7 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
         raise SpecValidationError(path, [f"invalid YAML: {exc}"]) from exc
 
     if not isinstance(raw, dict):
-        raise SpecValidationError(
-            path, ["spec root must be a YAML mapping"]
-        )
+        raise SpecValidationError(path, ["spec root must be a YAML mapping"])
 
     try:
         spec = ProblemSpec.model_validate(raw)
@@ -394,10 +392,7 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
     if spec.problem_id != expected_id:
         raise SpecValidationError(
             path,
-            [
-                f"problem_id ('{spec.problem_id}') does not match {source}, "
-                "see SPEC_FORMAT.md"
-            ],
+            [f"problem_id ('{spec.problem_id}') does not match {source}, see SPEC_FORMAT.md"],
         )
 
     return spec

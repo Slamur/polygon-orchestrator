@@ -39,19 +39,23 @@ def test_save_uses_cache_serialization_style(tmp_path: Path):
 
     text = (tmp_path / "p1" / "polygon_state.json").read_text(encoding="utf-8")
     assert text.endswith("\n")
-    assert text == json.dumps(
-        {
-            "created_at": "2026-09-19T12:00:00+00:00",
-            "polygon_id": 123456,
-            "problem_id": "example-problem",
-            "revision": None,
-            "stamps": {},
-            "synced": {},
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-        indent=2,
-    ) + "\n"
+    assert (
+        text
+        == json.dumps(
+            {
+                "created_at": "2026-09-19T12:00:00+00:00",
+                "polygon_id": 123456,
+                "problem_id": "example-problem",
+                "revision": None,
+                "stamps": {},
+                "synced": {},
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
+        + "\n"
+    )
 
 
 def test_save_overwrites_existing_state(tmp_path: Path):
@@ -95,7 +99,9 @@ def test_state_file_without_sync_fields_loads_with_unknown_baseline(tmp_path: Pa
     path = tmp_path / "p1" / "polygon_state.json"
     path.parent.mkdir(parents=True)
     path.write_text(
-        json.dumps({"problem_id": "p1", "polygon_id": 7, "created_at": "2026-09-19T12:00:00+00:00"}),
+        json.dumps(
+            {"problem_id": "p1", "polygon_id": 7, "created_at": "2026-09-19T12:00:00+00:00"}
+        ),
         encoding="utf-8",
     )
 
@@ -231,7 +237,9 @@ def test_update_sync_replace_drops_other_keys(tmp_path: Path):
 
 
 def test_record_stamps_ignores_keys_without_hash(tmp_path: Path):
-    save_polygon_state("example-problem", replace(_state(), synced={"a": "1"}), problems_dir=tmp_path)
+    save_polygon_state(
+        "example-problem", replace(_state(), synced={"a": "1"}), problems_dir=tmp_path
+    )
 
     record_stamps("example-problem", {"a": "s1", "b": "s2"}, problems_dir=tmp_path)
 

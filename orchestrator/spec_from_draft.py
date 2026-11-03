@@ -183,9 +183,7 @@ def _finalize_spec_text(init: SpecInit, text: str) -> tuple[str, list[dict[str, 
         try:
             text = add_reference(text, init.reference)
         except SpecInitError as exc:
-            notes.append(
-                _note("references", "uncertain", f"'{init.reference}' not added: {exc}")
-            )
+            notes.append(_note("references", "uncertain", f"'{init.reference}' not added: {exc}"))
     if not text.endswith("\n"):
         text += "\n"
     return text, notes
@@ -226,8 +224,12 @@ def generate_spec_from_draft(
             if revision.previous_draft is None
             else {DRAFT_INPUT: revision.previous_draft.rstrip("\n")},
         )
-        user_prompt = user_prompt.rstrip("\n") + "\n\n" + render_revision_prompt(
-            step_revision, {DRAFT_INPUT: draft_text.rstrip("\n")}, prompts_dir=prompts_dir
+        user_prompt = (
+            user_prompt.rstrip("\n")
+            + "\n\n"
+            + render_revision_prompt(
+                step_revision, {DRAFT_INPUT: draft_text.rstrip("\n")}, prompts_dir=prompts_dir
+            )
         )
     response = model_router.call_model(
         STEP_NAME,
@@ -254,9 +256,7 @@ def generate_spec_from_draft(
                 _note(SPEC_ARTIFACT, "uncertain", f"ignored removal/rename of the spec: {entry}")
             )
     returned = spec_text is not None and bool(spec_text.strip())
-    result.unchanged = (
-        revision is not None and not returned and SPEC_ARTIFACT in response.unchanged
-    )
+    result.unchanged = revision is not None and not returned and SPEC_ARTIFACT in response.unchanged
     if not returned and not result.unchanged:
         if response.status != STATUS_UNCERTAIN:
             kept = ", kept as is" if revision is not None else ""

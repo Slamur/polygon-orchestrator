@@ -115,12 +115,18 @@ def _build_command(model_id: str, effort: str, system_prompt_path: Path) -> list
     return [
         os.environ.get(CLAUDE_CODE_BIN_ENV) or _DEFAULT_CLAUDE_CODE_BIN,
         "-p",
-        "--output-format", "json",
-        "--model", model_id,
-        "--effort", effort,
-        "--system-prompt-file", str(system_prompt_path),
-        "--json-schema", json.dumps(RESPONSE_JSON_SCHEMA, ensure_ascii=False),
-        "--tools", "",
+        "--output-format",
+        "json",
+        "--model",
+        model_id,
+        "--effort",
+        effort,
+        "--system-prompt-file",
+        str(system_prompt_path),
+        "--json-schema",
+        json.dumps(RESPONSE_JSON_SCHEMA, ensure_ascii=False),
+        "--tools",
+        "",
         "--safe-mode",
         "--no-session-persistence",
     ]
@@ -172,9 +178,7 @@ def _run(
         ) from exc
 
 
-def _parse_result(
-    model_class: str, completed: subprocess.CompletedProcess[str]
-) -> dict[str, Any]:
+def _parse_result(model_class: str, completed: subprocess.CompletedProcess[str]) -> dict[str, Any]:
     """Разбирает JSON-вывод `claude -p --output-format json` и поднимает
     понятную ошибку на любом неуспешном исходе."""
     where = f"ClaudeCodeClient.generate(model_class={model_class!r})"
@@ -206,8 +210,7 @@ def _parse_result(
 
     if not isinstance(result.get("structured_output"), dict):
         raise LLMCallError(
-            f"{where}: the result has no structured_output "
-            f"(subtype={result.get('subtype')!r})"
+            f"{where}: the result has no structured_output (subtype={result.get('subtype')!r})"
         )
     return result
 

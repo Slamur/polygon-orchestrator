@@ -16,7 +16,9 @@ from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_checker import STEP
 from orchestrator.spec import load_spec
 
-CHECKER_CONTENT = b'#include "testlib.h"\nint main(int argc, char* argv[]) { registerTestlibCmd(argc, argv); }\n'
+CHECKER_CONTENT = (
+    b'#include "testlib.h"\nint main(int argc, char* argv[]) { registerTestlibCmd(argc, argv); }\n'
+)
 
 
 def _spec(*, custom_needed: bool, standard: str | None):

@@ -79,9 +79,7 @@ def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
     модель (`prompts/statement_draft/`).
     """
     n = len(spec.statement_draft.sample_examples)
-    names = set(_FIXED_STATEMENT_FILES) | {
-        f"examples/example_{i}.txt" for i in range(1, n + 1)
-    }
+    names = set(_FIXED_STATEMENT_FILES) | {f"examples/example_{i}.txt" for i in range(1, n + 1)}
     if spec.interactive:
         names.add(INTERACTION_FILE)
         for i in range(1, n + 1):

@@ -208,9 +208,7 @@ def _problem_log_handler(
     log_path = problem_dir / log_name
     needs_separator = log_path.exists() and log_path.stat().st_size > 0
     handler = logging.FileHandler(log_path, mode="a", encoding="utf-8")
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     if needs_separator:
         handler.stream.write("\n")
     # Только в файл, мимо консольного handler'а — в консоли команда и так видна.
@@ -883,9 +881,10 @@ def cmd_init(args: argparse.Namespace) -> int:
         draft_path = (
             None if args.draft is None else find_draft(args.base_dir / DRAFTS_DIR, args.draft)
         )
-        if draft_path is not None and spec_path(
-            args.problem_id, problems_dir=args.problems_dir
-        ).exists():
+        if (
+            draft_path is not None
+            and spec_path(args.problem_id, problems_dir=args.problems_dir).exists()
+        ):
             return _revise_spec_from_draft(args, draft_path)
         init = prepare_spec_init(
             args.problem_id,

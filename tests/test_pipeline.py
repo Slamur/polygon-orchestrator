@@ -147,9 +147,17 @@ def test_uncertain_step_stops_pipeline_before_later_steps(spec_file, tmp_path):
     uncertain_response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
+        notes=[
+            {
+                "field": "statement_draft.formal_output_sketch",
+                "kind": "uncertain",
+                "explanation": "нет точности",
+            }
+        ],
     )
-    with patch("orchestrator.model_router.call_model", return_value=uncertain_response) as mock_call:
+    with patch(
+        "orchestrator.model_router.call_model", return_value=uncertain_response
+    ) as mock_call:
         result = _run(problems_dir)
 
     assert not result.ok
@@ -351,7 +359,9 @@ def test_only_step_picks_up_tests_plan_from_disk(spec_file, tmp_path):
         )
 
     def run_generators():
-        with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        with patch(
+            "orchestrator.model_router.call_model", side_effect=_fake_call_model
+        ) as mock_call:
             result = pipeline.run_pipeline(
                 "p1",
                 only_step="generators_draft",
@@ -406,7 +416,9 @@ def test_compute_step_statuses_stale_after_spec_edit(spec_file, tmp_path):
         _run(problems_dir)
 
     content = (spec_file).read_text(encoding="utf-8")
-    content = content.replace("Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)")
+    content = content.replace(
+        "Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)"
+    )
     (spec_file).write_text(content, encoding="utf-8")
 
     statuses, _ = pipeline.compute_step_statuses(
@@ -443,7 +455,13 @@ def test_compute_step_statuses_not_run_after_uncertain_run(spec_file, tmp_path):
     uncertain_response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
+        notes=[
+            {
+                "field": "statement_draft.formal_output_sketch",
+                "kind": "uncertain",
+                "explanation": "нет точности",
+            }
+        ],
     )
     with patch("orchestrator.model_router.call_model", return_value=uncertain_response):
         _run(problems_dir)
@@ -529,7 +547,9 @@ def _accept(problems_dir, **kwargs):
 
 def _edit_legend(spec_file):
     content = (spec_file).read_text(encoding="utf-8")
-    content = content.replace("Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)")
+    content = content.replace(
+        "Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)"
+    )
     (spec_file).write_text(content, encoding="utf-8")
 
 
@@ -585,9 +605,7 @@ def test_model_change_invalidates_cache(spec_file, tmp_path):
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         _run(problems_dir)
 
-    with patch.dict(
-        "orchestrator.model_router.STEP_TO_MODEL", {"statement_draft": "strong-model"}
-    ):
+    with patch.dict("orchestrator.model_router.STEP_TO_MODEL", {"statement_draft": "strong-model"}):
         assert _statuses(problems_dir)["statement_draft"].detail == (
             "model changed (medium-model -> strong-model)"
         )
@@ -599,8 +617,7 @@ def test_model_change_invalidates_cache(spec_file, tmp_path):
     assert [c.args[0] for c in mock_call.call_args_list] == ["statement_draft"]
     outcome = result.outcomes[0]
     assert outcome.detail == (
-        "regenerated: model changed (medium-model -> strong-model); "
-        "revising 4 current file(s)"
+        "regenerated: model changed (medium-model -> strong-model); revising 4 current file(s)"
     )
 
 
@@ -631,7 +648,9 @@ def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(spec
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         _run(problems_dir)
-    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(
+        _CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8"
+    )
 
     before = _statuses(problems_dir)
     assert before["tests_plan"].detail == (
@@ -650,7 +669,9 @@ def test_accept_only_step_leaves_other_steps_stale(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         _run(problems_dir)
-    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(
+        _CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8"
+    )
 
     accepted = _accept(problems_dir, only_step="solutions_draft")
     assert list(accepted) == ["solutions_draft"]
@@ -718,10 +739,13 @@ def _failing_statement_check(expected):
 
 
 def _run_with_failing_statement_check(problems_dir, **kwargs):
-    with patch(
-        "orchestrator.steps.statement_draft._validate_statement_artifacts",
-        _failing_statement_check,
-    ), patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+    with (
+        patch(
+            "orchestrator.steps.statement_draft._validate_statement_artifacts",
+            _failing_statement_check,
+        ),
+        patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call,
+    ):
         result = _run(problems_dir, **kwargs)
     return result, mock_call
 
@@ -842,14 +866,15 @@ def test_apply_revises_current_files_like_the_failed_run(spec_file, tmp_path):
         status="confirmed",
         artifacts={"legend.tex": "new tex"},
         notes=[],
-        unchanged=[
-            "input_format.tex", "output_format.tex", "notes.tex", "examples/example_1.txt"
-        ],
+        unchanged=["input_format.tex", "output_format.tex", "notes.tex", "examples/example_1.txt"],
     )
-    with patch(
-        "orchestrator.steps.statement_draft._validate_statement_artifacts",
-        _failing_statement_check,
-    ), patch("orchestrator.model_router.call_model", return_value=revised):
+    with (
+        patch(
+            "orchestrator.steps.statement_draft._validate_statement_artifacts",
+            _failing_statement_check,
+        ),
+        patch("orchestrator.model_router.call_model", return_value=revised),
+    ):
         _run(problems_dir, only_step="statement_draft")
 
     result = _apply(problems_dir, only_step="statement_draft")
@@ -886,4 +911,7 @@ def test_apply_without_saved_responses_has_nothing_to_do(spec_file, tmp_path):
     assert {s for s, v in statuses.items() if v != pipeline.OUTCOME_SKIPPED_OPTIONAL} == {
         s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS
     }
-    assert set(statuses.values()) <= {pipeline.OUTCOME_NO_PENDING, pipeline.OUTCOME_SKIPPED_OPTIONAL}
+    assert set(statuses.values()) <= {
+        pipeline.OUTCOME_NO_PENDING,
+        pipeline.OUTCOME_SKIPPED_OPTIONAL,
+    }

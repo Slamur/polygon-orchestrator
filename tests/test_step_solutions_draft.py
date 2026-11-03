@@ -37,7 +37,12 @@ def _write_reference(tmp_path: Path) -> Path:
     reference_dir = tmp_path / "old-task"
     solutions_dir = reference_dir / "solutions"
     solutions_dir.mkdir(parents=True)
-    for name in ["ok_cpp_a_draft.cpp", "wa_cpp_b_draft.cpp", "ok_py_a_draft.py", "ok_java_a_draft.java"]:
+    for name in [
+        "ok_cpp_a_draft.cpp",
+        "wa_cpp_b_draft.cpp",
+        "ok_py_a_draft.py",
+        "ok_java_a_draft.java",
+    ]:
         (solutions_dir / name).write_text(f"// {name}", encoding="utf-8")
     return reference_dir
 
@@ -60,7 +65,9 @@ def test_extra_context_documents_filters_solutions_by_language(spec, tmp_path):
 
 def test_extra_context_documents_reads_language_after_combined_verdict(spec, tmp_path):
     reference_dir = _write_reference(tmp_path)
-    (reference_dir / "solutions" / "tl_ok_java_slowio_draft.java").write_text("//", encoding="utf-8")
+    (reference_dir / "solutions" / "tl_ok_java_slowio_draft.java").write_text(
+        "//", encoding="utf-8"
+    )
 
     documents = extra_context_documents(_with_solutions(spec, ["java"], [str(reference_dir)]))
 
@@ -107,12 +114,19 @@ def test_extra_context_documents_without_references_attaches_language_templates(
 
 
 def test_extra_context_documents_attaches_all_templates_of_a_language(spec):
-    documents = extra_context_documents(_with_solutions(spec, ["java"], None), templates_dir=TEMPLATES_DIR)
+    documents = extra_context_documents(
+        _with_solutions(spec, ["java"], None), templates_dir=TEMPLATES_DIR
+    )
 
-    assert documents == [str(SOLUTION_TEMPLATES / "ok.java"), str(SOLUTION_TEMPLATES / "tl_ok_slowio.java")]
+    assert documents == [
+        str(SOLUTION_TEMPLATES / "ok.java"),
+        str(SOLUTION_TEMPLATES / "tl_ok_slowio.java"),
+    ]
 
 
-def test_extra_context_documents_attaches_template_for_language_without_ok_reference(spec, tmp_path):
+def test_extra_context_documents_attaches_template_for_language_without_ok_reference(
+    spec, tmp_path
+):
     reference_dir = tmp_path / "old-task"
     (reference_dir / "solutions").mkdir(parents=True)
     for name in ["wa_cpp_b_draft.cpp", "ok_java_a_draft.java"]:
@@ -131,7 +145,9 @@ def test_extra_context_documents_attaches_template_for_language_without_ok_refer
 
 
 def test_run_step_attaches_language_template_under_templates_key(spec, tmp_path):
-    response = ModelResponse(status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[])
+    response = ModelResponse(
+        status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[]
+    )
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = run_step(
@@ -147,7 +163,9 @@ def test_run_step_attaches_language_template_under_templates_key(spec, tmp_path)
             compiled.binary_path.unlink(missing_ok=True)
 
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    assert context_documents["solutions/ok.cpp"] == (SOLUTION_TEMPLATES / "ok.cpp").read_text(encoding="utf-8")
+    assert context_documents["solutions/ok.cpp"] == (SOLUTION_TEMPLATES / "ok.cpp").read_text(
+        encoding="utf-8"
+    )
 
 
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
@@ -160,12 +178,16 @@ def test_cpp_solution_template_compiles():
 
 @pytest.mark.parametrize("name", ["ok.py", "tl_ok_slowio.py"])
 def test_python_solution_templates_compile(name, tmp_path):
-    py_compile.compile(str(SOLUTION_TEMPLATES / name), cfile=str(tmp_path / f"{name}c"), doraise=True)
+    py_compile.compile(
+        str(SOLUTION_TEMPLATES / name), cfile=str(tmp_path / f"{name}c"), doraise=True
+    )
 
 
 def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_path):
     spec = spec.model_copy(update={"references": [EXAMPLE_REF]})
-    response = ModelResponse(status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[])
+    response = ModelResponse(
+        status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[]
+    )
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = run_step(
@@ -182,7 +204,9 @@ def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_
 
     # Фикстура заказывает только cpp — решения на других языках не прикладываются.
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    attached = [d for d in context_documents if d.startswith("examples/array/prefix-sums/solutions/")]
+    attached = [
+        d for d in context_documents if d.startswith("examples/array/prefix-sums/solutions/")
+    ]
     expected = sorted(
         f"examples/array/prefix-sums/solutions/{p.name}"
         for p in (EXAMPLE_DIR / "solutions").glob("*_cpp_*")
@@ -240,7 +264,13 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
     response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "solutions.algorithm_hint", "kind": "uncertain", "explanation": "слишком расплывчато"}],
+        notes=[
+            {
+                "field": "solutions.algorithm_hint",
+                "kind": "uncertain",
+                "explanation": "слишком расплывчато",
+            }
+        ],
     )
     upstream = {"constraints.yaml": "time_limit_seconds: 2"}
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -261,7 +291,9 @@ def test_renders_without_crashing_when_known_wrong_approaches_is_null(spec, tmp_
     spec_bare = spec.model_copy(
         update={"solutions": spec.solutions.model_copy(update={"known_wrong_approaches": None})}
     )
-    response = ModelResponse(status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[])
+    response = ModelResponse(
+        status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[]
+    )
     upstream = {"constraints.yaml": "time_limit_seconds: 2"}
     with patch("orchestrator.model_router.call_model", return_value=response):
         result = run_step(
@@ -341,11 +373,17 @@ def test_compute_input_hash_ignores_limits(spec):
 
 
 def test_user_prompt_marks_missing_sample_output(spec, tmp_path):
-    examples = [ex.model_copy(update={"output": None}) for ex in spec.statement_draft.sample_examples]
+    examples = [
+        ex.model_copy(update={"output": None}) for ex in spec.statement_draft.sample_examples
+    ]
     spec_no_output = spec.model_copy(
-        update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
+        update={
+            "statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})
+        }
     )
-    user_prompt = _run_and_get_user_prompt(spec_no_output, tmp_path, {"constraints.yaml": "n_max: 1"})
+    user_prompt = _run_and_get_user_prompt(
+        spec_no_output, tmp_path, {"constraints.yaml": "n_max: 1"}
+    )
 
     assert "Output: автор не указал" in user_prompt
 
@@ -375,9 +413,13 @@ def test_compute_input_hash_changes_when_sample_output_changes(spec):
     upstream = {"constraints.yaml": "n_max: 100000"}
     h1 = compute_input_hash("valid-spec", spec, upstream)
 
-    examples = [ex.model_copy(update={"output": "-1\n"}) for ex in spec.statement_draft.sample_examples]
+    examples = [
+        ex.model_copy(update={"output": "-1\n"}) for ex in spec.statement_draft.sample_examples
+    ]
     spec_changed = spec.model_copy(
-        update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
+        update={
+            "statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})
+        }
     )
     h2 = compute_input_hash("valid-spec", spec_changed, upstream)
 
@@ -387,7 +429,9 @@ def test_compute_input_hash_changes_when_sample_output_changes(spec):
 def test_user_prompt_includes_alternative_approaches(spec, tmp_path):
     approach = "ok (cpp): вещественный корень с целочисленной корректировкой"
     spec_alt = spec.model_copy(
-        update={"solutions": spec.solutions.model_copy(update={"alternative_approaches": [approach]})}
+        update={
+            "solutions": spec.solutions.model_copy(update={"alternative_approaches": [approach]})
+        }
     )
     user_prompt = _run_and_get_user_prompt(spec_alt, tmp_path, {"constraints.yaml": "n_max: 1"})
 
@@ -399,7 +443,11 @@ def test_compute_input_hash_changes_when_alternative_approaches_change(spec):
     h1 = compute_input_hash("valid-spec", spec, upstream)
 
     spec_alt = spec.model_copy(
-        update={"solutions": spec.solutions.model_copy(update={"alternative_approaches": ["ok: другой подход"]})}
+        update={
+            "solutions": spec.solutions.model_copy(
+                update={"alternative_approaches": ["ok: другой подход"]}
+            )
+        }
     )
 
     assert compute_input_hash("valid-spec", spec_alt, upstream) != h1

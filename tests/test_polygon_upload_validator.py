@@ -113,7 +113,10 @@ def test_incremental_run_skips_unchanged_validator(problems_dir, spec):
     _run(spec, problems_dir, MagicMock())
     client = MagicMock()
 
-    assert _run(spec, problems_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    assert (
+        _run(spec, problems_dir, client, incremental=True)
+        == "no changes since the last sync, skipped"
+    )
     client.call.assert_not_called()
 
 

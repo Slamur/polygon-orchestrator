@@ -90,7 +90,9 @@ def test_execute_error_propagates(tmp_path, spec):
         run_step(step, "p1", spec, problems_dir=tmp_path, client=MagicMock())
 
 
-@pytest.mark.parametrize("check_done_result, expected", [("already done", "already done"), (None, "did it")])
+@pytest.mark.parametrize(
+    "check_done_result, expected", [("already done", "already done"), (None, "did it")]
+)
 def test_message_is_logged_with_step_name(tmp_path, spec, caplog, check_done_result, expected):
     step, _, _ = _step(check_done_result)
 
@@ -142,9 +144,7 @@ def test_changed_items_returns_new_and_changed_only(spec):
 def _save_synced(tmp_path, synced):
     save_polygon_state(
         "p1",
-        PolygonState(
-            problem_id="p1", polygon_id=1, created_at="x", revision=3, synced=synced
-        ),
+        PolygonState(problem_id="p1", polygon_id=1, created_at="x", revision=3, synced=synced),
         problems_dir=tmp_path,
     )
 
@@ -160,7 +160,10 @@ def test_sync_status_not_run_without_own_keys(tmp_path):
 def test_sync_status_done_and_stale(tmp_path):
     _save_synced(tmp_path, {"gen/a": "1", "gen/b": "2"})
 
-    assert sync_status("p1", tmp_path, key_prefix="gen/", read_items=lambda: {"gen/a": "1"})[0] == "done"
+    assert (
+        sync_status("p1", tmp_path, key_prefix="gen/", read_items=lambda: {"gen/a": "1"})[0]
+        == "done"
+    )
     assert sync_status(
         "p1", tmp_path, key_prefix="gen/", read_items=lambda: {"gen/a": "1", "gen/c": "3"}
     ) == ("stale", "changed since the last sync: gen/c")

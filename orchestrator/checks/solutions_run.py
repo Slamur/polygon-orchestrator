@@ -313,7 +313,9 @@ class SolutionsRunResult:
                 bad = [t for t in s.tests if t.verdict not in s.allowed]
                 for t in bad[:_MAX_LISTED_UNEXPECTED]:
                     allowed = ", ".join(sorted(s.allowed))
-                    unexpected.append(f"  {t.test}: {t.verdict}, expected {allowed} for '{s.verdict}'")
+                    unexpected.append(
+                        f"  {t.test}: {t.verdict}, expected {allowed} for '{s.verdict}'"
+                    )
                     if t.command:
                         unexpected.append(f"    {t.command}")
                     unexpected.extend(f"    {line}" for line in t.comment.strip().splitlines()[-5:])
@@ -485,7 +487,9 @@ def _run_generated(
     try:
         main_name = _choose_main(list(parsed.values()))
     except PolygonStepError:
-        result.errors.append("no ok solution to produce expected outputs: generated tests are not run")
+        result.errors.append(
+            "no ok solution to produce expected outputs: generated tests are not run"
+        )
         return
     main_program = program_for(parsed[main_name].path)
     if isinstance(main_program, str):
@@ -500,7 +504,9 @@ def _run_generated(
             result.progress(f"  {outcome.name}: {outcome.runs}")
 
     def load(test: LocalTest, answer: str | None = None) -> SampleTest:
-        return SampleTest(test.name, test.path.read_text(encoding="utf-8", errors="replace"), answer)
+        return SampleTest(
+            test.name, test.path.read_text(encoding="utf-8", errors="replace"), answer
+        )
 
     if result.progress is not None:
         result.progress(
@@ -513,14 +519,20 @@ def _run_generated(
         execution = _execute(main_program, sample, time_limit, work_dir, interactor)
         if execution.verdict is not None:
             main_outcome.tests.append(
-                TestOutcome(test.name, execution.verdict, execution.seconds, execution.comment, test.command)
+                TestOutcome(
+                    test.name, execution.verdict, execution.seconds, execution.comment, test.command
+                )
             )
             continue
         (answers_dir / str(test.number)).write_text(execution.output, encoding="utf-8")
         answered.append(test)
         # Ответ — его же вывод: чекер обязан принять, иначе чекер неверен.
-        verdict, comment = _judge(checker, sample.input, execution.output, execution.output, work_dir)
-        main_outcome.tests.append(TestOutcome(test.name, verdict, execution.seconds, comment, test.command))
+        verdict, comment = _judge(
+            checker, sample.input, execution.output, execution.output, work_dir
+        )
+        main_outcome.tests.append(
+            TestOutcome(test.name, verdict, execution.seconds, comment, test.command)
+        )
     report(main_outcome)
     if len(answered) < len(generated):
         result.errors.append(
@@ -541,7 +553,9 @@ def _run_generated(
         program = program_for(solution.path)
         for test in answered:
             answer = (answers_dir / str(test.number)).read_text(encoding="utf-8")
-            tested = _run_test(program, checker, load(test, answer), time_limit, work_dir, interactor)
+            tested = _run_test(
+                program, checker, load(test, answer), time_limit, work_dir, interactor
+            )
             outcome.tests.append(replace(tested, command=test.command))
             if outcome.required == tested.verdict:
                 outcome.stopped_early = True
@@ -585,9 +599,7 @@ def _sample_tests(problem_dir: Path, spec: dict | None) -> list[SampleTest]:
             else None
             for name in dialogue_filenames(number)
         ]
-        tests.append(
-            SampleTest(path.stem, path.read_text(encoding="utf-8"), answer, *statement_io)
-        )
+        tests.append(SampleTest(path.stem, path.read_text(encoding="utf-8"), answer, *statement_io))
     return tests
 
 
@@ -608,7 +620,10 @@ def _solution_sources(problem_dir: Path) -> list[Path]:
 
 
 def _limits(problem_dir: Path, result: SolutionsRunResult) -> tuple[int, int]:
-    for path in (problem_dir / LIMITS_FILENAME, find_authoring_file(problem_dir, CONSTRAINTS_FILENAME)):
+    for path in (
+        problem_dir / LIMITS_FILENAME,
+        find_authoring_file(problem_dir, CONSTRAINTS_FILENAME),
+    ):
         if not path.is_file():
             continue
         try:
@@ -687,9 +702,11 @@ def _build_checker(
     result: SolutionsRunResult,
 ) -> _Program | None:
     section = _section(spec, "checker")
-    custom = bool(section.get("custom_needed")) if spec is not None else (
-        problem_dir / CHECKER_FILENAME
-    ).is_file()
+    custom = (
+        bool(section.get("custom_needed"))
+        if spec is not None
+        else (problem_dir / CHECKER_FILENAME).is_file()
+    )
     if custom:
         source = problem_dir / CHECKER_FILENAME
         label = CHECKER_FILENAME
@@ -798,9 +815,7 @@ def _build_java(path: Path, work_dir: Path, memory_limit_mb: int) -> _Program:
         if "jdk.compiler" in compiled.stderr and "not found" in compiled.stderr:
             raise _BuildError(_NO_JDK_HINT)
         raise _BuildError(f"compilation failed:\n{compiled.stderr.strip()}")
-    return _Program(
-        [java, f"-Xmx{memory_limit_mb}m", _JAVA_STACK, "-cp", str(out_dir), class_name]
-    )
+    return _Program([java, f"-Xmx{memory_limit_mb}m", _JAVA_STACK, "-cp", str(out_dir), class_name])
 
 
 def _hard_timeout(time_limit: float) -> float:
@@ -868,8 +883,12 @@ def _execute_interactive(
     tout_path.unlink(missing_ok=True)
     to_interactor_read, to_interactor_write = os.pipe()
     to_solution_read, to_solution_write = os.pipe()
-    with open(run_dir / "solution.err", "w+", encoding="utf-8", errors="replace") as solution_err, \
-            open(run_dir / "interactor.err", "w+", encoding="utf-8", errors="replace") as interactor_err:
+    with (
+        open(run_dir / "solution.err", "w+", encoding="utf-8", errors="replace") as solution_err,
+        open(
+            run_dir / "interactor.err", "w+", encoding="utf-8", errors="replace"
+        ) as interactor_err,
+    ):
         started = time.monotonic()
         interactor_proc = subprocess.Popen(
             [*interactor.command, str(input_path), str(tout_path)],
@@ -1017,9 +1036,7 @@ def _check_statement_io(
         if interactor is not None:
             error = _check_dialogue(test, interactor, checker, work_dir)
         else:
-            error = _check_shown_output(
-                test, parsed, program_for, checker, time_limit, work_dir
-            )
+            error = _check_shown_output(test, parsed, program_for, checker, time_limit, work_dir)
         if error is None:
             result.note(f"{label}: OK")
         else:
@@ -1027,7 +1044,12 @@ def _check_statement_io(
 
 
 def _check_shown_output(
-    test: SampleTest, parsed: dict, program_for, checker: _Program, time_limit: float, work_dir: Path
+    test: SampleTest,
+    parsed: dict,
+    program_for,
+    checker: _Program,
+    time_limit: float,
+    work_dir: Path,
 ) -> str | None:
     """Обычная задача: показанный в условии вывод — верный ответ на
     показанный ввод. `None` — да, иначе — что не так."""
@@ -1103,9 +1125,7 @@ def _note_suspicious_answers(tests: list[SampleTest], result: SolutionsRunResult
     if len(ok_solutions) < 2:
         return
     for index, test in enumerate(tests):
-        if all(
-            index < len(s.tests) and s.tests[index].verdict == VERDICT_WA for s in ok_solutions
-        ):
+        if all(index < len(s.tests) and s.tests[index].verdict == VERDICT_WA for s in ok_solutions):
             result.errors.append(
                 f"{test.name}: all ok solutions get WA — check the expected output in the spec"
             )

@@ -121,7 +121,9 @@ def test_directory_without_spec_is_still_a_reference(spec, tmp_path):
     directory = _reference_dir(tmp_path)
     (directory / "authoring" / "spec.yaml").unlink()
 
-    documents = reference_documents("checker_draft", _with_section(spec, "checker", [directory / "validator.cpp"]))
+    documents = reference_documents(
+        "checker_draft", _with_section(spec, "checker", [directory / "validator.cpp"])
+    )
 
     assert documents == [str(directory / "validator.cpp")]
     assert reference_documents("constraints_pick", _with_common(spec, [directory])) == [
@@ -175,13 +177,18 @@ def test_missing_path_raises(spec, tmp_path):
     with pytest.raises(SpecReferenceError, match="references: '.*no-such-dir' not found"):
         reference_documents("constraints_pick", _with_common(spec, [tmp_path / "no-such-dir"]))
     with pytest.raises(SpecReferenceError, match="constraints.references"):
-        reference_documents("constraints_pick", _with_section(spec, "constraints", [tmp_path / "x.cpp"]))
+        reference_documents(
+            "constraints_pick", _with_section(spec, "constraints", [tmp_path / "x.cpp"])
+        )
 
 
 def test_section_directory_without_files_for_the_step_raises(spec, tmp_path):
     directory = _reference_dir(tmp_path)
 
-    with pytest.raises(SpecReferenceError, match="checker.references: directory .* no files for step 'checker_draft'"):
+    with pytest.raises(
+        SpecReferenceError,
+        match="checker.references: directory .* no files for step 'checker_draft'",
+    ):
         reference_documents("checker_draft", _with_section(spec, "checker", [directory]))
 
 

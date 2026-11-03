@@ -117,9 +117,7 @@ def test_revision_prompt_contains_current_files_and_input_changes(problem_dir, p
     assert "prompt: solutions_draft/system.md" in user_prompt
 
 
-def test_revision_prompt_says_changes_are_unknown_without_previous_values(
-    problem_dir, prompts_dir
-):
+def test_revision_prompt_says_changes_are_unknown_without_previous_values(problem_dir, prompts_dir):
     paths = _write_current(problem_dir, {"ok_py_main.py": "print(1)\n"})
 
     _, mock_call = _run(
@@ -316,7 +314,11 @@ def test_current_file_missing_from_response_is_kept(problem_dir, prompts_dir):
 
     assert _solution_files(problem_dir) == {"a.py": "x", "b.py": "b"}
     assert result.conflicts == [] and result.conflicts_dir is None
-    assert {"field": "b.py", "kind": "kept", "explanation": "not mentioned in the response — kept as is"} in result.notes
+    assert {
+        "field": "b.py",
+        "kind": "kept",
+        "explanation": "not mentioned in the response — kept as is",
+    } in result.notes
 
 
 def test_unknown_names_in_response_are_ignored(problem_dir, prompts_dir):
@@ -436,9 +438,14 @@ def test_step_applied_only_as_a_whole_applies_nothing_on_conflict(problem_dir, p
     assert _solution_files(problem_dir) == {"a.py": "a", "b.py": "b"}
     assert _conflict_files(result) == {"solutions/a.py": "x", "solutions/b.py": "y"}
     report = (result.conflicts_dir / CONFLICTS_REPORT).read_text(encoding="utf-8")
-    assert "Nothing of the response is applied: the files of this step are applied only all together" in report
+    assert (
+        "Nothing of the response is applied: the files of this step are applied only all together"
+        in report
+    )
     # Не применено ничего — ответ остаётся для `llm apply`.
-    assert load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is not None
+    assert (
+        load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is not None
+    )
 
 
 # --- кэш ---------------------------------------------------------------------
@@ -717,10 +724,17 @@ def test_cli_fresh_flag_and_revision_report(spec_file, tmp_path, capsys):
         renamed=[{"from": "ok_cpp_draft.cpp", "to": "wa_cpp_draft.cpp", "reason": "now wrong"}],
     )
     base = [
-        "--prompts-dir", str(PROMPTS_DIR),
-        "--base-dir", str(tmp_path),
-        "--templates-dir", str(TEMPLATES_DIR),
-        "problems/p1", "llm", "generate", "--step", "solutions_draft",
+        "--prompts-dir",
+        str(PROMPTS_DIR),
+        "--base-dir",
+        str(tmp_path),
+        "--templates-dir",
+        str(TEMPLATES_DIR),
+        "problems/p1",
+        "llm",
+        "generate",
+        "--step",
+        "solutions_draft",
     ]
 
     with patch(
@@ -748,9 +762,13 @@ def test_cli_fresh_flag_and_revision_report(spec_file, tmp_path, capsys):
 def test_revise_prompt_is_part_of_every_step_prompt_hash(prompts_dir):
     from orchestrator.cache import compute_prompt_hash, compute_prompt_parts
 
-    before = compute_prompt_hash("solutions_draft", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR)
+    before = compute_prompt_hash(
+        "solutions_draft", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
+    )
     (prompts_dir / REVISE_PROMPT).write_text("edited", encoding="utf-8")
-    after = compute_prompt_hash("solutions_draft", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR)
+    after = compute_prompt_hash(
+        "solutions_draft", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
+    )
 
     assert before != after
     assert f"prompt: {REVISE_PROMPT}" in compute_prompt_parts(

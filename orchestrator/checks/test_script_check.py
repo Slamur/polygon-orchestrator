@@ -78,6 +78,7 @@ _VALUE_FUNCTION_SOURCE = (
 _LOOP_AS_RE = re.compile(r"\bas\s+(\w+)(?:\s*,\s*(\w+))?")
 _BLOCK_RE = re.compile(r"<(/?)#(list|items|function|macro)\b")
 
+
 class ScriptCheckUnavailable(Exception):
     """Проверку нельзя выполнить: нет `java` или не удалось получить jar FreeMarker."""
 
@@ -441,7 +442,9 @@ def _describe(line: ScriptLine) -> str:
     if loop_lines and len(line.values) == len(loop_lines):
         values = ", ".join(
             f"{name}={value} (loop at line {loop_line})"
-            for name, value, loop_line in zip(line.source.variables, line.values, loop_lines, strict=False)
+            for name, value, loop_line in zip(
+                line.source.variables, line.values, loop_lines, strict=False
+            )
         )
         text += f"   [{values}]"
     return text

@@ -136,7 +136,7 @@ problems/" остались здесь.
 │   ├── polygon/                     # client, signing, state, sync, pull, steps/, pipeline; __init__ ничего не импортирует
 │   └── checks/                      # compile_check, run_with_timeout, test_script_check, local_tests,
 │                                    # statement_check, solutions_run, std_checkers/, FreemarkerRender.java
-├── githooks/pre-push, .github/workflows/ci.yml  # ruff check + pytest на каждый PR
+├── githooks/pre-push, .github/workflows/ci.yml  # ruff check, ruff format --check, pytest на каждый PR
 ├── tests/
 ├── drafts/                          # черновики автора для `init --draft`; в .gitignore
 └── problems/<путь задачи>/          # в .gitignore; на любой глубине
@@ -190,8 +190,9 @@ Claude Code — весь код оркестратора (парсер спек�
 3. **Коммиты** — в стиле Conventional Commits (`feat: ...`, `fix: ...`,
    `docs: ...`, `refactor: ...`, `chore: ...`), атомарные: один коммит —
    одно осмысленное изменение, а не "накопил всё и закоммитил одним куском".
-4. **Перед push** — `ruff check .` и `pytest` должны проходить: CI
-   (`.github/workflows/ci.yml`) запускает их на каждый PR.
+4. **Перед push** — `ruff format .`, затем `ruff check .` и `pytest`
+   должны проходить: CI (`.github/workflows/ci.yml`) проверяет все три на
+   каждый PR.
 5. **По завершении работы над веткой** — запушить и открыть PR через `gh`:
    `gh pr create --fill` (или с явным summary через `--body`). Заголовок и
    описание PR должны отражать, что и зачем изменено, а не только "what" —

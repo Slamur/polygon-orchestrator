@@ -111,7 +111,10 @@ def test_renamed_file_is_diffed_against_its_old_name(tmp_path):
 
     report = _report(problem_dir, outcome)
 
-    assert "- renamed: `solutions/ok.cpp` -> [solutions/wa.cpp](<../solutions/wa.cpp>) — now wrong" in report
+    assert (
+        "- renamed: `solutions/ok.cpp` -> [solutions/wa.cpp](<../solutions/wa.cpp>) — now wrong"
+        in report
+    )
     assert "<code>solutions/ok.cpp -> solutions/wa.cpp</code>" in report
     assert "-old\n+new" in report
 

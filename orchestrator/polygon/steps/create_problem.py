@@ -37,7 +37,7 @@ STEP_NAME = "create_problem"
 # у только что созданной задачи о ней только напоминаем. Найденной по имени
 # задаче не напоминаем: её уже кто-то настраивал.
 _AUTO_UPDATE_REMINDER = (
-    "REMINDER: enable \"auto-update\" for testlib.h and the standard checker "
+    'REMINDER: enable "auto-update" for testlib.h and the standard checker '
     "in the Polygon UI — the API cannot set it"
 )
 

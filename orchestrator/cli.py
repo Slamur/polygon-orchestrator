@@ -112,7 +112,10 @@ def build_parser() -> argparse.ArgumentParser:
         description="Run generative problem-preparation steps for Polygon (see CLAUDE.md)",
     )
     parser.add_argument(
-        "--prompts-dir", type=Path, default=PROMPTS_DIR, help="prompts/ directory (default: prompts/)"
+        "--prompts-dir",
+        type=Path,
+        default=PROMPTS_DIR,
+        help="prompts/ directory (default: prompts/)",
     )
     parser.add_argument(
         "--base-dir",
@@ -228,13 +231,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="apply model responses saved by a failed 'llm generate' (the response did not pass "
         "the checks) without calling the model",
     )
-    apply_parser.add_argument(
-        "--step", choices=LLM_STEPS, default=None, help="apply only one step"
-    )
+    apply_parser.add_argument("--step", choices=LLM_STEPS, default=None, help="apply only one step")
     apply_parser.set_defaults(handler="cmd_llm_apply")
 
     llm_status_parser = llm_commands.add_parser(
-        "status", help="table step -> cache hit / stale / not run / uncertain, without calling the model"
+        "status",
+        help="table step -> cache hit / stale / not run / uncertain, without calling the model",
     )
     llm_status_parser.set_defaults(handler="cmd_llm_status")
 
@@ -389,7 +391,9 @@ def main(argv: list[str] | None = None) -> int:
     if group and getattr(args, "polygon_id", None) is not None:
         parser.error(f"--polygon-id names one problem, but {args.problem} is a group of problems")
     if group and args.handler == "cmd_llm_tutorial" and args.ref:
-        parser.error(f"--ref names solutions of one problem, but {args.problem} is a group of problems")
+        parser.error(
+            f"--ref names solutions of one problem, but {args.problem} is a group of problems"
+        )
     args.problems_dir = args.base_dir / root
     if group:
         return _run_group(args, root, group)

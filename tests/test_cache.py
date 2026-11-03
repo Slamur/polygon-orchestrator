@@ -101,10 +101,14 @@ def test_compute_prompt_hash_changes_when_context_document_changes(tmp_path):
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
     _write_step_context_docs(templates_dir, "constraints_pick")
 
-    h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+    h1 = compute_prompt_hash(
+        "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
+    )
 
     _write_context_doc(templates_dir, "tutorials/limits.md", "limits v2")
-    h2 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+    h2 = compute_prompt_hash(
+        "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
+    )
 
     assert h1 != h2
 
@@ -116,12 +120,16 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
     _write_step_context_docs(templates_dir, "constraints_pick")
     _write_context_doc(templates_dir, "tutorials/statement.md", "statement v1")
 
-    h1 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+    h1 = compute_prompt_hash(
+        "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
+    )
 
     # constraints_pick не читает statement.md (это документ statement_draft) —
     # его правка не должна инвалидировать кэш constraints_pick.
     _write_context_doc(templates_dir, "tutorials/statement.md", "statement v2")
-    h2 = compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+    h2 = compute_prompt_hash(
+        "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
+    )
 
     assert h1 == h2
 
@@ -158,7 +166,9 @@ def test_compute_prompt_hash_missing_context_document_raises(tmp_path):
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
 
     with pytest.raises(FileNotFoundError, match="tutorials/limits.md"):
-        compute_prompt_hash("constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir)
+        compute_prompt_hash(
+            "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
+        )
 
 
 # --- load/save CacheEntry -----------------------------------------------------

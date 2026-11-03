@@ -77,8 +77,7 @@ def set_spec_problem_id(
             "field": "problem_id",
             "kind": "restored",
             "explanation": (
-                f"problem_id в {artifact} заменён оркестратором "
-                f"на '{problem_id}' из спека"
+                f"problem_id в {artifact} заменён оркестратором на '{problem_id}' из спека"
             ),
         }
         return {**artifacts, artifact: fixed}, [note]
@@ -128,7 +127,9 @@ def current_artifacts(
     problem_dir = Path(problems_dir) / problem_id
     return existing_artifacts(
         {
-            CONSTRAINTS_ARTIFACT: primary_artifact_path(problem_id, spec, problems_dir=problems_dir),
+            CONSTRAINTS_ARTIFACT: primary_artifact_path(
+                problem_id, spec, problems_dir=problems_dir
+            ),
             "validator.cpp": problem_dir / "validator.cpp",
         }
     )

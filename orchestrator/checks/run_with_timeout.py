@@ -53,8 +53,16 @@ def run_with_timeout(
             preexec_fn=_raise_stack_limit if unlimited_stack else None,
         )
     except subprocess.TimeoutExpired as exc:
-        stdout = exc.stdout if isinstance(exc.stdout, str) else (exc.stdout or b"").decode(errors="replace")
-        stderr = exc.stderr if isinstance(exc.stderr, str) else (exc.stderr or b"").decode(errors="replace")
+        stdout = (
+            exc.stdout
+            if isinstance(exc.stdout, str)
+            else (exc.stdout or b"").decode(errors="replace")
+        )
+        stderr = (
+            exc.stderr
+            if isinstance(exc.stderr, str)
+            else (exc.stderr or b"").decode(errors="replace")
+        )
         return RunResult(
             stdout=stdout,
             stderr=stderr,

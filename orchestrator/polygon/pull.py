@@ -236,7 +236,6 @@ _NOT_DOWNLOADED_DETAIL = "unchanged on Polygon since the last sync, not download
 _INTERACTIVE_CONDITION = "the spec has an interactor section"
 
 
-
 @dataclass
 class PullItem:
     """Что произошло с одной частью задачи (обычно — с одним файлом)."""
@@ -291,9 +290,7 @@ def pull_problem(
     показывал прогресс по мере выполнения.
     """
     client = client or PolygonClient()
-    resolved_id, link_detail = _resolve_and_link(
-        problem_id, polygon_id, Path(problems_dir), client
-    )
+    resolved_id, link_detail = _resolve_and_link(problem_id, polygon_id, Path(problems_dir), client)
     logger.info("[pull] %s", link_detail)
 
     current = fetch_revision(client, resolved_id)
@@ -556,7 +553,8 @@ class _Puller:
                 detail=f"Polygon test {test['index']}",
             )
             for filename, field_name in zip(
-                dialogue_filenames(number), ("inputForStatement", "outputForStatement"),
+                dialogue_filenames(number),
+                ("inputForStatement", "outputForStatement"),
                 strict=True,
             ):
                 value = test.get(field_name) or ""
@@ -826,7 +824,9 @@ class _Puller:
                 self.synced[CONSTRAINTS_KEY] = None
             else:
                 self._missing_on_polygon(
-                    _authoring_name(CONSTRAINTS_KEY), "no attachment on Polygon", key=CONSTRAINTS_KEY
+                    _authoring_name(CONSTRAINTS_KEY),
+                    "no attachment on Polygon",
+                    key=CONSTRAINTS_KEY,
                 )
         if TESTS_PLAN_KEY not in remote_names:
             self._missing_if_local(

@@ -186,7 +186,9 @@ def test_waits_with_backoff_until_tests_match_script(problems_dir, spec, expande
     link(problems_dir)
     _write_script(problems_dir)
     old = _tests("gen_random 1 5", "gen_random 2 50")
-    client = _polygon(old, requests.ReadTimeout("busy"), GENERATED[:2], GENERATED, save_times_out=True)
+    client = _polygon(
+        old, requests.ReadTimeout("busy"), GENERATED[:2], GENERATED, save_times_out=True
+    )
 
     message = _run(spec, problems_dir, client)
 
@@ -237,7 +239,10 @@ def test_incremental_run_skips_unchanged_script(problems_dir, spec):
     _run(spec, problems_dir, MagicMock())
     client = MagicMock()
 
-    assert _run(spec, problems_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    assert (
+        _run(spec, problems_dir, client, incremental=True)
+        == "no changes since the last sync, skipped"
+    )
     client.call.assert_not_called()
 
 
@@ -264,7 +269,10 @@ def test_blank_lines_do_not_change_script_hash(problems_dir, spec):
     client = MagicMock()
 
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
-    assert _run(spec, problems_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    assert (
+        _run(spec, problems_dir, client, incremental=True)
+        == "no changes since the last sync, skipped"
+    )
     client.call.assert_not_called()
 
 

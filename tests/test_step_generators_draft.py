@@ -66,7 +66,9 @@ def test_missing_plan_raises(spec, tmp_path):
 
 
 def test_writes_generators_of_the_plan(spec, tmp_path):
-    response = ModelResponse(status="confirmed", artifacts={"generators/gen_rand.cpp": VALID_GENERATOR})
+    response = ModelResponse(
+        status="confirmed", artifacts={"generators/gen_rand.cpp": VALID_GENERATOR}
+    )
 
     result, mock_call = _run(spec, tmp_path, [response])
 
@@ -106,7 +108,9 @@ def test_notes_generators_that_differ_from_the_plan(spec, tmp_path):
 
     result, _ = _run(spec, tmp_path, [response])
 
-    mismatches = {n["field"]: n["explanation"] for n in result.notes if n["kind"] == "plan_mismatch"}
+    mismatches = {
+        n["field"]: n["explanation"] for n in result.notes if n["kind"] == "plan_mismatch"
+    }
     assert set(mismatches) == {"generators/gen_old.cpp", "generators/gen_rand.cpp"}
     assert "not in tests_plan.yaml" in mismatches["generators/gen_old.cpp"]
     assert "['count']" in mismatches["generators/gen_rand.cpp"]

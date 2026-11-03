@@ -411,8 +411,7 @@ def _read_examples(statement_dir: Path) -> list[Example]:
     examples_dir = statement_dir / EXAMPLES_DIRNAME
     if not examples_dir.is_dir():
         raise PolygonStepError(
-            f"directory {examples_dir} not found — first run "
-            "the generative step statement_draft"
+            f"directory {examples_dir} not found — first run the generative step statement_draft"
         )
 
     found: dict[int, bytes] = {}

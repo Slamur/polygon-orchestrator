@@ -147,7 +147,9 @@ def reference_documents(
 def _existing(ref: str, field: str) -> Path:
     path = Path(ref)
     if not path.exists():
-        raise SpecReferenceError(f"{field}: '{ref}' not found (paths are relative to the repository root)")
+        raise SpecReferenceError(
+            f"{field}: '{ref}' not found (paths are relative to the repository root)"
+        )
     return path
 
 
@@ -176,9 +178,7 @@ def _directory_files(
         else:
             matches = [directory / entry] if (directory / entry).is_file() else []
         files.extend(
-            path
-            for path in matches
-            if keep is None or keep(path.relative_to(directory).as_posix())
+            path for path in matches if keep is None or keep(path.relative_to(directory).as_posix())
         )
     if not files:
         return []

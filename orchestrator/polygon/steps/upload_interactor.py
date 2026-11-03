@@ -42,7 +42,9 @@ from orchestrator.problem_paths import problem_address
 
 STEP_NAME = "upload_interactor"
 
-NOT_INTERACTIVE_MESSAGE = "the problem is not interactive (no 'interactor' section in the spec), skipped"
+NOT_INTERACTIVE_MESSAGE = (
+    "the problem is not interactive (no 'interactor' section in the spec), skipped"
+)
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:

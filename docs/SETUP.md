@@ -36,6 +36,15 @@ git config core.hooksPath   # должно вывести: githooks
 (`git branch -m <новое-имя>`) и/или переписать сообщения коммитов
 (`git commit --amend` / `git rebase -i origin/main`).
 
+## Опционально: git blame без коммитов форматирования
+
+Массовые правки форматирования перечислены в `.git-blame-ignore-revs`;
+GitHub пропускает их сам, локальному `git blame` нужно сказать один раз:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
 ## Опционально: Java для проверки test-script'а и Java-решений
 
 Проверка test-script'а в `orchestrator <задача> local check` и перед загрузкой в

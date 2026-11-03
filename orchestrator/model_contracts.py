@@ -160,9 +160,7 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
 def model_response_from_payload(payload: dict[str, Any]) -> ModelResponse:
     """Собирает `ModelResponse` из JSON-объекта по `RESPONSE_JSON_SCHEMA`
     (список пар `artifacts` -> dict "имя файла" -> "содержимое")."""
-    artifacts = {
-        entry["filename"]: entry["content"] for entry in payload.get("artifacts") or []
-    }
+    artifacts = {entry["filename"]: entry["content"] for entry in payload.get("artifacts") or []}
     return ModelResponse(
         status=payload["status"],
         artifacts=artifacts,

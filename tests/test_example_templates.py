@@ -60,7 +60,9 @@ def _example_spec(example_dir: Path):
 
 
 def _example_constraints(example_dir: Path) -> dict:
-    return yaml.safe_load((example_dir / AUTHORING_DIRNAME / "constraints.yaml").read_text(encoding="utf-8"))
+    return yaml.safe_load(
+        (example_dir / AUTHORING_DIRNAME / "constraints.yaml").read_text(encoding="utf-8")
+    )
 
 
 def test_examples_exist():
@@ -96,7 +98,9 @@ def test_example_constraints_match_example_spec(example_dir):
     assert constraints["intended_complexity"] == spec.constraints.intended_complexity
     expected = [(v.name, v.min, v.max) for v in spec.constraints.variables]
     assert [(v["name"], v["min"], v["max"]) for v in constraints["variables"]] == expected
-    assert [(c["name"], c["min"], c["max"]) for c in constraints["validator"]["constants"]] == expected
+    assert [
+        (c["name"], c["min"], c["max"]) for c in constraints["validator"]["constants"]
+    ] == expected
 
 
 @examples
@@ -180,7 +184,9 @@ def test_example_tests_plan_matches_spec_and_generators(example_dir):
     spec = _example_spec(example_dir)
     assert plan["problem_id"] == spec.problem_id
     assert uncovered_notes(plan, spec) == []
-    planned = {g["name"]: sorted(p["name"] for p in g.get("params") or []) for g in plan_generators(plan)}
+    planned = {
+        g["name"]: sorted(p["name"] for p in g.get("params") or []) for g in plan_generators(plan)
+    }
     actual = {
         path.stem: sorted(generator_params(path.read_text(encoding="utf-8")))
         for path in (example_dir / "generators").glob("*.cpp")

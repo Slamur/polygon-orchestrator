@@ -49,7 +49,9 @@ def _with_examples(spec, n: int):
     base = spec.statement_draft.sample_examples[0]
     examples = [base.model_copy(update={"input": f"{i}\n"}) for i in range(1, n + 1)]
     return spec.model_copy(
-        update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
+        update={
+            "statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})
+        }
     )
 
 
@@ -115,9 +117,7 @@ def test_mismatched_artifacts_are_not_applied_at_all(spec, tmp_path):
     assert not (problem_dir / "statement").exists()
     assert result.artifact_paths == {}
     assert "missing files: ['notes.tex']" in result.not_applied_reason
-    assert all(
-        reason == "the response is not applied as a whole" for _, reason in result.conflicts
-    )
+    assert all(reason == "the response is not applied as a whole" for _, reason in result.conflicts)
     assert (result.conflicts_dir / "statement" / "ru" / "legend.tex").is_file()
     # Не применено ничего — ответ остаётся для `llm apply`.
     assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
@@ -159,7 +159,13 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
     response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
+        notes=[
+            {
+                "field": "statement_draft.formal_output_sketch",
+                "kind": "uncertain",
+                "explanation": "нет точности",
+            }
+        ],
     )
     with patch("orchestrator.model_router.call_model", return_value=response):
         with pytest.raises(StepUncertainError):
@@ -177,7 +183,11 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
 
 def test_preserve_legend_verbatim_true_includes_instruction(spec, tmp_path):
     spec_verbatim = spec.model_copy(
-        update={"statement_draft": spec.statement_draft.model_copy(update={"preserve_legend_verbatim": True})}
+        update={
+            "statement_draft": spec.statement_draft.model_copy(
+                update={"preserve_legend_verbatim": True}
+            )
+        }
     )
     response = ModelResponse(status="confirmed", artifacts=_model_artifacts(), notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -214,7 +224,9 @@ def test_preserve_legend_verbatim_false_uses_default_instruction(spec, tmp_path)
 
 def test_renders_without_crashing_when_known_ambiguities_is_null(spec, tmp_path):
     spec_no_ambiguities = spec.model_copy(
-        update={"statement_draft": spec.statement_draft.model_copy(update={"known_ambiguities": None})}
+        update={
+            "statement_draft": spec.statement_draft.model_copy(update={"known_ambiguities": None})
+        }
     )
     response = ModelResponse(status="confirmed", artifacts=_model_artifacts(), notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -233,10 +245,14 @@ def test_renders_without_crashing_when_known_ambiguities_is_null(spec, tmp_path)
 def test_prompt_marks_missing_sample_output_and_keeps_given_one(spec, tmp_path):
     examples = [
         spec.statement_draft.sample_examples[0].model_copy(update={"output": "8\n"}),
-        spec.statement_draft.sample_examples[0].model_copy(update={"input": "2 1\n1 2 4\n1 2\n", "output": None}),
+        spec.statement_draft.sample_examples[0].model_copy(
+            update={"input": "2 1\n1 2 4\n1 2\n", "output": None}
+        ),
     ]
     spec_mixed = spec.model_copy(
-        update={"statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})}
+        update={
+            "statement_draft": spec.statement_draft.model_copy(update={"sample_examples": examples})
+        }
     )
     response = ModelResponse(status="confirmed", artifacts=_model_artifacts(), notes=[])
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
