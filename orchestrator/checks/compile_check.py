@@ -16,6 +16,8 @@ from pathlib import Path
 
 _DEFAULT_COMPILE_TIMEOUT_SECONDS = 30.0
 
+COMPILE_FLAGS = ("-std=c++17", "-O2")
+
 
 @dataclass
 class CompileResult:
@@ -43,8 +45,7 @@ def compile_check(
         result = subprocess.run(
             [
                 "g++",
-                "-std=c++17",
-                "-O2",
+                *COMPILE_FLAGS,
                 *(arg for directory in include_dirs for arg in ("-I", str(directory))),
                 str(path),
                 "-o",
