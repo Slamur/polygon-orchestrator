@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from compile_cache import source_key
 
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.limits import LIMITS_FILENAME, extract_limits, parse_limits
@@ -44,7 +45,6 @@ REPO_ROOT = Path(__file__).parent.parent
 TEMPLATES_DIR = REPO_ROOT / "templates"
 EXAMPLES_ROOT = REPO_ROOT / EXAMPLES_DIR
 EXAMPLE_DIRS = sorted(iter_problem_dirs(EXAMPLES_ROOT))
-EXAMPLE_CPP_FILES = sorted(path for example in EXAMPLE_DIRS for path in example.rglob("*.cpp"))
 
 
 def _id(path: Path) -> str:
@@ -194,26 +194,64 @@ def test_example_tests_plan_matches_spec_and_generators(example_dir):
     assert planned == actual
 
 
-def _compile(cpp_path: Path) -> str | None:
+def _compile(cpp_path: Path, cache_dir: Path | None) -> str | None:
     """stderr компилятора, если `cpp_path` не собрался, иначе None.
 
     `problem_lib.h` ищется, как в compile-check пайплайна, сначала в каталоге
     задачи (у образца может быть своя копия с функциями задачи), потом в
-    `templates/`."""
+    `templates/`. Удачная сборка помечается в `cache_dir` по `source_key`
+    (исходник после препроцессора, флаги, версия g++): тот же вход между
+    запусками pytest не пересобирается, изменённый собирается честно."""
     example_dir = next(example for example in EXAMPLE_DIRS if example in cpp_path.parents)
-    result = compile_check(cpp_path, [example_dir, TEMPLATES_DIR])
+    include_dirs = [example_dir, TEMPLATES_DIR]
+    key = source_key(cpp_path, include_dirs) if cache_dir else None
+    marker = cache_dir / key if cache_dir and key else None
+    if marker is not None and marker.exists():
+        return None
+    result = compile_check(cpp_path, include_dirs)
     if result.binary_path:
         result.binary_path.unlink(missing_ok=True)
-    return None if result.success else result.stderr
+    if not result.success:
+        return result.stderr
+    if marker is not None:
+        marker.touch()
+    return None
+
+
+@pytest.fixture(scope="session")
+def _example_compilations(request, pytestconfig):
+    """Сборки `.cpp` выбранных образцов, запущенные сразу все параллельно.
+
+    Тест на образец ждёт только свои файлы, но собираются они в общем пуле:
+    с testlib.h каждый файл собирается несколько секунд, а у одного образца
+    файлов меньше, чем ядер. Не больше компиляций, чем ядер, иначе при
+    десятках файлов отдельные компиляции упираются в таймаут compile_check.
+    Кэш — в `.pytest_cache` (без cacheprovider — без кэша)."""
+    cache = getattr(pytestconfig, "cache", None)
+    cache_dir = cache.mkdir("example-compiles") if cache else None
+    selected = sorted(
+        {
+            item.callspec.params["example_dir"]
+            for item in request.session.items
+            if getattr(item, "originalname", None) == test_example_cpp_files_compile.__name__
+        }
+    )
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
+        yield {
+            path: pool.submit(_compile, path, cache_dir)
+            for example_dir in selected
+            for path in sorted(example_dir.rglob("*.cpp"))
+        }
 
 
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
-def test_example_cpp_files_compile():
-    # Параллельно: с testlib.h каждый файл собирается несколько секунд; не
-    # больше компиляций, чем ядер, иначе при десятках файлов отдельные
-    # компиляции упираются в таймаут compile_check.
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
-        errors = dict(zip(EXAMPLE_CPP_FILES, pool.map(_compile, EXAMPLE_CPP_FILES), strict=True))
-    failed = {_id(path): stderr for path, stderr in errors.items() if stderr is not None}
-    assert EXAMPLE_CPP_FILES
+@examples
+def test_example_cpp_files_compile(example_dir, _example_compilations):
+    cpp_files = sorted(example_dir.rglob("*.cpp"))
+    failed = {
+        path.relative_to(example_dir).as_posix(): stderr
+        for path in cpp_files
+        if (stderr := _example_compilations[path].result()) is not None
+    }
+    assert cpp_files
     assert not failed, failed

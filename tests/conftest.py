@@ -23,8 +23,9 @@ def _compile_cache_dir(tmp_path_factory):
 def _cached_compile_check(monkeypatch, _compile_cache_dir):
     """Сборки кода оркестратора (шаги, `local run`, `local check --full`)
     кэшируются на сессию, см. `compile_cache.py`. Тесты, которые сами
-    импортируют `compile_check` (compile-check, образцы из `examples/`),
-    компилируют честно."""
+    импортируют `compile_check`, компилируют честно; образцы из `examples/`
+    помечают удачные сборки в `.pytest_cache` по тому же ключу и между
+    запусками пересобирают только изменившееся."""
     cached = caching_compile_check(compile_check.compile_check, _compile_cache_dir)
     for module in (base, local_tests, solutions_run):
         monkeypatch.setattr(module, "compile_check", cached)
