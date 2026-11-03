@@ -24,6 +24,7 @@ pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
     "integration: бьёт в реальный внешний API (Anthropic и/или Polygon; нужны ANTHROPIC_API_KEY и/или POLYGON_API_KEY/POLYGON_API_SECRET), не запускается по умолчанию",
+    "slow: собирает или запускает C++/Java (g++, java, FreeMarker); pytest --fast их пропускает (tests/conftest.py), в CI идут все",
 ]
 addopts = "-m 'not integration'"
 

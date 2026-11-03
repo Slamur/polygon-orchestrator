@@ -183,6 +183,7 @@ def test_invalid_lines_report_groups_by_source_line():
 # --- раскрытие настоящим FreeMarker ----------------------------------------
 
 
+@pytest.mark.slow
 def test_expand_and_find_duplicates_with_freemarker():
     jar = _jar_or_skip()
     result = check.check_script(DUPLICATES_SCRIPT, "test_script", jar=jar)
@@ -195,6 +196,7 @@ def test_expand_and_find_duplicates_with_freemarker():
     assert "line 7: gen  -n=100  >  $" in result.report
 
 
+@pytest.mark.slow
 def test_check_script_reports_quoted_parameters_with_freemarker():
     jar = _jar_or_skip()
     result = check.check_script(QUOTED_SCRIPT, "test_script", jar=jar)
@@ -204,6 +206,7 @@ def test_check_script_reports_quoted_parameters_with_freemarker():
     assert "Polygon will reject" in result.report
 
 
+@pytest.mark.slow
 def test_render_error_points_to_source_line():
     jar = _jar_or_skip()
     with pytest.raises(ScriptRenderError, match="line 2") as error:
@@ -211,6 +214,7 @@ def test_render_error_points_to_source_line():
     assert "\x1e" not in str(error.value)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize(
     "script", sorted((Path(__file__).parent.parent / "examples").glob("*/*/test_script")), ids=str
 )
@@ -321,6 +325,7 @@ def _check_cli(tmp_path: Path) -> int:
     return cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "check"])
 
 
+@pytest.mark.slow
 def test_local_check_reports_duplicates(tmp_path, capsys):
     _jar_or_skip()
     problem_dir = tmp_path / "problems" / PROBLEM_ID
@@ -334,6 +339,7 @@ def test_local_check_reports_duplicates(tmp_path, capsys):
     assert "test_script_groups: ok" in out
 
 
+@pytest.mark.slow
 def test_local_check_reports_quoted_parameters(tmp_path, capsys):
     _jar_or_skip()
     problem_dir = tmp_path / "problems" / PROBLEM_ID

@@ -244,6 +244,7 @@ def _example_compilations(request, pytestconfig):
         }
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
 @examples
 def test_example_cpp_files_compile(example_dir, _example_compilations):

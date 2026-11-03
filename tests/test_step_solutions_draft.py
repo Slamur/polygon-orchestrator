@@ -168,6 +168,7 @@ def test_run_step_attaches_language_template_under_templates_key(spec, tmp_path)
     )
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
 def test_cpp_solution_template_compiles():
     result = compile_check(SOLUTION_TEMPLATES / "ok.cpp", [TEMPLATES_DIR])

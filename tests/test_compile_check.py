@@ -1,6 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from orchestrator.checks.compile_check import CompileResult, compile_check
+
+# Тесты модуля собирают и запускают C++/Java, см. маркер slow в pyproject.toml.
+pytestmark = pytest.mark.slow
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "cpp"
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
