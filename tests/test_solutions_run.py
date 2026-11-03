@@ -398,10 +398,6 @@ def _full_problem(tmp_path: Path, solutions: dict[str, str], script: str, **kwar
     return problem_dir
 
 
-def _by_name(result) -> dict:
-    return {s.name: s for s in result.solutions}
-
-
 def test_full_wa_caught_by_generated_test_stops_there(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
