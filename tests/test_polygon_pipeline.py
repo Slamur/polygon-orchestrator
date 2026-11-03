@@ -2,6 +2,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
 import pytest
+from polygon_sync_helpers import FIXTURES_DIR, PROBLEM_ID, link
 
 from orchestrator import cli, cli_commands
 from orchestrator.polygon import pipeline as polygon_pipeline
@@ -11,11 +12,12 @@ from orchestrator.polygon.pipeline import (
     compute_polygon_step_statuses,
     run_polygon_pipeline,
 )
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.state import (
+    PolygonState,
+    load_polygon_state,
+    save_polygon_state,
+)
 from orchestrator.polygon.steps.base import PolygonStep, StepResult
-
-from polygon_sync_helpers import FIXTURES_DIR, PROBLEM_ID, link
-
 
 
 def _write_spec(

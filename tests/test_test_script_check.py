@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from polygon_sync_helpers import run_and_record
 
 from orchestrator import cli
 from orchestrator.checks import test_script_check as check
@@ -25,8 +26,6 @@ from orchestrator.polygon.state import PolygonState, save_polygon_state
 from orchestrator.polygon.steps import upload_test_script
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.spec import load_spec
-
-from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
@@ -74,7 +73,7 @@ def test_marker_keeps_line_count_and_line_contents():
     source = "<#list 1..2 as i>\n  gen ${i} > $\n</#list>\n"
     instrumented = instrument_script(source).source.split("\n")
     original = source.split("\n")
-    assert all(new.startswith(old) for old, new in zip(original, instrumented))
+    assert all(new.startswith(old) for old, new in zip(original, instrumented, strict=False))
     assert len(instrumented) == len(original) + 1  # функция значения — в конце
 
 

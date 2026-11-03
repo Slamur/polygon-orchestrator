@@ -17,7 +17,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator.problem_paths import PROBLEMS_DIR
 
@@ -104,8 +104,8 @@ def compute_input_parts(spec_section: Any, upstream_artifacts: Any = None) -> di
 
 
 def changed_input_values(
-    old_values: Optional[dict[str, Any]], new_values: dict[str, Any]
-) -> Optional[list[tuple[str, Any, Any]]]:
+    old_values: dict[str, Any] | None, new_values: dict[str, Any]
+) -> list[tuple[str, Any, Any]] | None:
     """Изменившиеся части входа: `(имя, было, стало)`; у появившейся части
     "было" — `None`, у исчезнувшей "стало" — `None`. `old_values=None` (запись
     кэша без значений) — `None`: что изменилось, неизвестно."""
@@ -188,7 +188,7 @@ def compute_prompt_parts(
     return parts
 
 
-def _read_revise_prompt(prompts_dir: Path) -> Optional[str]:
+def _read_revise_prompt(prompts_dir: Path) -> str | None:
     """`prompts/revise.md.j2`, если он есть. Нет — `None`: в хеш не входит
     (нужен только в режиме доработки, и там его отсутствие — ошибка
     рендера)."""
@@ -239,11 +239,11 @@ class CacheEntry:
     model: str
     status: str
     timestamp: str
-    input_parts: Optional[dict[str, str]] = None
-    prompt_parts: Optional[dict[str, str]] = None
-    input_values: Optional[dict[str, Any]] = None
+    input_parts: dict[str, str] | None = None
+    prompt_parts: dict[str, str] | None = None
+    input_values: dict[str, Any] | None = None
     accepted: bool = False
-    conflicts: Optional[str] = None
+    conflicts: str | None = None
 
 
 def _cache_file_path(
@@ -254,7 +254,7 @@ def _cache_file_path(
 
 def load_cache_entry(
     problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
-) -> Optional[CacheEntry]:
+) -> CacheEntry | None:
     """Читает кэш шага, если файл существует и является валидным CacheEntry.
 
     Отсутствующий файл, битый JSON или не соответствующая формату структура
@@ -296,10 +296,10 @@ def save_cache_entry(
 
 
 def is_cache_valid(
-    entry: Optional[CacheEntry],
+    entry: CacheEntry | None,
     current_input_hash: str,
     current_prompt_hash: str,
-    current_model: Optional[str] = None,
+    current_model: str | None = None,
 ) -> bool:
     """Можно ли пропустить вызов модели и переиспользовать `entry`.
 
@@ -364,7 +364,7 @@ def save_pending_response(
 
 def load_pending_response(
     problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
-) -> Optional[PendingResponse]:
+) -> PendingResponse | None:
     """Неприменённый ответ шага; `None` — его нет (или файл битый — как у
     `load_cache_entry`)."""
     path = _pending_response_path(problem_id, step_name, problems_dir=problems_dir)
@@ -390,7 +390,7 @@ def discard_pending_response(
 
 
 def describe_changed_parts(
-    old_parts: Optional[dict[str, str]], new_parts: dict[str, str]
+    old_parts: dict[str, str] | None, new_parts: dict[str, str]
 ) -> list[str]:
     """Какие части изменились между двумя наборами хешей по частям: имя
     части, с пометкой ` (added)`/` (removed)` для появившихся и исчезнувших.

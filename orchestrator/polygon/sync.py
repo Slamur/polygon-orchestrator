@@ -35,8 +35,8 @@ TL/ML, имя назначенного валидатора/чекера, наз
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.steps.base import PolygonStepError

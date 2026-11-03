@@ -15,8 +15,8 @@ import os
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, Sequence
 
 from orchestrator.checks.compile_check import CompileResult
 

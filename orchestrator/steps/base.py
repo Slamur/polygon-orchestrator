@@ -54,9 +54,10 @@ import datetime
 import json
 import re
 import shutil
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path, PurePosixPath
-from typing import Any, Callable, Optional
+from typing import Any
 
 import jinja2
 import yaml
@@ -78,7 +79,6 @@ from orchestrator.checks.compile_check import CompileResult, compile_check
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
-    EXAMPLES_DIR,
     PROBLEMS_DIR,
     REMOVED_SUFFIX,
     is_authoring_name,
@@ -207,7 +207,7 @@ _LIMITS_KEY_RE = re.compile(r"(time_limit_seconds|memory_limit_mb)\s*:")
 
 
 def require_constraints_yaml(
-    step_name: str, problem_id: str, upstream_artifacts: Optional[dict[str, Any]]
+    step_name: str, problem_id: str, upstream_artifacts: dict[str, Any] | None
 ) -> str:
     """`constraints.yaml` из `upstream_artifacts` шага, который от него
     зависит; нет — `ValueError` (шаги запущены не по порядку). `step_name` —
@@ -333,14 +333,14 @@ class StepResult:
     renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
     # Куда легли прежние версии перезаписанных/переименованных файлов;
     # `None` — ничего не перезаписано.
-    backup_dir: Optional[Path] = None
+    backup_dir: Path | None = None
     # Что из ответа модели не применено (имя файла, причина) и каталог, куда
     # отложены версии модели (`_write_conflicts`); `None` — всё применено.
     conflicts: list[tuple[str, str]] = field(default_factory=list)
-    conflicts_dir: Optional[Path] = None
+    conflicts_dir: Path | None = None
     # Почему ответ не применён целиком (не прошёл `validate_artifacts` или
     # конфликт в шаге, применяемом только целиком); `None` — применён.
-    not_applied_reason: Optional[str] = None
+    not_applied_reason: str | None = None
 
 
 @dataclass
@@ -357,7 +357,7 @@ class StepRevision:
     """
 
     current_paths: dict[str, Path]
-    previous_input_values: Optional[dict[str, Any]] = None
+    previous_input_values: dict[str, Any] | None = None
     other_changes: list[str] = field(default_factory=list)
 
 
@@ -442,7 +442,7 @@ def render_user_prompt(
     return template.render(**context)
 
 
-def _display_value(value: Any) -> Optional[str]:
+def _display_value(value: Any) -> str | None:
     """Часть входа шага текстом для промпта: строка — как есть (текст
     легенды, содержимое `constraints.yaml`), списки и словари — YAML,
     прочие значения — JSON (`true`, `5`, `null` у поля, заданного как null)."""
@@ -669,7 +669,7 @@ class _Conflict:
 
     filename: str
     reason: str
-    content: Optional[str] = None
+    content: str | None = None
 
 
 @dataclass
@@ -697,7 +697,7 @@ def _note(field_name: str, kind: str, explanation: str) -> dict[str, Any]:
 
 def _plan_response(
     response: Any,
-    revision: Optional[StepRevision],
+    revision: StepRevision | None,
     resolve_path: Callable[[str], Path],
 ) -> _ApplyPlan:
     """Раскладывает ответ модели на то, что можно применить, и конфликты —
@@ -738,7 +738,7 @@ def _plan_response(
     current_paths = revision.current_paths
     current_by_path = {path.resolve(): name for name, path in current_paths.items()}
 
-    def current_name(filename: str) -> Optional[str]:
+    def current_name(filename: str) -> str | None:
         try:
             return current_by_path.get(resolve_path(filename).resolve())
         except ValueError:
@@ -860,12 +860,12 @@ def _add_generated_artifacts(
 
 def _plan_and_check(
     response: Any,
-    revision: Optional[StepRevision],
+    revision: StepRevision | None,
     resolve_path: Callable[[str], Path],
-    generated: Optional[GeneratedArtifacts],
-    validate_artifacts: Optional[Callable[[dict[str, str]], None]],
+    generated: GeneratedArtifacts | None,
+    validate_artifacts: Callable[[dict[str, str]], None] | None,
     partial_apply: bool,
-) -> tuple[_ApplyPlan, Optional[str], list[str]]:
+) -> tuple[_ApplyPlan, str | None, list[str]]:
     """`_plan_response` + проверка итогового набора файлов шага. Возвращает
     план, причину, по которой ответ не применяется целиком (`None` —
     применяется), и недостающие файлы (`MissingArtifactsError`)."""
@@ -873,7 +873,7 @@ def _plan_and_check(
     dropped: set[str] = set()
     if generated is not None:
         dropped = _add_generated_artifacts(plan, generated, resolve_path)
-    reason: Optional[str] = None
+    reason: str | None = None
     missing: list[str] = []
     if plan.conflicts and not partial_apply:
         reason = "the files of this step are applied only all together"
@@ -899,7 +899,7 @@ def _merge_missing_artifacts(
     файлы (остальные — заметкой `ignored`), заметки обоих ответов
     складываются, статус — худший из двух."""
 
-    def resolved(filename: str) -> Optional[Path]:
+    def resolved(filename: str) -> Path | None:
         try:
             return resolve_path(filename).resolve()
         except ValueError:
@@ -971,7 +971,7 @@ class Backup:
 
     def __init__(self, problem_dir: Path) -> None:
         self.problem_dir = problem_dir
-        self.directory: Optional[Path] = None
+        self.directory: Path | None = None
 
     def save(self, path: Path) -> None:
         if self.directory is None:
@@ -988,7 +988,7 @@ def _write_artifacts(
     backup: Backup,
     *,
     skip_backup: set[Path] = frozenset(),
-    created: Optional[list[Path]] = None,
+    created: list[Path] | None = None,
 ) -> dict[str, Path]:
     """Пишет файлы ответа; прежние версии изменённых — в `backup`. В
     `created` (если задан) — пути файлов, которых до записи не было."""
@@ -1018,7 +1018,7 @@ def _write_conflicts(
     conflicts: list[_Conflict],
     problem_dir: Path,
     resolve_path: Callable[[str], Path],
-    whole_step_reason: Optional[str],
+    whole_step_reason: str | None,
 ) -> Path:
     """Каталог `.llm_conflicts/<шаг>-<время>/`: версии файлов от модели (по
     их путям в каталоге задачи; файлы с недопустимыми именами — в
@@ -1214,7 +1214,7 @@ def run_generative_step(
             discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
             raise StepUncertainError(step_name, problem_id, response.notes)
 
-    def plan_and_check(response: ModelResponse) -> tuple[_ApplyPlan, Optional[str], list[str]]:
+    def plan_and_check(response: ModelResponse) -> tuple[_ApplyPlan, str | None, list[str]]:
         return _plan_and_check(
             response,
             revision,
@@ -1279,7 +1279,7 @@ def run_generative_step(
         skip_backup={new_path for _, new_path, _ in renamed},
         created=created,
     )
-    conflicts_dir: Optional[Path] = None
+    conflicts_dir: Path | None = None
     if plan.conflicts:
         conflicts_dir = _write_conflicts(
             step_name, plan.conflicts, problem_dir, resolve_artifact_path, whole_step_reason

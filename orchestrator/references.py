@@ -25,8 +25,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
 from orchestrator.problem_paths import (
     TESTS_PLAN_FILENAME,
@@ -100,8 +100,8 @@ def reference_documents(
     step_name: str,
     spec: ProblemSpec,
     *,
-    keep: Optional[Callable[[str], bool]] = None,
-) -> Optional[list[str]]:
+    keep: Callable[[str], bool] | None = None,
+) -> list[str] | None:
     """Пути файлов, которые референсы спека дают шагу `step_name`, — сначала
     общие референсы, затем шаговые, в порядке записи в спеке; `None`, если
     ничего нет (шаг работает без образцов).
@@ -152,11 +152,11 @@ def _existing(ref: str, field: str) -> Path:
 
 
 def _directory_files(
-    directory: Path, step_name: str, keep: Optional[Callable[[str], bool]] = None
+    directory: Path, step_name: str, keep: Callable[[str], bool] | None = None
 ) -> list[str]:
     """Файлы каталога-референса для шага: по `REFERENCE_DOCUMENTS[step_name]`,
     `spec.yaml` — только если есть что-то кроме него."""
-    spec_file: Optional[Path] = None
+    spec_file: Path | None = None
     files: list[Path] = []
     for entry in REFERENCE_DOCUMENTS[step_name]:
         entry = entry.format(language=read_spec_language(directory)) if "{" in entry else entry

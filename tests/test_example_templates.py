@@ -20,16 +20,24 @@ import yaml
 
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.limits import LIMITS_FILENAME, extract_limits, parse_limits
-from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
+from orchestrator.problem_paths import (
+    AUTHORING_DIRNAME,
+    EXAMPLES_DIR,
+    SPEC_FILENAME,
+    iter_problem_dirs,
+    problem_id_for,
+)
 from orchestrator.spec import load_spec
-from orchestrator.problem_paths import AUTHORING_DIRNAME, SPEC_FILENAME
-from orchestrator.steps.base import EXAMPLES_DIR
 from orchestrator.steps.generators_draft import generator_params
-from orchestrator.steps.tests_plan import parse_tests_plan, plan_generators, uncovered_notes
 from orchestrator.steps.test_script_draft import (
     SCRIPT_FUNCTIONS_FILENAME,
     SCRIPT_NAMES,
     fix_script_comparisons,
+)
+from orchestrator.steps.tests_plan import (
+    parse_tests_plan,
+    plan_generators,
+    uncovered_notes,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -199,7 +207,7 @@ def test_example_cpp_files_compile():
     # больше компиляций, чем ядер, иначе при десятках файлов отдельные
     # компиляции упираются в таймаут compile_check.
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
-        errors = dict(zip(EXAMPLE_CPP_FILES, pool.map(_compile, EXAMPLE_CPP_FILES)))
+        errors = dict(zip(EXAMPLE_CPP_FILES, pool.map(_compile, EXAMPLE_CPP_FILES), strict=True))
     failed = {_id(path): stderr for path, stderr in errors.items() if stderr is not None}
     assert EXAMPLE_CPP_FILES
     assert not failed, failed

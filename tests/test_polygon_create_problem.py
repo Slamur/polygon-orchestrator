@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from polygon_sync_helpers import FIXTURES_DIR, run_and_record
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import (
@@ -12,8 +13,6 @@ from orchestrator.polygon.state import (
 )
 from orchestrator.polygon.steps.create_problem import STEP
 from orchestrator.spec import load_spec
-
-from polygon_sync_helpers import FIXTURES_DIR, run_and_record
 
 PROBLEM_ID = "p1"
 

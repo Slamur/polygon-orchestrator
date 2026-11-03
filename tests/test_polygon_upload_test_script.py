@@ -3,16 +3,25 @@ from unittest.mock import MagicMock
 
 import pytest
 import requests
+from polygon_sync_helpers import (
+    FIXTURES_DIR,
+    POLYGON_ID,
+    PROBLEM_ID,
+    link,
+    run_and_record,
+)
 
-from orchestrator.checks.test_script_check import SKIP_CHECK_ENV, ScriptCheckResult, ScriptLine
+from orchestrator.checks.test_script_check import (
+    SKIP_CHECK_ENV,
+    ScriptCheckResult,
+    ScriptLine,
+)
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps import upload_test_script
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import STEP
 from orchestrator.spec import load_spec
-
-from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
 SCRIPT = "gen_random 1 10 > $\ngen_random 2 100 > $\n"
 

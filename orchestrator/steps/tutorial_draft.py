@@ -19,7 +19,7 @@
 from __future__ import annotations
 
 from pathlib import Path, PurePosixPath
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
@@ -32,6 +32,7 @@ from orchestrator.problem_paths import (
     is_removed_mark,
 )
 from orchestrator.spec import ProblemSpec
+from orchestrator.statement_languages import DEFAULT_LANGUAGE, language_name
 from orchestrator.steps.base import (
     PROBLEMS_DIR,
     PROMPTS_DIR,
@@ -43,7 +44,6 @@ from orchestrator.steps.base import (
     language_input,
     run_generative_step,
 )
-from orchestrator.statement_languages import DEFAULT_LANGUAGE, language_name
 from orchestrator.steps.solutions_draft import SOLUTIONS_SUBDIR
 from orchestrator.steps.statement_draft import STATEMENT_SUBDIR, language_dir
 
@@ -123,7 +123,7 @@ def read_inputs(
     return inputs
 
 
-def remembered_refs(input_values: Optional[dict[str, Any]]) -> list[str]:
+def remembered_refs(input_values: dict[str, Any] | None) -> list[str]:
     """Решения прошлого прогона — по частям его входа (`CacheEntry.input_values`)."""
     return sorted(
         name[len(_INPUT_VALUE_SOLUTION_PREFIX) :]
@@ -138,7 +138,7 @@ def solution_names(inputs: dict[str, str]) -> list[str]:
     return [name[len(prefix) :] for name in inputs if name.startswith(prefix)]
 
 
-def _require_inputs(problem_id: str, upstream_artifacts: Optional[dict[str, Any]]) -> dict[str, str]:
+def _require_inputs(problem_id: str, upstream_artifacts: dict[str, Any] | None) -> dict[str, str]:
     if not upstream_artifacts or INPUTS_KEY not in upstream_artifacts:
         raise ValueError(
             f"Step '{STEP_NAME}' for '{problem_id}': upstream_artifacts has no "
@@ -160,7 +160,7 @@ def _section_data(spec: ProblemSpec) -> dict[str, Any]:
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
     """Хеш входа шага без вызова модели, см. `constraints_pick.compute_input_hash`
     и CLAUDE.md, "Кэширование по хешу спека"."""
@@ -170,8 +170,8 @@ def compute_input_hash(
 def hash_inputs(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
-) -> tuple[Any, Optional[dict[str, Any]]]:
+    upstream_artifacts: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
     (`cache.compute_input_values`), чтобы они не разошлись. Каждый файл входа
@@ -199,7 +199,7 @@ def current_artifacts(
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Референсов спека у шага нет: решения из `--ref` — часть входа, а не
     образцы. Единая сигнатура со всеми шагами нужна `pipeline.py`."""
     return None
@@ -208,10 +208,10 @@ def extra_context_documents(
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
     *,
-    revision: Optional[StepRevision] = None,
-    saved_response: Optional[ModelResponse] = None,
+    revision: StepRevision | None = None,
+    saved_response: ModelResponse | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,

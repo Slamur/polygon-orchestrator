@@ -2,7 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.state import (
+    PolygonState,
+    load_polygon_state,
+    save_polygon_state,
+)
 from orchestrator.problem_paths import ProblemPathError
 from orchestrator.statement_languages import (
     language_code,

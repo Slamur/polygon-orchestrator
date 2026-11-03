@@ -1,7 +1,12 @@
 import pytest
 
 from orchestrator import model_router
-from orchestrator.model_router import STEP_TO_EFFORT, STEP_TO_MODEL, ModelResponse, call_model
+from orchestrator.model_router import (
+    STEP_TO_EFFORT,
+    STEP_TO_MODEL,
+    ModelResponse,
+    call_model,
+)
 
 
 class _FakeLLMClient:

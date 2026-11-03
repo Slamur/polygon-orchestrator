@@ -435,7 +435,7 @@ def _confirm_group(args: argparse.Namespace, root: Path, group: list[str]) -> bo
     print(f"{args.problem}: {len(group)} problem(s)")
     ids = [problem_id_for(root, path) for path in group]
     width = max(map(len, ids))
-    for problem_id, path in zip(ids, group):
+    for problem_id, path in zip(ids, group, strict=True):
         print(f"  {problem_id:<{width}}  {problem_address(root, path)}")
     command = f"{args.pipeline} {args.command}"
     try:

@@ -13,11 +13,45 @@ import datetime
 import logging
 import shutil
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
+from orchestrator.checks.local_tests import (
+    MANIFEST_FILENAME,
+    TESTS_CACHE_DIRNAME,
+    clear_local_caches,
+    find_equal_tests,
+    format_equal_tests,
+    generate_tests,
+    validate_tests,
+)
+from orchestrator.checks.solutions_run import run_solutions
+from orchestrator.checks.statement_check import (
+    FIX_BACKUP_DIRNAME,
+    QUOTES_LANGUAGE,
+    STATEMENT_DIRNAME,
+    statement_files,
+)
+from orchestrator.checks.statement_check import (
+    check_text as check_statement_text,
+)
+from orchestrator.checks.statement_check import (
+    fix_text as fix_statement_text,
+)
+from orchestrator.checks.test_script_check import (
+    ScriptCheckUnavailable,
+    ScriptRenderError,
+    check_script,
+)
+from orchestrator.drafts import DRAFTS_DIR, DraftError, find_draft
 from orchestrator.llm_client import LLMCallError
+from orchestrator.llm_report import (
+    note_counts,
+    write_accept_report,
+    write_spec_from_draft_report,
+    write_step_report,
+)
 from orchestrator.pipeline import (
     OUTCOME_CACHE_HIT,
     OUTCOME_CONFIRMED,
@@ -34,12 +68,12 @@ from orchestrator.pipeline import (
     compute_step_statuses,
     run_pipeline,
 )
+from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pipeline import OUTCOME_ERROR as POLYGON_OUTCOME_ERROR
 from orchestrator.polygon.pipeline import (
     compute_polygon_step_statuses,
     run_polygon_pipeline,
 )
-from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.pull import ITEM_CONFLICT as PULL_ITEM_CONFLICT
 from orchestrator.polygon.pull import ITEM_DIFFERS as PULL_ITEM_DIFFERS
 from orchestrator.polygon.pull import ITEM_DOWNLOADED as PULL_ITEM_DOWNLOADED
@@ -51,40 +85,9 @@ from orchestrator.polygon.pull import ITEM_UPDATED as PULL_ITEM_UPDATED
 from orchestrator.polygon.pull import pull_problem
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import STATUS_DONE as POLYGON_STATUS_DONE
-from orchestrator.polygon.sync import describe_keys
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
-from orchestrator.checks.statement_check import (
-    FIX_BACKUP_DIRNAME,
-    QUOTES_LANGUAGE,
-    STATEMENT_DIRNAME,
-    check_text as check_statement_text,
-    fix_text as fix_statement_text,
-    statement_files,
-)
-from orchestrator.checks.local_tests import (
-    MANIFEST_FILENAME,
-    TESTS_CACHE_DIRNAME,
-    clear_local_caches,
-    find_equal_tests,
-    format_equal_tests,
-    generate_tests,
-    validate_tests,
-)
-from orchestrator.checks.solutions_run import run_solutions
-from orchestrator.polygon.sync import VALIDATOR_FILENAME
-from orchestrator.checks.test_script_check import (
-    ScriptCheckUnavailable,
-    ScriptRenderError,
-    check_script,
-)
-from orchestrator.drafts import DRAFTS_DIR, DraftError, find_draft
-from orchestrator.llm_report import (
-    note_counts,
-    write_accept_report,
-    write_spec_from_draft_report,
-    write_step_report,
-)
+from orchestrator.polygon.sync import VALIDATOR_FILENAME, describe_keys
 from orchestrator.problem_paths import EXAMPLES_DIR, ProblemPathError
 from orchestrator.spec import (
     SpecInitError,
@@ -629,7 +632,10 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     """`local check --full`: тесты по скрипту (с кэшем), валидатор на них и
     поиск одинаковых по содержимому (`orchestrator/checks/local_tests.py`).
     Одинаковые тесты только показываются, ошибкой не считаются."""
-    progress = lambda line: print(line, flush=True)
+
+    def progress(line: str) -> None:
+        print(line, flush=True)
+
     generated = generate_tests(problem_dir, templates_dir, progress=progress)
     print(
         f"tests: {len(generated.tests)} ({generated.generated} generated, "

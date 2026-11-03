@@ -22,30 +22,39 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator import model_router
-from orchestrator.llm_client import LLMCallError
-from orchestrator.model_contracts import ModelResponse
 from orchestrator.cache import (
     UNCERTAIN_STATUS,
     CacheEntry,
+    PendingResponse,
     compute_input_values,
-    input_parts_from_values,
     compute_prompt_hash,
     compute_prompt_parts,
     describe_changed_parts,
-    PendingResponse,
+    discard_pending_response,
+    input_parts_from_values,
     is_cache_valid,
     load_cache_entry,
-    discard_pending_response,
     load_pending_response,
     save_cache_entry,
 )
-from orchestrator.problem_paths import TUTORIAL_DRAFT_FILENAME, is_removed_mark, problem_address
+from orchestrator.llm_client import LLMCallError
+from orchestrator.model_contracts import ModelResponse
+from orchestrator.problem_paths import (
+    TUTORIAL_DRAFT_FILENAME,
+    is_removed_mark,
+    problem_address,
+)
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
-from orchestrator.step_order import LLM_STEPS, MECHANICAL_STEPS, ON_DEMAND_STEPS, STEP_ORDER
+from orchestrator.step_order import (
+    LLM_STEPS,
+    MECHANICAL_STEPS,
+    ON_DEMAND_STEPS,
+    STEP_ORDER,
+)
 from orchestrator.steps import (
     checker_draft,
     constraints_pick,
@@ -59,9 +68,9 @@ from orchestrator.steps import (
     tutorial_draft,
 )
 from orchestrator.steps.base import (
+    CONFLICTS_REPORT,
     CONSTRAINTS_ARTIFACT,
     PROBLEMS_DIR,
-    CONFLICTS_REPORT,
     PROMPTS_DIR,
     TEMPLATES_DIR,
     StepRevision,
@@ -121,11 +130,11 @@ class StepOutcome:
     # `.removed`, переименования и каталог с прежними версиями файлов.
     removed: list[tuple[Path, str]] = field(default_factory=list)
     renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
-    backup_dir: Optional[Path] = None
+    backup_dir: Path | None = None
     # Что из ответа модели не применено (имя файла, причина) и куда отложены
     # версии модели (`steps.base.StepResult`).
     conflicts: list[tuple[str, str]] = field(default_factory=list)
-    conflicts_dir: Optional[Path] = None
+    conflicts_dir: Path | None = None
     # Шаг отработал в этом прогоне (вызвал модель или применил сохранённый
     # ответ), а не пропущен — только о таком пишется отчёт `llm_reports/`.
     ran: bool = False
@@ -143,7 +152,7 @@ class PipelineResult:
     problem_id: str
     outcomes: list[StepOutcome] = field(default_factory=list)
     stopped_uncertain: bool = False
-    spec_error: Optional[str] = None
+    spec_error: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -186,7 +195,7 @@ def _generate_command(step_name: str) -> str:
 
 def _optional_skip_detail(
     step_name: str, spec: Any, problem_id: str, problems_dir: Path
-) -> Optional[str]:
+) -> str | None:
     """Почему опциональный шаг не нужен этой задаче; `None` — нужен."""
     if (
         step_name == "tutorial_draft"
@@ -209,7 +218,7 @@ def _load_upstream(
     upstream_artifacts: dict[str, Any],
     problems_dir: Path,
     *,
-    tutorial_refs: Optional[list[str]] = None,
+    tutorial_refs: list[str] | None = None,
 ) -> None:
     """Подхватывает с диска upstream-артефакты шага (`_STEP_UPSTREAM`),
     которых ещё нет в `upstream_artifacts`: шаг-источник в этом прогоне не
@@ -332,10 +341,10 @@ def _revision_for_step(
     module: ModuleType,
     problem_id: str,
     spec: Any,
-    cache_entry: Optional[CacheEntry],
+    cache_entry: CacheEntry | None,
     hashes: _StepHashes,
     problems_dir: Path,
-) -> Optional[StepRevision]:
+) -> StepRevision | None:
     """Режим доработки, если файлы шага есть на диске; иначе `None` (с нуля).
     Что изменилось во входе — по `input_values` записи кэша; смена модели и
     промптов/документов — только именами (`other_changes`)."""
@@ -361,10 +370,10 @@ def _pending_revision(
     module: ModuleType,
     problem_id: str,
     spec: Any,
-    cache_entry: Optional[CacheEntry],
+    cache_entry: CacheEntry | None,
     hashes: _StepHashes,
     problems_dir: Path,
-) -> tuple[Optional[StepRevision], Optional[str]]:
+) -> tuple[StepRevision | None, str | None]:
     """Режим, в котором применяется сохранённый ответ (`_revision_for_step`,
     если ответ получен в режиме доработки), или почему его нельзя применить
     к текущему входу шага: `(revision, None)` или `(None, причина)`."""
@@ -397,8 +406,8 @@ def _run_step_into(
     spec: Any,
     upstream_artifacts: dict[str, Any],
     *,
-    revision: Optional[StepRevision],
-    saved_response: Optional[ModelResponse],
+    revision: StepRevision | None,
+    saved_response: ModelResponse | None,
     detail: str,
     prompts_dir: Path,
     problems_dir: Path,
@@ -517,8 +526,8 @@ def run_pipeline(
     force: bool = False,
     fresh: bool = False,
     apply_pending: bool = False,
-    only_step: Optional[str] = None,
-    tutorial_refs: Optional[list[str]] = None,
+    only_step: str | None = None,
+    tutorial_refs: list[str] | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -779,7 +788,7 @@ def compute_step_statuses(
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
-) -> tuple[list[StepStatus], Optional[str]]:
+) -> tuple[list[StepStatus], str | None]:
     """Статус каждого шага для `problem_id`: cache hit / stale / not run /
     uncertain / blocked / skipped (optional) — без единого вызова модели.
 
@@ -805,11 +814,11 @@ def compute_step_statuses(
 def accept_steps(
     problem_id: str,
     *,
-    only_step: Optional[str] = None,
+    only_step: str | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
-) -> tuple[list[StepStatus], Optional[str]]:
+) -> tuple[list[StepStatus], str | None]:
     """`orchestrator <задача> llm accept`: принимает текущие артефакты шагов как
     актуальные — перезаписывает кэш устаревших (`stale`) шагов текущими
     хешами, без вызова модели. Нужно, когда изменилось то, что не должно
@@ -846,11 +855,11 @@ def _walk_steps(
     problem_id: str,
     visit,
     *,
-    only_step: Optional[str],
+    only_step: str | None,
     prompts_dir: Path,
     problems_dir: Path,
     templates_dir: Path,
-) -> tuple[list[StepStatus], Optional[str]]:
+) -> tuple[list[StepStatus], str | None]:
     """Общий обход шагов для `llm status`/`llm accept`: опциональные шаги,
     подхват upstream-артефактов (`_load_upstream`), хеши — как в `run_pipeline`;
     `visit(problem_id, step_name, entry, hashes, artifact_present, problems_dir)`
@@ -906,7 +915,7 @@ def _walk_steps(
 def _status_of_step(
     problem_id: str,
     step_name: str,
-    cache_entry: Optional[CacheEntry],
+    cache_entry: CacheEntry | None,
     hashes: _StepHashes,
     artifact_present: bool,
     problems_dir: Path,
@@ -952,7 +961,7 @@ def _conflicts_detail(
 
 def _cache_status_of_step(
     step_name: str,
-    cache_entry: Optional[CacheEntry],
+    cache_entry: CacheEntry | None,
     hashes: _StepHashes,
     artifact_present: bool,
 ) -> StepStatus:
@@ -978,7 +987,7 @@ def _cache_status_of_step(
 def _accept_step(
     problem_id: str,
     step_name: str,
-    cache_entry: Optional[CacheEntry],
+    cache_entry: CacheEntry | None,
     hashes: _StepHashes,
     artifact_present: bool,
     problems_dir: Path,

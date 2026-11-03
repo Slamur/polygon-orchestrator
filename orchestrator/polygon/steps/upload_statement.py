@@ -90,7 +90,7 @@ from orchestrator.polygon.sync import (
     statement_name_key,
     verify_key,
 )
-from orchestrator.problem_paths import ProblemPathError, TUTORIAL_FILENAME
+from orchestrator.problem_paths import TUTORIAL_FILENAME, ProblemPathError
 from orchestrator.spec import Title
 from orchestrator.statement_languages import (
     EXAMPLES_DIRNAME,

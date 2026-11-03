@@ -32,6 +32,7 @@ from orchestrator.statement_languages import (
     STATEMENT_DIRNAME,  # noqa: F401 — часть интерфейса модуля (local_tests, solutions_run)
     statement_languages,
 )
+
 # Прежние версии файлов, изменённых `local fix`: `.fix_backup/<время>/`.
 FIX_BACKUP_DIRNAME = ".fix_backup"
 
@@ -271,7 +272,7 @@ def _fix_quotes(lines: list[str]) -> list[str]:
             continue
         # С конца строки, чтобы позиции ещё не заменённых кавычек не сдвигались.
         for token, is_open in sorted(
-            zip(tokens, opening), key=lambda pair: (pair[0].line, pair[0].column), reverse=True
+            zip(tokens, opening, strict=True), key=lambda pair: (pair[0].line, pair[0].column), reverse=True
         ):
             line = lines[token.line - 1]
             replacement = OPEN_QUOTE if is_open else CLOSE_QUOTE

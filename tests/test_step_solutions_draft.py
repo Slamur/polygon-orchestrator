@@ -7,8 +7,8 @@ import pytest
 
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.model_router import ModelResponse
-from orchestrator.spec import load_spec
 from orchestrator.references import SpecReferenceError
+from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
 from orchestrator.steps.solutions_draft import (
     compute_input_hash,

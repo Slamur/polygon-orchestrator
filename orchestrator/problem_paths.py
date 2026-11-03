@@ -41,8 +41,8 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Iterator
 from pathlib import Path, PurePosixPath
-from typing import Iterator
 
 PROBLEMS_DIR = Path("problems")
 EXAMPLES_DIR = Path("examples")

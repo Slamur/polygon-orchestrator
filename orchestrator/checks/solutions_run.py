@@ -80,9 +80,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Callable
 
 import yaml
 
@@ -96,12 +96,23 @@ from orchestrator.checks.local_tests import (
     generate_tests,
     validate_tests,
 )
-from orchestrator.checks.run_with_timeout import RunResult, _raise_stack_limit, run_with_timeout
+from orchestrator.checks.run_with_timeout import (
+    RunResult,
+    _raise_stack_limit,
+    run_with_timeout,
+)
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
 from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits
 from orchestrator.polygon.steps.base import PolygonStepError
-from orchestrator.polygon.steps.upload_solutions import _choose_main, _parse_solution_filename
-from orchestrator.polygon.sync import CHECKER_FILENAME, INTERACTOR_FILENAME, VALIDATOR_FILENAME
+from orchestrator.polygon.steps.upload_solutions import (
+    _choose_main,
+    _parse_solution_filename,
+)
+from orchestrator.polygon.sync import (
+    CHECKER_FILENAME,
+    INTERACTOR_FILENAME,
+    VALIDATOR_FILENAME,
+)
 from orchestrator.problem_paths import (
     CONSTRAINTS_FILENAME,
     SPEC_FILENAME,

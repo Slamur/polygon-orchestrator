@@ -20,7 +20,7 @@ import datetime
 import difflib
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator.steps.base import CONFLICTS_REPORT
 
@@ -232,7 +232,7 @@ def _diff_block(problem_dir: Path, before: Path, old: Path, new_path: Path) -> l
     ]
 
 
-def _backup_of(problem_dir: Path, backup_dir: Optional[Path], path: Path) -> Optional[Path]:
+def _backup_of(problem_dir: Path, backup_dir: Path | None, path: Path) -> Path | None:
     if backup_dir is None:
         return None
     try:
