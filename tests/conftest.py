@@ -1,5 +1,5 @@
 import pytest
-from compile_cache import caching_compile_check
+from compile_cache import caching_compile_check, prune
 
 from orchestrator.checks import compile_check, local_tests, solutions_run
 from orchestrator.checks.test_script_check import SKIP_CHECK_ENV
@@ -14,15 +14,27 @@ def _skip_test_script_check(monkeypatch):
     monkeypatch.setenv(SKIP_CHECK_ENV, "1")
 
 
+# Сколько дней хранить в кэше сборку, которую ни один тест не запрашивал.
+_COMPILE_CACHE_MAX_AGE_DAYS = 14
+
+
 @pytest.fixture(scope="session")
-def _compile_cache_dir(tmp_path_factory):
-    return tmp_path_factory.mktemp("compile-cache")
+def _compile_cache_dir(pytestconfig, tmp_path_factory):
+    """Каталог кэша сборок: в `.pytest_cache` (без cacheprovider — временный,
+    на сессию)."""
+    cache = getattr(pytestconfig, "cache", None)
+    if cache is None:
+        yield tmp_path_factory.mktemp("compile-cache")
+        return
+    cache_dir = cache.mkdir("compiles")
+    yield cache_dir
+    prune(cache_dir, _COMPILE_CACHE_MAX_AGE_DAYS)
 
 
 @pytest.fixture(autouse=True)
 def _cached_compile_check(monkeypatch, _compile_cache_dir):
     """Сборки кода оркестратора (шаги, `local run`, `local check --full`)
-    кэшируются на сессию, см. `compile_cache.py`. Тесты, которые сами
+    кэшируются между запусками, см. `compile_cache.py`. Тесты, которые сами
     импортируют `compile_check`, компилируют честно; образцы из `examples/`
     помечают удачные сборки в `.pytest_cache` по тому же ключу и между
     запусками пересобирают только изменившееся."""
