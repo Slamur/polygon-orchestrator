@@ -207,7 +207,7 @@ def test_example_cpp_files_compile():
     # больше компиляций, чем ядер, иначе при десятках файлов отдельные
     # компиляции упираются в таймаут compile_check.
     with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
-        errors = dict(zip(EXAMPLE_CPP_FILES, pool.map(_compile, EXAMPLE_CPP_FILES)))
+        errors = dict(zip(EXAMPLE_CPP_FILES, pool.map(_compile, EXAMPLE_CPP_FILES), strict=True))
     failed = {_id(path): stderr for path, stderr in errors.items() if stderr is not None}
     assert EXAMPLE_CPP_FILES
     assert not failed, failed

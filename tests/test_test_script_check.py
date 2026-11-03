@@ -73,7 +73,7 @@ def test_marker_keeps_line_count_and_line_contents():
     source = "<#list 1..2 as i>\n  gen ${i} > $\n</#list>\n"
     instrumented = instrument_script(source).source.split("\n")
     original = source.split("\n")
-    assert all(new.startswith(old) for old, new in zip(original, instrumented))
+    assert all(new.startswith(old) for old, new in zip(original, instrumented, strict=False))
     assert len(instrumented) == len(original) + 1  # функция значения — в конце
 
 

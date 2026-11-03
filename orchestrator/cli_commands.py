@@ -632,7 +632,10 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     """`local check --full`: тесты по скрипту (с кэшем), валидатор на них и
     поиск одинаковых по содержимому (`orchestrator/checks/local_tests.py`).
     Одинаковые тесты только показываются, ошибкой не считаются."""
-    progress = lambda line: print(line, flush=True)
+
+    def progress(line: str) -> None:
+        print(line, flush=True)
+
     generated = generate_tests(problem_dir, templates_dir, progress=progress)
     print(
         f"tests: {len(generated.tests)} ({generated.generated} generated, "

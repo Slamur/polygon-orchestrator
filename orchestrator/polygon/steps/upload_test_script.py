@@ -221,7 +221,7 @@ def _generated_script_lines(polygon_id: int, client: PolygonClient) -> list[str]
 def _progress(generated: list[str] | None, expected: list[str]) -> str:
     if generated is None:
         return "Polygon did not respond"
-    matched = sum(1 for g, e in zip(generated, expected) if g == e)
+    matched = sum(1 for g, e in zip(generated, expected, strict=False) if g == e)
     return f"{matched}/{len(expected)} tests match the script"
 
 

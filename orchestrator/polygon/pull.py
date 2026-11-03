@@ -556,7 +556,8 @@ class _Puller:
                 detail=f"Polygon test {test['index']}",
             )
             for filename, field_name in zip(
-                dialogue_filenames(number), ("inputForStatement", "outputForStatement")
+                dialogue_filenames(number), ("inputForStatement", "outputForStatement"),
+                strict=True,
             ):
                 value = test.get(field_name) or ""
                 name = f"statement/examples/{filename}"
