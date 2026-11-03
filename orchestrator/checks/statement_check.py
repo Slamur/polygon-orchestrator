@@ -32,6 +32,7 @@ from orchestrator.statement_languages import (
     STATEMENT_DIRNAME,  # noqa: F401 — часть интерфейса модуля (local_tests, solutions_run)
     statement_languages,
 )
+
 # Прежние версии файлов, изменённых `local fix`: `.fix_backup/<время>/`.
 FIX_BACKUP_DIRNAME = ".fix_backup"
 

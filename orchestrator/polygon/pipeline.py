@@ -49,26 +49,26 @@ Polygon после листинга всё ещё та, что в базе, и �
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Optional
 
 from orchestrator.cache import PROBLEMS_DIR
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
+from orchestrator.polygon.state import load_polygon_state, record_stamps, update_sync
 from orchestrator.polygon.steps import (
     create_problem,
     set_constraints,
     upload_attachments,
     upload_checker,
-    upload_interactor,
     upload_generators,
+    upload_interactor,
     upload_problem_lib,
     upload_solutions,
     upload_statement,
     upload_test_script,
     upload_validator,
 )
-from orchestrator.polygon.state import load_polygon_state, record_stamps, update_sync
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.polygon.sync import (
     INTERACTOR_KEY,
@@ -125,7 +125,7 @@ class PolygonPipelineResult:
 
     problem_id: str
     outcomes: list[PolygonStepOutcome] = field(default_factory=list)
-    spec_error: Optional[str] = None
+    spec_error: str | None = None
 
     @property
     def ok(self) -> bool:
@@ -137,7 +137,7 @@ class PolygonPipelineResult:
 def run_polygon_pipeline(
     problem_id: str,
     *,
-    only_step: Optional[str] = None,
+    only_step: str | None = None,
     force: bool = False,
     no_commit: bool = False,
     problems_dir: Path = PROBLEMS_DIR,

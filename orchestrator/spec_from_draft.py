@@ -34,7 +34,7 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator import model_router
 from orchestrator.drafts import problem_draft_name
@@ -60,10 +60,10 @@ from orchestrator.spec import (
 )
 from orchestrator.steps.base import (
     PROMPTS_DIR,
-    TEMPLATES_DIR,
     STATUS_CONFIRMED,
     STATUS_PROPOSED,
     STATUS_UNCERTAIN,
+    TEMPLATES_DIR,
     Backup,
     StepRevision,
     read_system_prompt,
@@ -96,11 +96,11 @@ class SpecFromDraftResult:
 
     status: str
     notes: list[dict[str, Any]] = field(default_factory=list)
-    path: Optional[Path] = None
-    draft_copy: Optional[Path] = None
+    path: Path | None = None
+    draft_copy: Path | None = None
     unchanged: bool = False
     validation_errors: list[str] = field(default_factory=list)
-    backup_dir: Optional[Path] = None
+    backup_dir: Path | None = None
 
 
 @dataclass
@@ -112,7 +112,7 @@ class DraftRevision:
     изменилось — неизвестно. `previous_copies` — эти копии: при записи
     заменяются копией нового черновика (расширение может быть другим)."""
 
-    previous_draft: Optional[str]
+    previous_draft: str | None
     previous_copies: list[Path] = field(default_factory=list)
 
 
@@ -145,7 +145,7 @@ def context_documents(
     *,
     templates_dir: Path = TEMPLATES_DIR,
     examples_dir: Path = EXAMPLES_DIR,
-    skip_reference: Optional[str] = None,
+    skip_reference: str | None = None,
 ) -> dict[str, str]:
     """Документы для модели: формат спека (`SPEC_FORMAT_DOC`), шаблон
     (`SPEC_TEMPLATE`) и заполненные спеки учебных задач — образцы того, как
@@ -195,7 +195,7 @@ def generate_spec_from_draft(
     init: SpecInit,
     draft_path: Path,
     *,
-    revision: Optional[DraftRevision] = None,
+    revision: DraftRevision | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
     examples_dir: Path = EXAMPLES_DIR,

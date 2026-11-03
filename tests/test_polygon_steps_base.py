@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.polygon.client import PolygonApiError
-from orchestrator.polygon.steps import base
 from orchestrator.polygon.state import PolygonState, save_polygon_state
+from orchestrator.polygon.steps import base
 from orchestrator.polygon.steps.base import (
     PolygonStep,
     PolygonStepError,

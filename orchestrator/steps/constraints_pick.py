@@ -4,15 +4,21 @@ CLAUDE.md, "Роль каждого генеративного шага", пун
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import authoring_path
 from orchestrator.references import reference_documents
-from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, SpecInitError, set_problem_id
+from orchestrator.spec import (
+    SPEC_REFERENCES_FIELD,
+    ProblemSpec,
+    SpecInitError,
+    set_problem_id,
+)
 from orchestrator.steps.base import (
     CONSTRAINTS_ARTIFACT,
     PROBLEMS_DIR,
@@ -49,7 +55,7 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
 
 
 def set_spec_problem_id(
-    problem_id: str, artifact: Optional[str] = None
+    problem_id: str, artifact: str | None = None
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
     """`postprocess_artifacts` для `run_generative_step`: `problem_id` в
     YAML-артефакте шага (`artifact`, по умолчанию `constraints.yaml`) ставит
@@ -83,7 +89,7 @@ def set_spec_problem_id(
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
     """Хеш входа шага без вызова модели — см. `statement_draft.compute_input_hash`
     и CLAUDE.md, "Кэширование по хешу спека". Вход — секция `constraints` +
@@ -98,8 +104,8 @@ def compute_input_hash(
 def hash_inputs(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
-) -> tuple[Any, Optional[dict[str, Any]]]:
+    upstream_artifacts: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
     (`cache.compute_input_values`), чтобы они не разошлись."""
@@ -130,7 +136,7 @@ def current_artifacts(
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Образцы для конкретного вызова — файлы, которые этому шагу дают
     референсы спека (общие `references` и `constraints.references`, см.
     `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
@@ -142,10 +148,10 @@ def extra_context_documents(
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
     *,
-    revision: Optional[StepRevision] = None,
-    saved_response: Optional[ModelResponse] = None,
+    revision: StepRevision | None = None,
+    saved_response: ModelResponse | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,

@@ -15,8 +15,11 @@ import datetime
 from pathlib import Path
 
 from orchestrator.polygon.client import PolygonClient
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.sync import fetch_revision
+from orchestrator.polygon.state import (
+    PolygonState,
+    load_polygon_state,
+    save_polygon_state,
+)
 from orchestrator.polygon.steps.base import (
     STATUS_DONE,
     STATUS_NOT_RUN,
@@ -24,6 +27,7 @@ from orchestrator.polygon.steps.base import (
     StepContext,
     StepResult,
 )
+from orchestrator.polygon.sync import fetch_revision
 from orchestrator.problem_paths import problem_address, problem_id_for
 
 STEP_NAME = "create_problem"

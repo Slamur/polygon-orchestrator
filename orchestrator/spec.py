@@ -10,7 +10,7 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Literal
 
 import yaml
 from pydantic import (
@@ -85,10 +85,10 @@ class Title(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    ru: Optional[str] = None
-    en: Optional[str] = None
+    ru: str | None = None
+    en: str | None = None
 
-    def for_language(self, code: str) -> Optional[str]:
+    def for_language(self, code: str) -> str | None:
         """Название на языке с кодом `code` (`ru`); `None` — не задано."""
         value = getattr(self, code, None) if code in type(self).model_fields else None
         return value if value and value.strip() else None
@@ -98,11 +98,11 @@ class SampleExample(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     input: str
-    output: Optional[str] = None
-    note_hint: Optional[str] = None
+    output: str | None = None
+    note_hint: str | None = None
 
     @model_validator(mode="after")
-    def _check_non_blank(self) -> "SampleExample":
+    def _check_non_blank(self) -> SampleExample:
         _non_blank(self.input, "sample_examples[].input")
         return self
 
@@ -115,19 +115,19 @@ class StatementDraft(BaseModel):
     formal_output_sketch: str
     indexing: Literal["0-indexed", "1-indexed", "irrelevant"]
     sample_examples: list[SampleExample] = Field(min_length=1)
-    known_ambiguities: Optional[list[str]] = None
+    known_ambiguities: list[str] | None = None
     preserve_legend_verbatim: bool = False
     # Протокол взаимодействия — только у интерактивной задачи (есть секция
     # `interactor`, см. `ProblemSpec._check_interactive`).
-    interaction_sketch: Optional[str] = None
-    references: Optional[list[str]] = None
+    interaction_sketch: str | None = None
+    references: list[str] | None = None
 
     @property
     def has_interaction(self) -> bool:
         return bool(self.interaction_sketch and self.interaction_sketch.strip())
 
     @model_validator(mode="after")
-    def _check_non_blank(self) -> "StatementDraft":
+    def _check_non_blank(self) -> StatementDraft:
         _non_blank(self.legend_sketch, "statement_draft.legend_sketch")
         _non_blank(self.formal_input_sketch, "statement_draft.formal_input_sketch")
         _non_blank(self.formal_output_sketch, "statement_draft.formal_output_sketch")
@@ -138,12 +138,12 @@ class Variable(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    min: Union[int, str]
-    max: Optional[Union[int, str]] = None
+    min: int | str
+    max: int | str | None = None
     description: str
 
     @model_validator(mode="after")
-    def _check_non_blank(self) -> "Variable":
+    def _check_non_blank(self) -> Variable:
         _non_blank(self.name, "constraints.variables[].name")
         _non_blank(self.description, "constraints.variables[].description")
         return self
@@ -153,9 +153,9 @@ class TestGroupHint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    subset_of: Optional[str] = None
-    max_n: Optional[int] = None
-    special_property: Optional[str] = None
+    subset_of: str | None = None
+    max_n: int | None = None
+    special_property: str | None = None
 
 
 class Constraints(BaseModel):
@@ -164,16 +164,16 @@ class Constraints(BaseModel):
     intended_complexity: str
     complexity_reasoning: str
     variables: list[Variable] = Field(min_length=1)
-    special_guarantees: Optional[list[str]] = None
-    test_groups_hint: Optional[list[TestGroupHint]] = None
+    special_guarantees: list[str] | None = None
+    test_groups_hint: list[TestGroupHint] | None = None
     test_groups_needed: bool = False
-    time_limit_seconds: Optional[float] = None
-    memory_limit_mb: Optional[int] = None
-    uncertain_points: Optional[list[str]] = None
-    references: Optional[list[str]] = None
+    time_limit_seconds: float | None = None
+    memory_limit_mb: int | None = None
+    uncertain_points: list[str] | None = None
+    references: list[str] | None = None
 
     @model_validator(mode="after")
-    def _check_non_blank(self) -> "Constraints":
+    def _check_non_blank(self) -> Constraints:
         # Это и есть жёсткая проверка из CLAUDE.md: без асимптотики и
         # обоснования, данных автором явно, шаг constraints_pick не имеет
         # права запускаться и должен падать с понятной ошибкой.
@@ -190,7 +190,7 @@ class GeneratorIdea(BaseModel):
     purpose: str
 
     @model_validator(mode="after")
-    def _check_non_blank(self) -> "GeneratorIdea":
+    def _check_non_blank(self) -> GeneratorIdea:
         _non_blank(self.name, "generation.generator_ideas[].name")
         _non_blank(self.purpose, "generation.generator_ideas[].purpose")
         return self
@@ -199,10 +199,10 @@ class GeneratorIdea(BaseModel):
 class Generation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    generator_ideas: Optional[list[GeneratorIdea]] = None
-    specific_test_ideas: Optional[list[str]] = None
+    generator_ideas: list[GeneratorIdea] | None = None
+    specific_test_ideas: list[str] | None = None
     script_style: Literal["flat", "groups"]
-    references: Optional[list[str]] = None
+    references: list[str] | None = None
 
 
 # `tl_ok` — "TL или OK": пограничное по времени решение или решение без
@@ -228,12 +228,12 @@ class Solutions(BaseModel):
     wanted_verdicts: list[str] = Field(min_length=1)
     languages: list[str] = Field(min_length=1)
     algorithm_hint: str
-    alternative_approaches: Optional[list[str]] = None
-    known_wrong_approaches: Optional[list[str]] = None
-    references: Optional[list[str]] = None
+    alternative_approaches: list[str] | None = None
+    known_wrong_approaches: list[str] | None = None
+    references: list[str] | None = None
 
     @model_validator(mode="after")
-    def _check_fields(self) -> "Solutions":
+    def _check_fields(self) -> Solutions:
         _non_blank(self.algorithm_hint, "solutions.algorithm_hint")
         unknown = sorted(set(self.wanted_verdicts) - _ALLOWED_VERDICTS)
         if unknown:
@@ -247,13 +247,13 @@ class Solutions(BaseModel):
 class Checker(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    standard: Optional[str] = None
+    standard: str | None = None
     custom_needed: bool
-    custom_comparison_notes: Optional[str] = None
-    references: Optional[list[str]] = None
+    custom_comparison_notes: str | None = None
+    references: list[str] | None = None
 
     @model_validator(mode="after")
-    def _check_custom_notes(self) -> "Checker":
+    def _check_custom_notes(self) -> Checker:
         if self.custom_needed and not (
             self.custom_comparison_notes and self.custom_comparison_notes.strip()
         ):
@@ -270,10 +270,10 @@ class Interactor(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     behavior_notes: str
-    references: Optional[list[str]] = None
+    references: list[str] | None = None
 
     @model_validator(mode="after")
-    def _check_non_blank(self) -> "Interactor":
+    def _check_non_blank(self) -> Interactor:
         _non_blank(self.behavior_notes, "interactor.behavior_notes")
         return self
 
@@ -287,20 +287,20 @@ class ProblemSpec(BaseModel):
     # до `title`: его проверка (`_check_title`) читает язык.
     language: Literal[tuple(GENERATION_LANGUAGES)] = DEFAULT_LANGUAGE  # type: ignore[valid-type]
     title: Title
-    references: Optional[list[str]] = None
+    references: list[str] | None = None
     statement_draft: StatementDraft
     constraints: Constraints
     generation: Generation
-    solutions: Optional[Solutions] = None
+    solutions: Solutions | None = None
     checker: Checker
-    interactor: Optional[Interactor] = None
+    interactor: Interactor | None = None
 
     @property
     def interactive(self) -> bool:
         return self.interactor is not None
 
     @model_validator(mode="after")
-    def _check_problem_id(self) -> "ProblemSpec":
+    def _check_problem_id(self) -> ProblemSpec:
         if not PROBLEM_ID_PATTERN.match(self.problem_id):
             raise ValueError(
                 f"problem_id '{self.problem_id}' must be ASCII "
@@ -319,7 +319,7 @@ class ProblemSpec(BaseModel):
         return title
 
     @model_validator(mode="after")
-    def _check_interactive(self) -> "ProblemSpec":
+    def _check_interactive(self) -> ProblemSpec:
         # Протокол взаимодействия — часть условия, поведение интерактора —
         # вход шага interactor_draft: одно без другого смысла не имеет.
         has_protocol = self.statement_draft.has_interaction
@@ -448,7 +448,7 @@ def set_problem_id(text: str, problem_id: str) -> str:
     return result
 
 
-def _yaml_mapping(text: str) -> Optional[dict]:
+def _yaml_mapping(text: str) -> dict | None:
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError:
@@ -535,7 +535,7 @@ class SpecInit:
     problem_id: str
     path: Path
     base_text: str
-    reference: Optional[str] = None
+    reference: str | None = None
 
 
 def _reference_spec_text(reference: str, *, base_dir: Path) -> tuple[str, str]:
@@ -558,7 +558,7 @@ def prepare_spec_init(
     *,
     problems_dir: Path,
     templates_dir: Path,
-    reference: Optional[str] = None,
+    reference: str | None = None,
 ) -> SpecInit:
     """Проверяет, что в `problems_dir/<problem_path>/` можно создать спек, и
     собирает его основу (`SpecInit`); ничего не пишет.
@@ -621,7 +621,7 @@ def create_spec_draft(
     *,
     problems_dir: Path,
     templates_dir: Path,
-    reference: Optional[str] = None,
+    reference: str | None = None,
 ) -> Path:
     """Создаёт каталог задачи `problems_dir/<problem_path>/` (если его нет) и
     кладёт в него спек без вызова модели: шаблон `SPEC_TEMPLATE` с

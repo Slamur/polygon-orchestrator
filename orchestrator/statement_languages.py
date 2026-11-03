@@ -28,7 +28,11 @@ from pathlib import Path
 import yaml
 
 from orchestrator.polygon.state import load_polygon_state, save_polygon_state
-from orchestrator.problem_paths import SPEC_FILENAME, ProblemPathError, find_authoring_file
+from orchestrator.problem_paths import (
+    SPEC_FILENAME,
+    ProblemPathError,
+    find_authoring_file,
+)
 
 STATEMENT_DIRNAME = "statement"
 DEFAULT_LANGUAGE = "ru"

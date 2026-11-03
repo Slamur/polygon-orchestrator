@@ -5,14 +5,20 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
+from orchestrator.statement_languages import (
+    EXAMPLES_DIRNAME,
+    STATEMENT_DIRNAME,
+    language_name,
+)
 from orchestrator.steps.base import (
     INTERACTIVE_TUTORIAL,
     PROBLEMS_DIR,
@@ -27,7 +33,6 @@ from orchestrator.steps.base import (
     run_generative_step,
     with_default_lists,
 )
-from orchestrator.statement_languages import EXAMPLES_DIRNAME, STATEMENT_DIRNAME, language_name
 
 STEP_NAME = "statement_draft"
 
@@ -134,7 +139,7 @@ def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
     """Хеш входа шага без вызова модели — использует `pipeline.py`, чтобы
     решить, валиден ли кэш, до того как решать, вызывать ли `run_step`
@@ -149,8 +154,8 @@ def compute_input_hash(
 def hash_inputs(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
-) -> tuple[Any, Optional[dict[str, Any]]]:
+    upstream_artifacts: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
     (`cache.compute_input_values`), чтобы они не разошлись."""
@@ -215,7 +220,7 @@ def current_artifacts(
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Образцы для конкретного вызова — файлы, которые этому шагу дают
     референсы спека (общие `references` и `statement_draft.references`, см.
     `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
@@ -233,10 +238,10 @@ def extra_context_documents(
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
     *,
-    revision: Optional[StepRevision] = None,
-    saved_response: Optional[ModelResponse] = None,
+    revision: StepRevision | None = None,
+    saved_response: ModelResponse | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,

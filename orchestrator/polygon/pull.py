@@ -124,11 +124,11 @@ from __future__ import annotations
 
 import datetime
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
-
+from orchestrator.limits import LIMITS_FILENAME, render_limits
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import (
     PolygonState,
@@ -147,7 +147,10 @@ from orchestrator.polygon.steps.upload_statement import (
     dialogue_filenames,
     verify_filename,
 )
-from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES, normalize_script
+from orchestrator.polygon.steps.upload_test_script import (
+    SCRIPT_FILENAMES,
+    normalize_script,
+)
 from orchestrator.polygon.sync import (
     CHECKER_FILE_KEY,
     CHECKER_KEY,
@@ -161,8 +164,8 @@ from orchestrator.polygon.sync import (
     PULLED_CONSTRAINTS_HEADER,
     SCRIPT_KEY,
     SPEC_KEY,
-    TESTS_PLAN_KEY,
     STANDARD_CHECKER_PREFIX,
+    TESTS_PLAN_KEY,
     VALIDATOR_FILE_KEY,
     VALIDATOR_KEY,
     digest,
@@ -175,24 +178,23 @@ from orchestrator.polygon.sync import (
     remote_stamps,
     statement_name_key,
 )
+from orchestrator.problem_paths import (
+    AUTHORING_DIRNAME,
+    PROBLEMS_DIR,
+    TUTORIAL_DRAFT_FILENAME,
+    TUTORIAL_FILENAME,
+    ProblemPathError,
+    authoring_dir,
+    check_new_problem_location,
+    is_removed_mark,
+    problem_id_for,
+)
 from orchestrator.statement_languages import (
     STATEMENT_DIRNAME,
     is_language_dirname,
     language_code,
     polygon_language,
     statement_languages,
-)
-from orchestrator.limits import LIMITS_FILENAME, render_limits
-from orchestrator.problem_paths import (
-    AUTHORING_DIRNAME,
-    PROBLEMS_DIR,
-    ProblemPathError,
-    TUTORIAL_DRAFT_FILENAME,
-    TUTORIAL_FILENAME,
-    authoring_dir,
-    check_new_problem_location,
-    is_removed_mark,
-    problem_id_for,
 )
 from orchestrator.steps.base import PROBLEM_LIB_FILENAME
 
@@ -527,7 +529,7 @@ class _Puller:
             return
         self._sync_file(
             name_file,
-            lambda: f"{name}\n".encode("utf-8"),
+            lambda: f"{name}\n".encode(),
             key=name_key,
             # Как `upload_statement.read_name`: хеш и сравнение — по самому названию.
             normalize=lambda content: content.decode("utf-8").strip().encode("utf-8"),

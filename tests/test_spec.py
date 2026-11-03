@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.spec import ProblemSpec, SpecValidationError, load_spec, split_solution_stem
+from orchestrator.spec import (
+    ProblemSpec,
+    SpecValidationError,
+    load_spec,
+    split_solution_stem,
+)
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from polygon_sync_helpers import run_and_record
 
 from orchestrator import cli
 from orchestrator.checks import test_script_check as check
@@ -25,8 +26,6 @@ from orchestrator.polygon.state import PolygonState, save_polygon_state
 from orchestrator.polygon.steps import upload_test_script
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.spec import load_spec
-
-from polygon_sync_helpers import run_and_record
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"

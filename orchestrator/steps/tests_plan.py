@@ -13,8 +13,9 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 import yaml
 
@@ -235,7 +236,7 @@ def _note(field: str, explanation: str) -> dict[str, Any]:
 
 
 def load_tests_plan(
-    step_name: str, problem_id: str, upstream_artifacts: Optional[dict[str, Any]]
+    step_name: str, problem_id: str, upstream_artifacts: dict[str, Any] | None
 ) -> dict[str, Any]:
     """План из `upstream_artifacts` шага, который строит по нему код. Нет
     плана или он не разбирается — `ValueError`: сначала `tests_plan` (или
@@ -294,7 +295,7 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
     """Хеш входа шага без вызова модели (CLAUDE.md, "Кэширование по хешу
     спека"): секции спека (`_build_context_sections`) и `constraints.yaml`
@@ -305,8 +306,8 @@ def compute_input_hash(
 def hash_inputs(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
-) -> tuple[Any, Optional[dict[str, Any]]]:
+    upstream_artifacts: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
     """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям."""
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
@@ -317,7 +318,7 @@ def hash_inputs(
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Образцы — файлы, которые этому шагу дают референсы спека (общие
     `references` и `generation.references`, `orchestrator/references.py`)."""
     return reference_documents(STEP_NAME, spec)
@@ -358,10 +359,10 @@ def _postprocess(
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
     *,
-    revision: Optional[StepRevision] = None,
-    saved_response: Optional[ModelResponse] = None,
+    revision: StepRevision | None = None,
+    saved_response: ModelResponse | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,

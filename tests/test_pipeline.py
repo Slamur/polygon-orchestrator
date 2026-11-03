@@ -426,7 +426,7 @@ def test_compute_step_statuses_uncertain_entry_never_reported_as_cache_hit():
     # что status.py-логика вообще не выдаёт "cache hit" для status=uncertain,
     # даже если бы такая запись когда-нибудь появилась на диске (cache.py,
     # is_cache_valid, уже это гарантирует и покрыт тестами там).
-    from orchestrator.cache import CacheEntry, UNCERTAIN_STATUS, is_cache_valid
+    from orchestrator.cache import UNCERTAIN_STATUS, CacheEntry, is_cache_valid
 
     entry = CacheEntry("h", "p", "model", UNCERTAIN_STATUS, "2026-01-01T00:00:00Z")
     assert is_cache_valid(entry, "h", "p") is False
@@ -680,7 +680,12 @@ def test_accept_refuses_step_with_missing_artifact(spec_file, tmp_path):
 
 
 def test_accept_refuses_uncertain_step(spec_file, tmp_path):
-    from orchestrator.cache import CacheEntry, UNCERTAIN_STATUS, load_cache_entry, save_cache_entry
+    from orchestrator.cache import (
+        UNCERTAIN_STATUS,
+        CacheEntry,
+        load_cache_entry,
+        save_cache_entry,
+    )
 
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):

@@ -1,10 +1,9 @@
 import pytest
+from compile_cache import caching_compile_check
 
 from orchestrator.checks import compile_check, local_tests, solutions_run
 from orchestrator.checks.test_script_check import SKIP_CHECK_ENV
 from orchestrator.steps import base
-
-from compile_cache import caching_compile_check
 
 
 @pytest.fixture(autouse=True)

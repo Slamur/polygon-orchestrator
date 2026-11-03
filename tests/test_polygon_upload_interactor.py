@@ -2,13 +2,18 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from polygon_sync_helpers import (
+    FIXTURES_DIR,
+    POLYGON_ID,
+    PROBLEM_ID,
+    link,
+    run_and_record,
+)
 
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_interactor import NOT_INTERACTIVE_MESSAGE, STEP
 from orchestrator.spec import load_spec
-
-from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
 INTERACTOR_CONTENT = (
     b'#include "testlib.h"\nint main(int argc, char* argv[]) { registerInteraction(argc, argv); }\n'

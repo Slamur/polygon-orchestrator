@@ -33,7 +33,11 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from orchestrator.llm_client import LLMCallError, UsageLimitReachedError, build_system_prompt
+from orchestrator.llm_client import (
+    LLMCallError,
+    UsageLimitReachedError,
+    build_system_prompt,
+)
 from orchestrator.model_contracts import (
     RESPONSE_JSON_SCHEMA,
     ModelResponse,

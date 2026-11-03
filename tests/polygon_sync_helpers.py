@@ -4,7 +4,12 @@ Polygon и прогон шага так, как его прогоняет `run_p
 
 from pathlib import Path
 
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state, update_sync
+from orchestrator.polygon.state import (
+    PolygonState,
+    load_polygon_state,
+    save_polygon_state,
+    update_sync,
+)
 from orchestrator.polygon.steps.base import PolygonStep, StepResult, run_step
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"

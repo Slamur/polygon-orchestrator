@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
@@ -28,10 +28,10 @@ from orchestrator.steps.base import (
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
+    MissingArtifactsError,
     StepResult,
     StepRevision,
     artifact_filename,
-    MissingArtifactsError,
     constraints_without_limits,
     directory_artifacts,
     require_constraints_yaml,
@@ -61,8 +61,8 @@ def _plan_key(name: str) -> str:
 def hash_inputs(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
-) -> tuple[Any, Optional[dict[str, Any]]]:
+    upstream_artifacts: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
     """`(секция спека, апстрим-артефакты)`: формат ввода из `statement_draft`;
     `constraints.yaml` без TL/ML (гарантии входа, которые проверяет
     валидатор, — генератор обязан их соблюдать) и каждый генератор плана
@@ -78,14 +78,14 @@ def hash_inputs(
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Образцы — генераторы из референсов спека (`orchestrator/references.py`)."""
     return reference_documents(STEP_NAME, spec)
 
@@ -145,10 +145,10 @@ def _note(field: str, explanation: str) -> dict[str, Any]:
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
     *,
-    revision: Optional[StepRevision] = None,
-    saved_response: Optional[ModelResponse] = None,
+    revision: StepRevision | None = None,
+    saved_response: ModelResponse | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,

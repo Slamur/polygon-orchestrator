@@ -47,7 +47,11 @@ from orchestrator.polygon.sync import (
     digest,
     is_draft_name,
 )
-from orchestrator.problem_paths import DRAFT_STEM, TUTORIAL_DRAFT_FILENAME, authoring_dir
+from orchestrator.problem_paths import (
+    DRAFT_STEM,
+    TUTORIAL_DRAFT_FILENAME,
+    authoring_dir,
+)
 
 STEP_NAME = "upload_attachments"
 

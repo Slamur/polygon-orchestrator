@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
@@ -58,7 +58,7 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
     """Хеш входа шага без вызова модели, см. `constraints_pick.compute_input_hash`
     и CLAUDE.md, "Кэширование по хешу спека". Как и `run_step`, требует
@@ -72,8 +72,8 @@ def compute_input_hash(
 def hash_inputs(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
-) -> tuple[Any, Optional[dict[str, Any]]]:
+    upstream_artifacts: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
     """Что входит в хеш входа шага: `(секции спека, апстрим-артефакты)` —
     общий источник для `compute_input_hash` и хешей по частям
     (`cache.compute_input_values`), чтобы они не разошлись."""
@@ -101,7 +101,7 @@ def current_artifacts(
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
-) -> Optional[list[str]]:
+) -> list[str] | None:
     """Образцы для конкретного вызова — файлы, которые этому шагу дают
     референсы спека (общие `references` и `interactor.references`, см.
     `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
@@ -113,10 +113,10 @@ def extra_context_documents(
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
     *,
-    revision: Optional[StepRevision] = None,
-    saved_response: Optional[ModelResponse] = None,
+    revision: StepRevision | None = None,
+    saved_response: ModelResponse | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,

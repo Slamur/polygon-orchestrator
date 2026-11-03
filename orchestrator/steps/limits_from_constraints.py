@@ -20,11 +20,21 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from orchestrator.cache import CacheEntry, compute_input_values, input_parts_from_values, save_cache_entry
+from orchestrator.cache import (
+    CacheEntry,
+    compute_input_values,
+    input_parts_from_values,
+    save_cache_entry,
+)
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
-from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits, render_limits
+from orchestrator.limits import (
+    LIMITS_FILENAME,
+    LimitsError,
+    parse_limits,
+    render_limits,
+)
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
@@ -54,8 +64,8 @@ _LIMITS_INPUT = f"{CONSTRAINTS_ARTIFACT}: limits"
 def hash_inputs(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
-) -> tuple[Any, Optional[dict[str, Any]]]:
+    upstream_artifacts: dict[str, Any] | None = None,
+) -> tuple[Any, dict[str, Any] | None]:
     """`(секция спека, апстрим-артефакты)` для хеша: спек шагу не нужен,
     из `constraints.yaml` — только TL/ML. `ValueError` (`LimitsError`) —
     TL/ML в `constraints.yaml` не читаются: пайплайн останавливается с этой
@@ -73,7 +83,7 @@ def hash_inputs(
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
@@ -99,10 +109,10 @@ def current_artifacts(
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
-    upstream_artifacts: Optional[dict[str, Any]] = None,
+    upstream_artifacts: dict[str, Any] | None = None,
     *,
-    revision: Optional[StepRevision] = None,
-    saved_response: Optional[ModelResponse] = None,
+    revision: StepRevision | None = None,
+    saved_response: ModelResponse | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,

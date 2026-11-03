@@ -20,16 +20,24 @@ import yaml
 
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.limits import LIMITS_FILENAME, extract_limits, parse_limits
-from orchestrator.problem_paths import iter_problem_dirs, problem_id_for
+from orchestrator.problem_paths import (
+    AUTHORING_DIRNAME,
+    EXAMPLES_DIR,
+    SPEC_FILENAME,
+    iter_problem_dirs,
+    problem_id_for,
+)
 from orchestrator.spec import load_spec
-from orchestrator.problem_paths import AUTHORING_DIRNAME, SPEC_FILENAME
-from orchestrator.steps.base import EXAMPLES_DIR
 from orchestrator.steps.generators_draft import generator_params
-from orchestrator.steps.tests_plan import parse_tests_plan, plan_generators, uncovered_notes
 from orchestrator.steps.test_script_draft import (
     SCRIPT_FUNCTIONS_FILENAME,
     SCRIPT_NAMES,
     fix_script_comparisons,
+)
+from orchestrator.steps.tests_plan import (
+    parse_tests_plan,
+    plan_generators,
+    uncovered_notes,
 )
 
 REPO_ROOT = Path(__file__).parent.parent

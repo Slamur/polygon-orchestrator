@@ -6,7 +6,11 @@ import pytest
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
-from orchestrator.steps.constraints_pick import compute_input_hash, extra_context_documents, run_step
+from orchestrator.steps.constraints_pick import (
+    compute_input_hash,
+    extra_context_documents,
+    run_step,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"

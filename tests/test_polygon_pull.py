@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link
 
 from orchestrator import cli
 from orchestrator.polygon import pull as pull_module
@@ -20,8 +21,11 @@ from orchestrator.polygon.pull import (
     ITEM_UPDATED,
     pull_problem,
 )
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.sync import PULLED_CONSTRAINTS_HEADER
+from orchestrator.polygon.state import (
+    PolygonState,
+    load_polygon_state,
+    save_polygon_state,
+)
 from orchestrator.polygon.steps import (
     set_constraints,
     upload_attachments,
@@ -35,10 +39,9 @@ from orchestrator.polygon.steps import (
 )
 from orchestrator.polygon.steps.base import PolygonStepError, run_step
 from orchestrator.polygon.steps.upload_test_script import normalize_script
-from orchestrator.steps.base import template_problem_lib_path
+from orchestrator.polygon.sync import PULLED_CONSTRAINTS_HEADER
 from orchestrator.spec import load_spec
-
-from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link
+from orchestrator.steps.base import template_problem_lib_path
 
 
 class FakePolygon:
