@@ -16,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7",
+    "ruff>=0.17,<0.18",
 ]
 
 [tool.pytest.ini_options]
@@ -25,6 +26,19 @@ markers = [
     "integration: бьёт в реальный внешний API (Anthropic и/или Polygon; нужны ANTHROPIC_API_KEY и/или POLYGON_API_KEY/POLYGON_API_SECRET), не запускается по умолчанию",
 ]
 addopts = "-m 'not integration'"
+
+[tool.ruff]
+target-version = "py310"
+# examples/ и templates/ — материалы задач (образцы для модели, шаблоны автора),
+# а не код оркестратора; problems/ и drafts/ — задачи автора.
+extend-exclude = ["problems", "drafts", "outputs", "examples", "templates"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, bugbear, pyupgrade. Длину строк не проверяем:
+# автоформатирование не принято, а длинные строки — в основном русский текст
+# комментариев и сообщений.
+select = ["E", "W", "F", "I", "B", "UP"]
+ignore = ["E501"]
 
 [tool.setuptools.packages.find]
 include = ["orchestrator*"]
