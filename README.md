@@ -134,6 +134,7 @@ pip install -e '.[dev]'
 ```bash
 orchestrator --help
 pytest               # unit-тесты; к модели и Polygon не обращаются
+pytest -n auto --dist loadgroup  # параллельно (pytest-xdist), как в CI
 ruff check .         # линтер (настройки — в pyproject.toml); `--fix` чинит что может
 ruff format .        # форматирование кода
 ```
