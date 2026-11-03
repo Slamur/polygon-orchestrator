@@ -94,7 +94,9 @@ def test_writes_tutorial_from_draft_statement_and_refs(problems_dir, problem_dir
     result, mock_call = _generate(problems_dir, tutorial_refs=["ok.cpp"])
 
     assert _outcome(result).status == "confirmed"
-    assert (problem_dir / "statement" / "ru" / "tutorial.tex").read_text(encoding="utf-8") == "tutorial\n"
+    assert (problem_dir / "statement" / "ru" / "tutorial.tex").read_text(
+        encoding="utf-8"
+    ) == "tutorial\n"
     prompt = _user_prompt(mock_call)
     assert DRAFT_TEXT.strip() in prompt
     assert "legend text" in prompt
@@ -132,8 +134,10 @@ def test_ref_outside_solutions_is_an_error(problems_dir, problem_dir, ref):
     "prepare",
     [
         lambda d: _write(d / "authoring" / "draft-tutorial.md", "  \n"),
-        lambda d: (d / "statement" / "ru" / "legend.tex").unlink()
-        or (d / "statement" / "ru" / "input_format.tex").unlink(),
+        lambda d: (
+            (d / "statement" / "ru" / "legend.tex").unlink()
+            or (d / "statement" / "ru" / "input_format.tex").unlink()
+        ),
     ],
     ids=["empty draft", "no statement"],
 )

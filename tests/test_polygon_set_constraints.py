@@ -116,7 +116,9 @@ def test_incremental_run_skips_unchanged_limits_and_sends_changed(tmp_path, spec
 
     # те же значения в другом месте файла — отправлять нечего
     _write_limits(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 256\ngroups: []\n")
-    assert _run(spec, tmp_path, client, incremental=True) == "no changes since the last sync, skipped"
+    assert (
+        _run(spec, tmp_path, client, incremental=True) == "no changes since the last sync, skipped"
+    )
     client.call.assert_not_called()
 
     _write_limits(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 512\n")

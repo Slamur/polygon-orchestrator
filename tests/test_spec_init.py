@@ -39,7 +39,9 @@ def _nested_model(model: type[BaseModel], field_name: str) -> type[BaseModel] | 
 
 
 def _assert_keys_match(data: dict, model: type[BaseModel], path: str) -> None:
-    assert set(data) == _model_keys(model), f"template keys at '{path}' differ from {model.__name__}"
+    assert set(data) == _model_keys(model), (
+        f"template keys at '{path}' differ from {model.__name__}"
+    )
     for key, value in data.items():
         nested = _nested_model(model, key)
         if nested is None:
@@ -85,7 +87,9 @@ def test_draft_is_valid_once_required_fields_are_filled(tmp_path):
     data["title"]["ru"] = "Задача"
     statement = data["statement_draft"]
     statement.update(
-        legend_sketch="legend", formal_input_sketch="n", formal_output_sketch="answer",
+        legend_sketch="legend",
+        formal_input_sketch="n",
+        formal_output_sketch="answer",
         indexing="1-indexed",
     )
     statement["sample_examples"][0]["input"] = "1\n"
@@ -125,7 +129,9 @@ def test_nested_draft_takes_problem_id_from_leaf_in_problems(tmp_path):
         "contest/2026/my-task", problems_dir=problems, templates_dir=TEMPLATES_DIR
     )
 
-    assert spec_path == problems / "contest" / "2026" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME
+    assert (
+        spec_path == problems / "contest" / "2026" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME
+    )
     assert yaml.safe_load(spec_path.read_text(encoding="utf-8"))["problem_id"] == "my-task"
 
 
@@ -186,7 +192,9 @@ def test_cli_init_creates_draft_and_fails_on_second_run(tmp_path, capsys):
     ]
 
     assert cli.main(argv) == 0
-    assert (tmp_path / "problems" / "contest" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME).exists()
+    assert (
+        tmp_path / "problems" / "contest" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME
+    ).exists()
     assert "created" in capsys.readouterr().out
 
     assert cli.main(argv) == 1

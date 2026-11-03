@@ -96,7 +96,13 @@ def test_run_writes_llm_generation_log(problems_dir, tmp_path, capsys):
 
 def test_run_log_accumulates_runs_with_header_and_step_starts(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
-    argv = _base_args(problems_dir) + ["problems/p1", "llm", "generate", "--step", "statement_draft"]
+    argv = _base_args(problems_dir) + [
+        "problems/p1",
+        "llm",
+        "generate",
+        "--step",
+        "statement_draft",
+    ]
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(argv)
@@ -115,7 +121,13 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(problems_dir, tmp_path, ca
     uncertain_response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "statement_draft.formal_output_sketch", "kind": "uncertain", "explanation": "нет точности"}],
+        notes=[
+            {
+                "field": "statement_draft.formal_output_sketch",
+                "kind": "uncertain",
+                "explanation": "нет точности",
+            }
+        ],
     )
     with patch("orchestrator.model_router.call_model", return_value=uncertain_response):
         rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
@@ -144,9 +156,10 @@ def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tm
 
         return validate
 
-    with patch(
-        "orchestrator.steps.statement_draft._validate_statement_artifacts", reject
-    ), patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+    with (
+        patch("orchestrator.steps.statement_draft._validate_statement_artifacts", reject),
+        patch("orchestrator.model_router.call_model", side_effect=_fake_call_model),
+    ):
         rc = cli.main(argv + ["generate", "--step", "statement_draft"])
 
     assert rc == 1
@@ -237,7 +250,9 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate"])
-    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(_CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8")
+    (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(
+        _CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8"
+    )
     capsys.readouterr()
 
     with patch("orchestrator.model_router.call_model") as mock_call:
@@ -247,10 +262,7 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     # В консоли — только что изменилось в целом, список частей — в отчёте.
-    assert (
-        "tests_plan: accepted — was stale: spec (or upstream artifact) changed\n"
-        in out
-    )
+    assert "tests_plan: accepted — was stale: spec (or upstream artifact) changed\n" in out
     assert "upstream: constraints.yaml" not in out
     report = problems_dir / "p1" / "llm_reports" / "accept.md"
     assert f"report: {report}" in out
@@ -438,9 +450,10 @@ def test_group_name_does_not_have_to_be_a_problem_id(problems_dir, capsys):
 def test_problem_address_is_not_treated_as_a_group(problems_dir):
     _write_group(problems_dir)
 
-    with patch("builtins.input") as ask, patch.object(
-        cli_commands, "cmd_local_clear", return_value=0
-    ) as cmd:
+    with (
+        patch("builtins.input") as ask,
+        patch.object(cli_commands, "cmd_local_clear", return_value=0) as cmd,
+    ):
         cli.main(_base_args(problems_dir) + ["problems/other/task-c", "local", "clear"])
 
     ask.assert_not_called()
@@ -451,7 +464,9 @@ def test_group_rejects_polygon_id(problems_dir, capsys):
     _write_group(problems_dir)
 
     with pytest.raises(SystemExit):
-        cli.main(_base_args(problems_dir) + ["problems/contest", "polygon", "pull", "--polygon-id", "1"])
+        cli.main(
+            _base_args(problems_dir) + ["problems/contest", "polygon", "pull", "--polygon-id", "1"]
+        )
 
     assert "--polygon-id names one problem" in capsys.readouterr().err
 

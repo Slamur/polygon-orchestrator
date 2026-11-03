@@ -106,7 +106,9 @@ def statement_languages(statement_dir: Path) -> list[str]:
     if not statement_dir.is_dir():
         return []
     languages = sorted(
-        path.name for path in statement_dir.iterdir() if path.is_dir() and is_language_dirname(path.name)
+        path.name
+        for path in statement_dir.iterdir()
+        if path.is_dir() and is_language_dirname(path.name)
     )
     misnamed = [name for name in languages if name in _CODES]
     if misnamed:

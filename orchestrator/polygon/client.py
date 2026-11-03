@@ -117,8 +117,7 @@ class PolygonClient:
         except ValueError:
             raise PolygonApiError(
                 method_name,
-                f"response is not JSON (HTTP {response.status_code}): "
-                f"{response.text[:200]!r}",
+                f"response is not JSON (HTTP {response.status_code}): {response.text[:200]!r}",
             ) from None
 
         if body.get("status") == "FAILED":
@@ -152,8 +151,7 @@ class PolygonClient:
             if response.status_code != 200:
                 raise PolygonApiError(
                     method_name,
-                    f"unexpected response (HTTP {response.status_code}): "
-                    f"{response.text[:200]!r}",
+                    f"unexpected response (HTTP {response.status_code}): {response.text[:200]!r}",
                 )
         return response.content
 

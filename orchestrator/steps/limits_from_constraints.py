@@ -77,7 +77,9 @@ def hash_inputs(
         raise LimitsError(
             f"Step '{STEP_NAME}' for '{problem_id}': TL/ML in {CONSTRAINTS_ARTIFACT}: {exc}"
         ) from exc
-    return None, {_LIMITS_INPUT: {"time_limit_ms": time_limit_ms, "memory_limit_mb": memory_limit_mb}}
+    return None, {
+        _LIMITS_INPUT: {"time_limit_ms": time_limit_ms, "memory_limit_mb": memory_limit_mb}
+    }
 
 
 def compute_input_hash(

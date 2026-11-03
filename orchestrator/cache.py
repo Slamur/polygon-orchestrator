@@ -246,9 +246,7 @@ class CacheEntry:
     conflicts: str | None = None
 
 
-def _cache_file_path(
-    problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
-) -> Path:
+def _cache_file_path(problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR) -> Path:
     return Path(problems_dir) / problem_id / ".cache" / f"{step_name}.json"
 
 
@@ -314,10 +312,7 @@ def is_cache_valid(
         return False
     if current_model is not None and entry.model != current_model:
         return False
-    return (
-        entry.input_hash == current_input_hash
-        and entry.prompt_hash == current_prompt_hash
-    )
+    return entry.input_hash == current_input_hash and entry.prompt_hash == current_prompt_hash
 
 
 @dataclass
@@ -384,9 +379,7 @@ def load_pending_response(
 def discard_pending_response(
     problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> None:
-    _pending_response_path(problem_id, step_name, problems_dir=problems_dir).unlink(
-        missing_ok=True
-    )
+    _pending_response_path(problem_id, step_name, problems_dir=problems_dir).unlink(missing_ok=True)
 
 
 def describe_changed_parts(
@@ -398,11 +391,7 @@ def describe_changed_parts(
     нечего, вызывающий код сообщает об этом сам."""
     if old_parts is None:
         return []
-    names = [
-        name
-        for name in new_parts
-        if name in old_parts and old_parts[name] != new_parts[name]
-    ]
+    names = [name for name in new_parts if name in old_parts and old_parts[name] != new_parts[name]]
     names += [f"{name} (added)" for name in new_parts if name not in old_parts]
     names += [f"{name} (removed)" for name in old_parts if name not in new_parts]
     return names

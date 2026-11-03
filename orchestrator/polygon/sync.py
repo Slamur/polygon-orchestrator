@@ -200,12 +200,17 @@ def _statement_label(key: str) -> str:
 
 def is_stamped_key(key: str) -> bool:
     """Есть ли у ключа отметка в листинге Polygon (см. `remote_stamps`)."""
-    return key in (
-        PROBLEM_LIB_KEY,
-        VALIDATOR_FILE_KEY,
-        CHECKER_FILE_KEY,
-        INTERACTOR_FILE_KEY,
-    ) or is_attachment_name(key) or key.startswith(("generators/", "solutions/"))
+    return (
+        key
+        in (
+            PROBLEM_LIB_KEY,
+            VALIDATOR_FILE_KEY,
+            CHECKER_FILE_KEY,
+            INTERACTOR_FILE_KEY,
+        )
+        or is_attachment_name(key)
+        or key.startswith(("generators/", "solutions/"))
+    )
 
 
 def file_stamp(file: dict) -> str | None:

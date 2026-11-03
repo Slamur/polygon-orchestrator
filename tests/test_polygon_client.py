@@ -109,12 +109,15 @@ def test_file_content_is_a_signed_param(credentials, monkeypatch):
     assert sent["apiSig"] == generate_signature(
         "problem.saveFile", unsigned, "test-secret", rand=rand
     )
-    assert generate_signature(
-        "problem.saveFile",
-        {**unsigned, "file": b"other"},
-        "test-secret",
-        rand=rand,
-    ) != sent["apiSig"]
+    assert (
+        generate_signature(
+            "problem.saveFile",
+            {**unsigned, "file": b"other"},
+            "test-secret",
+            rand=rand,
+        )
+        != sent["apiSig"]
+    )
 
 
 def test_failed_status_raises_polygon_api_error(credentials, monkeypatch):
@@ -139,7 +142,9 @@ def test_non_json_response_raises_polygon_api_error(credentials, monkeypatch):
         PolygonClient().call("problem.info", {})
 
 
-def _raw_response(content: bytes, *, status_code: int = 200, content_type: str = "text/plain", body=None):
+def _raw_response(
+    content: bytes, *, status_code: int = 200, content_type: str = "text/plain", body=None
+):
     response = _response(body, status_code=status_code, text=content.decode("utf-8", "replace"))
     response.content = content
     response.headers = {"Content-Type": content_type}

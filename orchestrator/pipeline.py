@@ -172,8 +172,6 @@ def _artifact_present(path: Path) -> bool:
     return path.exists()
 
 
-
-
 @dataclass
 class _StepHashes:
     """Текущие хеши входа шага — то, с чем сравнивается `CacheEntry`."""
@@ -201,7 +199,9 @@ def _optional_skip_detail(
         step_name == "tutorial_draft"
         and not tutorial_draft.draft_path(problem_id, problems_dir=problems_dir).is_file()
     ):
-        return f"no authoring/{TUTORIAL_DRAFT_FILENAME} — the tutorial was not requested by the author"
+        return (
+            f"no authoring/{TUTORIAL_DRAFT_FILENAME} — the tutorial was not requested by the author"
+        )
     if step_name == "solutions_draft" and spec.solutions is None:
         return "spec has no 'solutions' section — solution drafts were not requested by the author"
     if step_name == "checker_draft" and spec.checker.custom_needed is False:
@@ -244,7 +244,9 @@ def _load_upstream(
         name = _UPSTREAM_PRODUCERS[producer]
         if name in upstream_artifacts:
             continue
-        path = _STEP_MODULES[producer].primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
+        path = _STEP_MODULES[producer].primary_artifact_path(
+            problem_id, spec, problems_dir=problems_dir
+        )
         if path.exists():
             upstream_artifacts[name] = path.read_text(encoding="utf-8")
 
@@ -665,9 +667,7 @@ def run_pipeline(
                 templates_dir=templates_dir,
             ):
                 return result
-        elif cache_entry is not None and cache_entry.conflicts is not None and not (
-            force or fresh
-        ):
+        elif cache_entry is not None and cache_entry.conflicts is not None and not (force or fresh):
             result.outcomes.append(
                 StepOutcome(
                     step_name,
@@ -697,9 +697,7 @@ def run_pipeline(
             )
         elif (
             not (force or fresh)
-            and is_cache_valid(
-                cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model
-            )
+            and is_cache_valid(cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model)
             and artifact_present
         ):
             result.outcomes.append(
@@ -723,9 +721,7 @@ def run_pipeline(
             revision = (
                 None
                 if fresh or step_name in MECHANICAL_STEPS
-                else _revision_for_step(
-                    module, problem_id, spec, cache_entry, hashes, problems_dir
-                )
+                else _revision_for_step(module, problem_id, spec, cache_entry, hashes, problems_dir)
             )
             if revision is not None:
                 mode = f"revising {len(revision.current_paths)} current file(s)"
@@ -948,8 +944,7 @@ def _conflicts_detail(
     problem_id: str, step_name: str, entry: CacheEntry, problems_dir: Path
 ) -> str:
     accept = (
-        f"'orchestrator {problem_address(problems_dir, problem_id)} "
-        f"llm accept --step {step_name}'"
+        f"'orchestrator {problem_address(problems_dir, problem_id)} llm accept --step {step_name}'"
     )
     if _conflicts_resolved(problem_id, entry, problems_dir):
         return f"conflicts of the last run resolved ({entry.conflicts} deleted) — run {accept}"
@@ -1003,7 +998,9 @@ def _accept_step(
             return StepStatus(step_name, STATUS_NOT_ACCEPTED, current.detail)
         if not artifact_present:
             return StepStatus(
-                step_name, STATUS_NOT_ACCEPTED, "conflicts resolved, but the artifact is missing on disk"
+                step_name,
+                STATUS_NOT_ACCEPTED,
+                "conflicts resolved, but the artifact is missing on disk",
             )
         accepted_detail = f"conflicts resolved ({cache_entry.conflicts} deleted)"
         accepted_brief = ""

@@ -176,9 +176,7 @@ def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
 
 def test_main_falls_back_to_java_without_cpp_ok(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(
-        problems_dir, {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b""}
-    )
+    _write_solutions(problems_dir, {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b""})
     client = MagicMock()
 
     _run(spec, problems_dir, client)
@@ -209,9 +207,7 @@ def test_cpp_language_alias_wins_main_over_java(problems_dir, spec):
 
 def test_no_ok_solution_is_an_error(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(
-        problems_dir, {"wa_cpp_offbyone_draft.cpp": b"", "tl_py_slow_draft.py": b""}
-    )
+    _write_solutions(problems_dir, {"wa_cpp_offbyone_draft.cpp": b"", "tl_py_slow_draft.py": b""})
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="Main correct"):
@@ -220,9 +216,7 @@ def test_no_ok_solution_is_an_error(problems_dir, spec):
     client.call.assert_not_called()
 
 
-def test_unprioritized_language_falls_back_to_alphabetical_with_warning(
-    problems_dir, spec, caplog
-):
+def test_unprioritized_language_falls_back_to_alphabetical_with_warning(problems_dir, spec, caplog):
     link(problems_dir)
     _write_solutions(
         problems_dir, {"ok_pascal_main_draft.pas": b"", "ok_pascal_alt_draft.pas": b""}

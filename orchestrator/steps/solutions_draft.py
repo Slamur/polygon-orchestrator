@@ -48,6 +48,7 @@ SOLUTION_TEMPLATES_SUBDIR = "solutions"
 # варианты записи к тому, как язык назван в именах файлов шаблонов.
 _LANGUAGE_ALIASES = {"c++": "cpp", "python": "py", "python3": "py"}
 
+
 def _require_solutions_section(problem_id: str, spec: ProblemSpec) -> None:
     if spec.solutions is None:
         raise ValueError(
@@ -150,7 +151,9 @@ def extra_context_documents(
     if spec.solutions is None:
         return None
 
-    languages = {_LANGUAGE_ALIASES.get(lang.lower(), lang.lower()) for lang in spec.solutions.languages}
+    languages = {
+        _LANGUAGE_ALIASES.get(lang.lower(), lang.lower()) for lang in spec.solutions.languages
+    }
 
     def keep(rel_path: str) -> bool:
         if not rel_path.startswith(f"{SOLUTIONS_SUBDIR}/"):

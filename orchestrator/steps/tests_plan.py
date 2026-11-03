@@ -96,7 +96,9 @@ def parse_tests_plan(text: str) -> dict[str, Any]:
             continue
         if name in params_by_generator:
             errors.append(f"{where}: generator '{name}' is listed twice")
-        params_by_generator[name] = _check_params(generator.get("params"), f"{where}.params", errors)
+        params_by_generator[name] = _check_params(
+            generator.get("params"), f"{where}.params", errors
+        )
         _check_status(generator.get("status"), where, errors)
 
     constants = plan.get("constants") or []
@@ -171,7 +173,9 @@ def _check_command(
         for token in params:
             match = _COMMAND_PARAM_RE.match(token)
             if not match:
-                errors.append(f"{where}: parameter {token!r} of '{name}' is not -name=value or --name")
+                errors.append(
+                    f"{where}: parameter {token!r} of '{name}' is not -name=value or --name"
+                )
             elif match.group(1) not in params_by_generator[name]:
                 errors.append(f"{where}: '{name}' has no parameter '{match.group(1)}'")
 
@@ -206,16 +210,23 @@ def uncovered_notes(plan: dict[str, Any], spec: ProblemSpec) -> list[dict[str, A
                 continue
             key = (match.group(1), int(match.group(2)))
             if key[1] >= sizes[key[0]]:
-                notes.append(_note(item, f"{TESTS_PLAN_ARTIFACT} refers to {item}, which the spec does not have"))
+                notes.append(
+                    _note(
+                        item,
+                        f"{TESTS_PLAN_ARTIFACT} refers to {item}, which the spec does not have",
+                    )
+                )
             covered.add(key)
     for field in COVERED_LISTS:
         for index in range(sizes[field]):
             if (field, index) not in covered:
-                notes.append(_note(
-                    f"{field}[{index}]",
-                    f"no test of {TESTS_PLAN_ARTIFACT} covers it (tests[].covers) — "
-                    "check the plan or add the reference",
-                ))
+                notes.append(
+                    _note(
+                        f"{field}[{index}]",
+                        f"no test of {TESTS_PLAN_ARTIFACT} covers it (tests[].covers) — "
+                        "check the plan or add the reference",
+                    )
+                )
     used = {
         segment.split()[0]
         for test in plan.get("tests") or []
@@ -225,9 +236,9 @@ def uncovered_notes(plan: dict[str, Any], spec: ProblemSpec) -> list[dict[str, A
     }
     for generator in plan_generators(plan):
         if generator["name"] not in used:
-            notes.append(_note(
-                f"generators/{generator['name']}", "no test of the plan runs this generator"
-            ))
+            notes.append(
+                _note(f"generators/{generator['name']}", "no test of the plan runs this generator")
+            )
     return notes
 
 
@@ -266,7 +277,8 @@ def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
     if spec.solutions is None:
         return {"algorithm_hint": None, "known_wrong_approaches": []}
     section_data = with_default_lists(
-        spec.solutions.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD), _SOLUTIONS_LIST_FIELDS
+        spec.solutions.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD),
+        _SOLUTIONS_LIST_FIELDS,
     )
     return {
         "algorithm_hint": section_data["algorithm_hint"],
@@ -388,7 +400,9 @@ def run_step(
 
     def resolve_artifact_path(filename: str) -> Path:
         if filename != TESTS_PLAN_ARTIFACT:
-            raise ValueError(f"Step '{STEP_NAME}' returns only {TESTS_PLAN_ARTIFACT}, got '{filename}'")
+            raise ValueError(
+                f"Step '{STEP_NAME}' returns only {TESTS_PLAN_ARTIFACT}, got '{filename}'"
+            )
         return primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
 
     def validate_artifacts(artifacts: dict[str, str]) -> None:

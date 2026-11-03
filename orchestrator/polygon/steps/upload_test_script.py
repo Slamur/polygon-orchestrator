@@ -132,9 +132,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     )
 
 
-def _save_script(
-    problem_id: str, polygon_id: int, content: bytes, client: PolygonClient
-) -> bool:
+def _save_script(problem_id: str, polygon_id: int, content: bytes, client: PolygonClient) -> bool:
     """`problem.saveScript`; `True` — ответа не дождались (тесты, скорее
     всего, ещё генерируются, см. докстринг модуля)."""
     try:
@@ -243,9 +241,7 @@ def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> li
     try:
         result = check_script(content.decode("utf-8"), script_name)
     except (ScriptCheckUnavailable, ScriptRenderError) as exc:
-        logger.warning(
-            "'%s': line check of %s skipped — %s", problem_id, script_name, exc
-        )
+        logger.warning("'%s': line check of %s skipped — %s", problem_id, script_name, exc)
         return None
     if result.failed:
         raise PolygonStepError(

@@ -119,7 +119,9 @@ def test_verdicts_checked_against_solution_names(tmp_path):
     assert "  example_1: WA, expected OK for 'ok'" in unexpected
     assert "  example_1: RE, expected OK, WA for 'wa'" in unexpected
     assert any(line.startswith("readme.txt: ") for line in _group(result, "not run"))
-    assert any(line.startswith("wa_py_minus_draft.py: ") for line in _group(result, "expected verdicts"))
+    assert any(
+        line.startswith("wa_py_minus_draft.py: ") for line in _group(result, "expected verdicts")
+    )
 
 
 def test_time_limit_from_limits_yaml(tmp_path):
@@ -140,13 +142,19 @@ def test_time_limit_from_limits_yaml(tmp_path):
 def test_missing_outputs_come_from_main_solution(tmp_path):
     problem_dir = _problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY, "ok_py_wrong_draft.py": WA_PY},
+        {
+            "ok_py_main_draft.py": OK_PY,
+            "wa_py_minus_draft.py": WA_PY,
+            "ok_py_wrong_draft.py": WA_PY,
+        },
         examples=[("1 2\n", None), ("10 20\n", "30\n")],
     )
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
 
-    assert "expected outputs for example_1: from the main solution ok_py_main_draft.py" in result.notes
+    assert (
+        "expected outputs for example_1: from the main solution ok_py_main_draft.py" in result.notes
+    )
     assert [t.verdict for t in _by_name(result)["ok_py_wrong_draft.py"].tests] == ["WA", "WA"]
 
 
@@ -159,7 +167,10 @@ def test_wrong_output_in_spec_is_reported(tmp_path):
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
 
-    assert "example_1: all ok solutions get WA — check the expected output in the spec" in result.errors
+    assert (
+        "example_1: all ok solutions get WA — check the expected output in the spec"
+        in result.errors
+    )
 
 
 def test_validator_rejecting_example(tmp_path):
@@ -213,7 +224,9 @@ INTERACTIVE_NOFLUSH_PY = "import sys\nn = int(input())\nprint(2 * n)\nsys.stdin.
 INTERACTIVE_RE_PY = "import sys\nn = int(input())\nprint(2 * n, flush=True)\nsys.stdin.readline()\nraise SystemExit(1)\n"
 
 
-def _interactive_problem(tmp_path: Path, solutions: dict[str, str], *, interactor: bool = True) -> Path:
+def _interactive_problem(
+    tmp_path: Path, solutions: dict[str, str], *, interactor: bool = True
+) -> Path:
     problem_dir = _problem(
         tmp_path,
         solutions,
@@ -256,7 +269,9 @@ def test_interactive_verdicts(tmp_path):
 
 
 def test_interactive_problem_without_interactor(tmp_path):
-    problem_dir = _interactive_problem(tmp_path, {"ok_py_main_draft.py": INTERACTIVE_OK_PY}, interactor=False)
+    problem_dir = _interactive_problem(
+        tmp_path, {"ok_py_main_draft.py": INTERACTIVE_OK_PY}, interactor=False
+    )
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
 
@@ -300,7 +315,9 @@ def test_statement_input_rejected_by_validator(tmp_path):
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
 
-    assert any(e.startswith("validator.cpp rejects example_1 input for statements") for e in result.errors)
+    assert any(
+        e.startswith("validator.cpp rejects example_1 input for statements") for e in result.errors
+    )
     [error] = _statement_io_errors(result)
     assert "checker says WA" in error
 
@@ -345,7 +362,11 @@ def test_java_solution_compiled_under_its_class_name(tmp_path):
 def test_slow_non_tl_solutions_are_warned(tmp_path):
     problem_dir = _problem(
         tmp_path,
-        {"ok_py_slow_draft.py": SLOW_PY, "tl_ok_py_slow_draft.py": SLOW_PY, "tl_py_slow_draft.py": SLOW_PY},
+        {
+            "ok_py_slow_draft.py": SLOW_PY,
+            "tl_ok_py_slow_draft.py": SLOW_PY,
+            "tl_py_slow_draft.py": SLOW_PY,
+        },
         examples=[("1 2\n", "3\n")],
         time_limit=2,
     )
@@ -383,9 +404,7 @@ GEN_PAIR_CPP = (
     'int main(int argc, char** argv) { std::cout << argv[1] << " " << argv[2] << "\\n"; }\n'
 )
 # Верно везде, кроме входа с a = 7: примеры (1 2, 10 20) этого не видят.
-WA_ON_SEVEN_PY = (
-    "a, b = map(int, input().split())\nprint(a + b + (1 if a == 7 else 0))\n"
-)
+WA_ON_SEVEN_PY = "a, b = map(int, input().split())\nprint(a + b + (1 if a == 7 else 0))\n"
 
 
 def _full_problem(tmp_path: Path, solutions: dict[str, str], script: str, **kwargs) -> Path:

@@ -183,7 +183,9 @@ def test_create_spec_draft_copies_reference_spec(base_dir):
 
     data = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
     original = yaml.safe_load(
-        (base_dir / "examples" / "array" / "sums" / AUTHORING_DIRNAME / SPEC_FILENAME).read_text(encoding="utf-8")
+        (base_dir / "examples" / "array" / "sums" / AUTHORING_DIRNAME / SPEC_FILENAME).read_text(
+            encoding="utf-8"
+        )
     )
     assert data["problem_id"] == "my-task"
     assert data["references"] == [*(original.get("references") or []), "examples/array/sums"]
@@ -194,10 +196,15 @@ def test_prepare_spec_init_rejects_bad_reference(base_dir):
     problems = base_dir / "problems"
 
     with pytest.raises(SpecInitError, match="--ref"):
-        prepare_spec_init("my-task", problems_dir=problems, templates_dir=TEMPLATES_DIR, reference="array/sums")
+        prepare_spec_init(
+            "my-task", problems_dir=problems, templates_dir=TEMPLATES_DIR, reference="array/sums"
+        )
     with pytest.raises(SpecInitError, match="failed to read the spec of examples/array/none"):
         prepare_spec_init(
-            "my-task", problems_dir=problems, templates_dir=TEMPLATES_DIR, reference="examples/array/none"
+            "my-task",
+            problems_dir=problems,
+            templates_dir=TEMPLATES_DIR,
+            reference="examples/array/none",
         )
     assert not (problems / "my-task").exists()
 
@@ -207,8 +214,14 @@ def test_cli_init_ref_without_draft_does_not_call_the_model(base_dir, fake_model
 
     code = cli.main(
         [
-            "--base-dir", str(base_dir), "--templates-dir", str(TEMPLATES_DIR),
-            "problems/my-task", "init", "--ref", "examples/array/sums",
+            "--base-dir",
+            str(base_dir),
+            "--templates-dir",
+            str(TEMPLATES_DIR),
+            "problems/my-task",
+            "init",
+            "--ref",
+            "examples/array/sums",
         ]
     )
 
@@ -223,7 +236,10 @@ def test_cli_init_ref_without_draft_does_not_call_the_model(base_dir, fake_model
 
 def _init(base_dir, reference=None):
     return prepare_spec_init(
-        "my-task", problems_dir=base_dir / "problems", templates_dir=TEMPLATES_DIR, reference=reference
+        "my-task",
+        problems_dir=base_dir / "problems",
+        templates_dir=TEMPLATES_DIR,
+        reference=reference,
     )
 
 
@@ -246,7 +262,9 @@ def test_draft_spec_is_written_with_problem_id_and_reference_set_by_orchestrator
         ModelResponse(
             status="proposed",
             artifacts={SPEC_FILENAME: _valid_spec_text("wrong-id")},
-            notes=[{"field": "constraints.intended_complexity", "kind": "proposed", "explanation": "x"}],
+            notes=[
+                {"field": "constraints.intended_complexity", "kind": "proposed", "explanation": "x"}
+            ],
         )
     )
 
@@ -271,7 +289,9 @@ def test_draft_spec_is_written_with_problem_id_and_reference_set_by_orchestrator
 
 
 def test_draft_spec_from_template_attaches_example_specs(base_dir, fake_model):
-    fake = fake_model(ModelResponse(status="proposed", artifacts={SPEC_FILENAME: "problem_id: x\n"}))
+    fake = fake_model(
+        ModelResponse(status="proposed", artifacts={SPEC_FILENAME: "problem_id: x\n"})
+    )
 
     result = _generate(base_dir, _init(base_dir))
 
@@ -309,8 +329,16 @@ def test_context_documents_include_format_and_template():
 def _cli_draft(base_dir, *extra):
     return cli.main(
         [
-            "--base-dir", str(base_dir), "--templates-dir", str(TEMPLATES_DIR),
-            "--prompts-dir", str(PROMPTS_DIR), "problems/my-task", "init", "--draft", "my-idea",
+            "--base-dir",
+            str(base_dir),
+            "--templates-dir",
+            str(TEMPLATES_DIR),
+            "--prompts-dir",
+            str(PROMPTS_DIR),
+            "problems/my-task",
+            "init",
+            "--draft",
+            "my-idea",
             *extra,
         ]
     )
@@ -325,7 +353,9 @@ def test_cli_init_draft_writes_spec_and_log(base_dir, fake_model, capsys):
     problem_dir = base_dir / "problems" / "my-task"
     assert "review the PROPOSED / SUGGESTION marks" in out
     assert (problem_dir / AUTHORING_DIRNAME / "draft.md").exists()
-    assert "init --draft my-idea" in (problem_dir / "llm_generation.log").read_text(encoding="utf-8")
+    assert "init --draft my-idea" in (problem_dir / "llm_generation.log").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_cli_init_draft_reports_failed_model_call(base_dir, monkeypatch, capsys):
@@ -342,11 +372,15 @@ def test_cli_init_draft_reports_failed_model_call(base_dir, monkeypatch, capsys)
 
 
 def test_cli_init_draft_checks_everything_before_calling_the_model(base_dir, fake_model, capsys):
-    fake = fake_model(ModelResponse(status="proposed", artifacts={SPEC_FILENAME: _valid_spec_text()}))
+    fake = fake_model(
+        ModelResponse(status="proposed", artifacts={SPEC_FILENAME: _valid_spec_text()})
+    )
     problem_dir = base_dir / "problems" / "my-task"
 
     assert _cli_draft(base_dir, "--ref", "examples/array/none") == 1
-    assert cli.main(["--base-dir", str(base_dir), "problems/my-task", "init", "--draft", "nope"]) == 1
+    assert (
+        cli.main(["--base-dir", str(base_dir), "problems/my-task", "init", "--draft", "nope"]) == 1
+    )
     assert not problem_dir.exists()
 
     # Спек уже есть: `--ref` — только при создании спека.
@@ -474,9 +508,7 @@ def test_revision_unchanged_spec_updates_draft_copy_only(base_dir, written_spec,
     assert not (result.backup_dir / AUTHORING_DIRNAME / SPEC_FILENAME).exists()
 
 
-def test_revision_without_draft_copy_says_changes_are_unknown(
-    base_dir, written_spec, fake_model
-):
+def test_revision_without_draft_copy_says_changes_are_unknown(base_dir, written_spec, fake_model):
     from orchestrator.spec_from_draft import prepare_spec_revision
 
     (written_spec / "draft.md").unlink()

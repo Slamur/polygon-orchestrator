@@ -65,7 +65,7 @@ def _jar_or_skip() -> Path:
 
 
 def test_marks_only_lines_printing_text():
-    source = '<#assign a = 1/>\ngen -a=${a} > $\n<#if a gt 0>\n</#if>\n\n${a}\n'
+    source = "<#assign a = 1/>\ngen -a=${a} > $\n<#if a gt 0>\n</#if>\n\n${a}\n"
     assert _marked(source) == {2, 6}
 
 
@@ -211,7 +211,9 @@ def test_render_error_points_to_source_line():
     assert "\x1e" not in str(error.value)
 
 
-@pytest.mark.parametrize("script", sorted((Path(__file__).parent.parent / "examples").glob("*/*/test_script")), ids=str)
+@pytest.mark.parametrize(
+    "script", sorted((Path(__file__).parent.parent / "examples").glob("*/*/test_script")), ids=str
+)
 def test_example_scripts_have_no_identical_lines(script):
     jar = _jar_or_skip()
     lines = check.expand_script(script.read_text(encoding="utf-8"), jar=jar)

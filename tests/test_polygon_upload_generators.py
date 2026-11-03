@@ -104,7 +104,9 @@ def test_uploads_each_generator_in_alphabetical_order(problems_dir, spec):
 
 def test_non_cpp_files_are_not_uploaded(problems_dir, spec):
     link(problems_dir)
-    generators_dir = _write_generators(problems_dir, {"gen_random.cpp": GENERATORS["gen_random.cpp"]})
+    generators_dir = _write_generators(
+        problems_dir, {"gen_random.cpp": GENERATORS["gen_random.cpp"]}
+    )
     (generators_dir / "helpers.h").write_bytes(b"#pragma once\n")
     (generators_dir / "notes.txt").write_bytes(b"notes\n")
     client = MagicMock()
@@ -158,7 +160,10 @@ def test_incremental_run_uploads_only_new_and_changed_generators(problems_dir, s
     _run(spec, problems_dir, MagicMock())
 
     client = MagicMock()
-    assert _run(spec, problems_dir, client, incremental=True) == "no changes since the last sync, skipped"
+    assert (
+        _run(spec, problems_dir, client, incremental=True)
+        == "no changes since the last sync, skipped"
+    )
     client.call.assert_not_called()
 
     (generators_dir / "gen_max.cpp").write_bytes(b"// changed\n")

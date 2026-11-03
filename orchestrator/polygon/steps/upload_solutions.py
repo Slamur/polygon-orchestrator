@@ -223,9 +223,7 @@ def _choose_main(parsed: list[_ParsedSolution]) -> str:
     ok_names = sorted(p.path.name for p in parsed if p.verdict == "ok")
 
     for lang in _MAIN_LANGUAGE_PRIORITY:
-        candidates = sorted(
-            p.path.name for p in parsed if p.verdict == "ok" and p.language == lang
-        )
+        candidates = sorted(p.path.name for p in parsed if p.verdict == "ok" and p.language == lang)
         if candidates:
             return candidates[0]
 

@@ -165,8 +165,12 @@ def test_generate_uses_binary_from_env(fake_run, monkeypatch):
 def test_generate_raises_usage_limit_error_on_limit_message(fake_run):
     fake_run(
         stdout=json.dumps(
-            {"type": "result", "subtype": "success", "is_error": True,
-             "result": "Claude AI usage limit reached|1760000000"}
+            {
+                "type": "result",
+                "subtype": "success",
+                "is_error": True,
+                "result": "Claude AI usage limit reached|1760000000",
+            }
         ),
         returncode=1,
     )
@@ -185,8 +189,12 @@ def test_generate_raises_usage_limit_error_from_stderr_without_json(fake_run):
 def test_generate_raises_llm_call_error_on_other_cli_errors(fake_run):
     fake_run(
         stdout=json.dumps(
-            {"type": "result", "subtype": "error_during_execution", "is_error": True,
-             "result": "API Error: 500"}
+            {
+                "type": "result",
+                "subtype": "error_during_execution",
+                "is_error": True,
+                "result": "API Error: 500",
+            }
         ),
         returncode=1,
     )

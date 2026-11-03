@@ -161,9 +161,7 @@ def _build_generator(
     return target, ""
 
 
-def _run_chain(
-    stages: list[tuple[Path, list[str]]], cwd: Path
-) -> tuple[bytes | None, str]:
+def _run_chain(stages: list[tuple[Path, list[str]]], cwd: Path) -> tuple[bytes | None, str]:
     """(вывод последнего генератора, ошибка): байты как есть, вывод каждого —
     вход следующего."""
     data = b""
@@ -215,7 +213,9 @@ def generate_tests(
         result.errors.append(f"{script.name}: FreeMarker failed to expand the script:\n{exc}")
         return result
     if checked.failed:
-        result.errors.append(f"{script.name}: tests are not generated — fix the script first:\n{checked.report}")
+        result.errors.append(
+            f"{script.name}: tests are not generated — fix the script first:\n{checked.report}"
+        )
         return result
 
     cache_dir = problem_dir / TESTS_CACHE_DIRNAME
@@ -246,9 +246,10 @@ def generate_tests(
                     builds[name] = ("", None, f"no {GENERATORS_DIRNAME}/{name}.cpp")
                 else:
                     build_hash = _build_hash(source, problem_dir, templates_dir)
-                    if progress is not None and not (
-                        bin_dir / f"{name}-{build_hash[:16]}.bin"
-                    ).is_file():
+                    if (
+                        progress is not None
+                        and not (bin_dir / f"{name}-{build_hash[:16]}.bin").is_file()
+                    ):
                         progress(f"building {name}")
                     binary, error = _build_generator(
                         source, build_hash, bin_dir, problem_dir, templates_dir
@@ -256,7 +257,9 @@ def generate_tests(
                     builds[name] = (
                         build_hash,
                         binary,
-                        f"{GENERATORS_DIRNAME}/{name}.cpp failed to compile:\n{error}" if error else "",
+                        f"{GENERATORS_DIRNAME}/{name}.cpp failed to compile:\n{error}"
+                        if error
+                        else "",
                     )
             build_hash, binary, error = builds[name]
             if binary is None:

@@ -115,7 +115,9 @@ def write_spec_from_draft_report(
         lines += [f"- {error}" for error in result.validation_errors]
         lines.append("")
     lines += _notes_sections(result.notes)
-    before = None if result.path is None else _backup_of(problem_dir, result.backup_dir, result.path)
+    before = (
+        None if result.path is None else _backup_of(problem_dir, result.backup_dir, result.path)
+    )
     if before is not None:
         diff = _diff_block(problem_dir, before, result.path, result.path)
         lines += ["## Diffs", "", *diff] if diff else []
@@ -146,7 +148,9 @@ def _header(name: str, status_label: str, command_line: str) -> list[str]:
 
 def _notes_sections(notes: list[dict[str, Any]]) -> list[str]:
     known = {kind for kind, _ in _NOTE_SECTIONS}
-    sections = [(title, [n for n in notes if n.get("kind") == kind]) for kind, title in _NOTE_SECTIONS]
+    sections = [
+        (title, [n for n in notes if n.get("kind") == kind]) for kind, title in _NOTE_SECTIONS
+    ]
     sections.append((_OTHER_NOTES_TITLE, [n for n in notes if n.get("kind") not in known]))
     lines: list[str] = []
     for title, group in sections:

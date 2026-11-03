@@ -65,7 +65,9 @@ def test_problem_id_is_leaf_in_problems_and_joined_path_in_examples():
 
 
 def test_problem_address_includes_root(tmp_path):
-    assert problem_address(tmp_path / "examples", "array/prefix-sums") == "examples/array/prefix-sums"
+    assert (
+        problem_address(tmp_path / "examples", "array/prefix-sums") == "examples/array/prefix-sums"
+    )
 
 
 def test_problem_paths_stop_at_problem_dirs_and_skip_hidden(tmp_path):

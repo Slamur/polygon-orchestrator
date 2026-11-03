@@ -165,7 +165,10 @@ def test_load_context_documents_keys_extra_paths_inside_templates_dir_relatively
 
     # Ключ не зависит от написания templates_dir, а файл из фиксированного
     # списка второй раз не прикладывается.
-    assert list(documents) == [*STEP_CONTEXT_DOCUMENTS["constraints_pick"], "examples/some-task/validator.cpp"]
+    assert list(documents) == [
+        *STEP_CONTEXT_DOCUMENTS["constraints_pick"],
+        "examples/some-task/validator.cpp",
+    ]
     assert documents["examples/some-task/validator.cpp"] == "extra content"
 
 
@@ -247,7 +250,13 @@ def test_run_generative_step_uncertain_raises_and_writes_nothing(tmp_path):
     response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "constraints.intended_complexity", "kind": "uncertain", "explanation": "пусто"}],
+        notes=[
+            {
+                "field": "constraints.intended_complexity",
+                "kind": "uncertain",
+                "explanation": "пусто",
+            }
+        ],
     )
     with patch("orchestrator.model_router.call_model", return_value=response):
         with pytest.raises(StepUncertainError) as exc_info:
@@ -325,13 +334,15 @@ def test_run_generative_step_validate_artifacts_mismatch_applies_nothing(tmp_pat
     # Файлы шага не записаны — версии модели отложены в каталог конфликтов.
     assert sorted(
         p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*") if p.is_file()
-    ) == sorted([
-        ".cache/statement_draft.json",
-        ".cache/statement_draft.response.json",
-        f"{conflicts_dir}/{CONFLICTS_REPORT}",
-        f"{conflicts_dir}/a.tex",
-        f"{conflicts_dir}/sub/b.txt",
-    ])
+    ) == sorted(
+        [
+            ".cache/statement_draft.json",
+            ".cache/statement_draft.response.json",
+            f"{conflicts_dir}/{CONFLICTS_REPORT}",
+            f"{conflicts_dir}/a.tex",
+            f"{conflicts_dir}/sub/b.txt",
+        ]
+    )
     entry = load_cache_entry("p1", "statement_draft", problems_dir=problems_dir)
     assert entry.conflicts == conflicts_dir
 

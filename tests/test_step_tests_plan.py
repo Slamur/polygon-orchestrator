@@ -66,11 +66,27 @@ def test_parse_tests_plan_accepts_the_fixture():
             "gen_<...> or upd_<...>",
         ),
         (
-            {"generators": [{"name": "gen_rand", "status": "confirmed", "params": [{"name": "n", "type": "long"}]}]},
+            {
+                "generators": [
+                    {
+                        "name": "gen_rand",
+                        "status": "confirmed",
+                        "params": [{"name": "n", "type": "long"}],
+                    }
+                ]
+            },
             "type must be one of",
         ),
         (
-            {"generators": [{"name": "gen_rand", "status": "maybe", "params": [{"name": "n", "type": "int"}]}]},
+            {
+                "generators": [
+                    {
+                        "name": "gen_rand",
+                        "status": "maybe",
+                        "params": [{"name": "n", "type": "int"}],
+                    }
+                ]
+            },
             "status must be one of",
         ),
         (
@@ -134,7 +150,9 @@ def test_confirmed_writes_plan_to_authoring_with_problem_id_from_spec(spec, tmp_
     result, mock_call = _run(spec, tmp_path)
 
     assert result.status == "confirmed"
-    written = (tmp_path / "valid-spec" / "authoring" / "tests_plan.yaml").read_text(encoding="utf-8")
+    written = (tmp_path / "valid-spec" / "authoring" / "tests_plan.yaml").read_text(
+        encoding="utf-8"
+    )
     assert yaml.safe_load(written)["problem_id"] == "valid-spec"
     assert ("problem_id", "restored") in [(n["field"], n["kind"]) for n in result.notes]
 

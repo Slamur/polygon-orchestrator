@@ -28,7 +28,9 @@ def test_extra_context_documents_is_none(spec):
 
 
 def test_confirmed_writes_constraints_yaml(spec, tmp_path):
-    response = ModelResponse(status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[])
+    response = ModelResponse(
+        status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[]
+    )
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = run_step(
             "valid-spec",
@@ -48,7 +50,9 @@ def test_confirmed_writes_constraints_yaml(spec, tmp_path):
 
 
 def test_confirmed_writes_validator_cpp_and_compiles(spec, tmp_path):
-    valid_validator = (REPO_ROOT / "examples/array/prefix-sums/validator.cpp").read_text(encoding="utf-8")
+    valid_validator = (REPO_ROOT / "examples/array/prefix-sums/validator.cpp").read_text(
+        encoding="utf-8"
+    )
     response = ModelResponse(
         status="confirmed",
         artifacts={"constraints.yaml": "n_max: 100000", "validator.cpp": valid_validator},
@@ -76,7 +80,13 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
     response = ModelResponse(
         status="uncertain",
         artifacts={},
-        notes=[{"field": "constraints.intended_complexity", "kind": "uncertain", "explanation": "пусто"}],
+        notes=[
+            {
+                "field": "constraints.intended_complexity",
+                "kind": "uncertain",
+                "explanation": "пусто",
+            }
+        ],
     )
     with patch("orchestrator.model_router.call_model", return_value=response):
         with pytest.raises(StepUncertainError):
@@ -94,7 +104,9 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
 
 
 def test_user_prompt_includes_test_groups_needed_false_by_default(spec, tmp_path):
-    response = ModelResponse(status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[])
+    response = ModelResponse(
+        status="confirmed", artifacts={"constraints.yaml": "n_max: 100000"}, notes=[]
+    )
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         run_step(
             "valid-spec",
@@ -117,7 +129,9 @@ def test_test_groups_needed_false_no_hint_yields_no_test_groups_in_artifact(spec
             )
         }
     )
-    response = ModelResponse(status="confirmed", artifacts={"constraints.yaml": "n_max: 100000\n"}, notes=[])
+    response = ModelResponse(
+        status="confirmed", artifacts={"constraints.yaml": "n_max: 100000\n"}, notes=[]
+    )
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = run_step(
             "valid-spec",
@@ -131,7 +145,9 @@ def test_test_groups_needed_false_no_hint_yields_no_test_groups_in_artifact(spec
     assert result.status == "confirmed"
     user_prompt = mock_call.call_args.args[2]
     assert "test_groups_needed: False" in user_prompt
-    written = (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(encoding="utf-8")
+    written = (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(
+        encoding="utf-8"
+    )
     assert "test_groups" not in written
 
 
@@ -145,12 +161,7 @@ def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
     )
     response = ModelResponse(
         status="proposed",
-        artifacts={
-            "constraints.yaml": (
-                "test_groups:  # PROPOSED, REVIEW ME\n"
-                "  - name: small\n"
-            )
-        },
+        artifacts={"constraints.yaml": ("test_groups:  # PROPOSED, REVIEW ME\n  - name: small\n")},
         notes=[
             {
                 "field": "constraints.test_groups",
@@ -172,7 +183,9 @@ def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
     assert result.status == "proposed"
     user_prompt = mock_call.call_args.args[2]
     assert "test_groups_needed: True" in user_prompt
-    written = (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(encoding="utf-8")
+    written = (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(
+        encoding="utf-8"
+    )
     assert "test_groups" in written
 
 
@@ -273,7 +286,9 @@ def test_problem_id_in_constraints_yaml_comes_from_spec(spec, tmp_path):
     # Каталог задачи вложен в группу: путь `contest/valid-spec` — не problem_id.
     response = ModelResponse(
         status="confirmed",
-        artifacts={"constraints.yaml": "problem_id: contest/valid-spec   # из ответа\nn_max: 100000\n"},
+        artifacts={
+            "constraints.yaml": "problem_id: contest/valid-spec   # из ответа\nn_max: 100000\n"
+        },
         notes=[],
     )
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -289,7 +304,9 @@ def test_problem_id_in_constraints_yaml_comes_from_spec(spec, tmp_path):
     user_prompt = mock_call.call_args.args[2]
     assert "problem_id: valid-spec)" in user_prompt
     assert "contest/" not in user_prompt
-    written = (tmp_path / "contest" / "valid-spec" / "authoring" / "constraints.yaml").read_text(encoding="utf-8")
+    written = (tmp_path / "contest" / "valid-spec" / "authoring" / "constraints.yaml").read_text(
+        encoding="utf-8"
+    )
     assert written == "problem_id: valid-spec           # из ответа\nn_max: 100000\n"
     assert [note["field"] for note in result.notes] == ["problem_id"]
 
@@ -307,5 +324,7 @@ def test_correct_problem_id_in_constraints_yaml_is_left_as_is(spec, tmp_path):
             templates_dir=TEMPLATES_DIR,
         )
 
-    assert (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(encoding="utf-8") == text
+    assert (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(
+        encoding="utf-8"
+    ) == text
     assert result.notes == []

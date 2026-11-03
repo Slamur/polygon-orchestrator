@@ -132,9 +132,7 @@ def test_generate_system_includes_context_documents_in_order():
     )
 
     system = fake_sdk_client.messages.create.call_args.kwargs["system"]
-    assert system.index("system prompt") < system.index("AAA content") < system.index(
-        "BBB content"
-    )
+    assert system.index("system prompt") < system.index("AAA content") < system.index("BBB content")
     assert "a.md" in system
     assert "b.cpp" in system
 
@@ -187,7 +185,9 @@ def test_generate_parses_response_from_tool_use_input():
     fake_sdk_client.messages.create.return_value = _fake_tool_use_message(payload)
     client = _client_with_fake_sdk(fake_sdk_client)
 
-    result = client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+    result = client.generate(
+        model_class="strong-model", effort="high", system_prompt="s", user_prompt="u"
+    )
 
     assert isinstance(result, ModelResponse)
     assert result.status == "proposed"
@@ -204,7 +204,9 @@ def test_generate_raises_if_no_matching_tool_use_block():
     client = _client_with_fake_sdk(fake_sdk_client)
 
     with pytest.raises(RuntimeError, match="submit_step_result"):
-        client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+        client.generate(
+            model_class="strong-model", effort="high", system_prompt="s", user_prompt="u"
+        )
 
 
 def test_generate_retries_on_5xx_and_eventually_succeeds(_no_sleep):
@@ -215,7 +217,9 @@ def test_generate_retries_on_5xx_and_eventually_succeeds(_no_sleep):
     ]
     client = _client_with_fake_sdk(fake_sdk_client)
 
-    result = client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+    result = client.generate(
+        model_class="strong-model", effort="high", system_prompt="s", user_prompt="u"
+    )
 
     assert result.status == "confirmed"
     assert fake_sdk_client.messages.create.call_count == 2
@@ -254,7 +258,9 @@ def test_generate_gives_up_after_max_attempts(_no_sleep):
     client = _client_with_fake_sdk(fake_sdk_client)
 
     with pytest.raises(LLMCallError) as excinfo:
-        client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+        client.generate(
+            model_class="strong-model", effort="high", system_prompt="s", user_prompt="u"
+        )
     assert isinstance(excinfo.value.__cause__, anthropic.APIStatusError)
 
     assert fake_sdk_client.messages.create.call_count == anthropic_client._MAX_ATTEMPTS
@@ -266,7 +272,9 @@ def test_generate_does_not_retry_on_4xx(_no_sleep):
     client = _client_with_fake_sdk(fake_sdk_client)
 
     with pytest.raises(LLMCallError) as excinfo:
-        client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+        client.generate(
+            model_class="strong-model", effort="high", system_prompt="s", user_prompt="u"
+        )
     assert isinstance(excinfo.value.__cause__, anthropic.APIStatusError)
 
     fake_sdk_client.messages.create.assert_called_once()
@@ -279,7 +287,9 @@ def test_generate_does_not_retry_on_rate_limit_429(_no_sleep):
     client = _client_with_fake_sdk(fake_sdk_client)
 
     with pytest.raises(LLMCallError) as excinfo:
-        client.generate(model_class="strong-model", effort="high", system_prompt="s", user_prompt="u")
+        client.generate(
+            model_class="strong-model", effort="high", system_prompt="s", user_prompt="u"
+        )
     assert isinstance(excinfo.value.__cause__, anthropic.APIStatusError)
 
     fake_sdk_client.messages.create.assert_called_once()

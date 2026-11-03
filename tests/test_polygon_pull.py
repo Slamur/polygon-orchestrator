@@ -49,10 +49,22 @@ class FakePolygon:
 
     def __init__(self) -> None:
         self.problems = [
-            {"id": POLYGON_ID, "name": PROBLEM_ID, "owner": "author", "revision": 5, "modified": False}
+            {
+                "id": POLYGON_ID,
+                "name": PROBLEM_ID,
+                "owner": "author",
+                "revision": 5,
+                "modified": False,
+            }
         ]
         self.statements = {
-            "russian": {"name": "Polygon Name", "legend": "L", "input": "I", "output": "O", "notes": ""}
+            "russian": {
+                "name": "Polygon Name",
+                "legend": "L",
+                "input": "I",
+                "output": "O",
+                "notes": "",
+            }
         }
         self.info = {"timeLimit": 2000, "memoryLimit": 256}
         self.validator = "val.cpp"
@@ -423,7 +435,9 @@ def test_local_only_files_are_reported_and_kept(problems_dir, polygon):
 
 
 def test_differing_limits_without_base_are_kept_without_overwrite(problems_dir, polygon):
-    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 1\nmemory_limit_mb: 256\n")
+    _write(
+        problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 1\nmemory_limit_mb: 256\n"
+    )
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
@@ -469,7 +483,9 @@ def test_limits_changed_only_on_polygon_are_updated_without_overwrite(problems_d
 
 def test_limits_changed_only_locally_are_kept_even_with_overwrite(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
-    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 5\nmemory_limit_mb: 256\n")
+    _write(
+        problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 5\nmemory_limit_mb: 256\n"
+    )
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
@@ -480,7 +496,9 @@ def test_limits_changed_only_locally_are_kept_even_with_overwrite(problems_dir, 
 
 def test_limits_changed_on_both_sides_are_a_conflict(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
-    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 5\nmemory_limit_mb: 256\n")
+    _write(
+        problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 5\nmemory_limit_mb: 256\n"
+    )
     polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
@@ -493,7 +511,9 @@ def test_limits_changed_on_both_sides_are_a_conflict(problems_dir, polygon):
 
 
 def test_same_limits_are_up_to_date(problems_dir, polygon):
-    _write(problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 2\nmemory_limit_mb: 256\n")
+    _write(
+        problems_dir / PROBLEM_ID, "limits.yaml", "time_limit_seconds: 2\nmemory_limit_mb: 256\n"
+    )
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
@@ -509,8 +529,12 @@ def test_problem_lib_from_polygon_is_downloaded_even_if_it_differs_from_template
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert _statuses(result)["problem_lib.h"] == ITEM_DOWNLOADED
-    assert (problems_dir / PROBLEM_ID / "problem_lib.h").read_bytes() == b"// edited for this problem\n"
-    assert _synced(problems_dir)["problem_lib.h"] == pull_module.digest(b"// edited for this problem\n")
+    assert (
+        problems_dir / PROBLEM_ID / "problem_lib.h"
+    ).read_bytes() == b"// edited for this problem\n"
+    assert _synced(problems_dir)["problem_lib.h"] == pull_module.digest(
+        b"// edited for this problem\n"
+    )
 
 
 def test_different_local_problem_lib_is_kept(problems_dir, polygon):
@@ -535,7 +559,9 @@ def test_problem_lib_missing_on_polygon(problems_dir, polygon):
 
 
 def test_different_local_spec_is_kept(problems_dir, polygon):
-    _write(problems_dir / PROBLEM_ID, "authoring/spec.yaml", "problem_id: example-problem\n# local\n")
+    _write(
+        problems_dir / PROBLEM_ID, "authoring/spec.yaml", "problem_id: example-problem\n# local\n"
+    )
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
@@ -619,7 +645,9 @@ def test_limits_changed_on_polygon_do_not_change_attached_constraints(problems_d
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert (problems_dir / PROBLEM_ID / "authoring" / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
+    assert (
+        problems_dir / PROBLEM_ID / "authoring" / "constraints.yaml"
+    ).read_text() == _CONSTRAINTS_PICK
     assert _statuses(result)["authoring/constraints.yaml"] == ITEM_DOWNLOADED
     assert set_constraints.read_limits(PROBLEM_ID, problems_dir) == (3000, 256)
 
@@ -685,7 +713,9 @@ def test_existing_link_is_reused_without_search_and_baseline_is_replaced(problem
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert polygon.calls[0] == ("problems.list", {"id": str(POLYGON_ID)})
-    assert [method for method in polygon.methods() if method == "problems.list"] == ["problems.list"]
+    assert [method for method in polygon.methods() if method == "problems.list"] == [
+        "problems.list"
+    ]
     assert result.link_detail == f"already linked to Polygon id={POLYGON_ID}"
     state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert state.created_at == "2026-09-19T12:00:00+00:00"
@@ -731,7 +761,10 @@ def test_nested_example_is_searched_by_joined_problem_id(tmp_path, polygon):
     result = pull_problem("array/prefix-sums", problems_dir=examples, client=polygon)
 
     assert result.polygon_id == POLYGON_ID
-    assert ("problems.list", {"name": "array--prefix-sums", "showDeleted": "false"}) in polygon.calls
+    assert (
+        "problems.list",
+        {"name": "array--prefix-sums", "showDeleted": "false"},
+    ) in polygon.calls
     state = load_polygon_state("array/prefix-sums", problems_dir=examples)
     assert state.problem_id == "array--prefix-sums"
     assert (examples / "array" / "prefix-sums" / "validator.cpp").exists()
@@ -741,7 +774,9 @@ def test_unlinked_problem_with_taken_problem_id_is_an_error_and_writes_nothing(
     problems_dir, polygon
 ):
     (problems_dir / "2025" / PROBLEM_ID / "authoring").mkdir(parents=True)
-    (problems_dir / "2025" / PROBLEM_ID / "authoring" / "spec.yaml").write_text("", encoding="utf-8")
+    (problems_dir / "2025" / PROBLEM_ID / "authoring" / "spec.yaml").write_text(
+        "", encoding="utf-8"
+    )
 
     with pytest.raises(PolygonStepError, match="already used by"):
         pull_problem(f"2026/{PROBLEM_ID}", problems_dir=problems_dir, client=polygon)
@@ -898,7 +933,9 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
     assert "validator.cpp" in pulled and "statement/ru/legend.tex" in pulled
     # Совпадающее с Polygon и отсутствующее с обеих сторон не печатается.
     assert "up to date" not in out and "absent" not in out
-    assert f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
+    assert (
+        f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
+    )
     log = (problems_dir / PROBLEM_ID / "polygon.log").read_text(encoding="utf-8")
     assert "run started: orchestrator --base-dir" in log
     assert "[pull] validator.cpp: downloaded" in log
@@ -1039,9 +1076,7 @@ def test_pull_downloads_only_files_changed_on_polygon(problems_dir, polygon):
     assert _state(problems_dir).stamps["solutions/ok_cpp_main_author.cpp"].endswith(":200:24")
 
 
-def test_locally_changed_file_unchanged_on_polygon_is_kept_without_download(
-    problems_dir, polygon
-):
+def test_locally_changed_file_unchanged_on_polygon_is_kept_without_download(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     _bump_revision(polygon)
     _write(problems_dir / PROBLEM_ID, "generators/gen_rand.cpp", "// local edit\n")
@@ -1420,7 +1455,13 @@ def test_pull_puts_every_language_into_its_directory(problems_dir, polygon):
         "notes": "",
         "tutorial": "ET\n",
     }
-    polygon.statements["latvian"] = {"name": "LV", "legend": "LL", "input": "", "output": "", "notes": ""}
+    polygon.statements["latvian"] = {
+        "name": "LV",
+        "legend": "LL",
+        "input": "",
+        "output": "",
+        "notes": "",
+    }
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
@@ -1433,7 +1474,12 @@ def test_pull_puts_every_language_into_its_directory(problems_dir, polygon):
     # Язык без кода — каталог с именем Polygon.
     assert (statement_dir / "latvian" / "legend.tex").read_text() == "LL"
     assert (statement_dir / "ru" / "legend.tex").read_text() == "L"
-    assert sorted(path.name for path in statement_dir.iterdir()) == ["en", "examples", "latvian", "ru"]
+    assert sorted(path.name for path in statement_dir.iterdir()) == [
+        "en",
+        "examples",
+        "latvian",
+        "ru",
+    ]
     assert _statuses(result)["statement/en/legend.tex"] == ITEM_DOWNLOADED
     assert "statement/en/name" in _synced(problems_dir)
     assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"

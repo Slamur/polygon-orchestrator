@@ -141,8 +141,7 @@ def _default_client() -> LLMClient:
 
         return ClaudeCodeClient()
     raise ValueError(
-        f"{LLM_BACKEND_ENV}={backend!r} is not a known LLM backend, "
-        f"allowed: {', '.join(_BACKENDS)}"
+        f"{LLM_BACKEND_ENV}={backend!r} is not a known LLM backend, allowed: {', '.join(_BACKENDS)}"
     )
 
 

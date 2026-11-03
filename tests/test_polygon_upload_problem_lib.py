@@ -115,7 +115,9 @@ def test_upload_is_recorded_in_polygon_state(problems_dir, templates_dir, spec):
 
     _run(spec, problems_dir, templates_dir, MagicMock())
 
-    assert list(load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced) == ["problem_lib.h"]
+    assert list(load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced) == [
+        "problem_lib.h"
+    ]
 
 
 def test_incremental_run_skips_unchanged_copy(problems_dir, templates_dir, spec):

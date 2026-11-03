@@ -97,9 +97,7 @@ def _read_generators(problem_id: str, problems_dir: Path) -> list[tuple[str, byt
         )
     paths = sorted(generators_dir.glob("*.cpp"), key=lambda p: p.name)
     if not paths:
-        raise PolygonStepError(
-            f"'{problem_id}': no .cpp files in {generators_dir}"
-        )
+        raise PolygonStepError(f"'{problem_id}': no .cpp files in {generators_dir}")
     return [(path.name, path.read_bytes()) for path in paths]
 
 

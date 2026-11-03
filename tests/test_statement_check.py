@@ -61,7 +61,7 @@ def test_dashes_and_latex_lists_are_not_markdown():
 
 
 def test_quotes_become_guillemets():
-    text = 'Выведите "YES", “NO”, «MAYBE» или ``X\'\'.\n'
+    text = "Выведите \"YES\", “NO”, «MAYBE» или ``X''.\n"
     assert _kinds(text) == [(1, KIND_QUOTES)]
     assert fix_text(text) == "Выведите <<YES>>, <<NO>>, <<MAYBE>> или <<X>>.\n"
 
@@ -130,9 +130,7 @@ def test_local_check_ok_statement(tmp_path, capsys):
 
 
 def test_local_fix_rewrites_files_with_backup(tmp_path, capsys):
-    statement_dir = _statement(
-        tmp_path, {"legend.tex": '- "a"\n', "notes.tex": "Ответ <<YES>>.\n"}
-    )
+    statement_dir = _statement(tmp_path, {"legend.tex": '- "a"\n', "notes.tex": "Ответ <<YES>>.\n"})
 
     assert _cli(tmp_path, "fix") == 0
     assert (statement_dir / "legend.tex").read_text(encoding="utf-8") == (

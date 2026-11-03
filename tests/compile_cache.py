@@ -42,7 +42,9 @@ def _preprocessed_key(path: Path, include_dirs: Sequence[Path]) -> str | None:
     return hashlib.sha256(result.stdout).hexdigest()
 
 
-def caching_compile_check(real: Callable[..., CompileResult], cache_dir: Path) -> Callable[..., CompileResult]:
+def caching_compile_check(
+    real: Callable[..., CompileResult], cache_dir: Path
+) -> Callable[..., CompileResult]:
     def compile_check(path: Path, include_dirs: Path | Sequence[Path], **kwargs) -> CompileResult:
         dirs = [include_dirs] if isinstance(include_dirs, Path) else list(include_dirs)
         key = _preprocessed_key(Path(path), dirs)

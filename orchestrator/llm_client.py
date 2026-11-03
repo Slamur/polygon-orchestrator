@@ -76,9 +76,7 @@ class LLMClient(Protocol):
         ...
 
 
-def build_system_prompt(
-    system_prompt: str, context_documents: dict[str, str] | None
-) -> str:
+def build_system_prompt(system_prompt: str, context_documents: dict[str, str] | None) -> str:
     """Склеивает `system_prompt` с приложенными документами контекста.
 
     Общая для всех клиентов, у которых документы контекста едут в
