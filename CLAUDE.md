@@ -20,7 +20,7 @@ Python-оркестратор, который берёт структуриро�
 
 В скоупе:
 - черновик спека по черновику автора в свободной форме
-  (`orchestrator <задача> init --draft`, см. "Запуск") — модель сохраняет
+  (`orchestrator <задача> init --draft`) — модель сохраняет
   всё, что написал автор, а недостающее дозаполняет сама с пометкой в
   спеке; автор проверяет спек до генеративных шагов;
 - черновик условия в LaTeX — на одном языке, основном (`language` спека,
@@ -46,38 +46,13 @@ Python-оркестратор, который берёт структуриро�
 - черновик разбора `statement/<код>/tutorial.tex` по драфту автора
   `authoring/draft-tutorial.md` (`orchestrator <задача> llm tutorial`): модель
   раскрывает мысли автора и дописывает только то, о чём он прямо просит;
-- создание задачи на Polygon по `problem_id` из спека через Polygon API
-  (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
-  хранится в `problems/<путь задачи>/polygon_state.json`) и перенос
-  актуальных TL/ML из `problems/<путь задачи>/limits.yaml` через
-  `problem.updateInfo` (`set_constraints`), загрузка `problems/<путь задачи>/problem_lib.h` как
-  resource-файла (`upload_problem_lib`), загрузка
-  `problems/<путь задачи>/validator.cpp` и назначение его валидатором
-  (`upload_validator`), назначение чекера (`upload_checker`: для
-  `checker.custom_needed: true` — загрузка `problems/<путь задачи>/checker.cpp`,
-  иначе — стандартный чекер из `checker.standard` без загрузки файла),
-  загрузка `problems/<путь задачи>/interactor.cpp` и назначение его
-  интерактором (`upload_interactor`, только у интерактивной задачи; флаг
-  интерактивности выставляет `set_constraints`),
-  разбор `problems/<путь задачи>/statement/<код>/tutorial.tex` (необязательный;
-  пишет автор, `polygon pull` или шаг `tutorial_draft`) —
-  вместе с условием в `upload_statement`,
-  загрузка `problems/<путь задачи>/authoring/` — `spec.yaml`,
-  `constraints.yaml` (результат `constraints_pick` целиком), `tests_plan.yaml`
-  (план тестов), копии черновика `draft.<расширение>` и драфта разбора
-  `draft-tutorial.md` — как есть в раздел
-  Attachments (по имени файла, без `authoring/`) (aux-файлы,
-  `upload_attachments`) — чтобы `polygon pull` восстанавливал задачу вместе
-  со спеком, ограничениями, планом тестов и черновиком.
-  Шаги загружают только то, что изменилось с последней синхронизации с
-  Polygon (база — `revision`/`synced` в `polygon_state.json`, см.
-  `orchestrator/polygon/sync.py`). После каждого polygon-шага, который
-  что-то загрузил (кроме `create_problem`), рабочая копия задачи
-  коммитится (`problem.commitChanges`, `minorChanges=true`) — при падении
-  на очередном шаге всё сделанное предыдущими уже в ревизии (`polygon push
-  --no-commit` не коммитит, см. "Запуск").
-  Остальные шаги интеграции (прочие файлы, packages) — позже, по мере
-  проработки.
+- синхронизация с Polygon через Polygon API (`orchestrator/polygon/`):
+  создание задачи, TL/ML, `problem_lib.h`, валидатор, чекер, интерактор,
+  условие с разбором и примерами, генераторы, test-script, решения и файлы
+  `authoring/` в Attachments; загружается только изменившееся с последней
+  синхронизации, после каждого загрузившего шага — `problem.commitChanges`;
+  обратное направление — `polygon pull`. Подробно — `.claude/rules/polygon.md`.
+  Остальные шаги интеграции (прочие файлы, packages) — позже.
 
 Вне скоупа (сознательно, добавим отдельно позже):
 - полноценный судящий контур (различение TLE/MLE/RE, батч-стресс-тестинг,
@@ -97,961 +72,98 @@ Python-оркестратор, который берёт структуриро�
   (например, прогон генератора для смоук-теста) — просто убить процесс по
   таймауту, без анализа TLE/MLE отдельно.
 
+## Где что описано подробно
+
+Подробные правила разбиты по темам в `.claude/rules/` и подгружаются
+автоматически, когда работа касается файлов из `paths:` правила. Если
+правишь код, которого правило формально не покрывает, но поведение его
+касается, — прочитай правило сам:
+
+| Тема | Файл |
+|---|---|
+| роли генеративных шагов, режим доработки, конфликты, кэш по хешу, эскалация при неуверенности, предложения сверх спека, маршрутизация моделей | `.claude/rules/steps.md` |
+| адресация задач и групп, раскладка `authoring/`, `init`, команды `llm`, Tab-дополнение | `.claude/rules/cli.md` |
+| команды `local` (check, run, fix, clear) | `.claude/rules/local-checks.md` |
+| polygon-шаги, `polygon push|status|pull`, база синхронизации | `.claude/rules/polygon.md` |
+| `templates/`, `examples/`, референсы спека | `.claude/rules/materials.md` |
+| формат спека | `docs/SPEC_FORMAT.md` |
+| промпт-шаблоны | `docs/PROMPTS.md` |
+| Polygon API (имена параметров — сверять с ним, а не угадывать) | `docs/POLYGON_API.md` |
+| установка, справочник команд для пользователя | `README.md`, `docs/SETUP.md` |
+
+Комментарии в коде и документах ссылаются на разделы как `CLAUDE.md,
+"<раздел>"` — эти разделы переехали в `.claude/rules/` с теми же заголовками:
+"Роль каждого генеративного шага", "Режим доработки", "Конфликты",
+"Кэширование по хешу спека", "Правило эскалации при неуверенности",
+"Маршрутизация моделей по критичности шага" — `steps.md`; "Запуск" —
+`cli.md` (команды `local` — `local-checks.md`, `polygon` — `polygon.md`);
+"Как использовать приложенные материалы" — `materials.md`. "Скоуп (текущий)",
+"Минимальная страховка…", "Структура каталогов" и "Конфиденциальность
+problems/" остались здесь.
+
+Правила в `.claude/rules/` — описание поведения оркестратора, как и этот
+файл: меняешь поведение — обнови соответствующее правило (и `README.md`, если
+это видно пользователю) в том же PR.
+
 ## Структура каталогов
 
 ```
 .
-├── CLAUDE.md
-├── README.md                     # для пользователя: установка (в т.ч. Windows/WSL), первый прогон, справочник команд
-├── docs/
-│   ├── SPEC_FORMAT.md            # формат входного спека, см. отдельный файл
-│   └── POLYGON_API.md            # документация Polygon API (методы, параметры, return objects)
-├── templates/                    # общее для всех задач; include-каталог compile-check.
-│   │                             # Шаблоны автора — НЕ трогать структуру, использовать как основу для генерации
-│   ├── problem_lib.h             # шаблон: копируется в problems/<путь задачи>/problem_lib.h, если там его нет
-│   ├── constraints_format.yaml   # формат constraints.yaml (результат constraints_pick)
-│   ├── tests_plan_format.yaml    # формат tests_plan.yaml (результат tests_plan)
-│   ├── spec_template.yaml        # черновик спека для `orchestrator <задача> init` (и основа для `init --draft`); шагам не прикладывается
-│   ├── test_script_functions.ftl # стандартные функции test-script'а, копируются в скрипт целиком
-│   ├── testlib.h
-│   ├── solutions/                # скелеты решений (<verdict>_<description>.<language>: ok.cpp, ok.java, ok.py, tl_ok_slowio.java, tl_ok_slowio.py) —
-│   │                             # ввод-вывод и структура без алгоритма; solutions_draft получает их для языков без ok-образца в референсах
-│   └── tutorials/
-│       ├── statement.md          # правила по условию (statement_draft)
-│       ├── limits.md             # правила по TL/ML (constraints_pick)
-│       ├── validator.md          # правила по валидатору (constraints_pick)
-│       ├── tests.md              # правила по тестам, генераторам и test-script (tests_plan, generators_draft, test_script_draft)
-│       ├── freemarker.md         # правила по FreeMarker-скриптам (test_script_draft)
-│       ├── solutions.md          # правила по решениям (solutions_draft)
-│       ├── checker.md            # правила по чекеру (checker_draft)
-│       ├── interactive.md        # правила интерактивных задач (interactor_draft; statement_draft и solutions_draft — только у интерактивной задачи)
-│       ├── tutorial.md           # правила разбора (tutorial_draft)
-│       └── polygon.md            # справка по интерфейсу Polygon — шагам не прикладывается
-├── examples/                     # учебные задачи-образцы, по каталогу на задачу
-│   └── <вид-входа>/<суть>/       # например array/prefix-sums; раскладка как у problems/<путь задачи>/
-│       ├── authoring/
-│       │   ├── spec.yaml         # спек учебной задачи (problem_id = путь через "--": array--prefix-sums) — пара "спек -> результат"
-│       │   ├── constraints.yaml  # ожидаемый результат constraints_pick для spec.yaml
-│       │   └── tests_plan.yaml   # ожидаемый результат tests_plan — его генераторы ровно generators/*.cpp
-│       ├── validator.cpp
-│       ├── checker.cpp
-│       ├── generators/           # генераторы-образцы (gen_*.cpp — порождают вход, upd_*.cpp — преобразуют готовый тест)
-│       ├── solutions/            # решения-образцы: <verdict>_<language>_<description>_draft.<ext>
-│       └── test_script           # к шагам прикладывается только через references спека
-├── prompts/
-│   ├── statement_draft/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── constraints_pick/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── tests_plan/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── generators_draft/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── test_script_draft/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── solutions_draft/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── checker_draft/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── interactor_draft/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── tutorial_draft/
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── spec_from_draft/          # не шаг пайплайна: спек по черновику автора для `init --draft`
-│   │   ├── system.md
-│   │   └── user.md.j2
-│   ├── revise.md.j2              # общий блок режима доработки (текущие файлы шага + что изменилось во входе)
-│   └── missing_artifacts.md.j2   # общий блок дозапроса файлов, которых не было в ответе (см. "Конфликты")
+├── CLAUDE.md, README.md, docs/      # см. "Где что описано подробно"
+├── .claude/rules/                   # правила по темам, см. выше
+├── templates/                       # общее для всех задач, include-каталог compile-check; шаблоны автора —
+│                                    # структуру не трогать: problem_lib.h, testlib.h, *_format.yaml,
+│                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (скелеты решений),
+│                                    # tutorials/*.md (правила для шагов; polygon.md — справка, шагам не прикладывается)
+├── examples/<вид-входа>/<суть>/     # учебные задачи-образцы в раскладке problems/<путь задачи>/
+├── prompts/<шаг>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2
 ├── orchestrator/
-│   ├── cli.py                     # входная точка: парсер аргументов и Tab-дополнение (см. "Запуск"); без тяжёлых импортов
-│   ├── cli_commands.py            # реализация команд init, llm generate|tutorial|apply|status|accept, local check|run|fix|clear, polygon push|status|pull; импортируется из cli.py лениво
-│   ├── step_order.py              # STEP_ORDER / ON_DEMAND_STEPS / POLYGON_STEP_ORDER / MECHANICAL_STEPS — имена шагов без импорта самих шагов
-│   ├── limits.py                  # формат limits.yaml (актуальные TL/ML задачи): чтение, запись, TL/ML из constraints.yaml
-│   ├── problem_paths.py           # адрес задачи (problems/<путь>, examples/<путь>) -> каталог и problem_id; поиск каталогов задач; файлы authoring/ и перенос в него задач старой раскладки; без тяжёлых импортов
-│   ├── spec.py                    # парсинг и валидация problems/<путь задачи>/authoring/spec.yaml против SPEC_FORMAT.md; черновик спека для init (из шаблона или копией спека --ref)
-│   ├── drafts.py                  # черновики автора в drafts/ для `init --draft`: поиск по пути или имени, в том числе в подкаталогах; без тяжёлых импортов
-│   ├── spec_from_draft.py         # `init --draft`: спек по черновику через model_router (шаг `spec_from_draft`)
-│   ├── references.py              # референсы спека (`references`): какие файлы каких каталогов получает каждый шаг
-│   ├── statement_languages.py     # языки условия: statement/<код>/ на каждый язык, код -> имя Polygon, перенос раскладки до языков (migrate_statement_languages); без тяжёлых импортов
-│   ├── steps/
-│   │   ├── statement_draft.py
-│   │   ├── constraints_pick.py
-│   │   ├── limits_from_constraints.py  # механический шаг (без модели): limits.yaml из TL/ML constraints.yaml
-│   │   ├── tests_plan.py              # план тестов authoring/tests_plan.yaml; разбор и проверка плана — общие для трёх шагов тестов
-│   │   ├── generators_draft.py        # генераторы по плану
-│   │   ├── test_script_draft.py       # test-script по плану
-│   │   ├── solutions_draft.py
-│   │   ├── checker_draft.py
-│   │   ├── interactor_draft.py
-│   │   └── tutorial_draft.py          # разбор по драфту; вне STEP_ORDER, запускается `llm tutorial`
-│   ├── model_router.py            # маршрутизация по классу модели/effort — вендоронезависимо,
-│   │                               # делегирует в LLMClient (см. ниже)
-│   ├── llm_client.py               # Protocol LLMClient — единственная точка подмены вендора
-│   ├── model_contracts.py          # ModelResponse — вендоронезависимый контракт status/artifacts/notes
-│   ├── llm_clients/
-│   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
-│   │   ├── anthropic_client.py     # AnthropicClient(LLMClient) — вся Anthropic-API-специфика тут
-│   │   └── claude_code_client.py   # ClaudeCodeClient(LLMClient) — те же модели через `claude -p` по подписке
-│   ├── polygon/
-│   │   ├── __init__.py             # ничего не импортирует на верхнем уровне — см. docstring файла
-│   │   ├── client.py               # PolygonClient — HTTP-клиент, ключи из POLYGON_API_KEY/POLYGON_API_SECRET/POLYGON_API_BASE_URL (см. .env.example); пауза между запросами и экспоненциальный back-off на HTTP 429
-│   │   ├── signing.py              # generate_signature — подпись запросов (apiSig), чистая логика без сети
-│   │   ├── state.py                # PolygonState, load/save polygon_state.json
-│   │   ├── sync.py                 # база синхронизации: ключи элементов задачи, sha256, fetch_revision (ревизия задачи на Polygon)
-│   │   ├── pull.py                 # pull_problem — привязка к существующей задаче, сравнение с ней и выгрузка (обратное направление к steps/)
-│   │   ├── steps/                  # polygon-шаги (PolygonStep + base.run_step): create_problem, upload_attachments, set_constraints, upload_problem_lib, upload_validator, upload_checker, upload_interactor, upload_statement, upload_generators, upload_test_script, upload_solutions
-│   │   └── pipeline.py             # run_polygon_pipeline (проверка ревизии, commitChanges после каждого загрузившего шага) / compute_polygon_step_statuses
-│   ├── cache.py                   # кэш по хешу спека — см. "Кэширование по хешу спека"
-│   ├── llm_report.py              # отчёты llm_reports/<шаг>.md: заметки модели по видам, файлы шага, диффы изменённых файлов; accept.md — что принял `llm accept`
-│   ├── checks/
-│   │   ├── compile_check.py       # компиляция сгенерированного .cpp, без запуска
-│   │   ├── run_with_timeout.py    # запуск бинаря с жёстким timeout
-│   │   ├── test_script_check.py   # раскрытие test-script'а настоящим FreeMarker, поиск одинаковых строк и параметров с кавычками/`>` (local check, upload_test_script)
-│   │   ├── local_tests.py         # генерация тестов по test-script'у с кэшем в .tests_cache/, поиск одинаковых по содержимому, валидатор на них (local check --full, local run --full)
-│   │   ├── statement_check.py     # оформление statement/<код>/*.tex: Markdown-списки и кавычки не <<…>> (local check) и их исправление (local fix)
-│   │   ├── solutions_run.py       # валидатор и решения на примерах: сборка (C++/Java/Python), запуск с TL из limits.yaml, чекер, допустимые вердикты (local run)
-│   │   ├── std_checkers/          # исходники стандартных чекеров testlib (ncmp, wcmp, …) для solutions_run — копия из репозитория testlib (откуда и как обновить — README.md там же), MIT
-│   │   └── FreemarkerRender.java  # рендер FreeMarker для test_script_check (java без сборки; jar — в ~/.cache/polygon-orchestrator/)
-│   └── pipeline.py                 # прогон шагов для одного problem_id, с учётом кэша
-├── drafts/                       # черновики задач в свободной форме для `init --draft` (на любой глубине, любое расширение); в .gitignore, как problems/
-└── problems/
-    └── <путь задачи>/              # на любой глубине: <группа>/.../<problem_id>/ (см. "Запуск")
-        ├── authoring/              # файлы, с которыми работают только модель и автор; на Polygon — в Attachments (upload_attachments / pull), по имени файла
-        │   ├── spec.yaml           # спек задачи (вход всех шагов); черновик создаёт `orchestrator <задача> init` (из шаблона, по --ref и/или моделью по --draft)
-        │   ├── draft.<расширение>  # копия черновика автора, по которому `init --draft` написал спек
-        │   ├── draft-tutorial.md   # драфт разбора: пишет автор, вход `llm tutorial`
-        │   ├── constraints.yaml    # результат constraints_pick: выбранные N/TL/ML/группы + пометки "предложено"/"подтверждено"
-        │   └── tests_plan.yaml     # результат tests_plan: генераторы и тесты скрипта; вход generators_draft и test_script_draft, можно править руками
-        ├── .cache/
-        │   ├── statement_draft.json        # input_hash, prompt_hash, model, status, timestamp
-        │   ├── constraints_pick.json
-        │   ├── tests_plan.json
-        │   ├── generators_draft.json
-        │   ├── test_script_draft.json
-        │   ├── solutions_draft.json
-        │   ├── checker_draft.json
-        │   ├── interactor_draft.json
-        │   ├── tutorial_draft.json
-        │   └── <step>.response.json        # ответ модели, ещё не применённый (до `llm apply`, `llm accept` или нового прогона шага)
-        ├── llm_generation.log      # лог `orchestrator <задача> llm generate` (дописывается; каждый прогон начинается с "===== run started: orchestrator <команда> =====")
-        ├── llm_reports/<шаг>.md    # человеко-читаемый отчёт последнего прогона шага (и spec_from_draft.md от `init --draft`, accept.md от `llm accept`): заметки модели, файлы, диффы
-        ├── polygon.log             # лог `orchestrator <задача> polygon push` (так же дописывается): старт шагов, полный текст ошибок, traceback, HTTP-запросы
-        ├── polygon_state.json      # problem_id -> Polygon problemId + база синхронизации (revision, synced: элемент -> sha256, stamps: файл -> отметка его версии на Polygon); не в .cache/ — это факт состояния на Polygon, не кэш шага
-        ├── .pull_backup/<время>/   # локальные файлы, заменённые `polygon pull`
-        ├── .tests_cache/           # тесты и сборки генераторов `local check --full`, manifest.txt — номер, файл и команда теста; можно удалять
-        ├── .fix_backup/<время>/    # прежние версии файлов условия, исправленных `local fix`
-        ├── .llm_backup/<время>/    # прежние версии файлов, перезаписанных или переименованных `llm generate`
-        ├── .llm_conflicts/<шаг>-<время>/  # не применённые версии файлов от модели + CONFLICTS.md (см. "Конфликты")
-        ├── statement/
-        │   ├── <код>/              # условие на языке (ru, en, kk, …; код -> имя Polygon — orchestrator/statement_languages.py): legend.tex, input_format.tex, output_format.tex, notes.tex (+ interaction.tex у интерактивной задачи; + необязательный tutorial.tex — разбор: пишет автор, pull или `llm tutorial`, удалённый файл push очищает на Polygon); основной язык (`language` спека) пишет statement_draft, остальные — автор или pull
-        │   │   └── name.txt        # название задачи на Polygon на этом языке: создаёт push из title спека (title.ru у ru), если файла нет; pull пишет сюда название с Polygon
-        │   └── examples/example_<N>.txt  # input N-го sample_examples, 1-based (+ example_<N>.{input,output}_for_statement.txt — input/output for statements, каждый сам по себе: у интерактивной задачи — диалог от statement_draft, у обычной — только от автора; example_<N>.verify_for_statement.txt — флаг verify, пишет автор или pull)
-        ├── problem_lib.h           # копия шаблона для задачи (можно дописывать): создаётся перед compile-check или upload_problem_lib, если её нет; pull скачивает её с Polygon; загружается в Polygon шагом upload_problem_lib
-        ├── limits.yaml            # актуальные TL/ML (orchestrator/limits.py): выводит из constraints.yaml шаг limits_from_constraints, когда TL/ML там изменились; push выставляет их на Polygon, pull обновляет с Polygon; можно править руками
-        ├── validator.cpp           # 1-в-1 из validator.constants/validator.checks в constraints.yaml
-        ├── generators/*.cpp
-        ├── test_script(_groups)
-        ├── solutions/*.cpp
-        ├── checker.cpp             # только если checker.custom_needed: true в спеке
-        ├── interactor.cpp          # только у интерактивной задачи (секция interactor в спеке)
-        └── **/<имя>.removed        # файлы, которые шаг в режиме доработки предложил удалить: автор смотрит и удаляет сам
+│   ├── cli.py                       # парсер и Tab-дополнение; БЕЗ тяжёлых импортов (shell запускает его на каждый Tab)
+│   ├── cli_commands.py              # реализация команд, импортируется из cli.py лениво
+│   ├── step_order.py                # порядки шагов без импорта самих шагов
+│   ├── problem_paths.py, drafts.py, statement_languages.py  # без тяжёлых импортов
+│   ├── spec.py, spec_from_draft.py, references.py, limits.py
+│   ├── steps/                       # генеративные шаги (+ механический limits_from_constraints), base.py — общее
+│   ├── pipeline.py, cache.py, llm_report.py
+│   ├── model_router.py              # классы моделей и effort, вендоронезависимо
+│   ├── llm_client.py, model_contracts.py  # Protocol LLMClient и ModelResponse
+│   ├── llm_clients/                 # ClaudeCodeClient (по умолчанию), AnthropicClient; __init__ ничего не импортирует
+│   ├── polygon/                     # client, signing, state, sync, pull, steps/, pipeline; __init__ ничего не импортирует
+│   └── checks/                      # compile_check, run_with_timeout, test_script_check, local_tests,
+│                                    # statement_check, solutions_run, std_checkers/, FreemarkerRender.java
+├── githooks/pre-push
+├── tests/
+├── drafts/                          # черновики автора для `init --draft`; в .gitignore
+└── problems/<путь задачи>/          # в .gitignore; на любой глубине
+    ├── authoring/                   # spec.yaml, draft.<ext>, draft-tutorial.md, constraints.yaml, tests_plan.yaml
+    │                                # (только модель и автор; на Polygon — в Attachments)
+    ├── statement/<код>/*.tex, name.txt; statement/examples/example_<N>*.txt
+    ├── limits.yaml, problem_lib.h, validator.cpp, checker.cpp, interactor.cpp
+    ├── generators/*.cpp, test_script(_groups), solutions/*
+    ├── polygon_state.json           # привязка к Polygon + база синхронизации (не кэш)
+    ├── .cache/                      # кэш шагов <step>.json и неприменённые ответы <step>.response.json
+    ├── llm_generation.log, polygon.log, llm_reports/<шаг>.md
+    ├── .llm_backup/, .llm_conflicts/, .pull_backup/, .fix_backup/, .tests_cache/
+    └── **/<имя>.removed             # предложенные к удалению файлы: удаляет автор
 ```
 
-## Роль каждого генеративного шага
+## Основные принципы
 
-1. **`statement_draft`** — вход: секция `statement_draft` спека и язык
-   условия (`language`; в хеше — только не `ru`). Выход:
-   черновик условия на этом языке в `problems/<путь задачи>/statement/<language>/` — отдельные `.tex` на
-   легенду/ввод/вывод/примечание (набор имён проверяется до записи на
-   диск), следующий структуре и стилистическим правилам из
-   `templates/tutorials/statement.md`. Input каждого примера в
-   `examples/example_<N>.txt` — копия из `sample_examples`: его пишет
-   оркестратор, а не модель (`GeneratedArtifacts` в
-   `orchestrator/steps/base.py`); файлы примеров, которых больше нет в
-   спеке, помечаются `.removed`.
-2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
-   очередь `intended_complexity` и `complexity_reasoning`, + формат ввода из
-   `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
-   источник порядка чтения для валидатора; легенда не передаётся). Выход:
-   зафиксированные диапазоны переменных, TL/ML, разбиение на тестовые
-   группы (в `constraints.yaml`, включая секцию `validator` —
-   `constants`/`checks`, описывающую, что именно должен проверять
-   валидатор, по формату `templates/constraints_format.yaml`) +
-   `validator.cpp` (по образцу `validator.cpp` из референсов, если есть),
-   реализующий 1-в-1 `validator.constants`/`validator.checks`, которые шаг
-   сам же и зафиксировал в `constraints.yaml` — никаких проверок сверх или
-   помимо перечисленных там. `problem_id` в `constraints.yaml` оркестратор
-   ставит из спека поверх ответа модели. Генерация `validator.cpp` — не отдельный шаг,
-   а последний под-шаг того же рассуждения об ограничениях в рамках одного
-   вызова модели: валидатор целиком выводится из решений, которые
-   `constraints_pick` и так принимает, и раздельные шаги/вызовы рисковали бы
-   разойтись между `constraints.yaml` и `validator.cpp`. Модель **не имеет
-   права** сама придумывать асимптотику по легенде — если
-   `intended_complexity` пуст, шаг обязан завершиться ошибкой
-   "недостаточно данных", а не угадывать; в этом случае `validator.cpp`
-   тоже не пишется — весь ответ шага уходит в `uncertain` целиком.
-   После `constraints_pick` идёт механический шаг **`limits_from_constraints`**
-   (без модели, `step_order.MECHANICAL_STEPS`): пишет `limits.yaml` —
-   актуальные TL/ML задачи, которые загружает `polygon push` и обновляет
-   `polygon pull`, — из TL/ML `constraints.yaml`. Его вход — только эти
-   TL/ML, поэтому `limits.yaml` перезаписывается (прежний — в
-   `.llm_backup/`), лишь когда они изменились: TL/ML, поправленные на Polygon
-   или руками, переживают `llm generate`. Если `limits.yaml` уже есть, а шаг
-   ещё не запускался (файл скачал `polygon pull`), файл принимается как есть;
-   `llm generate --step limits_from_constraints --force` выводит его заново.
-3. **Подготовка тестов** — три шага: содержательная часть отдельно от
-   объёмной, чтобы ни один вызов модели не делал и то и другое сразу.
-   - **`tests_plan`** — вход: секция `generation` спека + формат ввода из
-     `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
-     отдельного поля `generation.input_shape` в спеке нет, чтобы не
-     дублировать описание формата входа) + `legend_sketch` + зафиксированные
-     ограничения из шага 2 без TL/ML + (если секция `solutions` в спеке
-     задана) `solutions.known_wrong_approaches` и `solutions.algorithm_hint`.
-     Выход: план тестов `authoring/tests_plan.yaml` по формату
-     `templates/tests_plan_format.yaml` — генераторы (имя, параметры с
-     типами, что читают и печатают, алгоритм) и блоки test-script'а
-     (команды-цепочки генераторов, именованные значения, группа, какие
-     пункты спека блок покрывает — `covers`). План самодостаточен:
-     следующие два шага спека не видят. Оркестратор проверяет его до записи
-     (`parse_tests_plan`: команды вызывают только генераторы плана и только
-     их параметры; не разбирается — конфликт) и сообщает заметками
-     `uncovered` о пунктах `specific_test_ideas`/`known_wrong_approaches`,
-     которые не покрыты ни одним блоком, и о генераторах без тестов. Внутри
-     шаг делает две разные по характеру вещи, и это важно не смешивать:
-     если `generation.generator_ideas` уже описывает нужный генератор — это
-     механическая часть; для каждого пункта `known_wrong_approaches` шаг
-     обязан сам придумать тест (и, если нужно, генератор), целенаправленно
-     проверяющий именно этот сценарий, и пометить его `status: proposed` с
-     обоснованием в `rationale` (почему этот тест ловит именно такую
-     ошибку) — как и с любым другим предположением модели, это не
-     самостоятельное решение, а предложение для проверки автором. Если ни
-     `generator_ideas`, ни `known_wrong_approaches` не дают зацепок для
-     стресс-тестов — шаг не должен молчать об этом: явно указать в `notes`,
-     что adversarial-случаи не придуманы и нужна ручная проверка. Сверх
-     заказанного автором шаг может предложить свои тесты под вероятные
-     ошибки, которых нет в спеке (по легенде и `algorithm_hint`) — см.
-     "Предложения модели сверх спека".
-   - **`generators_draft`** — вход: генераторы плана (каждый — отдельная
-     часть входа: правка одной записи плана — правка одного генератора в
-     режиме доработки, правка тестов плана шаг не трогает) + формат ввода из
-     `statement_draft` + `constraints.yaml` без TL/ML (гарантии входа,
-     которые генератор обязан соблюдать). Выход: `generators/<name>.cpp` на
-     каждый генератор плана (на основе `generators/*.cpp` из референсов
-     спека); недостающие дозапрашиваются, о генераторах вне плана и
-     параметрах `opt<T>(...)`, отличных от плана, — заметки `plan_mismatch`.
-     Если запись плана не реализуется однозначно — `uncertain`: план правит
-     автор.
-   - **`test_script_draft`** — вход: `constants`, `tests` и сигнатуры
-     генераторов плана (без алгоритмов — правка кода генератора скрипт не
-     инвалидирует) + `constraints.yaml` без TL/ML + `generation.script_style`.
-     Выход: FreeMarker test-script (`flat` — `test_script` по образцу из
-     референсов; `groups` — `test_script_groups` по группам из `group`
-     блоков плана, на той же структуре, если образца нет).
-
-4. **`solutions_draft`** — вход: секция `solutions` спека +
-   `constraints.intended_complexity` + текст `constraints.yaml` из
-   шага 2 без TL/ML (вердикты по времени модель выводит из асимптотики и
-   максимальных значений переменных, а подгонка TL не инвалидирует решения)
-   + условие из `statement_draft` в части ввода-вывода
-   (`formal_input_sketch`, `formal_output_sketch`, `indexing`, примеры с
-   ответами, `legend_sketch` — для понимания терминов `algorithm_hint`, не
-   как источник алгоритма авторского решения). Выход: черновики решений с
-   заявленными вердиктами (ok/wa/tl/tl_ok), которые автор обязательно
-   перепроверяет и вероятно переписывает сам — это не финальные решения.
-   Сверх решений, описанных в спеке, шаг может предложить свои (другое или
-   более быстрое `ok`, вероятные ошибки участников) — см. "Предложения
-   модели сверх спека".
-5. **`checker_draft`** (опциональный, как и `solutions_draft`) — запускается,
-   только если `checker.custom_needed: true` в спеке; если используется
-   стандартный чекер (`checker.standard`, например `ncmp`) — шаг не
-   запускается вообще, генерировать нечего. Вход: `checker.custom_comparison_notes`
-   (самодостаточное текстовое описание формата ответа и правила сравнения —
-   автор пишет его сам, шаг ничего не выводит из условия/легенды
-   самостоятельно). Выход: `checker.cpp` по паттерну read_and_check (как в
-   `checker.cpp` учебной задачи `examples/array/prefix-sums`) — функция `read_answer(InStream&)`,
-   параметризуемая потоком (используется для `ans` и `ouf` одинаково),
-   которая читает И валидирует ответ, оборачивается в `read_answer_from`
-   с проверкой `seekEof()` (лишние данные после ответа → `_pe`). Модель
-   реализует ровно то сравнение, которое описано в
-   `custom_comparison_notes` — если оно неполно (например, не указано,
-   чувствительно ли сравнение к регистру, или что делать с пустым вводом),
-   шаг обязан вернуть `status: uncertain`, а не домысливать поведение
-   чекера — ошибка здесь особенно дорога: чекер, который слишком мягко или
-   слишком строго сравнивает ответы, может пропустить неверное решение или
-   забраковать верное.
-6. **`interactor_draft`** (опциональный) — запускается, только если задача
-   интерактивная (в спеке есть секция `interactor`). Вход:
-   `interactor.behavior_notes` (адаптивность, проверка итогового ответа,
-   ошибки решения, что писать в `tout` для чекера) + из `statement_draft`
-   формат теста (`formal_input_sketch`, `indexing`, input примеров — в
-   интерактивной задаче это вход интерактора, а не решения) и протокол
-   `interaction_sketch`. Выход: `interactor.cpp` (testlib,
-   `registerInteraction`). Как и у чекера, модель реализует ровно
-   описанное поведение; чего не хватает — `uncertain`. Протокол
-   интерактивной задачи также получают `statement_draft` (пишет
-   `interaction.tex` и диалог каждого примера — что решение прочитало и
-   что вывело, для "input/output for statements" на Polygon) и
-   `solutions_draft`; правила — `templates/tutorials/interactive.md`,
-   которые эти два шага получают только у интерактивной задачи.
-7. **`tutorial_draft`** (опциональный, только по команде `llm tutorial`, вне
-   `STEP_ORDER`: `llm generate` его не запускает, `llm status|apply|accept`
-   видят; без драфта — `skipped`) — вход: драфт автора
-   `authoring/draft-tutorial.md` + `statement/<language>/*.tex` с диска (обозначения) +
-   `sample_examples` спека + язык условия (`language`, как у `statement_draft`) +
-   решения из `--ref`; остальной спек модель не видит,
-   чтобы ей не из чего было дописывать своё. Выход: `statement/<language>/tutorial.tex` на
-   языке условия.
-   Драфт — единственный источник содержания: модель раскрывает мысли автора
-   и пишет новые куски только там, где он прямо просит («докажи», «допиши»,
-   «распиши»); обращение («мы»/«вы») — как в тексте драфта. Решения — только
-   чтобы понять драфт: детали реализации из них не переносятся, код — только по
-   просьбе. Заметное сверх драфта — заметкой `suggestion`, расхождение драфта с
-   решением или ошибка в рассуждении — заметкой `uncertain` при `status:
-   proposed`: файл пишется с версией автора (`status: uncertain` шаг не
-   использует, в отличие от правила эскалации: драфт — черновик, а не спек).
-   Решения из `--ref` — часть входа: их правка делает шаг `stale`. Список
-   запоминается: без `--ref` берётся прошлый (из `input_values` записи кэша или
-   сохранённого ответа), новые `--ref` заменяют его целиком, `--no-ref` очищает.
-
-Каждый шаг — чистая функция от (спек + результаты предыдущих шагов) к
-артефакту(-ам) + отчёту о неуверенности. Шаги идемпотентны: повторный запуск
-с тем же входом должен быть безопасен (перезаписывает `problems/<путь задачи>/...`, не
-аккумулирует состояние) — но по умолчанию повторный запуск с **тем же**
-входом не должен даже дойти до вызова модели, см. ниже "Кэширование по хешу
-спека".
-
-**Режим доработки.** Если файлы шага уже есть на диске, перезапуск шага
-(вход изменился или `--force`) по умолчанию не пишет их с нуля: модель
-получает текущие файлы (возможно, с ручными правками автора) и то, что
-изменилось во входе шага с прошлого прогона ("было → стало" по частям
-входа — их значения хранятся в кэше шага, `input_values`), и дорабатывает
-их — общий блок `prompts/revise.md.j2` (`StepRevision` в
-`orchestrator/steps/base.py`, текущие файлы — `current_artifacts` модуля
-шага). Каждый текущий файл в ответе — ровно в одном из `artifacts`
-(изменён), `unchanged`, `removed`, `renamed` (проверяется до записи на
-диск, см. "Конфликты" ниже). Файлы, которые модель предлагает удалить, не удаляются, а
-переименовываются в `<имя>.removed` — автор смотрит и удаляет сам; такие
-файлы не видят ни шаги, ни Polygon-шаги, ни референсы (`is_removed_mark` в
-`orchestrator/problem_paths.py`). На Polygon `.removed`-файлы и старые
-имена переименованных файлов не удаляются — это автор делает руками.
-Переименования (например, смена вердикта решения) применяются сразу.
-Прежние версии перезаписанных и переименованных файлов — в
-`.llm_backup/<время>/` каталога задачи (в любом режиме: `problems/` вне
-git). `llm generate --fresh` — генерация с нуля, без текущих файлов.
-
-**Конфликты.** Ответ модели применяется как `git merge`
-(`_plan_response` в `orchestrator/steps/base.py`): применимое
-применяется, остальное — конфликт. Текущий файл, о котором ответ молчит,
-остаётся как есть; неизвестное имя в `unchanged`/`removed`/`renamed` —
-игнорируется (обе ситуации — заметкой в выводе шага). Конфликт —
-недопустимое имя файла, текущий файл сразу в нескольких местах ответа,
-переименование в занятое или повторяющееся имя: файл задачи остаётся как
-был, версия модели откладывается в `.llm_conflicts/<шаг>-<время>/` (по
-своему пути в каталоге задачи) с отчётом `CONFLICTS.md` — что и почему не
-применено. Файлы `generators_draft`, `test_script_draft` и
-`solutions_draft` независимы и применяются по одному (`partial_apply`);
-`statement_draft`, `constraints_pick` (`constraints.yaml` и `validator.cpp`
-— 1-в-1), `tests_plan` и `checker_draft` при любом конфликте не применяются целиком — как и ответ,
-не прошедший проверку набора файлов шага (`validate_artifacts`). Шаг с
-конфликтом останавливает пайплайн; пока автор не разберёт конфликты
-(удалит их каталог) и не сделает `llm accept`, `llm generate` модель для
-этого шага не вызывает (`--force` — вызывает заново), `llm status`
-показывает `conflict`. Неполный ответ — без части файлов, которые шаг
-обязан вернуть (`MissingArtifactsError`), — модель один раз дописывает
-отдельным вызовом (`prompts/missing_artifacts.md.j2`: ей показываются
-уже возвращённые файлы, берутся только недостающие; в хеш промпта шага
-этот блок не входит); если файлов не хватает и после него — конфликт, как
-выше. Не применённый целиком ответ остаётся и для
-`llm apply`.
-
-## Запуск
-
-Задачи в этом проекте независимы друг от друга: всё, что относится к
-задаче, — спек и результаты шагов — лежит в её каталоге (спек —
-`authoring/spec.yaml`). Каталоги задач лежат в двух корнях — `problems/` (задачи
-автора) и `examples/` (учебные задачи) — на любой глубине: промежуточные
-каталоги только группируют задачи
-(`problems/contest/2026/round-1/my-task`). Каталог задачи — первый каталог
-вниз от корня, в котором есть `authoring/spec.yaml` или
-`polygon_state.json`; задачи друг в друга не вкладываются, а каталог с
-именем `authoring` не может быть задачей или группой задач.
-
-Спек, `constraints.yaml` и копия черновика лежат в подкаталоге `authoring/`
-каталога задачи — это файлы, с которыми работают только модель и автор;
-всё остальное, в том числе `limits.yaml`, — в самом каталоге, как на
-Polygon. Задачу, у которой эти файлы ещё лежат прямо в каталоге (раскладка
-до `authoring/`), любая команда к ней сначала переносит в `authoring/`
-(`migrate_to_authoring` в `orchestrator/problem_paths.py`, печатает, что
-перенесено; файл, который есть в обоих местах, — ошибка до любого
-переноса). Пока задачу не перенесли, её находят дополнение и проверки
-`problem_id`, а референсы и `--ref` читают её спек и `constraints.yaml` из
-старого места.
-
-Так же условие, лежащее прямо в `statement/` (раскладка до каталогов языков),
-любая команда к задаче сначала переносит в `statement/<language>/` — вместе с
-ключами базы синхронизации в `polygon_state.json`, чтобы push не загрузил его
-заново (`migrate_statement_languages` в `orchestrator/statement_languages.py`,
-печатает одну строку; файл, который есть в обоих местах, — ошибка до любого
-переноса). Референсы читают условие не перенесённой задачи из старого места.
-
-В CLI задача адресуется путём своего каталога вместе с корнем — дальше
-`<задача>`: `problems/<путь задачи>` или `examples/<путь задачи>`, корень
-обязателен. `problem_id` (поле спека и имя задачи на Polygon) выводится из
-пути: в `problems/` — имя самого вложенного каталога (`my-task`), в
-`examples/` — все компоненты пути через `--` (`examples/array/prefix-sums`
--> `array--prefix-sums`; поэтому в именах каталогов `examples/` `--`
-запрещено). `problem_id` уникален среди задач обоих корней. Всё это — в
-`orchestrator/problem_paths.py`.
-
-Обычно работа идёт над одной задачей, поэтому задача в CLI стоит
-первой, а команда к ней — после: `orchestrator [--base-dir ...]
-<задача> <init|llm|local|polygon> [команда] [флаги]` (`--base-dir` — каталог, в
-котором лежат `problems/` и `examples/`, по умолчанию текущий). Группы
-команд разделены по тому, чего они стоят: `llm` (и `init --draft`) вызывает
-модель, `polygon` ходит в сеть, `local` — ни то, ни другое; локальная
-проверка живёт в `local`, даже если нужна перед push.
-
-Вместо `<задача>` можно указать группу — каталог выше задач или сам корень
-(`problems/contest/2026`, `examples`): команда выполняется для всех задач под
-ним по очереди (`_run_group` в `orchestrator/cli.py`, `problems_under` в
-`orchestrator/problem_paths.py`). Группа — каталог целиком, а не начало имени.
-Сначала печатается список задач (`problem_id` и адрес) и спрашивается
-подтверждение (`[y/N]`, закрытый ввод — отказ); без него работают только
-`llm status` и `polygon status`. Сбой задачи, даже необработанное исключение,
-не останавливает остальные; в конце — сколько прошло и какие не прошли, код
-возврата 1, если не прошла хотя бы одна. `init` групп не принимает, `polygon
-pull --polygon-id` с группой — ошибка: они про одну задачу.
-
-То, что должно обеспечить CLI (`orchestrator/cli.py` —
-парсер, `orchestrator/cli_commands.py` — сами команды):
-
-- `orchestrator <задача> init [--ref <задача-основа>] [--draft NAME [--force]]` —
-  создаёт каталог задачи (если его нет) с `authoring/spec.yaml`. Без флагов — из
-  `templates/spec_template.yaml`: `problem_id` (выведенный из пути)
-  подставлен, остальные поля пустые, с комментариями-подсказками.
-  `--ref` — основа спека не шаблон, а спек другой задачи (адрес с корнем,
-  как у `<задача>`; из `problems/` или `examples/`): копируется как есть,
-  с комментариями, с новым `problem_id`, и задача-основа добавляется в
-  общие `references` — её файлы становятся образцами для шагов.
-  `--draft NAME` — черновик автора в свободной форме из `drafts/` (путь
-  относительно `drafts/` с расширением или без, `icpc/my-idea`; имя без
-  подкаталогов ищется и в подкаталогах; `orchestrator/drafts.py`): спек по нему
-  пишет модель (`orchestrator/spec_from_draft.py`, промпт
-  `prompts/spec_from_draft/`) на основе шаблона или спека `--ref`. Всё из
-  черновика модель сохраняет, а чего в нём нет — дозаполняет сама и может
-  предложить своё (решения, ошибки участников, тесты); каждое такое
-  значение помечено в спеке комментарием `# PROPOSED, REVIEW ME: ...` или
-  `# SUGGESTION: ...` и печатается заметкой. `problem_id` и референс на
-  задачу-основу ставит оркестратор поверх ответа. Спек пишется, даже если
-  ещё не проходит валидацию (ошибки печатаются), копия черновика — в
-  `authoring/draft.<расширение>` каталога задачи, лог — в `llm_generation.log`.
-  Кэша у `init --draft` нет. Если `spec.yaml` уже есть, `init --draft`
-  его дорабатывает, как "Режим доработки" шагов: модель получает текущий
-  спек (с ручными правками автора) и "было → стало" черновика — прошлая
-  копия `authoring/draft.*` против нового (общий блок
-  `prompts/revise.md.j2`); черновик не изменился — модель не вызывается
-  (`--force` — вызывается); `--ref` при доработке — ошибка. Прежние версии
-  спека и копии черновика — в `.llm_backup/<время>/`, дифф спека — в
-  отчёте. Без `--draft` существующий `spec.yaml` не перезаписывается
-  никогда. Отказывается создавать задачу внутри
-  другой задачи, вокруг уже существующих задач и с `problem_id`, который
-  уже занят задачей в другом каталоге любого из корней, — все проверки
-  (и поиск черновика, и спек `--ref`) до вызова модели. Polygon не
-  вызывает; модель — только с `--draft` (те же ограничения на запуск без
-  явной команды, что и для `llm generate`).
-- `orchestrator <задача> llm generate [--step NAME] [--force | --fresh]` —
-  прогон задачи (всех шагов или одного конкретного); шаги, для которых кэш
-  валиден, пропускаются автоматически (см. ниже), остальные дорабатывают
-  свои текущие файлы, если они есть (см. "Режим доработки" выше).
-  `--force` игнорирует кэш и вызывает модель заново — тоже в режиме
-  доработки; `--fresh` — заново и с нуля, без текущих файлов (подразумевает
-  `--force`). В консоль — строка на шаг и, у отработавшего шага (вызвал
-  модель или применил сохранённый ответ), путь к его отчёту
-  `llm_reports/<шаг>.md` со счётчиком заметок по видам. Отчёт
-  (`orchestrator/llm_report.py`) — текущее состояние шага, а не история:
-  переписывается только отработавшим шагом; в нём заметки модели по видам
-  (`uncertain`, `proposed`, `suggestion`, `changed`), не применённое, ошибки
-  compile-check, новые/изменённые/переименованные/помеченные `.removed`
-  файлы, каталог `.llm_backup/` и диффы файлов, которые существовали и
-  изменились. Полные заметки по-прежнему пишутся и в
-  `llm_generation.log` (история прогонов). Так же — `llm apply` и
-  `init --draft` (`llm_reports/spec_from_draft.md`). Если в спеке
-  остались пометки `init --draft` (`# PROPOSED, REVIEW ME`,
-  `# SUGGESTION`) — перед прогоном печатается предупреждение со строками
-  пометок (`spec.spec_review_marks`); прогон оно не останавливает. То же
-  предупреждение — в `llm status`.
-- `orchestrator <задача> llm tutorial [--ref SOLUTION ... | --no-ref] [--force | --fresh]`
-  — шаг `tutorial_draft` (см. "Роль каждого генеративного шага", пункт 7):
-  `statement/<language>/tutorial.tex` по `authoring/draft-tutorial.md`. `--ref` повторяется,
-  значение — файл из `solutions/` задачи (`ok.cpp` или `solutions/ok.cpp`), Tab
-  дополняет. Кэш, отчёт и режим доработки — как у `llm generate`, разбор,
-  написанный автором или скачанный с Polygon, дорабатывается, а не затирается;
-  `--fresh` — с нуля. Нет драфта — ошибка до вызова модели; `--ref` с группой
-  задач — ошибка разбора аргументов. Вызывает модель — те же ограничения на
-  запуск без явной команды, что и для `llm generate`.
-- `orchestrator <задача> llm status` — без вызовов модели: печатает
-  таблицу "шаг → cache hit / stale / not run", используя те же хеши, что и
-  `llm generate`. Полезно, чтобы до реального запуска увидеть, что вообще
-  изменилось после правки спека.
-  У `stale` указано, что именно изменилось (поле спека, upstream-артефакт,
-  промпт или приложенный документ, модель) — по хешам частей входа,
-  которые кэш хранит рядом с общими хешами.
-- `orchestrator <задача> llm apply [--step NAME]` — без вызовов
-  модели: применяет ответы, сохранённые `llm generate`, но не
-  применённые. Ответ модели (кроме `uncertain`) сохраняется в
-  `.cache/<step>.response.json` до проверки и записи файлов и удаляется,
-  когда применён хотя бы частично; если из ответа не применено ничего
-  (конфликт шага, применяемого только целиком, см. "Конфликты") или шаг
-  упал с `ValueError` (например, неизвестный статус ответа — пайплайн
-  останавливается с ошибкой шага, а не traceback), ответ остаётся — после
-  правки оркестратора `llm apply` применяет его заново, не тратя новый
-  вызов.
-  Ответ применяется, только если получен на текущий вход шага (те же
-  хеши, что у кэша) и в том же режиме (доработка/с нуля); иначе — ошибка
-  с предложением `llm generate`. `llm status` показывает неприменённые
-  ответы.
-- `orchestrator <задача> llm accept [--step NAME]` — без вызовов
-  модели: принимает текущие артефакты `stale`-шагов как актуальные
-  (перезаписывает их кэш текущими хешами, `accepted: true`). Для случаев,
-  когда изменилось то, что не должно менять результат (рефакторинг
-  промптов/шаблонов), или автор уже поправил файлы руками и подогнал под них
-  спек. Шаги `not run`, `uncertain` и без артефакта на диске не принимаются.
-  Шаг с конфликтами (`conflict`) принимается, только когда автор их
-  разобрал и удалил каталог конфликтов, — даже если вход не менялся.
-  Неприменённый сохранённый ответ принятого шага удаляется. В консоль —
-  строка на шаг с кратким "что изменилось" (модель, спек, промпт) и путь к
-  отчёту `llm_reports/accept.md`, в котором у каждого принятого и не
-  принятого шага — полный список изменившихся частей входа.
-- `orchestrator <задача> local check` — без модели и без сети:
-  проверяет оформление условия (`statement/<код>/*.tex`, кавычки — только в
-  `ru`): списки в стиле
-  Markdown (строки с `- `, `* `, `1. ` вместо `itemize`/`enumerate`) и
-  кавычки, отличные от `<<…>>` (`"`, `“”`, `«»`, ```` ``…'' ````; вне
-  формул и комментариев), — с файлом и строкой каждой находки. Ещё
-  раскрывает test-script(ы) задачи настоящим FreeMarker (нужна `java`;
-  jar FreeMarker при первом запуске скачивается с Maven Central в
-  `~/.cache/polygon-orchestrator/`) и печатает одинаковые строки — с
-  ними Polygon не генерирует тесты — с указанием, какая строка скрипта
-  и при каких значениях переменных `<#list>` напечатала каждую, и
-  строки, которые Polygon не примет: кавычки в параметрах генератора и
-  `>` не ровно один (только финальное `> $`); их `local fix` не
-  исправляет — это вопрос параметров генератора. Та же
-  проверка — перед загрузкой в `upload_test_script`: найденное
-  останавливает push до сети; если проверку выполнить нельзя или
-  FreeMarker не раскрыл скрипт — только предупреждение
-  (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
-  докстринге `orchestrator/checks/test_script_check.py`.
-  С `--full` ещё генерирует тесты по скрипту локально, прогоняет на них
-  валидатор и показывает одинаковые по содержимому, вместе с примерами, и
-  соответствующие им строки скрипта (код возврата от них не зависит). Кэш —
-  `.tests_cache/`: ключ теста — хеш команды и сборки её генераторов, поэтому
-  перенумерация ничего не перегенерирует, правка генератора — только тесты
-  с ним, тесты с пропавшими ключами удаляются (`manifest.txt` — номер, файл
-  и команда каждого). Перед push не запускается. Это приближение: на Polygon
-  другой компилятор, и тесты могут отличаться. Детали — в докстринге
-  `orchestrator/checks/local_tests.py`.
-- `orchestrator <задача> local run` — без модели и без сети: прогоняет
-  на примерах (`statement/examples/example_<N>.txt`) валидатор и все
-  решения из `solutions/`. Отдельно от `local check` и не запускается
-  перед push: сборка и запуск всех решений — долго и нужны не всегда.
-  Сборка: C++ — g++, Java — `javac` (без
-  него — тот же компилятор из модуля `jdk.compiler` через `java -m`), Python
-  — `python3`; TL — из `limits.yaml` (без него — из `constraints.yaml`),
-  время — локальное wall-clock; ответ — `output` примера в спеке, без него —
-  вывод Main correct; вердикт выносит чекер задачи (`checker.cpp` или
-  стандартный из `checker.standard`, исходники — в
-  `orchestrator/checks/std_checkers/`). Решение с вердиктом X в имени может
-  получить на примере OK или X (`tl_ok` — OK или TL), остальное — ошибка
-  (`ALLOWED_VERDICTS`); решение не с вердиктом `tl`, работавшее на примере
-  дольше половины TL (и уложившееся в него), — предупреждение. У
-  интерактивной задачи решение и `interactor.cpp` связаны пайпами,
-  чекер судит `tout` интерактора, ответ — `tout` Main correct (`output`
-  примеров в спеке — реплики диалога, не ответ); решение, не завершившееся
-  за TL с запасом и потратившее меньше половины времени на процессоре, —
-  IL (ждёт ответа: не сбросило вывод), иначе TL; `il` допускает OK или IL.
-  Input/output for statements примеров проверяются тоже: у обычной задачи
-  input — валидатором, показанный вывод — чекером против ответа Main
-  correct на показанном вводе; у интерактивной диалог проигрывается с
-  интерактором (его ответы — по токенам как input for statements, вердикт
-  OK, `tout` проходит чекер). Расхождение — в `errors`.
-  С `--full` к примерам добавляются тесты по скрипту (как у `local check
-  --full`) с ответами от Main correct. Заявленный вердикт здесь требуется:
-  `wa`, `re`, `il`, ни разу его не получившие, — ошибка (тесты их не ловят),
-  `tl` — предупреждение (время локальное), `ml` не проверяется. Эти решения
-  останавливаются на первом заявленном вердикте, `ok` и `tl_ok` идут до конца.
-  Вывод — как у `polygon push`: по ходу заметки и строка на
-  каждое запускаемое решение, в конце группы `expected verdicts`,
-  `unexpected verdicts`, `not run`, `warnings`, `errors`. Это проверка, а
-  не судящий контур: только примеры, без различения MLE. Детали — в
-  докстринге `orchestrator/checks/solutions_run.py`.
-- `orchestrator <задача> local fix` — без модели и без сети:
-  исправляет в условии найденное `local check`, что исправляется
-  механически, — Markdown-списки в `itemize`/`enumerate` (вложенность —
-  по отступу), кавычки в `<<…>>`; абзац с непарными кавычками не трогает
-  и печатает их для ручной правки (код возврата 1). Прежние версии
-  изменённых файлов — в `.fix_backup/<время>/` каталога задачи; следующий
-  `polygon push` загрузит исправленное как обычную правку. Детали — в
-  докстринге `orchestrator/checks/statement_check.py`.
-- `orchestrator <задача> local clear` — без модели и без сети: удаляет
-  локальные кэши проверок, которые они пересоздают сами (`.tests_cache/`,
-  `LOCAL_CACHE_DIRNAMES` в `orchestrator/checks/local_tests.py`). Кэш шагов
-  модели (`.cache/`), `polygon_state.json` и бэкапы не трогает.
-- `orchestrator <задача> polygon push [--step NAME] [--force]` — прогон
-  polygon-шагов по порядку `POLYGON_STEP_ORDER`; каждый шаг загружает
-  только элементы задачи, изменившиеся с последней синхронизации (как
-  `git push` с проверкой fast-forward). Перед первой загрузкой один запрос
-  сверяет ревизию задачи на Polygon с записанной: если Polygon меняли в
-  обход оркестратора (другая ревизия или незакоммиченные правки в рабочей
-  копии) — push останавливается и предлагает `polygon pull` или
-  `--force`. Ревизия неизвестна (задача привязана к уже существующей на
-  Polygon или до появления этой проверки) — push тоже останавливается до
-  `polygon pull`; у задачи, только что созданной `create_problem`, ревизия
-  записывается сразу. `--force` загружает всё без проверки ревизии и
-  затирает закоммиченные правки, сделанные на Polygon (они остаются в
-  истории ревизий); база синхронизации после него — только то, что он
-  загрузил. В конце push записывает отметки версий загруженных файлов на
-  Polygon (время изменения и длина из листинга), чтобы следующий pull их
-  не скачивал. Незакоммиченные правки в рабочей копии на Polygon
-  останавливают push всегда, даже с `--force`: коммит после шага унёс бы
-  их в ревизию оркестратора. Исключение — `--no-commit` (с `--step` и без,
-  можно несколько раз подряд): шаги только загружают в рабочую копию, без
-  коммитов и без записи в базу синхронизации — автор разбирается на Polygon
-  и коммитит там одной пачкой; незакоммиченные правки тогда — только
-  предупреждение (загрузка перезапишет те же файлы), а `polygon status`
-  показывает загруженное как ещё не синхронизированное. После коммита на
-  Polygon ревизия другая — следующий push потребует `polygon pull`, а тот,
-  увидев те же файлы, обновит базу. Вывод: по ходу — строка на шаг, в конце —
-  группы `pushed` (загруженные файлы и прочие элементы задачи), `notes`,
-  `errors`, `not pushed` (шаги, которые из-за ошибки не загрузили своё) и
-  `warnings`; то, что не менялось, не печатается. Реально обращается к Polygon
-  API — те же ограничения на запуск без явной команды, что и для
-  `llm generate`.
-- `orchestrator <задача> polygon status` — что из polygon-шагов уже
-  сделано, без обращения к сети: `done / stale / not run` по
-  `PolygonStep.compute_status` (сравнение локальных файлов с базой
-  синхронизации — тем, что последний push загрузил или pull увидел на
-  Polygon). Правки на Polygon после последней синхронизации отсюда не
-  видны — их замечает только `polygon push`/`pull`.
-- `orchestrator <задача> polygon pull [--polygon-id N] [--overwrite]` —
-  обратное направление: привязывает задачу к уже существующей на
-  Polygon (по `polygon_state.json`, иначе поиском неудалённой задачи
-  с именем `problem_id` — с теми же проверками места, что у `init`;
-  `--polygon-id` дополнительно сужает поиск, если
-  задач с таким именем несколько), сравнивает с ней части задачи, которыми
-  пользуется оркестратор (условие, разбор и примеры, TL/ML, валидатор,
-  нестандартный чекер, генераторы, test-script, решения, спек,
-  `constraints.yaml`, план тестов, черновик и драфт разбора из Attachments), скачивает в
-  каталог задачи недостающие локально и переписывает базу
-  синхронизации по текущей ревизии Polygon. Файлы с временем изменения в
-  листинге Polygon (валидатор, чекер, генераторы, решения, `problem_lib.h`,
-  Attachments) скачиваются, только если с последней синхронизации их
-  версия на Polygon могла измениться (отметка в базе не совпала с
-  листингом и ревизия другая) или их нужно записать на диск. Отличающиеся
-  от Polygon файлы сверяются трёхсторонне, как в `git merge`, с базой
-  синхронизации: менялся только Polygon — локальный файл заменяется
-  (`updated`); менялся только локальный — остаётся (`kept`, следующий push
-  его загрузит), даже с `--overwrite`; менялись обе стороны (`conflict`)
-  или базы нет (`differs`) — остаётся локальный, с `--overwrite` — заменяется версией
-  с Polygon. Заменённые файлы переносятся в `.pull_backup/`. Файлы, которых
-  нет на Polygon, явно перечисляются и никогда не удаляются;
-  файлы из Attachments (спек, `constraints.yaml`, `tests_plan.yaml`, черновик, драфт разбора) сверяются
-  только со своими версиями в Attachments, а TL/ML задачи — только с
-  `limits.yaml` (сверка та же, по значениям TL/ML; `constraints.yaml` они
-  не трогают). Отказывается
-  работать, если на Polygon есть незакоммиченные правки. Каталог задачи
-  создаётся, если его нет; локальный спек не нужен (сам `spec.yaml`
-  сравнивается и скачивается как обычный файл). На Polygon ничего не меняет
-  (только чтение), но в сеть ходит — те же ограничения на запуск без явной
-  команды. Вывод — так же: по ходу строка на часть задачи, в конце группы
-  `pulled`, `pulled over local changes` (`--overwrite`), `will be pushed`
-  (у файла, который push загрузит только при определённом спеке, — это
-  условие), `conflicts` (`conflict` и `differs`), `errors`, `warnings`;
-  совпадающее с Polygon не печатается. Детали — в докстринге
-  `orchestrator/polygon/pull.py`.
-
-`<задача>` дополняется по Tab (`argcomplete`; разовая настройка shell — в
-`docs/SETUP.md`): кандидаты — адреса всех задач в `problems/` и
-`examples/`, со спеком или только с `polygon_state.json` (`polygon
-status|pull` спек не нужен, а команда на момент дополнения адреса ещё не
-набрана); читаются при каждом нажатии, ничего не кэшируется. На каждый Tab shell запускает `cli.py`
-целиком, поэтому на верхнем уровне `cli.py` нельзя импортировать пайплайны
-(pydantic, requests) — они подгружаются лениво через `cli_commands.py`.
-Дополнение только подсказывает: в команду уходит полный адрес задачи или
-группы (кандидаты — только задачи, но каталог группы дополняется как их общее
-начало), сокращённые адреса CLI не принимает.
-
-Группировку задач в контесты/раунды с общими дефолтами (TL/ML-конвенции,
-общий стиль тестовых групп на весь раунд) в спек пока сознательно не
-закладываем — решения по этому вопросу пока нет. Если понадобится, самое
-дешёвое расширение — необязательное поле `extends: <contest_id>.yaml` в
-спеке, значения которого мёрджатся в спек как дефолты перед валидацией; сам
-`SPEC_FORMAT.md` под это не переписан, чтобы не фиксировать формат раньше
-времени.
-
-## Кэширование по хешу спека
-
-Каждый вызов генеративной модели стоит денег и времени, а спеки будут
-правиться итеративно (черновик → правки → повторный прогон). Поэтому
-шаг не должен вызывать модель повторно, если ничего из того, что на него
-влияет, не изменилось с прошлого успешного запуска.
-
-Что входит в хеш для шага (считается в `orchestrator/cache.py`,
-используется в `orchestrator/pipeline.py` перед вызовом
-`model_router`):
-
-- каноническое JSON-представление той секции спека, от которой зависит шаг
-  (`statement_draft` → секция `statement_draft` + `language`, если он не
-  `ru`; `constraints_pick` →
-  секция `constraints` + формат ввода из `statement_draft`
-  (`formal_input_sketch`, `indexing`, input примеров — правка формата входа
-  должна инвалидировать и `validator.cpp`); `tests_plan` → секция
-  `generation` + тот же формат ввода из `statement_draft` (правка
-  формата входа в условии должна инвалидировать план, даже если
-  секция `generation` не менялась) + `legend_sketch` +
-  `problems/<путь задачи>/authoring/constraints.yaml` из шага 2 без TL/ML +
-  `solutions.known_wrong_approaches` и `solutions.algorithm_hint` (если
-  секция `solutions` задана — их правка тоже должна инвалидировать план,
-  не только правка `generation`); `generators_draft` → формат ввода +
-  `constraints.yaml` без TL/ML + каждый генератор `tests_plan.yaml`
-  отдельной частью; `test_script_draft` → `generation.script_style` +
-  `constraints.yaml` без TL/ML + `constants`, `tests` и сигнатуры
-  генераторов плана; `solutions_draft` → секция
-  `solutions` + `constraints.intended_complexity` + ввод-вывод из
-  `statement_draft` (формат ввода и вывода, `indexing`, примеры с ответами,
-  легенда, у интерактивной задачи — протокол) + `constraints.yaml` без TL/ML;
-  `interactor_draft` → секция `interactor` + формат ввода и протокол из
-  `statement_draft`; механический `limits_from_constraints` → только TL/ML
-  из `constraints.yaml`, без промптов и модели). Сборка этой части `statement_draft` —
-  `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
-  трёх шагов;
-- хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +
-  `user.md.j2`) и приложенных к нему документов (`templates/` и
-  файлы референсов спека) — если промпт или образец поправили, кэш должен
-  инвалидироваться, даже если спек не менялся;
-- имя/версия модели из `model_router.py` для этого шага (смена модели тоже
-  инвалидирует кэш).
-
-Логика в `pipeline.py` перед каждым шагом:
-
-1. Посчитать `input_hash` по правилам выше.
-2. Прочитать `problems/<путь задачи>/.cache/<step>.json`, если есть.
-3. Если `input_hash` совпадает с сохранённым **и** ожидаемые файлы
-   артефактов на месте **и** сохранённый `status` не был `uncertain`
-   (кэшировать "провал по недостатку данных" бессмысленно — он должен
-   всплывать при каждом запуске, пока спек не поправят) — шаг пропускается,
-   в лог идёт "cache hit", `problems/` не трогается.
-4. Иначе — обычный вызов модели, и по успешному результату файл кэша
-   перезаписывается новым `input_hash`/`prompt_hash`/`model`/`status`/
-   `timestamp`.
-
-Помимо общих `input_hash`/`prompt_hash`, кэш хранит хеши по частям
-(`input_parts`: поля секции спека и upstream-артефакты; `prompt_parts`:
-промпт-шаблоны и каждый приложенный документ) — решение о cache hit они не
-меняют, только объясняют в `llm status`/`llm generate`, что изменилось.
-`orchestrator <задача> llm accept` записывает текущие хеши без вызова модели (см.
-"Запуск").
-
-Кэш хранит и сами значения частей входа (`input_values`) — по ним
-следующий прогон в режиме доработки показывает модели "было → стало".
-Текущие файлы шага в хеш не входят: это контекст доработки, а не вход —
-ручная правка файла не делает шаг `stale`.
-
-`--force`/`--fresh` в CLI полностью обходят этот механизм для явной
-принудительной перегенерации (`--force` — доработкой текущих файлов,
-`--fresh` — с нуля).
-
-## Правило эскалации при неуверенности
-
-Это правило применяется к промптам всех шагов (см. `prompts/*/system.md`):
-
-- Если для ответа не хватает данных, явно заданных автором в спеке (в первую
-  очередь — asymптотика, точность вещественного ответа, поведение на
-  граничных случаях, которые не описаны в `special_guarantees`) — модель
-  обязана **не додумывать**, а вернуть структурированный ответ с полем
-  `uncertain: true` и конкретным указанием, какого именно поля спека не
-  хватает.
-- Если данных достаточно, но решение неоднозначно (например, автор не
-  указал верхнюю границу переменной, `max: null`) — модель может предложить
-  вариант, но обязана явно пометить его как `status: proposed` (не
-  `status: confirmed`), и указать, на основании чего сделано предположение.
-- Ссылки на источники за пределами приложенных `tutorials/*.md` (например,
-  на testlib-документацию) допустимы, но должны быть явными URL, а не
-  пересказом "по памяти".
-- Оркестратор (Python-код) должен различать эти два случая механически:
-  ответ с `uncertain: true` останавливает пайплайн для этого problem_id и
-  требует правки спека; ответ с `status: proposed` полях — не останавливает
-  пайплайн, но помечает соответствующие файлы/поля в `problems/` как
-  требующие ручной проверки автором (например, суффиксом `# PROPOSED,
-  REVIEW ME` в сгенерированном файле или отдельным полем в
-  `constraints.yaml`).
-
-### Предложения модели сверх спека
-
-"Не додумывать" относится к тому, что задаёт автор, а не к собственным
-идеям модели. Решения автора — асимптотика, по которой выбираются
-ограничения, алгоритм эталонного решения, заказанные решения и тесты —
-модель реализует как заданы и своими не подменяет. Но если она видит то,
-чего в спеке нет, автор хочет об этом узнать, поэтому сверх заказанного
-модель может предложить своё — с `kind: suggestion` в `notes` (и не ниже
-`status: proposed` у ответа, если добавлены файлы):
-
-- `solutions_draft` — другое верное решение (лучшая асимптотика, чем
-  `intended_complexity`, — с замечанием, не пересмотреть ли ограничения;
-  заметно более простое) и вероятные ошибки участников, которых нет в
-  `known_wrong_approaches`, — отдельными файлами;
-- `tests_plan` — тесты под ошибки и граничные случаи, не покрытые
-  заказанными автором, — отдельными генераторами и блоками плана со
-  `status: suggestion` (`generators_draft` и `test_script_draft` переносят
-  их в код с комментарием `SUGGESTION: ...`, своего не добавляют);
-- `constraints_pick` — только заметками, не меняя `constraints.yaml`:
-  нестыковки `complexity_reasoning`, лимиты, при которых медленное решение
-  проходит, полезные группы.
-
-Файлы с идеями модели начинаются с комментария `SUGGESTION: ...` — автор
-видит их и в каталоге задачи, и на Polygon. `statement_draft`,
-`checker_draft` и `interactor_draft` своего не предлагают: условие,
-правило сравнения и поведение интерактора задаёт только автор. `tutorial_draft`
-предлагает своё только заметками, в разбор не пишет: его содержание задаёт драфт.
-
-Спек по черновику (`init --draft`) — место, где автор только формулирует
-свои решения, поэтому там модель дозаполняет и их (асимптотику, идею
-решения, правило сравнения в чекере), но каждое такое значение помечает
-прямо в спеке (`# PROPOSED, REVIEW ME: ...`, `# SUGGESTION: ...`): после
-проверки автором они становятся его решениями для всех шагов. Суть задачи
-(объекты, правила, вопрос) и сюжет легенды — только из черновика.
-
-## Маршрутизация моделей по критичности шага
-
-Критичные по содержанию шаги (там, где ошибка стоит дороже — неверная
-асимптотика, неверные ограничения, некорректное решение) идут через более
-сильную модель; механические/боилерплейт-шаги — через более быструю/дешёвую.
-
-| Шаг                        | Критичность | Предлагаемый класс модели |
-|-----------------------------|-------------|----------------------------|
-| `constraints_pick`          | высокая     | сильная модель             |
-| `solutions_draft`           | высокая     | сильная модель             |
-| `checker_draft`              | высокая (при неполном `custom_comparison_notes`) | средняя модель |
-| `statement_draft` (LaTeX)   | средняя     | средняя модель              |
-| `tests_plan`                | средняя — дизайн adversarial-тестов | средняя модель, high effort |
-| `generators_draft`          | низкая — реализация плана | средняя модель, medium effort |
-| `test_script_draft`         | низкая — реализация плана | средняя модель, medium effort |
-| `interactor_draft`          | высокая — протокол целиком, ошибка ломает все тесты | сильная модель |
-| `spec_from_draft` (`init --draft`) | высокая — спек вход всех шагов | сильная модель |
-| `tutorial_draft` (`llm tutorial`) | высокая — доказательства по просьбе автора | сильная модель |
-
-`checker_draft` формально механический, когда `custom_comparison_notes`
-полон и однозначен (перевод текстового описания в код по паттерну
-read_and_check) — но ошибка здесь дороже, чем в среднем механическом шаге:
-неверно реализованное сравнение может молча пропускать неверные решения или
-браковать верные, и это может остаться незамеченным долго. Средняя модель —
-компромисс: если на практике `custom_comparison_notes` часто оказывается
-недостаточно точным и шаг слишком часто уходит в `uncertain`
-(что само по себе не страшно — так и задумано), можно поднять шаг до сильной
-модели, как `constraints_pick`/`solutions_draft`.
-
-Подготовка тестов изначально была одним шагом (`generators_and_script`),
-помеченным как чисто механический, — это оказалось неточно дважды.
-Реализация генератора по уже готовой идее (из `generation.generator_ideas`)
-действительно механическая, но **придумывание** хитрых/adversarial тестов —
-самостоятельное рассуждение о том, как сломать конкретный неверный алгоритм,
-— не менее содержательная задача, чем `constraints_pick`; и одним вызовом
-с высоким effort и десятками файлов в ответе шаг не укладывался в таймаут
-вызова. Поэтому рассуждение вынесено в `tests_plan` (средняя модель, high
-effort, небольшой ответ), а код — в `generators_draft`/`test_script_draft`
-(средняя модель, medium effort). Если качество предложенных тестов будет
-слабым, следующий шаг эскалации — `tests_plan` до сильной модели, как у
-`constraints_pick`/`solutions_draft`.
-
-Классы моделей ("strong-model"/"medium-model"/"fast-model") и `effort` на
-шаг живут в `orchestrator/model_router.py` — этот модуль вендоронезависим,
-он не знает конкретных имён моделей. Соответствие класса конкретной модели
-вендора (например, `"strong-model" -> "claude-opus-5"`), авторизация, retry
-и формат структурированного вывода — всё это инкапсулировано в реализации
-`LLMClient` (`orchestrator/llm_client.py`), по умолчанию `ClaudeCodeClient`
-(`orchestrator/llm_clients/claude_code_client.py`: модели через Claude Code
-CLI, расход из лимитов подписки, а не с API-баланса — см.
-`docs/SETUP.md`); при `ORCHESTRATOR_LLM_BACKEND=anthropic-api` —
-`AnthropicClient` (`orchestrator/llm_clients/anthropic_client.py`, те же
-модели через Anthropic API). Промпты не должны
-зависеть от того, какая именно модель/вендор их выполняет — вся эта
-информация не должна течь в `prompts/`.
-
-## Как использовать приложенные материалы
-
-- `templates/tutorials/*.md` (кроме `polygon.md`) — это **правила**, а не справочный
-  материал "для общего развития". Промпты должны явно инструктировать
-  модель следовать им как обязательным ограничениям, а не как совету.
-  Правила разбиты по темам, и шаг получает только нужные ему
-  (`STEP_CONTEXT_DOCUMENTS`), поэтому правка одной темы инвалидирует кэш
-  только читающих её шагов. Файлы пишутся для модели: каждый
-  самодостаточен, без ссылок на другие файлы правил. `polygon.md` — справка
-  по интерфейсу Polygon, ни одному шагу не прикладывается.
-- `templates/problem_lib.h` и файлы учебных задач
-  `examples/<путь задачи>/` (`validator.cpp`, `checker.cpp`,
-  `generators/*.cpp`, `test_script`, `solutions/*`)
-  — это основа, которую нужно расширять, а не переизобретать. Если шаг
-  генерации создаёт новый генератор — он должен `#include "problem_lib.h"` и
-  следовать тем же соглашениям об именовании (`register...`, `opt<T>(...)`,
-  стиль `gen_test` из `generators/*.cpp`). У каждой задачи своя копия
-  `problem_lib.h` (`problems/<путь задачи>/problem_lib.h`, см.
-  `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`): шаблон — только её
-  начальное содержимое, правка шаблона в уже существующие копии не
-  попадает. Compile-check ищет `problem_lib.h` сначала в каталоге задачи,
-  потом в `templates/`; модели прикладывается шаблон.
-- `templates/` — общее для всех задач и прикладывается к шагам
-  всегда (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`); там же
-  `constraints_format.yaml` — формат результата `constraints_pick`, который
-  читают следующие шаги и `polygon push`, и `tests_plan_format.yaml` —
-  формат плана тестов. `examples/` — учебные
-  задачи, по каталогу `<вид входных данных>/<суть задачи>` на каждую
-  (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
-  спек `authoring/spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
-  служебные файлы оркестратора в них — кэш, логи, `polygon_state.json`,
-  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `.tests_cache/`, `llm_reports/`, `*.removed` — в `.gitignore`;
-  `limits.yaml` коммитится — актуальные TL/ML задачи, после подгонки на
-  Polygon они расходятся с `constraints.yaml`, и это нормально; ожидаемый по нему
-  результат `constraints_pick` — `authoring/constraints.yaml` рядом, `tests_plan`
-  — `authoring/tests_plan.yaml` (его генераторы — ровно `generators/*.cpp` с
-  теми же параметрами, и он покрывает все пункты спека); при правке
-  образцов держать их согласованными с ними и с `constraints_format.yaml`
-  — это проверяет `tests/test_example_templates.py`, там же compile-check
-  всех `.cpp` образцов).
-- `templates/solutions/<verdict>_<description>.<language>` — скелеты
-  решений (`ok.cpp`, `tl_ok_slowio.java`): способ ввода-вывода автора,
-  `solve()`, отдельное вычисление ответа и точка входа, без алгоритма;
-  язык скелета — его расширение. `solutions_draft` прикладывает все
-  скелеты каждого языка из `solutions.languages`, для которого референсы
-  не дали ни одного `ok`-решения (`extra_context_documents` в
-  `orchestrator/steps/solutions_draft.py`), — так ввод-вывод задан и без
-  референсов. Новый язык или вердикт — новый файл с расширением, как язык
-  назван в именах решений (`ok.kt`), код править не нужно.
-- Образцы (файлы других задач) прикладываются к вызову модели только как
-  **референсы спека** — поле `references` в корне спека (для всех шагов) и
-  в секциях шагов (только для своего шага), см. `docs/SPEC_FORMAT.md`,
-  "Референсы", и `orchestrator/references.py`. Референс — файл или каталог
-  в раскладке `problems/<путь задачи>/` (учебная задача из
-  `examples/`, прошлая задача автора в `problems/`); каждый шаг
-  берёт из каталога только свою часть (`REFERENCE_DOCUMENTS`), решения —
-  только на языках из `solutions.languages`. Без референсов шаг получает
-  только `templates/`. Содержимое референсов входит в хеш промпта
-  шага (см. "Кэширование по хешу спека"), сами пути `references` в
-  `input_hash` не входят. Спек и `constraints.yaml` референса модель видит
-  под путём без `authoring/` (`examples/<путь задачи>/constraints.yaml`,
-  `_context_document_key` в `orchestrator/steps/base.py`) — под тем же
-  именем, под которым шаг возвращает свой `constraints.yaml`. Промпты обязаны явно
-  разделять, что из образца переносить (каркас файла, ввод-вывод, функции
-  testlib, композицию генераторов через конвейер), а что нет (формат данных,
-  имена переменных и логику задачи-образца), и работать без образцов — см.
-  `docs/PROMPTS.md`, "Приложенные шаблоны как образцы".
+- Каждый генеративный шаг — чистая функция (спек + результаты предыдущих
+  шагов) → артефакты + отчёт о неуверенности. С тем же входом модель не
+  вызывается (кэш по хешу входа, промптов, приложенных документов и модели);
+  с изменённым — дорабатывает текущие файлы, а не пишет с нуля; ответ
+  применяется как `git merge`, неприменимое — в конфликты.
+- Модель не додумывает то, что задаёт автор: не хватает данных —
+  `uncertain` (останавливает пайплайн), неоднозначно — `status: proposed`
+  (помечается для ручной проверки), своё сверх спека — `kind: suggestion`.
+- Промпты вендоронезависимы: имена моделей и вендорская специфика живут
+  только в реализациях `LLMClient`, классы моделей — в `model_router.py`.
+- `templates/tutorials/*.md` — обязательные правила для модели, а не справка;
+  образцы из `examples/` и `templates/` расширяются, а не переизобретаются.
+- CLI: `orchestrator [--base-dir ...] <задача> <init|llm|local|polygon> ...`;
+  группы разделены по стоимости: `llm` (и `init --draft`) вызывает модель,
+  `polygon` ходит в сеть, `local` — ни то, ни другое.
 
 ## Git-workflow для разработки оркестратора
 
