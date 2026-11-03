@@ -18,9 +18,15 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
+
+try:
+    import fcntl
+except ImportError:  # Windows
+    fcntl = None
 
 from orchestrator.checks.compile_check import COMPILE_FLAGS, CompileResult
 
@@ -63,18 +69,15 @@ def caching_compile_check(
     def compile_check(path: Path, include_dirs: Path | Sequence[Path], **kwargs) -> CompileResult:
         dirs = [include_dirs] if isinstance(include_dirs, Path) else list(include_dirs)
         key = source_key(Path(path), dirs)
-        cached = cache_dir / f"{key}.bin" if key else None
-        if cached is None or not cached.is_file():
-            result = real(path, include_dirs, **kwargs)
-            if cached is None or not result.success or result.binary_path is None:
-                return result
-            # Через временный файл: параллельный процесс pytest не должен
-            # увидеть недописанный бинарь.
-            fd, partial = tempfile.mkstemp(dir=cache_dir, suffix=".partial")
-            os.close(fd)
-            shutil.copy2(result.binary_path, partial)
-            os.replace(partial, cached)
-            return result
+        if key is None:
+            return real(path, include_dirs, **kwargs)
+        cached = cache_dir / f"{key}.bin"
+        if not cached.is_file():
+            # Под pytest-xdist тот же исходник (стандартный чекер) нужен сразу
+            # нескольким процессам: собирает первый, остальные ждут его бинарь.
+            with _locked(cache_dir / f"{key}.lock"):
+                if not cached.is_file():
+                    return _compile_into(real, cached, path, include_dirs, **kwargs)
         os.utime(cached)
         fd, copy = tempfile.mkstemp(prefix=f"{Path(path).stem}_", suffix=".bin")
         os.close(fd)
@@ -82,6 +85,35 @@ def caching_compile_check(
         return CompileResult(success=True, stderr="", binary_path=Path(copy))
 
     return compile_check
+
+
+def _compile_into(
+    real: Callable[..., CompileResult], cached: Path, path: Path, include_dirs, **kwargs
+) -> CompileResult:
+    result = real(path, include_dirs, **kwargs)
+    if not result.success or result.binary_path is None:
+        return result
+    # Через временный файл: параллельный процесс pytest не должен
+    # увидеть недописанный бинарь.
+    fd, partial = tempfile.mkstemp(dir=cached.parent, suffix=".partial")
+    os.close(fd)
+    shutil.copy2(result.binary_path, partial)
+    os.replace(partial, cached)
+    return result
+
+
+@contextmanager
+def _locked(lock_path: Path) -> Iterator[None]:
+    """Межпроцессная блокировка на время сборки; без fcntl (Windows) — без неё."""
+    if fcntl is None:
+        yield
+        return
+    with open(lock_path, "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
 
 
 def prune(cache_dir: Path, max_age_days: float) -> None:
