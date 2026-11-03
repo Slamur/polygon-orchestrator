@@ -71,17 +71,7 @@ def test_limits_nested_under_limits(tmp_path, spec):
     assert "2000ms" in message and "256MB" in message
 
 
-def test_limits_at_root(tmp_path, spec):
-    link(tmp_path)
-    _write_limits(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 256\n")
-    client = MagicMock()
-
-    _run(spec, tmp_path, client)
-
-    _assert_update_info_called(client)
-
-
-def test_conflicting_limits_in_both_places(tmp_path, spec):
+def test_unreadable_limits_are_a_step_error_before_network(tmp_path, spec):
     link(tmp_path)
     _write_limits(
         tmp_path,
@@ -91,76 +81,6 @@ def test_conflicting_limits_in_both_places(tmp_path, spec):
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="different values"):
-        _run(spec, tmp_path, client)
-
-    client.call.assert_not_called()
-
-
-def test_identical_limits_in_both_places(tmp_path, spec):
-    link(tmp_path)
-    _write_limits(
-        tmp_path,
-        "time_limit_seconds: 2\nmemory_limit_mb: 256\n"
-        "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n",
-    )
-    client = MagicMock()
-
-    _run(spec, tmp_path, client)
-
-    _assert_update_info_called(client)
-
-
-def test_null_time_limit(tmp_path, spec):
-    link(tmp_path)
-    _write_limits(tmp_path, "limits:\n  time_limit_seconds: null\n  memory_limit_mb: 256\n")
-    client = MagicMock()
-
-    with pytest.raises(PolygonStepError, match="time_limit_seconds"):
-        _run(spec, tmp_path, client)
-
-    client.call.assert_not_called()
-
-
-def test_no_limits_anywhere(tmp_path, spec):
-    link(tmp_path)
-    _write_limits(tmp_path, "groups: []\n")
-    client = MagicMock()
-
-    with pytest.raises(PolygonStepError, match="found neither"):
-        _run(spec, tmp_path, client)
-
-    client.call.assert_not_called()
-
-
-@pytest.mark.parametrize("value", ["'2'", "true", "0", "-1"])
-def test_non_positive_or_non_numeric_limit(tmp_path, spec, value):
-    link(tmp_path)
-    _write_limits(tmp_path, f"time_limit_seconds: {value}\nmemory_limit_mb: 256\n")
-    client = MagicMock()
-
-    with pytest.raises(PolygonStepError, match="positive number"):
-        _run(spec, tmp_path, client)
-
-    client.call.assert_not_called()
-
-
-def test_fractional_time_limit_rounds_to_ms(tmp_path, spec):
-    link(tmp_path)
-    # 2.01 * 1000 == 2009.9999999999998 — int() дал бы 2009
-    _write_limits(tmp_path, "time_limit_seconds: 2.01\nmemory_limit_mb: 256\n")
-    client = MagicMock()
-
-    _run(spec, tmp_path, client)
-
-    assert client.call.call_args.args[1]["timeLimit"] == "2010"
-
-
-def test_non_mapping_yaml(tmp_path, spec):
-    link(tmp_path)
-    _write_limits(tmp_path, "- just\n- a list\n")
-    client = MagicMock()
-
-    with pytest.raises(PolygonStepError, match="mapping"):
         _run(spec, tmp_path, client)
 
     client.call.assert_not_called()

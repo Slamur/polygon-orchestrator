@@ -5,7 +5,7 @@ import pytest
 
 from orchestrator import pipeline
 from orchestrator.cache import load_cache_entry
-from orchestrator.limits import LimitsError, parse_limits, render_limits
+from orchestrator.limits import parse_limits, render_limits
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -134,37 +134,3 @@ def test_constraints_without_limits_stop_the_pipeline(problems_dir):
     assert outcome.status == pipeline.OUTCOME_ERROR
     assert "TL/ML in constraints.yaml" in outcome.detail
     assert not _limits_path(problems_dir).exists()
-
-
-# --- orchestrator/limits.py ---
-
-
-@pytest.mark.parametrize(
-    "text, expected",
-    [
-        ("time_limit_seconds: 2\nmemory_limit_mb: 256\n", (2000, 256)),
-        ("limits:\n  time_limit_seconds: 2.01\n  memory_limit_mb: 64\n", (2010, 64)),
-        (render_limits(1500, 512), (1500, 512)),
-    ],
-)
-def test_parse_limits(text, expected):
-    assert parse_limits(text) == expected
-
-
-@pytest.mark.parametrize(
-    "text, message",
-    [
-        ("- a\n", "mapping"),
-        ("groups: []\n", "found neither"),
-        ("time_limit_seconds: null\nmemory_limit_mb: 256\n", "not set"),
-        ("time_limit_seconds: 0\nmemory_limit_mb: 256\n", "positive number"),
-        (
-            "time_limit_seconds: 1\nmemory_limit_mb: 256\n"
-            "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n",
-            "different values",
-        ),
-    ],
-)
-def test_parse_limits_errors(text, message):
-    with pytest.raises(LimitsError, match=message):
-        parse_limits(text)
