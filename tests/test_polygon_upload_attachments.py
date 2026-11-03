@@ -3,39 +3,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.upload_attachments import STEP, STEP_NAME
+from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.upload_attachments import STEP
 from orchestrator.polygon.sync import PULLED_CONSTRAINTS_HEADER
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
 
 @pytest.fixture
 def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
-
-
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
-def _link(problems_dir: Path) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=POLYGON_ID,
-            created_at="2026-09-19T12:00:00+00:00",
-        ),
-        problems_dir=problems_dir,
-    )
 
 
 def _write_spec(problems_dir: Path) -> bytes:
@@ -53,11 +32,6 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     ).message
 
 
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "upload_attachments"
-
-
 def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
     _write_spec(problems_dir)
     client = MagicMock()
@@ -69,7 +43,7 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
 
 
 def test_missing_spec_file(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="spec.yaml"):
@@ -79,7 +53,7 @@ def test_missing_spec_file(problems_dir, spec):
 
 
 def test_uploads_spec_file_as_is_as_attachment(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     content = _write_spec(problems_dir)
     client = MagicMock()
 
@@ -99,7 +73,7 @@ def test_uploads_spec_file_as_is_as_attachment(problems_dir, spec):
 
 
 def test_incremental_run_skips_unchanged_spec(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_spec(problems_dir)
     _run(spec, problems_dir, MagicMock())
     client = MagicMock()
@@ -111,7 +85,7 @@ def test_incremental_run_skips_unchanged_spec(problems_dir, spec):
 
 
 def test_status_not_run_then_done_then_stale(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     content = _write_spec(problems_dir)
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"
 
@@ -137,7 +111,7 @@ def _uploaded(client) -> dict[str, bytes]:
 
 
 def test_uploads_constraints_and_draft_copies(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     spec_content = _write_spec(problems_dir)
     _write(problems_dir, "constraints.yaml", b"limits: {}\n")
     _write(problems_dir, "tests_plan.yaml", b"generators: []\n")
@@ -170,7 +144,7 @@ def test_uploads_constraints_and_draft_copies(problems_dir, spec):
 
 
 def test_constraints_pulled_as_limits_only_are_not_uploaded(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_spec(problems_dir)
     _write(problems_dir, "constraints.yaml", PULLED_CONSTRAINTS_HEADER.encode() + b"limits: {}\n")
     client = MagicMock()
@@ -181,7 +155,7 @@ def test_constraints_pulled_as_limits_only_are_not_uploaded(problems_dir, spec):
 
 
 def test_incremental_run_uploads_only_changed_attachments(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_spec(problems_dir)
     _write(problems_dir, "constraints.yaml", b"limits: {}\n")
     _run(spec, problems_dir, MagicMock())

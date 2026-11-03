@@ -5,16 +5,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.polygon.client import PolygonApiError
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.upload_solutions import STEP, STEP_NAME
+from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.upload_solutions import STEP
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
 SOLUTIONS = {
     "ok_py_main_draft.py": b"print(1)\n",
     "ok_cpp_alt_draft.cpp": b"int main() {}\n",
@@ -27,23 +24,6 @@ SOLUTIONS = {
 @pytest.fixture
 def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
-
-
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
-def _link(problems_dir: Path) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=POLYGON_ID,
-            created_at="2026-09-19T12:00:00+00:00",
-        ),
-        problems_dir=problems_dir,
-    )
 
 
 def _solutions_dir(problems_dir: Path) -> Path:
@@ -81,11 +61,6 @@ def _client_with_solutions(solutions: list[dict]) -> MagicMock:
     return client
 
 
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "upload_solutions"
-
-
 def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
     _write_solutions(problems_dir)
     client = MagicMock()
@@ -97,7 +72,7 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
 
 
 def test_missing_solutions_dir_points_to_solutions_draft(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="solutions_draft"):
@@ -107,7 +82,7 @@ def test_missing_solutions_dir_points_to_solutions_draft(problems_dir, spec):
 
 
 def test_empty_solutions_dir_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _solutions_dir(problems_dir)
     client = MagicMock()
 
@@ -118,7 +93,7 @@ def test_empty_solutions_dir_is_an_error(problems_dir, spec):
 
 
 def test_filename_without_scheme_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_main_draft.cpp": b"", "solution.cpp": b""})
     client = MagicMock()
 
@@ -129,7 +104,7 @@ def test_filename_without_scheme_is_an_error(problems_dir, spec):
 
 
 def test_unknown_verdict_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_main_draft.cpp": b"", "xx_cpp_foo_bar.cpp": b""})
     client = MagicMock()
 
@@ -140,7 +115,7 @@ def test_unknown_verdict_is_an_error(problems_dir, spec):
 
 
 def test_uploads_each_solution_with_its_tag(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir)
     client = MagicMock()
 
@@ -165,7 +140,7 @@ def test_uploads_each_solution_with_its_tag(problems_dir, spec):
 
 
 def test_solutions_marked_removed_are_not_uploaded(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir,
         {"ok_cpp_alt_draft.cpp": b"int main() {}\n", "wa_cpp_old_draft.cpp.removed": b""},
@@ -178,7 +153,7 @@ def test_solutions_marked_removed_are_not_uploaded(problems_dir, spec):
 
 
 def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir,
         {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b"", "ok_cpp_alt_draft.cpp": b""},
@@ -195,7 +170,7 @@ def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
 
 
 def test_main_falls_back_to_java_without_cpp_ok(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir, {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b""}
     )
@@ -208,7 +183,7 @@ def test_main_falls_back_to_java_without_cpp_ok(problems_dir, spec):
 
 @pytest.mark.parametrize("py_name", ["ok_python_main_draft.py", "ok_python3_main_draft.py"])
 def test_python_language_aliases_win_main_over_unprioritized(problems_dir, spec, py_name):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {py_name: b"", "ok_pascal_alt_draft.pas": b""})
     client = MagicMock()
 
@@ -218,7 +193,7 @@ def test_python_language_aliases_win_main_over_unprioritized(problems_dir, spec,
 
 
 def test_cpp_language_alias_wins_main_over_java(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_c++_main_draft.cpp": b"", "ok_java_alt_draft.java": b""})
     client = MagicMock()
 
@@ -228,7 +203,7 @@ def test_cpp_language_alias_wins_main_over_java(problems_dir, spec):
 
 
 def test_no_ok_solution_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir, {"wa_cpp_offbyone_draft.cpp": b"", "tl_py_slow_draft.py": b""}
     )
@@ -243,7 +218,7 @@ def test_no_ok_solution_is_an_error(problems_dir, spec):
 def test_unprioritized_language_falls_back_to_alphabetical_with_warning(
     problems_dir, spec, caplog
 ):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir, {"ok_pascal_main_draft.pas": b"", "ok_pascal_alt_draft.pas": b""}
     )
@@ -259,7 +234,7 @@ def test_unprioritized_language_falls_back_to_alphabetical_with_warning(
 
 
 def test_existing_main_on_polygon_is_kept_when_new_solution_sorts_first(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_b_draft.cpp": b"", "ok_cpp_a_draft.cpp": b""})
     client = _client_with_solutions(
         [{"name": "ok_cpp_b_draft.cpp", "tag": "MA"}, {"name": "wa_cpp_c_draft.cpp", "tag": "WA"}]
@@ -271,7 +246,7 @@ def test_existing_main_on_polygon_is_kept_when_new_solution_sorts_first(problems
 
 
 def test_no_solution_gets_main_when_polygon_main_is_not_local(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_new_draft.cpp": b""})
     client = _client_with_solutions([{"name": "old_main.cpp", "tag": "MA"}])
 
@@ -281,7 +256,7 @@ def test_no_solution_gets_main_when_polygon_main_is_not_local(problems_dir, spec
 
 
 def test_polygon_main_keeps_tag_regardless_of_verdict_in_name(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "tl_cpp_slow_draft.cpp": b""})
     client = _client_with_solutions([{"name": "tl_cpp_slow_draft.cpp", "tag": "MA"}])
 
@@ -291,7 +266,7 @@ def test_polygon_main_keeps_tag_regardless_of_verdict_in_name(problems_dir, spec
 
 
 def test_solution_on_polygon_keeps_its_tag_instead_of_verdict_in_name(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir,
         {"ok_cpp_main_draft.cpp": b"", "wa_cpp_tagged_draft.cpp": b"", "wa_cpp_new_draft.cpp": b""},
@@ -313,7 +288,7 @@ def test_solution_on_polygon_keeps_its_tag_instead_of_verdict_in_name(problems_d
 
 
 def test_existing_solution_becomes_main_when_polygon_has_no_main(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "ok_py_alt_draft.py": b""})
     client = _client_with_solutions(
         [{"name": "ok_cpp_alt_draft.cpp", "tag": "OK"}, {"name": "ok_py_alt_draft.py", "tag": "TO"}]
@@ -325,7 +300,7 @@ def test_existing_solution_becomes_main_when_polygon_has_no_main(problems_dir, s
 
 
 def test_main_is_chosen_when_polygon_has_solutions_without_main(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b""})
     client = _client_with_solutions([{"name": "ok_py_old_draft.py", "tag": "OK"}])
 
@@ -335,7 +310,7 @@ def test_main_is_chosen_when_polygon_has_solutions_without_main(problems_dir, sp
 
 
 def test_nothing_changed_makes_no_requests(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir)
     _run(spec, problems_dir, MagicMock())
     client = MagicMock()
@@ -346,7 +321,7 @@ def test_nothing_changed_makes_no_requests(problems_dir, spec):
 
 
 def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir,
         {
@@ -371,7 +346,7 @@ def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
 
 
 def test_tle_is_tagged_tl(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir, {"ok_cpp_main_draft.cpp": b"", "tle_java_slow_draft.java": b""})
     client = MagicMock()
 
@@ -381,7 +356,7 @@ def test_tle_is_tagged_tl(problems_dir, spec):
 
 
 def test_save_solution_error_propagates_and_is_not_recorded(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir)
     client = MagicMock()
     client.call.side_effect = [[], None, PolygonApiError("problem.saveSolution", "boom")]
@@ -394,7 +369,7 @@ def test_save_solution_error_propagates_and_is_not_recorded(problems_dir, spec):
 
 
 def test_upload_is_recorded_in_polygon_state(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir)
 
     _run(spec, problems_dir, MagicMock())
@@ -405,7 +380,7 @@ def test_upload_is_recorded_in_polygon_state(problems_dir, spec):
 
 
 def test_incremental_run_uploads_only_changed_solution_with_its_tag(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(problems_dir)
     _run(spec, problems_dir, MagicMock())
     (problems_dir / PROBLEM_ID / "solutions" / "ok_py_main_draft.py").write_bytes(b"# changed\n")
@@ -419,7 +394,7 @@ def test_incremental_run_uploads_only_changed_solution_with_its_tag(problems_dir
 
 
 def test_status_not_run_then_done_then_stale(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     solutions_dir = _write_solutions(problems_dir)
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"
 
@@ -431,7 +406,7 @@ def test_status_not_run_then_done_then_stale(problems_dir, spec):
 
 
 def test_status_stale_after_rename_or_removal(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     solutions_dir = _write_solutions(problems_dir)
     _run(spec, problems_dir, MagicMock())
 
@@ -444,7 +419,7 @@ def test_status_stale_after_rename_or_removal(problems_dir, spec):
 
 
 def test_tl_ok_is_tagged_to(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_solutions(
         problems_dir, {"ok_cpp_main_draft.cpp": b"", "tl_ok_java_slowio_draft.java": b""}
     )

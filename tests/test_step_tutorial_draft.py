@@ -28,11 +28,6 @@ def _write(path: Path, content: str) -> Path:
 
 
 @pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
-@pytest.fixture
 def problem_dir(problems_dir):
     """Задача `p1` с драфтом, условием и двумя решениями."""
     directory = problems_dir / "p1"

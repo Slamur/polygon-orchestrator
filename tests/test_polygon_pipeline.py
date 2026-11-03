@@ -14,8 +14,8 @@ from orchestrator.polygon.pipeline import (
 from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
 from orchestrator.polygon.steps.base import PolygonStep, StepResult
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
+from polygon_sync_helpers import FIXTURES_DIR, PROBLEM_ID, link
+
 
 
 def _write_spec(
@@ -31,11 +31,6 @@ def _write_spec(
     spec_path = problems_dir / (dir_name or problem_id) / "authoring" / "spec.yaml"
     spec_path.parent.mkdir(parents=True, exist_ok=True)
     spec_path.write_text(content, encoding="utf-8")
-
-
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
 
 
 def _fake_step(
@@ -247,17 +242,7 @@ def _link(
     revision: int | None = 10,
     synced: dict[str, str] | None = None,
 ) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=polygon_id,
-            created_at="2026-09-19T12:00:00+00:00",
-            revision=revision,
-            synced=synced or {},
-        ),
-        problems_dir=problems_dir,
-    )
+    link(problems_dir, polygon_id=polygon_id, revision=revision, synced=synced)
 
 
 # Запись отметок версий файлов в конце push (`pipeline._record_stamps`).

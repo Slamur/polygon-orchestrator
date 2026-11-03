@@ -10,6 +10,7 @@ import pytest
 
 from orchestrator import cli, pipeline, step_order
 from orchestrator.polygon import pipeline as polygon_pipeline
+from orchestrator.polygon.steps.base import PolygonStep
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -120,4 +121,5 @@ def test_step_order_matches_registered_steps():
     assert list(pipeline._STEP_MODULES) == step_order.LLM_STEPS
     assert list(polygon_pipeline._POLYGON_STEPS) == step_order.POLYGON_STEP_ORDER
     for name, step in polygon_pipeline._POLYGON_STEPS.items():
+        assert isinstance(step, PolygonStep)
         assert step.name == name

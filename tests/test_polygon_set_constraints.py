@@ -3,33 +3,17 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.set_constraints import STEP, STEP_NAME
+from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.set_constraints import STEP
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
 
 @pytest.fixture
 def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
-
-
-def _link(problems_dir: Path) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=POLYGON_ID,
-            created_at="2026-09-19T12:00:00+00:00",
-        ),
-        problems_dir=problems_dir,
-    )
 
 
 def _write_limits(problems_dir: Path, content: str) -> None:
@@ -56,11 +40,6 @@ def _assert_update_info_called(client) -> None:
     assert params["outputFile"] == ""
 
 
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "set_constraints"
-
-
 def test_missing_polygon_state_points_to_create_problem(tmp_path, spec):
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     client = MagicMock()
@@ -72,7 +51,7 @@ def test_missing_polygon_state_points_to_create_problem(tmp_path, spec):
 
 
 def test_missing_limits_yaml_points_to_limits_from_constraints(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="limits_from_constraints"):
@@ -82,7 +61,7 @@ def test_missing_limits_yaml_points_to_limits_from_constraints(tmp_path, spec):
 
 
 def test_limits_nested_under_limits(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     client = MagicMock()
 
@@ -93,7 +72,7 @@ def test_limits_nested_under_limits(tmp_path, spec):
 
 
 def test_limits_at_root(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 256\n")
     client = MagicMock()
 
@@ -103,7 +82,7 @@ def test_limits_at_root(tmp_path, spec):
 
 
 def test_conflicting_limits_in_both_places(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(
         tmp_path,
         "time_limit_seconds: 1\nmemory_limit_mb: 256\n"
@@ -118,7 +97,7 @@ def test_conflicting_limits_in_both_places(tmp_path, spec):
 
 
 def test_identical_limits_in_both_places(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(
         tmp_path,
         "time_limit_seconds: 2\nmemory_limit_mb: 256\n"
@@ -132,7 +111,7 @@ def test_identical_limits_in_both_places(tmp_path, spec):
 
 
 def test_null_time_limit(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: null\n  memory_limit_mb: 256\n")
     client = MagicMock()
 
@@ -143,7 +122,7 @@ def test_null_time_limit(tmp_path, spec):
 
 
 def test_no_limits_anywhere(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "groups: []\n")
     client = MagicMock()
 
@@ -155,7 +134,7 @@ def test_no_limits_anywhere(tmp_path, spec):
 
 @pytest.mark.parametrize("value", ["'2'", "true", "0", "-1"])
 def test_non_positive_or_non_numeric_limit(tmp_path, spec, value):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, f"time_limit_seconds: {value}\nmemory_limit_mb: 256\n")
     client = MagicMock()
 
@@ -166,7 +145,7 @@ def test_non_positive_or_non_numeric_limit(tmp_path, spec, value):
 
 
 def test_fractional_time_limit_rounds_to_ms(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     # 2.01 * 1000 == 2009.9999999999998 — int() дал бы 2009
     _write_limits(tmp_path, "time_limit_seconds: 2.01\nmemory_limit_mb: 256\n")
     client = MagicMock()
@@ -177,7 +156,7 @@ def test_fractional_time_limit_rounds_to_ms(tmp_path, spec):
 
 
 def test_non_mapping_yaml(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "- just\n- a list\n")
     client = MagicMock()
 
@@ -195,7 +174,7 @@ def _status(problems_dir: Path) -> tuple[str, str]:
 
 
 def test_successful_run_records_sent_params(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     client = MagicMock()
 
@@ -205,7 +184,7 @@ def test_successful_run_records_sent_params(tmp_path, spec):
 
 
 def test_incremental_run_skips_unchanged_limits_and_sends_changed(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
     client = MagicMock()
@@ -221,7 +200,7 @@ def test_incremental_run_skips_unchanged_limits_and_sends_changed(tmp_path, spec
 
 
 def test_failed_api_call_records_nothing(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     client = MagicMock()
     client.call.side_effect = RuntimeError("network down")
@@ -238,14 +217,14 @@ def test_status_not_run_without_state(tmp_path):
 
 
 def test_status_not_run_when_linked_but_never_sent(tmp_path):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 256\n")
 
     assert _status(tmp_path) == ("not run", "")
 
 
 def test_status_done_after_run(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
 
@@ -254,7 +233,7 @@ def test_status_done_after_run(tmp_path, spec):
 
 def test_status_done_when_limits_move_between_root_and_limits(tmp_path, spec):
     # те же значения, другое расположение — отправили бы то же самое
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
     _write_limits(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 256\ngroups: []\n")
@@ -263,7 +242,7 @@ def test_status_done_when_limits_move_between_root_and_limits(tmp_path, spec):
 
 
 def test_status_stale_when_limits_changed(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 512\n")
@@ -272,7 +251,7 @@ def test_status_stale_when_limits_changed(tmp_path, spec):
 
 
 def test_status_stale_when_limits_yaml_removed(tmp_path, spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
     (tmp_path / PROBLEM_ID / "limits.yaml").unlink()
@@ -289,7 +268,7 @@ def interactive_spec():
 
 
 def test_interactive_spec_sets_interactive_flag(tmp_path, interactive_spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     client = MagicMock()
 
@@ -304,7 +283,7 @@ def test_interactive_spec_sets_interactive_flag(tmp_path, interactive_spec):
 
 def test_plain_spec_does_not_record_interactive_flag(tmp_path, spec):
     # У обычных задач флага в базе нет — как у синхронизированных до его появления.
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
 
     _run(spec, tmp_path, MagicMock())
@@ -313,7 +292,7 @@ def test_plain_spec_does_not_record_interactive_flag(tmp_path, spec):
 
 
 def test_switching_interactive_flag_reuploads_with_same_limits(tmp_path, spec, interactive_spec):
-    _link(tmp_path)
+    link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
 
