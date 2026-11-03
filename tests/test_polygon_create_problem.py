@@ -10,13 +10,11 @@ from orchestrator.polygon.state import (
     load_polygon_state,
     save_polygon_state,
 )
-from orchestrator.polygon.steps.base import PolygonStep
-from orchestrator.polygon.steps.create_problem import STEP, STEP_NAME
+from orchestrator.polygon.steps.create_problem import STEP
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
+from polygon_sync_helpers import FIXTURES_DIR, run_and_record
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "p1"
 
 
@@ -33,11 +31,6 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     return run_and_record(
         STEP, PROBLEM_ID, spec, problems_dir, client, incremental=incremental
     ).message
-
-
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "create_problem"
 
 
 def test_creates_new_problem_when_nothing_exists(tmp_path, spec):

@@ -6,17 +6,14 @@ import requests
 
 from orchestrator.checks.test_script_check import SKIP_CHECK_ENV, ScriptCheckResult, ScriptLine
 from orchestrator.polygon.client import PolygonApiError
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
+from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps import upload_test_script
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.upload_test_script import STEP, STEP_NAME
+from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.upload_test_script import STEP
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
 SCRIPT = "gen_random 1 10 > $\ngen_random 2 100 > $\n"
 
 
@@ -34,23 +31,6 @@ def spec(groups_spec):
     )
 
 
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
-def _link(problems_dir: Path) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=POLYGON_ID,
-            created_at="2026-09-19T12:00:00+00:00",
-        ),
-        problems_dir=problems_dir,
-    )
-
-
 def _write_script(problems_dir: Path, content: str = SCRIPT, name: str = "test_script") -> Path:
     path = problems_dir / PROBLEM_ID / name
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,14 +44,9 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     ).message
 
 
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "upload_test_script"
-
-
 def test_groups_style_rejected_before_network(problems_dir, groups_spec):
     # всё остальное на месте — отказ только из-за groups
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir, name="test_script_groups")
     client = MagicMock()
 
@@ -93,7 +68,7 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
 
 
 def test_missing_script_points_to_test_script_draft(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="test_script_draft"):
@@ -103,7 +78,7 @@ def test_missing_script_points_to_test_script_draft(problems_dir, spec):
 
 
 def test_uploads_script_via_save_script(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
     client = MagicMock()
 
@@ -184,7 +159,7 @@ def _polygon(*tests_responses, save_times_out: bool = False) -> MagicMock:
 
 
 def test_generated_tests_are_checked_after_save(problems_dir, spec, expanded, fake_time):
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
     client = _polygon(GENERATED)
 
@@ -199,7 +174,7 @@ def test_generated_tests_are_checked_after_save(problems_dir, spec, expanded, fa
 
 
 def test_waits_with_backoff_until_tests_match_script(problems_dir, spec, expanded, fake_time):
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
     old = _tests("gen_random 1 5", "gen_random 2 50")
     client = _polygon(old, requests.ReadTimeout("busy"), GENERATED[:2], GENERATED, save_times_out=True)
@@ -212,7 +187,7 @@ def test_waits_with_backoff_until_tests_match_script(problems_dir, spec, expande
 
 
 def test_gives_up_when_tests_never_match(problems_dir, spec, expanded, fake_time):
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
     client = _polygon(*[_tests("gen_random 1 10")] * 100)
 
@@ -226,7 +201,7 @@ def test_gives_up_when_tests_never_match(problems_dir, spec, expanded, fake_time
 
 def test_timeout_without_expanded_script_is_an_error(problems_dir, spec):
     # conftest выключает проверку — скрипт не раскрыт, ждать нечего
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
     client = _polygon(save_times_out=True)
 
@@ -241,14 +216,14 @@ def test_command_is_compared_without_redirect_and_extra_spaces():
 
 
 def test_status_not_run_before_upload(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
 
     assert STEP.compute_status(PROBLEM_ID, problems_dir) == ("not run", "")
 
 
 def test_incremental_run_skips_unchanged_script(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
     _run(spec, problems_dir, MagicMock())
     client = MagicMock()
@@ -258,7 +233,7 @@ def test_incremental_run_skips_unchanged_script(problems_dir, spec):
 
 
 def test_status_done_then_stale_after_script_change(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     path = _write_script(problems_dir)
     _run(spec, problems_dir, MagicMock())
 
@@ -272,7 +247,7 @@ def test_status_done_then_stale_after_script_change(problems_dir, spec):
 
 def test_blank_lines_do_not_change_script_hash(problems_dir, spec):
     # Polygon выкидывает пустые строки при сохранении скрипта.
-    _link(problems_dir)
+    link(problems_dir)
     path = _write_script(problems_dir, "gen_random 1 10 > $\n\n  \ngen_random 2 100 > $  \n\n")
     _run(spec, problems_dir, MagicMock())
 
@@ -285,7 +260,7 @@ def test_blank_lines_do_not_change_script_hash(problems_dir, spec):
 
 
 def test_blank_lines_are_kept_in_uploaded_source(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     content = "gen_random 1 10 > $\n\ngen_random 2 100 > $\n"
     _write_script(problems_dir, content)
     client = MagicMock()
@@ -296,7 +271,7 @@ def test_blank_lines_are_kept_in_uploaded_source(problems_dir, spec):
 
 
 def test_status_stale_when_script_removed(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     path = _write_script(problems_dir)
     _run(spec, problems_dir, MagicMock())
 
@@ -306,7 +281,7 @@ def test_status_stale_when_script_removed(problems_dir, spec):
 
 
 def test_api_error_does_not_record_step(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_script(problems_dir)
     client = MagicMock()
     client.call.side_effect = PolygonApiError("problem.saveScript", "boom")

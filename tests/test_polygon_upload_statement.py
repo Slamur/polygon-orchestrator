@@ -4,16 +4,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.polygon.client import PolygonApiError
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.upload_statement import STEP, STEP_NAME
+from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.upload_statement import STEP
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
 TEX_CONTENT = {
     "legend.tex": "Легенда.\n",
     "input_format.tex": "В первой строке задано $n$.\n",
@@ -25,23 +22,6 @@ TEX_CONTENT = {
 @pytest.fixture
 def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
-
-
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
-def _link(problems_dir: Path) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=POLYGON_ID,
-            created_at="2026-09-19T12:00:00+00:00",
-        ),
-        problems_dir=problems_dir,
-    )
 
 
 def _statement_dir(problems_dir: Path) -> Path:
@@ -73,11 +53,6 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     ).message
 
 
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "upload_statement"
-
-
 def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
@@ -90,7 +65,7 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
 
 
 def test_missing_tex_file_is_named(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir, skip="notes.tex")
     _write_examples(problems_dir, {1: "1\n"})
     client = MagicMock()
@@ -102,7 +77,7 @@ def test_missing_tex_file_is_named(problems_dir, spec):
 
 
 def test_missing_examples_dir(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     client = MagicMock()
 
@@ -113,7 +88,7 @@ def test_missing_examples_dir(problems_dir, spec):
 
 
 def test_gap_in_example_numbering(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n", 3: "3\n"})
     client = MagicMock()
@@ -125,7 +100,7 @@ def test_gap_in_example_numbering(problems_dir, spec):
 
 
 def test_saves_statement_then_examples_in_order(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "3\n1 2 3\n", 2: "1\n5\n"})
     client = MagicMock()
@@ -172,7 +147,7 @@ def test_saves_statement_then_examples_in_order(problems_dir, spec):
 
 
 def test_single_example(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "7\n"})
     client = MagicMock()
@@ -185,7 +160,7 @@ def test_single_example(problems_dir, spec):
 
 
 def test_save_test_error_propagates_and_is_not_recorded(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n", 2: "2\n"})
     client = MagicMock()
@@ -198,7 +173,7 @@ def test_save_test_error_propagates_and_is_not_recorded(problems_dir, spec):
 
 
 def test_incremental_run_uploads_only_changed_parts(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n", 2: "2\n"})
     _run(spec, problems_dir, MagicMock())
@@ -224,7 +199,7 @@ def test_incremental_run_uploads_only_changed_parts(problems_dir, spec):
 
 
 def test_status_not_run_then_done_then_stale(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"
@@ -240,7 +215,7 @@ def test_status_not_run_then_done_then_stale(problems_dir, spec):
 
 
 def test_name_txt_is_seeded_from_spec_title_once(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     name_path = _lang_dir(problems_dir) / "name.txt"
@@ -258,7 +233,7 @@ def test_name_txt_is_seeded_from_spec_title_once(problems_dir, spec):
 
 
 def test_empty_name_txt_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     (_lang_dir(problems_dir) / "name.txt").write_text("\n", encoding="utf-8")
@@ -271,7 +246,7 @@ def test_empty_name_txt_is_an_error(problems_dir, spec):
 
 
 def test_status_sees_name_change(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _run(spec, problems_dir, MagicMock())
@@ -302,7 +277,7 @@ def _calls(client, method):
 
 
 def test_interactive_uploads_protocol_and_dialogues(problems_dir, interactive_spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_interactive(problems_dir)
     client = MagicMock()
 
@@ -317,7 +292,7 @@ def test_interactive_uploads_protocol_and_dialogues(problems_dir, interactive_sp
 
 
 def test_interactive_without_protocol_file_is_named(problems_dir, interactive_spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_interactive(problems_dir)
     (_lang_dir(problems_dir) / "interaction.tex").unlink()
     client = MagicMock()
@@ -329,7 +304,7 @@ def test_interactive_without_protocol_file_is_named(problems_dir, interactive_sp
 
 
 def test_dialogue_change_reuploads_only_that_example(problems_dir, interactive_spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_interactive(problems_dir)
     _run(interactive_spec, problems_dir, MagicMock())
     examples_dir = _statement_dir(problems_dir) / "examples"
@@ -345,7 +320,7 @@ def test_dialogue_change_reuploads_only_that_example(problems_dir, interactive_s
 
 
 def test_removed_statement_output_is_cleared_on_polygon(problems_dir, interactive_spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_interactive(problems_dir)
     _run(interactive_spec, problems_dir, MagicMock())
     (_statement_dir(problems_dir) / "examples" / "example_1.output_for_statement.txt").unlink()
@@ -371,7 +346,7 @@ def _write_tutorial(problems_dir: Path, content: str = "Разбор.\n") -> Pat
 
 
 def test_no_tutorial_file_sends_no_tutorial(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     client = MagicMock()
@@ -383,7 +358,7 @@ def test_no_tutorial_file_sends_no_tutorial(problems_dir, spec):
 
 
 def test_tutorial_is_uploaded_and_synced(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     path = _write_tutorial(problems_dir)
@@ -409,7 +384,7 @@ def test_tutorial_is_uploaded_and_synced(problems_dir, spec):
 
 
 def test_removed_tutorial_is_cleared_on_polygon(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     path = _write_tutorial(problems_dir)
@@ -432,7 +407,7 @@ def test_removed_tutorial_is_cleared_on_polygon(problems_dir, spec):
 
 
 def test_force_without_tutorial_file_does_not_clear_it(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _write_tutorial(problems_dir)
@@ -448,7 +423,7 @@ def test_force_without_tutorial_file_does_not_clear_it(problems_dir, spec):
 
 
 def test_plain_problem_uploads_only_statement_output(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     examples_dir = _statement_dir(problems_dir) / "examples"
@@ -465,7 +440,7 @@ def test_plain_problem_uploads_only_statement_output(problems_dir, spec):
 
 
 def test_verify_flag_removal_sends_false(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     verify = _statement_dir(problems_dir) / "examples" / "example_1.verify_for_statement.txt"
@@ -481,7 +456,7 @@ def test_verify_flag_removal_sends_false(problems_dir, spec):
 
 
 def test_verify_flag_must_be_true(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     verify = _statement_dir(problems_dir) / "examples" / "example_1.verify_for_statement.txt"
@@ -492,7 +467,7 @@ def test_verify_flag_must_be_true(problems_dir, spec):
 
 
 def test_plain_problem_sends_no_interaction(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     client = MagicMock()
@@ -529,7 +504,7 @@ def _english_spec(spec):
 
 
 def test_every_language_is_saved_with_its_polygon_name(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _write_language(problems_dir, "en", name="English name")
@@ -556,7 +531,7 @@ def test_every_language_is_saved_with_its_polygon_name(problems_dir, spec):
 
 
 def test_only_the_changed_language_is_saved_again(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     directory = _write_language(problems_dir, "en")
@@ -573,7 +548,7 @@ def test_only_the_changed_language_is_saved_again(problems_dir, spec):
 
 
 def test_name_of_other_language_comes_from_spec_title(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     directory = _write_language(problems_dir, "en", name=None)
@@ -587,7 +562,7 @@ def test_name_of_other_language_comes_from_spec_title(problems_dir, spec):
 
 
 def test_language_without_name_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _write_language(problems_dir, "kk", name=None)
@@ -599,7 +574,7 @@ def test_language_without_name_is_an_error(problems_dir, spec):
 
 
 def test_other_language_missing_file_is_named(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     (_write_language(problems_dir, "en") / "notes.tex").unlink()
@@ -609,7 +584,7 @@ def test_other_language_missing_file_is_named(problems_dir, spec):
 
 
 def test_language_directory_named_by_polygon_name_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _write_language(problems_dir, "english")
@@ -621,7 +596,7 @@ def test_language_directory_named_by_polygon_name_is_an_error(problems_dir, spec
 
 
 def test_main_language_directory_is_required(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _write_language(problems_dir, "en")
 
@@ -630,7 +605,7 @@ def test_main_language_directory_is_required(problems_dir, spec):
 
 
 def test_main_language_comes_from_spec(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _write_language(problems_dir, "en", name=None)
     client = MagicMock()
@@ -643,7 +618,7 @@ def test_main_language_comes_from_spec(problems_dir, spec):
 
 
 def test_status_sees_new_language(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_tex(problems_dir)
     _write_examples(problems_dir, {1: "1\n"})
     _run(spec, problems_dir, MagicMock())

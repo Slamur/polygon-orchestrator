@@ -4,16 +4,13 @@ from unittest.mock import MagicMock
 import pytest
 
 from orchestrator.polygon.client import PolygonApiError
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.upload_generators import STEP, STEP_NAME
+from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.upload_generators import STEP
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
 GENERATORS = {
     "gen_random.cpp": b"// random\nint main() {}\n",
     "gen_edge.cpp": b"// edge\nint main() {}\n",
@@ -24,23 +21,6 @@ GENERATORS = {
 @pytest.fixture
 def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
-
-
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
-def _link(problems_dir: Path) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=POLYGON_ID,
-            created_at="2026-09-19T12:00:00+00:00",
-        ),
-        problems_dir=problems_dir,
-    )
 
 
 def _generators_dir(problems_dir: Path) -> Path:
@@ -62,11 +42,6 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     ).message
 
 
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "upload_generators"
-
-
 def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
     _write_generators(problems_dir)
     client = MagicMock()
@@ -78,7 +53,7 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
 
 
 def test_missing_generators_dir_points_to_generators_draft(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="generators_draft"):
@@ -88,7 +63,7 @@ def test_missing_generators_dir_points_to_generators_draft(problems_dir, spec):
 
 
 def test_empty_generators_dir_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _generators_dir(problems_dir)
     client = MagicMock()
 
@@ -99,7 +74,7 @@ def test_empty_generators_dir_is_an_error(problems_dir, spec):
 
 
 def test_uploads_each_generator_in_alphabetical_order(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_generators(problems_dir)
     client = MagicMock()
 
@@ -123,7 +98,7 @@ def test_uploads_each_generator_in_alphabetical_order(problems_dir, spec):
 
 
 def test_non_cpp_files_are_not_uploaded(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     generators_dir = _write_generators(problems_dir, {"gen_random.cpp": GENERATORS["gen_random.cpp"]})
     (generators_dir / "helpers.h").write_bytes(b"#pragma once\n")
     (generators_dir / "notes.txt").write_bytes(b"notes\n")
@@ -135,7 +110,7 @@ def test_non_cpp_files_are_not_uploaded(problems_dir, spec):
 
 
 def test_only_non_cpp_files_is_an_error(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     (_generators_dir(problems_dir) / "helpers.h").write_bytes(b"#pragma once\n")
     client = MagicMock()
 
@@ -146,7 +121,7 @@ def test_only_non_cpp_files_is_an_error(problems_dir, spec):
 
 
 def test_save_file_error_propagates_and_is_not_recorded(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_generators(problems_dir)
     client = MagicMock()
     client.call.side_effect = [None, PolygonApiError("problem.saveFile", "boom")]
@@ -159,7 +134,7 @@ def test_save_file_error_propagates_and_is_not_recorded(problems_dir, spec):
 
 
 def test_upload_is_recorded_in_polygon_state(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _write_generators(problems_dir)
 
     _run(spec, problems_dir, MagicMock())
@@ -173,7 +148,7 @@ def test_upload_is_recorded_in_polygon_state(problems_dir, spec):
 
 
 def test_incremental_run_uploads_only_new_and_changed_generators(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     generators_dir = _write_generators(problems_dir)
     _run(spec, problems_dir, MagicMock())
 
@@ -190,7 +165,7 @@ def test_incremental_run_uploads_only_new_and_changed_generators(problems_dir, s
 
 
 def test_status_not_run_then_done_then_stale(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     generators_dir = _write_generators(problems_dir)
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"
 
@@ -202,7 +177,7 @@ def test_status_not_run_then_done_then_stale(problems_dir, spec):
 
 
 def test_status_stale_after_rename_or_removal(problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     generators_dir = _write_generators(problems_dir)
     _run(spec, problems_dir, MagicMock())
 

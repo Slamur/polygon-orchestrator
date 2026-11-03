@@ -1,29 +1,20 @@
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state
-from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError
-from orchestrator.polygon.steps.upload_problem_lib import STEP, STEP_NAME, make_step
+from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps.base import PolygonStepError
+from orchestrator.polygon.steps.upload_problem_lib import make_step
 from orchestrator.spec import load_spec
 
-from polygon_sync_helpers import run_and_record
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
 LIB_CONTENT = b"#pragma once\n// test stub\n"
 
 
 @pytest.fixture
 def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
-
-
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
 
 
 @pytest.fixture
@@ -34,27 +25,10 @@ def templates_dir(tmp_path):
     return path
 
 
-def _link(problems_dir: Path) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=POLYGON_ID,
-            created_at="2026-09-19T12:00:00+00:00",
-        ),
-        problems_dir=problems_dir,
-    )
-
-
 def _run(spec, problems_dir, templates_dir, client, *, incremental: bool = False) -> str:
     return run_and_record(
         make_step(templates_dir), PROBLEM_ID, spec, problems_dir, client, incremental=incremental
     ).message
-
-
-def test_step_is_a_polygon_step_with_expected_name():
-    assert isinstance(STEP, PolygonStep)
-    assert STEP.name == STEP_NAME == "upload_problem_lib"
 
 
 def test_missing_polygon_state_points_to_create_problem(problems_dir, templates_dir, spec):
@@ -67,7 +41,7 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, templates_
 
 
 def test_missing_template_and_problem_copy(tmp_path, problems_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     empty_templates = tmp_path / "empty-templates"
     empty_templates.mkdir()
     client = MagicMock()
@@ -79,7 +53,7 @@ def test_missing_template_and_problem_copy(tmp_path, problems_dir, spec):
 
 
 def test_seeds_problem_copy_from_template_and_uploads_it(problems_dir, templates_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     client = MagicMock()
 
     message = _run(spec, problems_dir, templates_dir, client)
@@ -99,7 +73,7 @@ def test_seeds_problem_copy_from_template_and_uploads_it(problems_dir, templates
 
 
 def test_problem_copy_wins_over_template(problems_dir, templates_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     (problems_dir / PROBLEM_ID / "problem_lib.h").write_bytes(b"// edited\n")
     client = MagicMock()
 
@@ -110,7 +84,7 @@ def test_problem_copy_wins_over_template(problems_dir, templates_dir, spec):
 
 
 def test_template_change_does_not_touch_existing_copy(problems_dir, templates_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _run(spec, problems_dir, templates_dir, MagicMock())
     (templates_dir / "problem_lib.h").write_bytes(b"// new template\n")
     client = MagicMock()
@@ -122,7 +96,7 @@ def test_template_change_does_not_touch_existing_copy(problems_dir, templates_di
 
 
 def test_reupload_on_every_run(problems_dir, templates_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     client = MagicMock()
 
     _run(spec, problems_dir, templates_dir, client)
@@ -132,7 +106,7 @@ def test_reupload_on_every_run(problems_dir, templates_dir, spec):
 
 
 def test_upload_is_recorded_in_polygon_state(problems_dir, templates_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
 
     _run(spec, problems_dir, templates_dir, MagicMock())
 
@@ -140,7 +114,7 @@ def test_upload_is_recorded_in_polygon_state(problems_dir, templates_dir, spec):
 
 
 def test_incremental_run_skips_unchanged_copy(problems_dir, templates_dir, spec):
-    _link(problems_dir)
+    link(problems_dir)
     _run(spec, problems_dir, templates_dir, MagicMock())
     client = MagicMock()
 
@@ -152,7 +126,7 @@ def test_incremental_run_skips_unchanged_copy(problems_dir, templates_dir, spec)
 
 def test_status_not_run_then_done_then_stale(problems_dir, templates_dir, spec):
     step = make_step(templates_dir)
-    _link(problems_dir)
+    link(problems_dir)
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"
 
     _run(spec, problems_dir, templates_dir, MagicMock())

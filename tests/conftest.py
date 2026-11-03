@@ -29,3 +29,8 @@ def _cached_compile_check(monkeypatch, _compile_cache_dir):
     cached = caching_compile_check(compile_check.compile_check, _compile_cache_dir)
     for module in (base, local_tests, solutions_run):
         monkeypatch.setattr(module, "compile_check", cached)
+
+
+@pytest.fixture
+def problems_dir(tmp_path):
+    return tmp_path / "problems"

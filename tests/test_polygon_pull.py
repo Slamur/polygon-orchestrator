@@ -38,10 +38,7 @@ from orchestrator.polygon.steps.upload_test_script import normalize_script
 from orchestrator.steps.base import template_problem_lib_path
 from orchestrator.spec import load_spec
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-PROBLEM_ID = "example-problem"
-POLYGON_ID = 4242
+from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link
 
 
 class FakePolygon:
@@ -145,11 +142,6 @@ class FakePolygon:
 
 
 @pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
-@pytest.fixture
 def polygon():
     return FakePolygon()
 
@@ -159,17 +151,7 @@ def _statuses(result) -> dict[str, str]:
 
 
 def _link(problems_dir: Path, polygon_id: int = POLYGON_ID, *, revision: int | None = None) -> None:
-    save_polygon_state(
-        PROBLEM_ID,
-        PolygonState(
-            problem_id=PROBLEM_ID,
-            polygon_id=polygon_id,
-            created_at="2026-09-19T12:00:00+00:00",
-            revision=revision,
-            synced={"stale/key": "abc"},
-        ),
-        problems_dir=problems_dir,
-    )
+    link(problems_dir, polygon_id=polygon_id, revision=revision, synced={"stale/key": "abc"})
 
 
 def _synced(problems_dir: Path) -> dict[str, str]:

@@ -1,10 +1,36 @@
-"""Общее для тестов polygon-шагов: прогон шага так, как его прогоняет
-`run_polygon_pipeline`, — с базой синхронизации и записью загруженного."""
+"""Общее для тестов polygon-шагов: синтетическая задача, привязка её к
+Polygon и прогон шага так, как его прогоняет `run_polygon_pipeline`, — с
+базой синхронизации и записью загруженного."""
 
 from pathlib import Path
 
-from orchestrator.polygon.state import load_polygon_state, update_sync
+from orchestrator.polygon.state import PolygonState, load_polygon_state, save_polygon_state, update_sync
 from orchestrator.polygon.steps.base import PolygonStep, StepResult, run_step
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+PROBLEM_ID = "example-problem"
+POLYGON_ID = 4242
+
+
+def link(
+    problems_dir: Path,
+    *,
+    polygon_id: int = POLYGON_ID,
+    revision: int | None = None,
+    synced: dict[str, str] | None = None,
+) -> None:
+    """Задача `PROBLEM_ID` привязана к Polygon (`polygon_state.json`)."""
+    save_polygon_state(
+        PROBLEM_ID,
+        PolygonState(
+            problem_id=PROBLEM_ID,
+            polygon_id=polygon_id,
+            created_at="2026-09-19T12:00:00+00:00",
+            revision=revision,
+            synced=synced or {},
+        ),
+        problems_dir=problems_dir,
+    )
 
 
 def run_and_record(

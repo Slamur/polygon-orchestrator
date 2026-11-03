@@ -70,11 +70,6 @@ def _base_args(problems_dir: Path) -> list[str]:
     ]
 
 
-@pytest.fixture
-def problems_dir(tmp_path):
-    return tmp_path / "problems"
-
-
 def test_run_single_problem_prints_step_outcomes_and_exits_zero(problems_dir, tmp_path, capsys):
     _write_spec(problems_dir, "p1")
 
