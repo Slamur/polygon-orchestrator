@@ -11,8 +11,8 @@ paths:
 # Роль каждого генеративного шага, пункт 5: `checker_draft`
 
 Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека, модели) — в `.claude/rules/steps.md`, команды `llm` —
-в `.claude/rules/llm-commands.md`.
+предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
+`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
 
 5. **`checker_draft`** (опциональный, как и `solutions_draft`) — запускается,
    только если `checker.custom_needed: true` в спеке; если используется

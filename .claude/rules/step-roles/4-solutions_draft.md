@@ -11,8 +11,8 @@ paths:
 # Роль каждого генеративного шага, пункт 4: `solutions_draft`
 
 Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека, модели) — в `.claude/rules/steps.md`, команды `llm` —
-в `.claude/rules/llm-commands.md`.
+предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
+`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
 
 4. **`solutions_draft`** — вход: секция `solutions` спека +
    `constraints.intended_complexity` + текст `constraints.yaml` из
