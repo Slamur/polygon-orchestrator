@@ -451,7 +451,7 @@ def test_differing_limits_without_base_are_kept_without_overwrite(problems_dir, 
 
 def test_overwrite_replaces_limits_and_backs_them_up(problems_dir, polygon):
     original = "# tight\ntime_limit_seconds: 1\nmemory_limit_mb: 256\n"
-    path = _write(problems_dir / PROBLEM_ID, "limits.yaml", original)
+    _write(problems_dir / PROBLEM_ID, "limits.yaml", original)
 
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
