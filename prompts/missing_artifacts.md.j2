@@ -1,19 +1,19 @@
-## Дозапрос: в ответе не хватило файлов
+## Re-request: the response lacked files
 
-Ты уже ответил на это задание, но в ответе не было части файлов, которые
-шаг обязан вернуть:
+You have already answered this task, but the response lacked some of the files the
+step must return:
 {% for name in missing %}
 - `{{ name }}`
 {% endfor %}
 
-Файлы, которые ты вернул (содержимое — ниже), уже приняты: не повторяй и
-не меняй их. Верни в `artifacts` ТОЛЬКО недостающие файлы из списка выше,
-под этими же именами, — по тем же правилам, что и весь ответ, и
-согласованными с уже возвращёнными файлами. `unchanged`, `removed` и
-`renamed` оставь пустыми. `status` и `notes` — только про недостающие
-файлы; если для них не хватает данных — `uncertain`, как обычно.
+The files you returned (the contents are below) are already accepted: don't repeat or
+change them. Return in `artifacts` ONLY the missing files from the list above,
+under these same names — by the same rules as the whole response, and
+consistent with the files already returned. Leave `unchanged`, `removed` and
+`renamed` empty. `status` and `notes` — only about the missing
+files; if the data for them is insufficient — `uncertain`, as usual.
 
-### Файлы из твоего ответа
+### The files from your response
 
 {% for file in returned_files %}
 #### `{{ file.name }}`

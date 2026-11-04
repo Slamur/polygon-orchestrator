@@ -256,7 +256,7 @@ def test_user_prompt_includes_input_format_but_not_legend(spec, tmp_path):
     user_prompt = mock_call.call_args.args[2]
     statement = spec.statement_draft
     assert statement.formal_input_sketch.strip() in user_prompt
-    assert f"Индексация: {statement.indexing}" in user_prompt
+    assert f"Indexing: {statement.indexing}" in user_prompt
     for ex in statement.sample_examples:
         assert ex.input.strip() in user_prompt
     # deriving the asymptotics from the legend is forbidden — the step doesn't get the legend

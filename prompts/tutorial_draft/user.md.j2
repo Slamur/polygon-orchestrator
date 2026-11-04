@@ -1,14 +1,14 @@
-Задача problem_id: {{ problem_id }}.
+The problem problem_id: {{ problem_id }}.
 
-Язык условия и разбора: {{ language }}.
+The language of the statement and the tutorial: {{ language }}.
 
-## Драфт разбора (от автора)
+## The tutorial draft (from the author)
 
 ````
 {{ draft }}
 ````
 
-## Условие (источник обозначений)
+## The statement (the source of notation)
 
 {% for file in statement_files %}
 ### `{{ file.name }}`
@@ -18,10 +18,10 @@
 ````
 
 {% endfor %}
-## Примеры из условия
+## Statement examples
 
 {% for example in sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 
 Input:
 ````
@@ -35,7 +35,7 @@ Output:
 {% endif %}
 
 {% endfor %}
-## Решения автора (только чтобы понять драфт)
+## The author's solutions (only to understand the draft)
 
 {% if solutions %}
 {% for file in solutions %}
@@ -47,8 +47,8 @@ Output:
 
 {% endfor %}
 {% else %}
-Решения не приложены.
+No solutions are attached.
 {% endif %}
 
-Задача: напиши `tutorial.tex` по драфту выше — раскрой мысли автора и выполни
-его прямые просьбы, ничего не дописывая от себя.
+The task: write `tutorial.tex` from the draft above — expand the author's thoughts and fulfill
+their explicit requests, without adding anything of your own.

@@ -386,7 +386,7 @@ def test_user_prompt_marks_missing_sample_output(spec, tmp_path):
         spec_no_output, tmp_path, {"constraints.yaml": "n_max: 1"}
     )
 
-    assert "Output: автор не указал" in user_prompt
+    assert "Output: the author didn't give it" in user_prompt
 
 
 @pytest.mark.parametrize(

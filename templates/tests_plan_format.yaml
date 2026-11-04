@@ -1,54 +1,54 @@
-# Формат tests_plan.yaml — результата шага tests_plan. По нему шаг
-# generators_draft пишет генераторы (по записи generators — файл
-# generators/<name>.cpp), а шаг test_script_draft — test-script (по записям
-# constants и tests). Ни один из них не видит спека задачи: всё, что нужно
-# для реализации, должно быть в плане. Структура верхнего уровня обязательна;
-# значения ниже — заглушки <в угловых скобках>, а не образец содержания.
+# The format of tests_plan.yaml — the result of the tests_plan step. From it the
+# generators_draft step writes the generators (per generators entry — the file
+# generators/<name>.cpp), and the test_script_draft step — the test-script (from the
+# constants and tests entries). Neither of them sees the problem's spec: everything needed
+# for the implementation must be in the plan. The top-level structure is mandatory;
+# the values below are placeholders <in angle brackets>, not a sample of the content.
 #
-# Каждое решение помечается status:
-#   confirmed  — задано автором в спеке (генератор из generation.generator_ideas,
-#                тест из generation.specific_test_ideas на генераторах автора);
-#   proposed   — придумано моделью по заказу автора (тест или генератор под
-#                known_wrong_approaches, реализация specific_test_ideas, для
-#                которой у автора нет генератора, выбор параметров) —
-#                с обоснованием в rationale;
-#   suggestion — своя идея модели сверх заказанного автором — с обоснованием
-#                в rationale.
-problem_id: <problem_id из спека>
+# Each decision is marked with status:
+#   confirmed  — set by the author in the spec (a generator from generation.generator_ideas,
+#                a test from generation.specific_test_ideas on the author's generators);
+#   proposed   — invented by the model at the author's order (a test or a generator for
+#                known_wrong_approaches, an implementation of specific_test_ideas for
+#                which the author has no generator, the choice of parameters) —
+#                with a justification in rationale;
+#   suggestion — the model's own idea beyond what the author ordered — with a justification
+#                in rationale.
+problem_id: <problem_id from the spec>
 
-generators:                     # по записи на каждый генератор задачи, без повторов name
-  - name: "<gen_* | upd_*>"     # имя файла без .cpp: gen_* порождает вход или его начало,
-                                # upd_* читает готовый тест со stdin и преобразует его
+generators:                     # an entry for each generator of the problem, without repeated names
+  - name: "<gen_* | upd_*>"     # the file name without .cpp: gen_* produces the input or its beginning,
+                                # upd_* reads a ready test from stdin and transforms it
     status: <confirmed | proposed | suggestion>
-    params:                     # параметры командной строки (opt<T>("name")); нет — []
-      - name: "<имя параметра>"
+    params:                     # command-line parameters (opt<T>("name")); none — []
+      - name: "<parameter name>"
         type: <int | ll | bool | string>
-        description: "<смысл и допустимые значения>"
-    input: "<что читает со стандартного ввода (часть теста от предыдущего генератора цепочки) | null>"
-    output: "<что печатает: весь тест или его часть, в формате ввода задачи>"
+        description: "<meaning and allowed values>"
+    input: "<what it reads from standard input (the part of the test from the previous generator of the chain) | null>"
+    output: "<what it prints: the whole test or a part of it, in the problem's input format>"
     algorithm: |
-      <как строится тест — достаточно подробно, чтобы реализовать генератор
-      без спека: случайные выборы, как гарантируется корректность теста
-      (все ограничения и special_guarantees), при каких параметрах генератор
-      падает через ensuref>
-    rationale: |                # только при status: proposed | suggestion
-      <какую ошибку или случай ловит и почему тест на этом проваливается>
+      <how the test is built — detailed enough to implement the generator
+      without the spec: random choices, how the test's correctness is guaranteed
+      (all limits and special_guarantees), with which parameters the generator
+      fails via ensuref>
+    rationale: |                # only with status: proposed | suggestion
+      <which mistake or case it catches and why the test fails on it>
 
-constants:                      # именованные значения для команд в tests (в скрипте — <#assign>)
-  - name: "<имя, например maxN>"
-    value: "<число или выражение над другими constants, например 3 * 10^5 или maxN / 2>"
-    description: "<откуда значение: граница переменной из constraints.yaml, выбор модели, ...>"
+constants:                      # named values for the commands in tests (in the script — <#assign>)
+  - name: "<name, e.g. maxN>"
+    value: "<a number or an expression over other constants, e.g. 3 * 10^5 or maxN / 2>"
+    description: "<where the value comes from: a variable's bound from constraints.yaml, the model's choice, ...>"
 
-tests:                          # блоки скрипта в порядке генерации (tests.md, "Стандартный порядок тестов")
-  - description: "<что проверяет блок — строка description в скрипте>"
-    group: "<имя группы из test_groups constraints.yaml>"   # только если в constraints.yaml есть test_groups
+tests:                          # the script's blocks in generation order (tests.md, "The standard order of tests")
+  - description: "<what the block checks — the description line in the script>"
+    group: "<a group name from the test_groups of constraints.yaml>"   # only if constraints.yaml has test_groups
     status: <confirmed | proposed | suggestion>
-    covers:                     # какие пункты спека блок реализует; нет таких — [].
-                                # Списком по строке, как здесь: [a[0]] в одну строку — не YAML
-      - "<specific_test_ideas[<номер с 0>] | known_wrong_approaches[<номер с 0>]>"
-    commands:                   # по строке на тест: цепочка генераторов через |,
-                                # значения параметров — числа или имена из constants
+    covers:                     # which spec items the block implements; none — [].
+                                # As a list, a line per item, as here: [a[0]] on one line isn't YAML
+      - "<specific_test_ideas[<number from 0>] | known_wrong_approaches[<number from 0>]>"
+    commands:                   # a line per test: a chain of generators joined with |,
+                                # the parameter values — numbers or names from constants
       - "<gen_x -n=maxN -k=1 | upd_y>"
-    repeat: "<если блок — цикл: по каким значениям, например n = minN..smallMaxN | null>"
-    rationale: |                # только при status: proposed | suggestion
-      <почему такие тесты и параметры>
+    repeat: "<if the block is a loop: over which values, e.g. n = minN..smallMaxN | null>"
+    rationale: |                # only with status: proposed | suggestion
+      <why such tests and parameters>

@@ -1,97 +1,97 @@
-## Эталонное решение
+## The reference solution
 
-- По сути представляет собой видение того, каким должно быть ожидаемое решение участника.
+- Essentially represents the vision of what the expected contestant solution should be.
 
-- Реализуется на одном из ЯП, доступных для участников.
+- Implemented in one of the programming languages available to the contestants.
 
-- Используется для генерации ответов на тесты.
+- Used to generate the answers to the tests.
 
-- Может использовать следующие оптимизации:
+- May use the following optimizations:
 
-  - буферизованный ввод/вывод;
+  - buffered input/output;
 
-  - использование примитивных типов вместо ссылочных (объектных);
+  - using primitive types instead of reference (object) ones;
 
-  - другие оптимизации, являющиеся “обычными” для используемого языка.
+  - other optimizations that are "usual" for the language used.
 
-- (Очень желательно) Реализуется без применения излишних оптимизаций:
+- (Strongly preferred) Implemented without excessive optimizations:
 
-  - прагмы в C++;
+  - pragmas in C++;
 
-  - реализация коллекций на примитивах в Java;
+  - implementing collections on primitives in Java;
 
-  - посимвольный/побайтовый ввод;
+  - character-by-character/byte-by-byte input;
 
-  - дополнительные условные операторы на обход специфичных случаев (если это не влияет на общую асимптотику);
+  - additional conditionals to bypass specific cases (unless it affects the overall asymptotics);
 
-  - другие локальные оптимизации, не являющиеся важными для основной идеи решения.
+  - other local optimizations that aren't important for the main idea of the solution.
 
-## Дополнительные решения
+## Additional solutions
 
-- Корректные решения, использующие другой подход (полностью или частично);
+- Correct solutions using another approach (fully or partially);
 
-  - В том числе решения с другой асимптотикой, но ожидаемым вердиктом ОК.
+  - Including solutions with other asymptotics but the expected OK verdict.
 
-- Корректные решения на ЯП, отличных от языка эталонного решения.
+- Correct solutions in languages other than the reference solution's language.
 
-- Решения с неправильным ответом:
+- Wrong answer solutions:
 
-  - неверный подход;
+  - a wrong approach;
 
-  - ошибка в $\pm 1$;
+  - an off-by-one ($\pm 1$) mistake;
 
-  - пропуск одного из аспектов решения;
+  - missing one of the aspects of the solution;
 
-- Решения с превышением ограничений по времени / памяти;
+- Solutions exceeding the time / memory limits;
 
-  - “запрещенная” асимптотика с применением излишних оптимизаций;
+  - a "forbidden" asymptotics with excessive optimizations;
 
-    - обязательно реализовывать на C++, если это возможно.
+    - necessarily implemented in C++ if possible.
 
-  - “запрещенная” асимптотика с применением условий на специфичные виды тестов;
+  - a "forbidden" asymptotics with conditions on specific kinds of tests;
 
-    - обязательно реализовывать на C++, если это возможно.
+    - necessarily implemented in C++ if possible.
 
-  - ввод/вывод без ускорения
+  - input/output without speedup
 
-    - обязательно реализовывать на Java / Python, если это имеет смысл в рамках задачи.
+    - necessarily implemented in Java / Python if it makes sense for the problem.
 
-## Решения в Polygon
+## Solutions in Polygon
 
-- Шаблон названий: <verdict><language><description>_<author>.<extension>:
+- The name template: <verdict><language><description>_<author>.<extension>:
 
-  - verdict - ok / tl / wa / re / il или комбинации (tl_ok - "TL или OK";
-    il - Idleness limit exceeded, бывает только в интерактивной задаче);
+  - verdict — ok / tl / wa / re / il or combinations (tl_ok — "TL or OK";
+    il — Idleness limit exceeded, happens only in an interactive problem);
 
-  - language - обычно дублирует extension;
+  - language — usually duplicates the extension;
 
-  - Polygon игнорирует extension при сравнении имен файлов;
+  - Polygon ignores the extension when comparing file names;
 
-  - description - по сути теги решения;
+  - description — essentially the solution's tags;
 
-  - author - краткий псевдоним;
+  - author — a short nickname;
 
-- Ровно одно решение — Main correct: эталон для генерации ответов на тесты;
+- Exactly one solution is Main correct: the reference for generating the answers to the tests;
 
-- Стараемся делать OK на все различные идеи решений;
+- We try to make an OK for all different solution ideas;
 
-  - Обычно нежелательно слишком оптимизировать константу;
+  - It's usually undesirable to optimize the constant too much;
 
-  - Желательно иметь решение без оптимизации ввода/вывода (может быть “TL или OK”);
+  - It's preferable to have a solution without input/output optimization (may be "TL or OK");
 
-- Стараемся делать WA на все возможные опечатки / +-1 / ошибки в неравенствах;
+- We try to make a WA for all possible typos / +-1 / mistakes in inequalities;
 
-  - Если решение не проходит семплы, то оставляем только в случае, если проходит практически все тесты;
+  - If a solution doesn't pass the samples, we keep it only if it passes practically all tests;
 
-- Стараемся добавить TL на самом быстром языке;
+- We try to add a TL in the fastest language;
 
-  - Все доступные ускорения ввода/вывода;
+  - All available input/output speedups;
 
-  - Прагмы (для С++);
+  - Pragmas (for C++);
 
-  - Всевозможные эвристики / отсечения.
+  - All kinds of heuristics / pruning.
 
-- При разных неверных вердиктах ставим Incorrect.
+- With different wrong verdicts we set Incorrect.
 
 ## Source file characters
 

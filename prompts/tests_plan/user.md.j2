@@ -1,62 +1,62 @@
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Легенда (черновик автора — для понимания задачи и своих идей тестов, см.
-## пункт D системного сообщения)
+## Legend (the author's sketch — for understanding the problem and your own test ideas, see
+## item D of the system message)
 {{ statement.legend_sketch }}
 
-## Идея решения автора (из секции solutions, если она задана)
+## The author's solution idea (from the solutions section, if it's set)
 {% if solutions.algorithm_hint %}
 {{ solutions.algorithm_hint }}
 {% else %}
-(секция solutions отсутствует — идея решения не указана)
+(there's no solutions section — the solution idea isn't given)
 {% endif %}
 
-## Формат входных данных (из statement_draft спека)
+## Input format (from the spec's statement_draft)
 {{ statement.formal_input_sketch }}
 
-Индексация: {{ statement.indexing }}
+Indexing: {{ statement.indexing }}
 
-Входы примеров из условия (иллюстрация формата — генерируемые тесты должны
-печататься ровно в таком же виде):
+The inputs of the statement's examples (an illustration of the format — the generated tests must
+be printed in exactly the same form):
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-## Идеи по генераторам от автора
+## The author's generator ideas
 {% for g in generation.generator_ideas %}
 - name={{ g.name }}, params={{ g.params }}, purpose="{{ g.purpose }}"
 {% endfor %}
 
-## Конкретные тестовые сценарии, заказанные автором (не генераторы, а
-## конкретные тесты — см. пункт C системного сообщения; в `covers` —
-## specific_test_ideas[номер])
+## Concrete test scenarios ordered by the author (not generators, but
+## concrete tests — see item C of the system message; in `covers` —
+## specific_test_ideas[number])
 {% for t in generation.specific_test_ideas %}
 - [{{ loop.index0 }}] {{ t }}
 {% endfor %}
 {% if not generation.specific_test_ideas %}
-(автор не указал конкретных тестовых сценариев — действуй по правилу для
-этого случая из пункта C системного сообщения)
+(the author gave no concrete test scenarios — act by the rule for
+this case from item C of the system message)
 {% endif %}
 
-## Известные неверные подходы (из секции solutions, если она задана) —
-## источник для adversarial-тестов, см. пункт B системного сообщения; в
-## `covers` — known_wrong_approaches[номер]
+## Known wrong approaches (from the solutions section, if it's set) —
+## the source for adversarial tests, see item B of the system message; in
+## `covers` — known_wrong_approaches[number]
 {% for w in solutions.known_wrong_approaches %}
 - [{{ loop.index0 }}] {{ w }}
 {% endfor %}
 {% if not solutions or not solutions.known_wrong_approaches %}
-(секция solutions отсутствует или known_wrong_approaches пуст — adversarial-
-тесты не заказаны явно, действуй по правилу для этого случая из системного
-сообщения)
+(there's no solutions section or known_wrong_approaches is empty — adversarial
+tests aren't ordered explicitly, act by the rule for this case from the system
+message)
 {% endif %}
 
-## Стиль скрипта
-script_style: {{ generation.script_style }} (`groups` — тесты по группам, `flat` — без групп)
+## Script style
+script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat` — without groups)
 
-## Зафиксированные ограничения и тестовые группы (результат шага constraints_pick)
+## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-Задача: составь план тестов `tests_plan.yaml` по правилам из системного
-сообщения, используя зафиксированные ограничения выше как единственный
-источник диапазонов и групп.
+The task: make the test plan `tests_plan.yaml` by the rules from the system
+message, using the fixed limits above as the only
+source of ranges and groups.

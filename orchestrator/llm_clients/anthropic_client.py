@@ -53,8 +53,8 @@ _RESPONSE_TOOL_NAME = "submit_step_result"
 _RESPONSE_TOOL: dict[str, Any] = {
     "name": _RESPONSE_TOOL_NAME,
     "description": (
-        "Верни результат генеративного шага строго по контракту "
-        "status/artifacts/notes, описанному в docs/PROMPTS.md."
+        "Return the result of the generative step strictly by the "
+        "status/artifacts/notes contract described in docs/PROMPTS.md."
     ),
     "input_schema": RESPONSE_JSON_SCHEMA,
     "strict": True,

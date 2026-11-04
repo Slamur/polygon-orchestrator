@@ -1,46 +1,46 @@
-# Формат constraints.yaml — результата шага constraints_pick. Файл читают
-# следующие шаги (tests_plan и шаги после него) и оркестратор
-# (polygon push берёт TL/ML из limits), поэтому структура верхнего уровня
-# обязательна и одинакова для всех задач. Значения ниже — заглушки
-# <в угловых скобках>, а не образец содержания.
+# The format of constraints.yaml — the result of the constraints_pick step. The file is read by
+# the following steps (tests_plan and the steps after it) and the orchestrator
+# (polygon push takes the TL/ML from limits), so the top-level structure
+# is mandatory and the same for all problems. The values below are placeholders
+# <in angle brackets>, not a sample of the content.
 #
-# Каждое решение помечается status: confirmed (значение задано автором в
-# спеке) или status: proposed (значение предложено моделью — тогда с
-# обоснованием в rationale и записью в notes ответа модели).
-problem_id: <problem_id из спека>
-intended_complexity: "<constraints.intended_complexity из спека, как есть>"
+# Each decision is marked status: confirmed (the value is set by the author in the
+# spec) or status: proposed (the value is proposed by the model — then with a
+# justification in rationale and an entry in the model's response notes).
+problem_id: <problem_id from the spec>
+intended_complexity: "<constraints.intended_complexity from the spec, as is>"
 complexity_reasoning: |
-  <constraints.complexity_reasoning из спека, как есть>
+  <constraints.complexity_reasoning from the spec, as is>
 
-variables:                      # по записи на каждую переменную из constraints.variables спека
-  - name: "<имя>"
-    min: <число>
-    max: <число>
-    description: "<описание>"
+variables:                      # an entry for each variable from the spec's constraints.variables
+  - name: "<name>"
+    min: <number>
+    max: <number>
+    description: "<description>"
     status: <confirmed | proposed>
-    rationale: |                # только при status: proposed
-      <почему выбрано такое значение>
+    rationale: |                # only with status: proposed
+      <why this value was chosen>
 
 limits:
-  time_limit_seconds: <целое число секунд (или +0.5)>
-  memory_limit_mb: <число, кратное 256 (или 32/64/128 при основаниях)>
+  time_limit_seconds: <a whole number of seconds (or +0.5)>
+  memory_limit_mb: <a number, a multiple of 256 (or 32/64/128 if there are grounds)>
   status: <confirmed | proposed>
   rationale: |
-    <согласованность TL/ML с intended_complexity при максимальных значениях>
+    <the consistency of TL/ML with intended_complexity at the maximal values>
 
-test_groups:                    # только если группы нужны; иначе ключа нет вовсе
-  - name: "<имя группы>"        # поля — как у constraints.test_groups_hint в спеке
-    subset_of: "<имя группы | null>"
-    max_n: <число | null>
-    special_property: "<особенность тестов группы | null>"
+test_groups:                    # only if groups are needed; otherwise there's no key at all
+  - name: "<group name>"        # the fields — as in the spec's constraints.test_groups_hint
+    subset_of: "<group name | null>"
+    max_n: <number | null>
+    special_property: "<the special property of the group's tests | null>"
     status: <confirmed | proposed>
 
-validator:                      # validator.cpp реализует эту секцию 1-в-1
-  constants:                    # по записи на каждую переменную из variables
-    - name: "<имя>"
+validator:                      # validator.cpp implements this section 1-to-1
+  constants:                    # an entry for each variable from variables
+    - name: "<name>"
       cpp_type: <int | ll>
-      min: <число>
-      max: <число>
-  checks:                       # всё, что проверяет валидатор сверх min/max
-    - "<порядок чтения токенов и строк, по formal_input_sketch>"
-    - "<проверка для каждой special_guarantees>"
+      min: <number>
+      max: <number>
+  checks:                       # everything the validator checks beyond min/max
+    - "<the reading order of tokens and lines, by formal_input_sketch>"
+    - "<a check for each special_guarantees>"

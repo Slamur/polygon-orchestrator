@@ -1,153 +1,153 @@
-## Интерактивная задача
+## An interactive problem
 
-- В интерактивной задаче решение не читает тест само: оно общается с
-  **интерактором** — программой жюри, которая читает тест и отвечает на
-  запросы решения по **протоколу взаимодействия**.
+- In an interactive problem the solution doesn't read the test itself: it communicates with
+  the **interactor** — a jury program that reads the test and answers the
+  solution's queries by the **interaction protocol**.
 
-- Тест (вход интерактора) — это данные жюри, обычно скрытые от решения
-  (загаданное число, скрытый массив). Его проверяет валидатор и порождают
-  генераторы — так же, как вход обычной задачи. Решение видит только то,
-  что интерактор ему сообщил.
+- The test (the interactor's input) is the jury's data, usually hidden from the solution
+  (a hidden number, a hidden array). It's checked by the validator and produced by
+  the generators — the same as the input of a normal problem. The solution sees only what
+  the interactor told it.
 
-- Протокол задаёт автор: что решение получает в начале, формат запросов,
-  формат ответов интерактора, лимит числа запросов, как решение сообщает
-  итоговый ответ и что делает после него (обычно — завершается).
+- The protocol is set by the author: what the solution gets at the start, the query format,
+  the format of the interactor's answers, the limit on the number of queries, how the solution reports
+  the final answer and what it does after it (usually — exits).
 
-- Решение обязано сбрасывать буфер вывода после каждого запроса и после
-  итогового ответа, иначе интерактор не получит запрос, и решение получит
+- The solution must flush the output buffer after each query and after
+  the final answer, otherwise the interactor won't get the query, and the solution gets
   Idleness limit exceeded.
 
-## Условие интерактивной задачи
+## The statement of an interactive problem
 
-- Протокол — отдельный блок условия (Interaction в Polygon), в нём:
+- The protocol is a separate statement block (Interaction in Polygon), it has:
 
-  - что решение читает в самом начале (формат и ограничения, как в формате
-    ввода обычной задачи);
+  - what the solution reads at the very start (the format and the limits, as in the input
+    format of a normal problem);
 
-  - формат каждого запроса решения и ответа интерактора, по строке на
-    порцию данных, с ограничениями на значения;
+  - the format of each query of the solution and of each answer of the interactor, a line per
+    portion of data, with limits on the values;
 
-  - лимит числа запросов и что будет при его превышении или при
-    некорректном запросе (Wrong answer);
+  - the limit on the number of queries and what happens when it's exceeded or on an
+    invalid query (Wrong answer);
 
-  - формат итогового ответа и что решение делает после него;
+  - the format of the final answer and what the solution does after it;
 
-  - обязательное напоминание о сбросе буфера вывода после каждой выведенной
-    строки — с рекомендуемым способом для популярных языков:
+  - a mandatory reminder to flush the output buffer after each printed
+    line — with the recommended way for popular languages:
 
-    - C++: `std::endl` при выводе через `iostream` (`cout << ... << endl`),
-      `fflush(stdout)` после вывода через `stdio` (`printf`);
+    - C++: `std::endl` when printing via `iostream` (`cout << ... << endl`),
+      `fflush(stdout)` after printing via `stdio` (`printf`);
 
-    - Java: `System.out.println(...)`, а при выводе через другой поток
-      (`PrintWriter`, `BufferedWriter`) — его `flush()` после каждой строки;
+    - Java: `System.out.println(...)`, and when printing via another stream
+      (`PrintWriter`, `BufferedWriter`) — its `flush()` after each line;
 
-    - Python: `print(..., flush=True)` и чтение ответов через `input()`;
+    - Python: `print(..., flush=True)` and reading the answers via `input()`;
 
-  - адаптивный ли интерактор (может ли он менять скрытые данные в
-    зависимости от запросов, оставаясь согласованным с уже данными
-    ответами) — только если это сказано в протоколе автора.
+  - whether the interactor is adaptive (whether it may change the hidden data
+    depending on the queries, staying consistent with the answers already
+    given) — only if the author's protocol says so.
 
-- Формат ввода и формат вывода в интерактивной задаче короткие: что решение
-  получает в начале и ссылка на протокол взаимодействия; не описывай в них
-  тест, который читает интерактор (скрытые данные решению не сообщаются).
+- The input format and the output format in an interactive problem are short: what the solution
+  gets at the start and a reference to the interaction protocol; don't describe in them
+  the test the interactor reads (the hidden data isn't told to the solution).
 
-- Пример в условии — диалог решения с интерактором, а не тест:
+- An example in the statement is a dialogue of the solution with the interactor, not a test:
 
-  - слева (input for statement) — всё, что решение прочитало: начальные
-    данные и ответы интерактора;
+  - on the left (input for statement) — everything the solution read: the initial
+    data and the interactor's answers;
 
-  - справа (output for statement) — всё, что решение вывело: запросы и
-    итоговый ответ;
+  - on the right (output for statement) — everything the solution printed: the queries and
+    the final answer;
 
-  - реплики идут по строкам в порядке диалога; чтобы обе колонки читались
-    вместе, на месте реплики другой стороны оставляется пустая строка
-    (строка ответа интерактора стоит напротив пустой строки в выводе
-    решения и наоборот);
+  - the lines go in the order of the dialogue; so that both columns read
+    together, an empty line is left in place of the other side's line
+    (a line of the interactor's answer stands opposite an empty line in the solution's output
+    and vice versa);
 
-  - диалог строго соответствует протоколу и тесту примера: ответы
-    интерактора — те, которые он дал бы на этом тесте, запросы — корректные,
-    в пределах лимита.
+  - the dialogue strictly matches the protocol and the example's test: the interactor's
+    answers are those it would give on this test, the queries are correct,
+    within the limit.
 
-- В примечании к примеру поясняется, почему интерактор ответил именно так и
-  почему итоговый ответ верен.
+- The note to an example explains why the interactor answered exactly that way and
+  why the final answer is correct.
 
-## Интерактор
+## The interactor
 
-- Интерактор пишется на C++ с testlib и начинается с
+- The interactor is written in C++ with testlib and starts with
   `registerInteraction(argc, argv)`.
 
-- Потоки:
+- The streams:
 
-  - `inf` — тест (вход интерактора), читается методами testlib
-    (`inf.readInt()`, `inf.readInts(n)`) без повторной валидации — тест уже
-    проверен валидатором;
+  - `inf` — the test (the interactor's input), read with testlib methods
+    (`inf.readInt()`, `inf.readInts(n)`) without validating it again — the test is already
+    checked by the validator;
 
-  - `ouf` — вывод решения: запросы и итоговый ответ; читается в режиме
-    максимального недоверия, сразу в допустимых границах
-    (`ouf.readInt(1, n, "x")`, `ouf.readToken("[?!]", "type")`) — нарушение
-    формата или границ даёт вердикт решению, а не падение интерактора;
+  - `ouf` — the solution's output: the queries and the final answer; read in the mode of
+    maximal distrust, right within the allowed bounds
+    (`ouf.readInt(1, n, "x")`, `ouf.readToken("[?!]", "type")`) — a violation of the
+    format or the bounds gives the solution a verdict, not a crash of the interactor;
 
-  - `cout` — ответы интерактора решению; после каждого ответа —
-    `cout.flush()` (или `cout << endl`);
+  - `cout` — the interactor's answers to the solution; after each answer —
+    `cout.flush()` (or `cout << endl`);
 
-  - `tout` — выходной файл интерактора, который потом читает чекер как
-    вывод участника; что в него писать, задаёт автор.
+  - `tout` — the interactor's output file, which the checker then reads as the
+    participant's output; what to write into it is set by the author.
 
-- Вердикты: `quitf(_wa, ...)` — неверный запрос, превышен лимит, неверный
-  итоговый ответ; `quitf(_pe, ...)` — нарушение формата (testlib выдаёт его
-  сам при чтении из `ouf`); `quitf(_ok, ...)` — решение справилось;
-  `quitf(_fail, ...)` — ошибка жюри (противоречивый тест). Сообщение
-  вердикта — содержательное: какой запрос, какое значение, какой лимит.
+- Verdicts: `quitf(_wa, ...)` — an invalid query, the limit exceeded, a wrong
+  final answer; `quitf(_pe, ...)` — a format violation (testlib gives it
+  itself when reading from `ouf`); `quitf(_ok, ...)` — the solution succeeded;
+  `quitf(_fail, ...)` — a jury error (a contradictory test). The verdict's
+  message is meaningful: which query, which value, which limit.
 
-- Интерактор считает запросы и проверяет лимит до того, как отвечать на
-  запрос сверх лимита.
+- The interactor counts the queries and checks the limit before answering a
+  query beyond the limit.
 
-- Интерактор не доверяет решению: каждое прочитанное значение проверяется
-  на соответствие протоколу (диапазон, тип запроса, допустимость в текущем
-  состоянии), до ответа на запрос.
+- The interactor doesn't trust the solution: each value read is checked
+  for compliance with the protocol (the range, the query type, admissibility in the current
+  state), before answering the query.
 
-- Если решение завершилось раньше итогового ответа, чтение из `ouf`
-  выдаст вердикт само (неожиданный конец файла) — отдельно это не
-  обрабатывается.
+- If the solution exited before the final answer, reading from `ouf`
+  gives the verdict itself (an unexpected end of file) — this isn't handled
+  separately.
 
-- Неадаптивный интерактор берёт скрытые данные из теста целиком и не меняет
-  их. Адаптивный — только если это явно задано автором, и только так, как
-  задано: ответы остаются согласованными со всеми уже данными.
+- A non-adaptive interactor takes the hidden data from the test entirely and doesn't change
+  it. An adaptive one — only if the author set this explicitly, and only the way it's
+  set: the answers stay consistent with all those already given.
 
-## Решение интерактивной задачи
+## The solution of an interactive problem
 
-- Ввод-вывод — тот же, что у обычного решения автора, но вывод сбрасывается
-  после каждого запроса и после итогового ответа (быстрый буферизованный
-  вывод без сброса здесь не годится: интерактор не увидит запрос).
+- Input/output — the same as in the author's normal solution, but the output is flushed
+  after each query and after the final answer (fast buffered
+  output without flushing doesn't fit here: the interactor won't see the query).
 
-- Решение не читает ничего, кроме того, что сообщает интерактор по
-  протоколу, и не выводит ничего сверх протокола (отладочный вывод — только
-  в stderr).
+- The solution reads nothing except what the interactor tells it by the
+  protocol, and prints nothing beyond the protocol (debug output — only
+  to stderr).
 
-- Решение без сброса буфера вывода (`noflush`) — не TL: процесс решения не
-  тратит процессорное время, а ждёт ответа интерактора, которого не будет,
-  и получает Idleness limit exceeded. Вердикт такого решения в имени
-  файла — `il` (на Polygon — Incorrect, как RE), а не `tl` и не `tl_ok` —
-  даже если автор в пункте решения написал `tl`; в этом случае пиши `il` и
-  отметь замену в заметках. По языкам:
+- A solution without flushing the output buffer (`noflush`) isn't a TL: the solution's process doesn't
+  spend CPU time but waits for an answer from the interactor that won't come,
+  and gets Idleness limit exceeded. The verdict of such a solution in the
+  file name is `il` (on Polygon — Incorrect, like RE), not `tl` and not `tl_ok` —
+  even if the author wrote `tl` in the solution's item; in that case write `il` and
+  mark the replacement in the notes. By language:
 
-  - Java — вывод через `PrintWriter`/`BufferedWriter` без `flush()`;
+  - Java — output via `PrintWriter`/`BufferedWriter` without `flush()`;
 
-  - C++ — вывод через `cout` без `endl`/`flush()` при отвязанном вводе
-    (`ios_base::sync_with_stdio(false)` и `cin.tie(nullptr)`) или через
-    `printf` без `fflush(stdout)`. Если `cin` не отвязан от `cout`, чтение
-    из `cin` само сбрасывает `cout`, и такое решение проходит, — поэтому
-    `noflush`-решение на C++ обязательно отвязывает `cin`;
+  - C++ — output via `cout` without `endl`/`flush()` with untied input
+    (`ios_base::sync_with_stdio(false)` and `cin.tie(nullptr)`) or via
+    `printf` without `fflush(stdout)`. If `cin` isn't untied from `cout`, reading
+    from `cin` flushes `cout` itself, and such a solution passes — so a
+    `noflush` solution in C++ necessarily unties `cin`;
 
-  - Python — `print(...)` без `flush=True` и чтение ответов через
-    `sys.stdin.readline()` (в функции чтения строки). `print()` сам буфер
-    не сбрасывает, а `input()` сбрасывает `sys.stdout` перед чтением, и
-    решение с `input()` проходит, — поэтому `noflush`-решение на Python
-    читает через `sys.stdin.readline()`, а не через `input()`.
+  - Python — `print(...)` without `flush=True` and reading the answers via
+    `sys.stdin.readline()` (in the line-reading function). `print()` doesn't flush the buffer
+    itself, while `input()` flushes `sys.stdout` before reading, and a
+    solution with `input()` passes — so a `noflush` solution in Python
+    reads via `sys.stdin.readline()`, not via `input()`.
 
-  Если автор просит `noflush`-решение, которое по этим правилам сбросит
-  буфер само (C++ с привязанным `cin`, Python с `input()`), — пиши его в
-  `noflush`-варианте, описанном выше, и отметь это в заметках.
+  If the author asks for a `noflush` solution that by these rules would flush the
+  buffer itself (C++ with tied `cin`, Python with `input()`) — write it in the
+  `noflush` variant described above, and mark this in the notes.
 
 ## Source file characters
 

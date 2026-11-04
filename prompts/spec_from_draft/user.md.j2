@@ -1,38 +1,38 @@
 {% if revision %}
-Задача problem_id: {{ problem_id }}. Спек по черновику автора уже написан,
-автор поменял черновик — спек нужно доработать (режим доработки — ниже).
+The problem problem_id: {{ problem_id }}. The spec from the author's draft is already written,
+the author changed the draft — the spec needs revising (revision mode — below).
 
-## Черновик автора (новая версия)
+## The author's draft (the new version)
 
 {{ draft }}
 
-Задача: приведи текущий спек (`spec.yaml`, в конце запроса) в соответствие
-с новой версией черновика по правилам из системного сообщения: перенеси
-то, что в черновике изменилось, остальное оставь как есть.
+The task: bring the current spec (`spec.yaml`, at the end of the request) in line
+with the new version of the draft by the rules from the system message: carry over
+what changed in the draft, leave the rest as is.
 {% else %}
-Новая задача (problem_id: {{ problem_id }}).
+A new problem (problem_id: {{ problem_id }}).
 
-## Черновик автора
+## The author's draft
 
 {{ draft }}
 
 {% if reference %}
-## Основа — спек задачи-основы {{ reference }}
+## The base — the spec of the base problem {{ reference }}
 
-Черновик описывает новую задачу относительно неё: что черновик меняет —
-меняй, что не трогает и по-прежнему подходит — оставь как есть.
+The draft describes the new problem relative to it: what the draft changes —
+change, what it doesn't touch and still fits — leave as is.
 {% else %}
-## Основа — шаблон спека
+## The base — the spec template
 
-Заполни его по черновику.
+Fill it in from the draft.
 {% endif %}
 
 ~~~yaml
 {{ base_spec }}
 ~~~
 
-Задача: верни спек новой задачи целиком (`spec.yaml`) по правилам из
-системного сообщения. Всё из черновика сохрани; всё, чего в черновике нет,
-пометь комментарием `# PROPOSED, REVIEW ME: ...` или `# SUGGESTION: ...` и
-заметкой в `notes`.
+The task: return the whole spec of the new problem (`spec.yaml`) by the rules from the
+system message. Keep everything from the draft; mark everything that isn't in the draft
+with a `# PROPOSED, REVIEW ME: ...` or `# SUGGESTION: ...` comment and
+a note in `notes`.
 {% endif %}

@@ -1,114 +1,114 @@
-## Стандартный порядок тестов
+## The standard order of tests
 
-1. Ручные примеры для условия;
+1. Hand-made examples for the statement;
 
-1. Ручные мелкие тесты (опционально);
+1. Hand-made small tests (optional);
 
-1. Сгенерированные мелкие тесты;
+1. Generated small tests;
 
-1. Сгенерированные тесты на крайние случаи;
+1. Generated tests for edge cases;
 
-1. Сгенерированные максимальные тесты;
+1. Generated maximal tests;
 
-1. Сгенерированные специфичные тесты.
+1. Generated specific tests.
 
-## Общие требования
+## General requirements
 
-- (Очень желательно) Используется только латиница.
+- (Strongly preferred) Only Latin characters are used.
 
-- Все строки завершаются символом перевода строки (даже последняя).
+- All lines end with a line break character (even the last one).
 
-- В конце строк нет лишних пробелов (если в задаче не требуется обратное).
+- There are no extra spaces at the end of lines (unless the problem requires otherwise).
 
-- Для всех массивов / многострочных текстов обязательно даны количество элементов / строк.
+- For all arrays / multi-line texts the number of elements / lines is necessarily given.
 
-## Тесты в условии
+## Tests in the statement
 
-- Должен быть хотя бы один тест (если это позволяет формат задачи).
+- There must be at least one test (if the problem's format allows it).
 
-## Ручные мелкие тесты
+## Hand-made small tests
 
-- (Очень желательно) Данные тесты не должны содержать тестов на крайние значения;
+- (Strongly preferred) These tests mustn't contain tests for edge values;
 
-- Не следует делать руками любые тесты, которые невозможно посчитать “на бумажке”.
+- Don't make by hand any tests that can't be computed "on paper".
 
-- Всегда идут после тестов в условии до всех сгенерированных.
+- They always go after the tests in the statement, before all generated ones.
 
-## Генераторы тестов
+## Test generators
 
-- Подавляющее большинство тестов должно быть создано с помощью генераторов.
+- The vast majority of tests must be created with generators.
 
-- **Генератор** - программа, выводящая в стандартный поток вывода ровно один тест по набору параметров.
+- A **generator** is a program printing exactly one test to the standard output by a set of parameters.
 
-- (Очень желательно) Генератор запускается в системе подготовки задачи (НЕ локально).
+- (Strongly preferred) The generator is run in the problem preparation system (NOT locally).
 
-- (Очень желательно) Генераторы пишутся на C++ с использованием [testlib.h](https://codeforces.com/testlib).
+- (Strongly preferred) Generators are written in C++ using [testlib.h](https://codeforces.com/testlib).
 
-- Параметры в генератор передаются через командную строку.
+- Parameters are passed to the generator via the command line.
 
-- Значение параметра — одно слово: без пробелов, кавычек и `>` (Polygon не принимает такие строки скрипта). Несколько значений в одном параметре передаются через запятую (`-p=3,5`) или отдельными параметрами (`-p1=3 -p2=5`).
+- A parameter's value is one word: without spaces, quotes and `>` (Polygon doesn't accept such script lines). Several values in one parameter are passed separated by commas (`-p=3,5`) or as separate parameters (`-p1=3 -p2=5`).
 
-- Генераторы могут работать в цепочках; каждый следующий генератор читает и модифицирует вывод предыдущего.
+- Generators can work in chains; each next generator reads and modifies the output of the previous one.
 
-- (Очень желательно) Вместо одного многофункционального генератора лучше делать множество мелких / локализованных и запускать в цепочке.
+- (Strongly preferred) Instead of one multi-purpose generator it's better to make many small / localized ones and run them in a chain.
 
-- Все ограничения задачи должны передаваться в качестве параметров (не должны быть константами в файле).
+- All of the problem's limits must be passed as parameters (mustn't be constants in the file).
 
-- В генератор не передается номер теста ни в каком виде.
+- The test number isn't passed to the generator in any form.
 
-## Testlib для генерации тестов
+## Testlib for generating tests
 
-- Рандом инициализируется от всей строки параметров.
+- The random is initialized from the whole parameter string.
 
-- Есть методы именования параметров командной строки (opt).
+- There are methods for naming command-line parameters (opt).
 
-- Есть методы генерации перемешивания, разбиений, перестановок и т.д.
+- There are methods for generating shuffles, partitions, permutations, etc.
 
-- Есть методы генерации строк по простому регэкспу.
+- There are methods for generating strings by a simple regexp.
 
-- Есть методы вывода массивов без завершающего пробела.
+- There are methods for printing arrays without a trailing space.
 
-## Общие рекомендации по генерации
+## General recommendations on generation
 
-- Случайные генераторы должны принимать все возможные ограничения на область генерации.
+- Random generators must accept all possible limits on the generation domain.
 
-- Крайние случаи (минимальные/максимальные значения того или иного ограничения) часто можно сделать через случайные генераторы с правильными параметрами.
+- Edge cases (the minimal/maximal values of some limit) can often be made with random generators with the right parameters.
 
-- Желательно делать крайние случаи на все ограничения (по возможности).
+- It's preferable to make edge cases for all limits (where possible).
 
-- Первыми полезно ставить несколько малых тестов различных размеров.
+- It's useful to put several small tests of different sizes first.
 
-- После малых тестов желательно как можно раньше поставить максимальные тесты, приводящие к TL / ML.
+- After the small tests it's preferable to put the maximal tests leading to TL / ML as early as possible.
 
-- Для специальных тестов лучше писать отдельные генераторы.
+- It's better to write separate generators for special tests.
 
-- (Очень желательно) Не следует делать несколько запусков генератора с одинаковыми параметрами, отличающихся только сидом рандома.
+- (Strongly preferred) Don't make several runs of a generator with identical parameters differing only in the random seed.
 
-## Скрипт генерации (опционально)
+## The generation script (optional)
 
-- Скрипт генерации - псевдопрограмма, описывающая порядок вызова генераторов.
+- The generation script is a pseudo-program describing the order of calling the generators.
 
-- По скрипту генерации должно быть возможно понять намерения при создании того или иного теста.
+- From the generation script it must be possible to understand the intentions behind creating each test.
 
-- Чем обобщеннее скрипт для создания группы тестов - тем лучше.
+- The more general the script for creating a group of tests — the better.
 
-## Тесты и скрипт в Polygon
+## Tests and the script in Polygon
 
-- Ответы на тесты генерируются запуском главного решения (Main correct).
+- The answers to the tests are generated by running the main solution (Main correct).
 
-- Тесты не загружаются из файлов: все, кроме тестовых примеров, создаются генераторами из скрипта.
+- Tests aren't uploaded from files: all of them, except the example tests, are created by the generators from the script.
 
-- Тестовые примеры добавляются вручную.
+- The example tests are added by hand.
 
-- Каждый запуск цепочки генераторов создает ровно один тест.
+- Each run of a generator chain creates exactly one test.
 
-- Скрипт пишется на FreeMarker.
+- The script is written in FreeMarker.
 
-- Не используйте магических констант:
+- Don't use magic constants:
 
-  - все лимиты зафиксированы в переменных;
+  - all limits are fixed in variables;
 
-  - имена генераторов — тоже в переменных.
+  - the generator names — in variables too.
 
 ## Source file characters
 

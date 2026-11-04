@@ -21,7 +21,7 @@ def _doc_blocks() -> dict[tuple[str, str], str]:
     blocks: dict[tuple[str, str], str] = {}
     # We split by the step headings, not by any `## `: there are lines with `## `
     # inside the user.md.j2 files themselves too.
-    headings = r"## (?:Шаг \d+|Спек по черновику)"
+    headings = r"## (?:Step \d+|Spec from a draft)"
     for section in re.split(rf"(?m)^(?={headings})", PROMPTS_DOC.read_text(encoding="utf-8")):
         heading = re.match(headings + r"[^\n]*?`(\w+)`", section)
         if not heading:
@@ -51,10 +51,10 @@ def test_prompts_doc_matches_prompt_file(step_name, filename):
 
 
 def test_prompts_doc_matches_revise_prompt():
-    section = PROMPTS_DOC.read_text(encoding="utf-8").split("## Режим доработки", 1)
-    assert len(section) == 2, "docs/PROMPTS.md has no 'Режим доработки' section"
+    section = PROMPTS_DOC.read_text(encoding="utf-8").split("## Revision mode", 1)
+    assert len(section) == 2, "docs/PROMPTS.md has no 'Revision mode' section"
     block = re.search(r"\n`````\n(.*?)\n`````\n", section[1], re.S)
-    assert block, "docs/PROMPTS.md has no revise.md.j2 block in 'Режим доработки'"
+    assert block, "docs/PROMPTS.md has no revise.md.j2 block in 'Revision mode'"
     prompt_text = (PROMPTS_DIR / "revise.md.j2").read_text(encoding="utf-8")
     assert block.group(1) == prompt_text.rstrip("\n"), (
         "docs/PROMPTS.md is out of sync with prompts/revise.md.j2"
@@ -62,8 +62,8 @@ def test_prompts_doc_matches_revise_prompt():
 
 
 def test_prompts_doc_matches_missing_artifacts_prompt():
-    section = PROMPTS_DOC.read_text(encoding="utf-8").split("## Дозапрос недостающих файлов", 1)
-    assert len(section) == 2, "docs/PROMPTS.md has no 'Дозапрос недостающих файлов' section"
+    section = PROMPTS_DOC.read_text(encoding="utf-8").split("## Re-requesting missing files", 1)
+    assert len(section) == 2, "docs/PROMPTS.md has no 'Re-requesting missing files' section"
     block = re.search(r"\n`````\n(.*?)\n`````\n", section[1], re.S)
     assert block, "docs/PROMPTS.md has no missing_artifacts.md.j2 block"
     prompt_text = (PROMPTS_DIR / "missing_artifacts.md.j2").read_text(encoding="utf-8")

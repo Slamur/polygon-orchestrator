@@ -1,63 +1,63 @@
-Ты пишешь интерактор (C++ с testlib) для интерактивной задачи, которая
-готовится в Polygon.
+You write an interactor (C++ with testlib) for an interactive problem being
+prepared in Polygon.
 
-Тебе приложены обязательные правила:
-- interactive.md — что такое интерактивная задача, потоки интерактора
-  (`inf` — тест, `ouf` — вывод решения, `cout` — ответы решению, `tout` —
-  файл для чекера), вердикты, недоверие к решению, сброс буфера.
-- problem_lib.h — общие типы и хелперы (`ll`, `vi`, `vll` и т.п.).
+You are given mandatory rules:
+- interactive.md — what an interactive problem is, the interactor's streams
+  (`inf` — the test, `ouf` — the solution's output, `cout` — the answers to the solution, `tout` —
+  the file for the checker), the verdicts, distrust of the solution, flushing the buffer.
+- problem_lib.h — shared types and helpers (`ll`, `vi`, `vll`, etc.).
 
-Кроме правил могут быть приложены образцы — файлы других задач, которые
-автор указал в спеке как референсы; образцов может не быть вовсе. Для этого
-шага это interactor.cpp — интерактор-образец — и spec.yaml той же задачи.
+Besides the rules, samples may be attached — files of other problems that
+the author listed in the spec as references; there may be no samples at all. For this
+step these are interactor.cpp — a sample interactor — and spec.yaml of the same problem.
 
-Как пользоваться интерактором-образцом.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Если в каталоге
-есть spec.yaml — это спек той задачи, и вместе с интерактором он даёт пару
-"спек → ожидаемый результат"; если spec.yaml нет — приложен только
-результат.
-ПЕРЕНОСИ из образца (и соблюдай, даже если образца нет) структуру и приёмы
-работы с testlib: `registerInteraction`, чтение теста из `inf`, чтение
-запросов из `ouf` сразу в допустимых границах, ответы в `cout` со сбросом
-буфера, вердикты через `quitf` с содержательным сообщением. НЕ ПЕРЕНОСИ
-протокол, формат теста и поведение интерактора задачи-образца — они берутся
-только из спека твоей задачи.
+How to use the sample interactor.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. If a directory
+has spec.yaml — it's the spec of that problem, and together with the interactor it gives a
+"spec → expected result" pair; if there's no spec.yaml — only the
+result is attached.
+CARRY OVER from the sample (and follow even if there's no sample) the structure and the techniques
+of working with testlib: `registerInteraction`, reading the test from `inf`, reading
+queries from `ouf` right within the allowed bounds, answers to `cout` with flushing the
+buffer, verdicts via `quitf` with a meaningful message. DON'T CARRY OVER
+the sample problem's protocol, test format and interactor behavior — they come
+only from your problem's spec.
 
-ГЛАВНОЕ ОГРАНИЧЕНИЕ: источники того, ЧТО делает интерактор, — только спек:
-- формат теста (`formal_input_sketch`, индексация, input примеров) — что и
-  в каком порядке интерактор читает из `inf`;
-- протокол взаимодействия (`interaction_sketch`) — что интерактор сообщает
-  решению в начале, какие запросы принимает, как на них отвечает, лимит
-  запросов, итоговый ответ;
-- поведение интерактора (`interactor.behavior_notes`) — адаптивный ли он,
-  как проверяется итоговый ответ, что считается ошибкой решения, что
-  интерактор пишет в `tout` для чекера.
-Ты не выводишь протокол и поведение из сюжета задачи и не додумываешь их.
-Если какой-то случай ими не покрыт (не сказано, что писать в `tout`;
-адаптивный ли интерактор; что делать с запросом сверх лимита или с
-некорректным запросом; как проверить итоговый ответ, если он может быть не
-единственным) — `status: uncertain` с точным указанием, чего не хватает,
-а не предположение "по смыслу задачи". Ошибка здесь особенно дорога:
-слишком мягкий интерактор пропустит неверное решение, слишком строгий или
-нарушающий протокол — сломает все тесты задачи.
+THE MAIN CONSTRAINT: the sources of WHAT the interactor does are only the spec:
+- the test format (`formal_input_sketch`, the indexing, the examples' input) — what and
+  in which order the interactor reads from `inf`;
+- the interaction protocol (`interaction_sketch`) — what the interactor tells
+  the solution at the start, which queries it accepts, how it answers them, the
+  query limit, the final answer;
+- the interactor's behavior (`interactor.behavior_notes`) — whether it's adaptive,
+  how the final answer is checked, what counts as a solution error, what the
+  interactor writes to `tout` for the checker.
+You don't derive the protocol and the behavior from the problem's plot and don't make them up.
+If some case isn't covered by them (it isn't said what to write to `tout`;
+whether the interactor is adaptive; what to do with a query beyond the limit or with
+an invalid query; how to check the final answer if it may not be
+unique) — `status: uncertain` stating exactly what's missing,
+not an assumption "by the meaning of the problem". A mistake here is especially costly:
+a too lenient interactor accepts a wrong solution, a too strict one or one
+violating the protocol breaks all of the problem's tests.
 
-Обязательные правила:
-1. Читай каждое значение из `ouf` методами testlib сразу в допустимых
-   границах (`ouf.readInt(min, max, "name")`, `ouf.readToken(pattern,
-   "name")`) — не пиши вручную `if`/`quitf` там, где testlib уже это умеет.
-2. Проверяй лимит запросов до ответа на запрос сверх лимита.
-3. После каждого ответа решению сбрасывай буфер (`cout << endl` или
+Mandatory rules:
+1. Read each value from `ouf` with testlib methods right within the allowed
+   bounds (`ouf.readInt(min, max, "name")`, `ouf.readToken(pattern,
+   "name")`) — don't write `if`/`quitf` by hand where testlib already can do it.
+2. Check the query limit before answering a query beyond the limit.
+3. After each answer to the solution flush the buffer (`cout << endl` or
    `cout.flush()`).
-4. Тест из `inf` читай без повторной валидации — он уже проверен
-   валидатором.
-5. В `tout` пиши ровно то, что задано в `behavior_notes`.
-6. `#include "problem_lib.h"`, как и в остальных C++-артефактах проекта.
+4. Read the test from `inf` without validating it again — it's already checked by
+   the validator.
+5. Write to `tout` exactly what's set in `behavior_notes`.
+6. `#include "problem_lib.h"`, as in the project's other C++ artifacts.
 
-Если спек достаточен и однозначен — `status: confirmed`. Если ты принял
-решение о деталях реализации, которые спек буквально не оговаривал, но
-которые не меняют поведение интерактора по сути (например, текст сообщений
-вердиктов) — `status: proposed` с обоснованием в `notes`.
+If the spec is sufficient and unambiguous — `status: confirmed`. If you made
+a decision on implementation details that the spec didn't literally stipulate, but
+that don't change the interactor's behavior in essence (e.g. the text of the verdict
+messages) — `status: proposed` with a justification in `notes`.
 
-Отвечай в формате JSON из контракта. `artifacts` — один файл `interactor.cpp`.
+Respond in the JSON format from the contract. `artifacts` — one file `interactor.cpp`.

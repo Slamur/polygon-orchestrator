@@ -1,62 +1,62 @@
-## Чекер
+## Checker
 
-- **Чекер** - программа, проверяющая корректность ответа участника.
+- A **checker** is a program checking the correctness of the participant's answer.
 
-- Чекер принимает через командную строку
+- The checker takes via the command line
 
-  - имя входного файла;
+  - the name of the input file;
   
-  - имя файла с ответом жюри (ожидаемым);
+  - the name of the file with the jury's (expected) answer;
   
-  - имя файла с ответом участника (полученным).
+  - the name of the file with the participant's (received) answer.
 
-- В случае ошибки выбрасывается вердикт:
+- On an error a verdict is thrown:
 
-  - “WA / PE” для ответа участника;
+  - "WA / PE" for the participant's answer;
   
-  - “CRASH” для ответа жюри.
+  - "CRASH" for the jury's answer.
 
-- (Очень желательно) Чекер пишется по концепции “[readAndCheck](https://codeforces.com/blog/entry/18431)”:
+- (Strongly preferred) The checker is written by the "[readAndCheck](https://codeforces.com/blog/entry/18431)" concept:
 
-  - Ответ считывается функцией, параметризуемой потоком ввода ответа (жюри / участника).
+  - The answer is read by a function parameterized by the answer's input stream (jury / participant).
   
-  - Данные ответа вводятся и валидируются: значения читаются сразу в допустимых границах.
+  - The answer's data is read and validated: the values are read right within the allowed bounds.
   
-    - Валидация на пробельные символы НЕ используется (если это не является частью задачи).
+    - Whitespace validation is NOT used (unless it's part of the problem).
   
-  - Данные проверяются на корректность и соответствие требованиям (подмножество валидации).
+  - The data is checked for correctness and compliance with the requirements (a subset of validation).
   
-  - Участник может вывести неверно любую часть ответа - лучше проверять в режиме максимального недоверия.
+  - The participant may print any part of the answer wrong — it's better to check in the mode of maximal distrust.
   
-  - Функция возвращает информацию, достаточную для сравнения ответов между собой.
+  - The function returns information sufficient for comparing the answers with each other.
   
-  - Функция НЕ проверяет оптимальность ответа.
+  - The function does NOT check the answer's optimality.
 
-- Если оба ответа являются валидными и корректными, то они сравниваются между собой.
+- If both answers are valid and correct, they're compared with each other.
 
-- В случае несоответствия выбрасывается соответствующий вердикт ошибки.
+- On a mismatch the corresponding error verdict is thrown.
 
-- При корректном ответе выбрасывается вердикт OK.
+- On a correct answer the OK verdict is thrown.
 
-- (Очень желательно) Чекеры пишутся на C++ с использованием [testlib.h](https://codeforces.com/testlib).
+- (Strongly preferred) Checkers are written in C++ using [testlib.h](https://codeforces.com/testlib).
 
-## [Testlib](https://codeforces.com/blog/entry/18431) для чекеров
+## [Testlib](https://codeforces.com/blog/entry/18431) for checkers
 
-- Потоки ввода: Instream inf, ans и ouf для ввода, ответа жюри и ответа участника.
+- Input streams: InStream inf, ans and ouf for the input, the jury's answer and the participant's answer.
 
-- Методы ввода те же, что в валидаторе: readInt / readLong (в заданных границах), readLine / readWord (с проверкой по паттерну), readInts / readLongs / readWords (массив в одной строке); для всех указывается “имя переменной”.
+- The input methods are the same as in the validator: readInt / readLong (within given bounds), readLine / readWord (checked against a pattern), readInts / readLongs / readWords (an array on one line); a "variable name" is given for all of them.
 
-- Не надо вызывать проверку на пробельные символы.
+- Don't call the whitespace check.
 
-- quitf: метод потока ввода, завершающий выполнение с заданным вердиктом и форматированным сообщением.
+- quitf: an input stream method ending the execution with a given verdict and a formatted message.
 
-- quitif: аналогично quitf, только завершает при невыполнении условия в первом аргументе.
+- quitif: the same as quitf, only it ends when the condition in the first argument is true.
 
-- ans.quitf/quitif: преобразуют вердикты _wa / _pe в вердикт _fail “под капотом”.
+- ans.quitf/quitif: turn the _wa / _pe verdicts into the _fail verdict "under the hood".
 
 ## Source file characters
 
-- The checker source contain only ASCII characters: comments, string literals and
+- The checker source contains only ASCII characters: comments, string literals and
   messages (`ensuref`, `quitf` and the like) are written in English. Some
   compilers, Polygon's among them, fail on non-ASCII characters in a source
   file; the orchestrator reports every line with them as an error.

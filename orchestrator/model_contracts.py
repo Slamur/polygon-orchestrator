@@ -56,17 +56,17 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
             "type": "string",
             "enum": ["confirmed", "proposed", "uncertain"],
             "description": (
-                "confirmed — все нужные данные были в спеке; proposed — "
-                "что-то намеренно домыслено там, где это разрешено (см. "
-                "notes); uncertain — не хватает обязательных данных, "
-                "artifacts может быть пустым/частичным."
+                "confirmed — all the needed data was in the spec; proposed — "
+                "something was deliberately inferred where it's allowed (see "
+                "notes); uncertain — mandatory data is missing, "
+                "artifacts may be empty/partial."
             ),
         },
         "artifacts": {
             "type": "array",
             "description": (
-                "Список файлов-артефактов: пары 'имя файла' + 'содержимое'. "
-                "В режиме доработки — только новые и изменённые файлы."
+                "The list of artifact files: pairs of 'file name' + 'contents'. "
+                "In revision mode — only new and changed files."
             ),
             "items": {
                 "type": "object",
@@ -86,8 +86,8 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
                     "field": {
                         "type": "string",
                         "description": (
-                            "Путь до поля спека/артефакта, к которому "
-                            "относится заметка, например "
+                            "The path to the spec/artifact field the note "
+                            "refers to, e.g. "
                             "'constraints.variables[1].max'."
                         ),
                     },
@@ -95,11 +95,11 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
                         "type": "string",
                         "enum": ["proposed", "uncertain", "changed", "suggestion"],
                         "description": (
-                            "changed — только в режиме доработки: что и "
-                            "почему изменено в файле (field — имя файла). "
-                            "suggestion — идея модели сверх спека (своё "
-                            "решение, тест, лучшая асимптотика), не замена "
-                            "решений автора."
+                            "changed — only in revision mode: what was changed "
+                            "in the file and why (field — the file name). "
+                            "suggestion — the model's idea beyond the spec (its own "
+                            "solution, test, better asymptotics), not a replacement "
+                            "of the author's decisions."
                         ),
                     },
                     "explanation": {"type": "string"},
@@ -111,17 +111,17 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
         "unchanged": {
             "type": "array",
             "description": (
-                "Режим доработки: имена текущих файлов шага, оставленных как "
-                "есть (в artifacts их не повторять). Иначе — пустой список."
+                "Revision mode: the names of the step's current files left as "
+                "is (don't repeat them in artifacts). Otherwise — an empty list."
             ),
             "items": {"type": "string"},
         },
         "removed": {
             "type": "array",
             "description": (
-                "Режим доработки: текущие файлы шага, которые больше не нужны. "
-                "Оркестратор их не удаляет, а помечает для автора. Иначе — "
-                "пустой список."
+                "Revision mode: the step's current files that are no longer needed. "
+                "The orchestrator doesn't delete them but marks them for the author. Otherwise — "
+                "an empty list."
             ),
             "items": {
                 "type": "object",
@@ -136,9 +136,9 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
         "renamed": {
             "type": "array",
             "description": (
-                "Режим доработки: переименования текущих файлов шага. Если "
-                "меняется и содержимое — файл кладётся в artifacts под новым "
-                "именем `to`. Иначе — пустой список."
+                "Revision mode: renames of the step's current files. If "
+                "the contents change too — the file goes into artifacts under the new "
+                "name `to`. Otherwise — an empty list."
             ),
             "items": {
                 "type": "object",

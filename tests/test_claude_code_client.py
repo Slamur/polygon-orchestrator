@@ -124,7 +124,7 @@ def test_generate_sends_user_prompt_via_stdin_and_system_prompt_with_documents_v
     call = fake.calls[0]
     assert call["input"] == "user text"
     assert call["system_prompt"].startswith("system text")
-    assert "--- Приложенный документ: tutorials/statement.md ---\nRULES" in call["system_prompt"]
+    assert "--- Attached document: tutorials/statement.md ---\nRULES" in call["system_prompt"]
     assert "user text" not in call["command"]
 
 

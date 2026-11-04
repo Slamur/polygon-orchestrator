@@ -297,7 +297,7 @@ def test_draft_spec_from_template_attaches_example_specs(base_dir, fake_model):
 
     (call,) = fake.calls
     assert "examples/array/sums/spec.yaml" in call["documents"]
-    assert "шаблон спека" in call["user"]
+    assert "the spec template" in call["user"]
     # An invalid spec is written anyway — it's a draft, the call isn't wasted.
     assert result.path.read_text(encoding="utf-8") == "problem_id: my-task\n"
     assert result.validation_errors
@@ -462,11 +462,11 @@ def test_cli_init_draft_revises_spec_by_changed_draft(base_dir, written_spec, fa
 
     (call,) = fake.calls
     # Revision mode: the whole current spec and the draft's "before → after".
-    assert "Режим доработки" in call["user"]
+    assert "Revision mode" in call["user"]
     assert "# author's edit" in call["user"]
     assert "Ещё: n до 10^5." in call["user"]
-    assert "Было:" in call["user"] and DRAFT_TEXT.strip() in call["user"]
-    assert "Основа — шаблон спека" not in call["user"]
+    assert "Before:" in call["user"] and DRAFT_TEXT.strip() in call["user"]
+    assert "The base — the spec template" not in call["user"]
 
     problem_dir = base_dir / "problems" / "my-task"
     spec_text = (written_spec / SPEC_FILENAME).read_text(encoding="utf-8")
@@ -526,7 +526,7 @@ def test_revision_without_draft_copy_says_changes_are_unknown(base_dir, written_
         examples_dir=base_dir / "examples",
     )
 
-    assert "Неизвестно: прошлый запуск не сохранил свой вход" in fake.calls[0]["user"]
+    assert "Unknown: the last run didn't save its input" in fake.calls[0]["user"]
     # The model returned no spec — nothing is touched, the draft isn't copied.
     assert result.path is None
     assert init.path.read_text(encoding="utf-8") == spec_before

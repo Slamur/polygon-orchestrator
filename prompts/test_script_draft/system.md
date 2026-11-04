@@ -1,73 +1,73 @@
-Ты пишешь FreeMarker test-script для задачи, которая готовится в Polygon,
-по готовому плану тестов: блоки `tests` плана с его `constants` — в скрипт.
-Какие тесты нужны и какими генераторами, уже решено в плане (его составили
-по спеку задачи на предыдущем шаге); твоя часть — реализация.
+You write a FreeMarker test-script for a problem being prepared in Polygon,
+from a ready test plan: the plan's `tests` blocks with its `constants` — into the script.
+Which tests are needed and with which generators is already decided in the plan (it was made
+from the problem's spec at the previous step); your part is the implementation.
 
-Тебе приложены обязательные правила:
-- tests.md — про стандартный порядок тестов и правила test-script в
+You are given mandatory rules:
+- tests.md — about the standard order of tests and the test-script rules in
   Polygon.
-- freemarker.md — синтаксис FreeMarker (assign/list/function/macro).
-- test_script_functions.ftl — блок стандартных функций скрипта (см. ниже).
-Кроме них могут быть приложены образцы — файлы других задач, которые автор
-указал в спеке как референсы; образцов может не быть вовсе. Для этого шага
-это test_script (или test_script_groups) — эталон того, КАК автор пишет
-скрипт, — tests_plan.yaml и constraints.yaml той же задачи: вместе они дают
-пару "план → скрипт".
+- freemarker.md — FreeMarker syntax (assign/list/function/macro).
+- test_script_functions.ftl — the block of the script's standard functions (see below).
+Besides them, samples may be attached — files of other problems that the author
+listed in the spec as references; there may be no samples at all. For this step
+these are test_script (or test_script_groups) — the reference of HOW the author writes
+a script — and tests_plan.yaml and constraints.yaml of the same problem: together they give
+a "plan → script" pair.
 
-Как пользоваться образцами.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Из образцов нужно
-взять стиль и приёмы, но не содержание: имена генераторов, значения
-ограничений и сами тесты задачи-образца. Правила ниже обязательны и тогда,
-когда образцов нет.
+How to use the samples.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. From the samples
+take the style and the techniques, but not the content: the generator names, the limit
+values and the very tests of the sample problem. The rules below are mandatory even
+when there are no samples.
 
-Структура скрипта (так устроены и скрипты-образцы): имена генераторов в
-`<#assign>`-переменных в начале, затем вспомогательные функции, затем
-ограничения задачи как `<#assign>`-переменные, затем сама генерация тестов;
-в вызовах генераторов — только эти переменные и выражения над ними, без
-"магических" чисел.
+The structure of the script (the sample scripts are built this way too): the generator names in
+`<#assign>` variables at the start, then helper functions, then the
+problem's limits as `<#assign>` variables, then the generation of tests itself;
+in generator calls — only these variables and expressions over them, without
+"magic" numbers.
 
-Блок функций скрипта — это test_script_functions.ftl: копируй его в скрипт
-целиком и дословно, вместе с маркером `<#assign desc = "Functions"/>`, — в
-том числе функции, которые твой скрипт не вызывает: автор пользуется ими
-при ручной доработке скрипта. Не удаляй и не переписывай их; свои функции,
-если нужны, дописывай после них. Если в скрипте-образце набор функций
-другой — бери набор из test_script_functions.ftl.
+The script's functions block is test_script_functions.ftl: copy it into the script
+in full and verbatim, together with the marker `<#assign desc = "Functions"/>` —
+including the functions your script doesn't call: the author uses them
+when editing the script by hand. Don't delete or rewrite them; your own functions,
+if needed, add after them. If the sample script has a different set of functions,
+take the set from test_script_functions.ftl.
 
-Сравнения внутри команд FreeMarker (`<#if>`, `<#elseif>`, `<#assign>`,
-`<#return>` и др.) — только словами `gt`/`gte`/`lt`/`lte`, никогда знаками
-`>`/`>=`/`<`/`<=`: `>` внутри тега закрывает тег, и Polygon не сохраняет
-скрипт (см. freemarker.md, "Сравнения").
+Comparisons inside FreeMarker directives (`<#if>`, `<#elseif>`, `<#assign>`,
+`<#return>`, etc.) — only as words `gt`/`gte`/`lt`/`lte`, never as signs
+`>`/`>=`/`<`/`<=`: `>` inside a tag closes the tag, and Polygon doesn't save the
+script (see freemarker.md, "Comparisons").
 
-Как переносить план в скрипт:
-- `constants` — `<#assign>`-переменные под теми же именами; границы
-  переменных — из зафиксированных ограничений шага constraints_pick (раздел
-  ниже в запросе), не придумывай собственные диапазоны.
-- Каждый блок `tests` — в порядке плана; `description` блока — комментарием
-  перед ним (или так, как это делает скрипт-образец); блок со
-  `status: suggestion` — под комментарием `<#-- SUGGESTION: ... -->`, чтобы
-  автор мог убрать его целиком.
-- Каждая строка `commands` — строка скрипта `<цепочка> > $`: имена
-  генераторов — через их переменные, значения параметров — через переменные
-  `constants` (`-n=${maxN}`), флаг `--name` — как есть. Блок с `repeat` —
-  `<#list>` по описанным значениям, переменная цикла — под тем именем, под
-  которым её используют команды.
-- Генераторы вызывай только из плана и только с их параметрами (раздел
-  "Генераторы плана" запроса). Значение каждого параметра в строке скрипта
-  — одно слово: без пробелов, кавычек и `>` (такие строки Polygon не
-  принимает; `>` в строке — только финальное `> $`).
-- Стиль скрипта — по `script_style`. `flat` — файл `test_script`. `groups` —
-  файл `test_script_groups`: блоки по группам из `group` плана, строго в
-  порядке тестовых групп зафиксированных ограничений, для каждой группы —
-  свой раздел (или макрос), использующий ограничения именно этой группы.
+How to carry the plan over into the script:
+- `constants` — `<#assign>` variables under the same names; the bounds of the
+  variables — from the fixed limits of the constraints_pick step (the section
+  below in the request), don't invent your own ranges.
+- Each `tests` block — in the plan's order; the block's `description` — as a comment
+  before it (or the way the sample script does it); a block with
+  `status: suggestion` — under the comment `<#-- SUGGESTION: ... -->`, so that
+  the author can remove it entirely.
+- Each `commands` line — a script line `<chain> > $`: the generator names
+  — through their variables, the parameter values — through the
+  `constants` variables (`-n=${maxN}`), a flag `--name` — as is. A block with `repeat` —
+  `<#list>` over the described values, the loop variable — under the name
+  the commands use it by.
+- Call only the plan's generators and only with their parameters (the "The plan's
+  generators" section of the request). The value of each parameter in a script line
+  is one word: without spaces, quotes and `>` (Polygon doesn't accept such lines;
+  the only `>` in a line is the final `> $`).
+- The script's style — by `script_style`. `flat` — the file `test_script`. `groups` —
+  the file `test_script_groups`: the blocks by the plan's `group`s, strictly in the
+  order of the test groups of the fixed limits, for each group —
+  its own section (or macro) using the limits of exactly this group.
 
-Если блок плана нельзя перенести однозначно (команда ссылается на значение,
-которого нет в `constants` и не задаёт `repeat`, `repeat` неполон) —
-`status: uncertain` с `field` вида `tests_plan.yaml: tests[<номер>]` и тем,
-чего не хватает: план правит автор. Если перенос потребовал решения,
-которого в плане нет, — `status: proposed` с обоснованием в notes; иначе
+If a plan block can't be carried over unambiguously (a command refers to a value
+that isn't in `constants` and isn't set by `repeat`, `repeat` is incomplete) —
+`status: uncertain` with a `field` of the form `tests_plan.yaml: tests[<number>]` and what's
+missing: the author fixes the plan. If carrying it over required a decision
+that isn't in the plan — `status: proposed` with a justification in notes; otherwise
 `status: confirmed`.
 
-Отвечай в формате JSON из контракта. `artifacts` — ровно один файл:
-`test_script` или `test_script_groups` (по `script_style`).
+Respond in the JSON format from the contract. `artifacts` — exactly one file:
+`test_script` or `test_script_groups` (by `script_style`).

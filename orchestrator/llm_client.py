@@ -92,5 +92,5 @@ def build_system_prompt(system_prompt: str, context_documents: dict[str, str] | 
 
     parts = [system_prompt]
     for path, content in context_documents.items():
-        parts.append(f"--- Приложенный документ: {path} ---\n{content}")
+        parts.append(f"--- Attached document: {path} ---\n{content}")
     return "\n\n".join(parts)

@@ -1,185 +1,185 @@
-## Система подготовки задач Polygon
+## The Polygon problem preparation system
 
-Официальный адрес: [polygon.codeforces.com](polygon.codeforces.com)
+The official address: [polygon.codeforces.com](polygon.codeforces.com)
 
-Система разработана командой сайта [Codeforces](https://codeforces.com/).
+The system is developed by the team of the [Codeforces](https://codeforces.com/) site.
 
-Импорт задач из Polygon поддерживается многими тестирующими системами.
+Importing problems from Polygon is supported by many judging systems.
 
-## Основные разделы задачи в Polygon
+## The main sections of a problem in Polygon
 
 ### General info
 
-- Настройки ввода/вывода (консоль / файлы);
+- Input/output settings (console / files);
 
-- Настройки TL / ML.
+- TL / ML settings.
 
-  - Настройки общие для всех языков.
-  - Codeforces поддерживает множители ограничений в мешапах / группах.
+  - The settings are shared by all languages.
+  - Codeforces supports limit multipliers in mashups / groups.
     
-- Флаг интерактивности (добавляет раздел Interactor).
+- The interactivity flag (adds the Interactor section).
 
-- Advanced-настройки:
+- Advanced settings:
 
-  - Очень специфичные настройки;
+  - Very specific settings;
   
-  - Актуальными являются функции копирования и переименования.
+  - The copy and rename functions are the relevant ones.
 
 ### Files
 
-- Содержит все служебные файлы (НЕ решения);
+- Contains all service files (NOT solutions);
 
 - Resource files
 
-  - Заголовочные и другие файлы для компиляции основных файлов (включая компиляцию решений).
+  - Headers and other files for compiling the main files (including compiling solutions).
   
   - testlib.h
   
-      - Обязательно жмем “auto-update”;
+      - Be sure to press "auto-update";
   
-      - Открываем в режиме “View / Edit” и поиском ищем нужные функции.
+      - Open it in the "View / Edit" mode and search for the needed functions.
 
-  - Также файлы с настройками LaTex
+  - Also files with LaTeX settings
 
 - Source files
 
-  - Валидатор;
+  - The validator;
   
-  - Чекер;
+  - The checker;
   
-  - Генераторы.
+  - Generators.
 
-    - Есть ссылка на примеры / инструкцию про генераторы.
+    - There's a link to examples / instructions on generators.
 
 - Attachments
 
-  - Все, что не относится ни к одной вышеописанной категории.
+  - Everything that doesn't belong to any of the categories above.
 
 ### Checker
 
-- Есть много стандартных
+- There are many standard ones
 
-  - Для целых чисел - ncmp;
+  - For integers — ncmp;
   
-  - Для длинной арифметики - hcmp;
+  - For big numbers — hcmp;
   
-  - Для вещественных - rcmp;
+  - For real numbers — rcmp;
   
-  - Для yes/no - yesno / nyesno;
+  - For yes/no — yesno / nyesno;
   
-  - Для строковых токенов - wcmp;
+  - For string tokens — wcmp;
   
-  - Для строк - lcmp (игнорит пробелы) / fcmp (не игнорит пробелы).
+  - For lines — lcmp (ignores spaces) / fcmp (doesn't ignore spaces).
 
-- Для стандартных жмем “auto-update”;
+- For standard ones press "auto-update";
 
-- Для собственных чекеров добавляем **тесты**
+- For your own checkers add **tests**
 
-  - Ввод / вывод участника / ответ жюри
+  - The input / the participant's output / the jury's answer
   
-  - Правильный ответ жюри можно сгенерировать из main correct;
+  - The jury's correct answer can be generated from main correct;
   
-  - Если делаем тест на WA / PE участника - делаем аналогичный на Crash жюри.
+  - If we make a test for the participant's WA / PE — we make a similar one for the jury's Crash.
 
-- Есть ссылки на примеры.
+- There are links to examples.
 
-  - В том числе исходный код стандартных.
+  - Including the source code of the standard ones.
 
 ### Validator
 
-- Добавляем тесты
+- Add tests
 
-  - Добавляем семплы как корректные;
+  - Add the samples as correct;
   
-  - Подавляющее большинство тестов должно быть пограничным;
+  - The vast majority of tests must be boundary ones;
   
-  - ОК-тесты могут объединять несколько пограничных проверок;
+  - OK tests may combine several boundary checks;
   
-  - FAIL-тесты должны проверять ровно одну границу (на +-1 от ОК)
+  - FAIL tests must check exactly one bound (at +-1 from OK)
 
-- Есть ссылки на примеры.
+- There are links to examples.
 
 ### Stresses
 
-- Запуск решений на множестве сгенерированных тестов;
+- Running solutions on a set of generated tests;
 
-- Требует написанный генератор;
+- Requires a written generator;
 
-- Скрипт запуска аналогичен скрипту генерации тестов;
+- The run script is similar to the test generation script;
 
-  - Приведен разъясняющий пример.
+  - An explanatory example is given.
 
 ### Invocations
 
-- Запускает решение на всех тестах (независимо от вердиктов);
+- Runs a solution on all tests (regardless of the verdicts);
 
-- Показывает следующие проблемы
+- Shows the following problems
 
-  - ОК слишком близко к лимитам;
+  - OK too close to the limits;
   
-  - TL / ML слишком близко к лимитам (с внешней стороны);
+  - TL / ML too close to the limits (from the outside);
   
-  - Нет тестов с пограничными значениями входных данных;
+  - No tests with boundary values of the input data;
   
-    - Использует информацию из валидатора.
+    - Uses the information from the validator.
 
 ### Issues
 
-- Любые идеи генераторов / тестов;
+- Any ideas of generators / tests;
 
-- Любые идеи решений (на любой вердикт);
+- Any ideas of solutions (for any verdict);
 
-- Аспекты чекера / валидатора.
+- Aspects of the checker / validator.
 
 ### Commit
 
-- Сохраняет все произведенные изменения;
+- Saves all the changes made;
   
-- Ставим галку "Don't send email notifications"
+- Check "Don't send email notifications"
 
-- Для отмены изменений используется Discard
+- Discard is used to undo changes
 
-  - Расположена в списке задач.
+  - Located in the problem list.
 
-- Для обновления до последней версии - Update working copy.
+- To update to the latest version — Update working copy.
 
 ### Packages
 
-- Сборка пакета для импорта в тестирующие системы;
+- Building a package for importing into judging systems;
 
-  - Не работает, если есть незакоммиченные изменения;
+  - Doesn't work if there are uncommitted changes;
 
-- Запускаем с верификацией
+- Run with verification
 
-  - Верификация запускает ВСЕ решения на ВСЕХ тестах;
+  - Verification runs ALL solutions on ALL tests;
 
-  - Падает, если решение не соответствует вердикту.
+  - Fails if a solution doesn't match its verdict.
 
-- Standard-версия не содержит сгенерированных тестов.
+- The Standard version doesn't contain generated tests.
 
-  - Актуальна для Codeforces.
+  - Relevant for Codeforces.
 
-- Full-версия содержит сгенерированные тесты.
+- The Full version contains generated tests.
 
-  - Актуальна для переноса в другие системы.
-  - Windows / Linux отличаются переносами строк.
+  - Relevant for transferring to other systems.
+  - Windows / Linux differ in line breaks.
 
 ### Manage Access
 
-- Write - можно всё;
+- Write — everything is allowed;
 
-- Read - нельзя коммитить;
+- Read — committing isn't allowed;
 
-- Есть доп.  роли, но они неактуальны.
+- There are additional roles, but they aren't relevant.
 
-## Соревнование в Polygon
+## A contest in Polygon
 
-- Создаем через New Contest
+- Create it via New Contest
 
-- Добавляем отдельные задачи из списка;
+- Add individual problems from the list;
 
-  - Или создаем задачу прямо из меню соревнования;
+  - Or create a problem right from the contest menu;
 
-- Выдаем авторам роль Write сразу на все задачи;
+- Give the authors the Write role on all problems at once;
 
-- Позволяет производить “оптовые” операции со всеми задачами.
+- Allows doing "bulk" operations with all problems.

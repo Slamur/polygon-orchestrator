@@ -1,21 +1,21 @@
-## Ограничения по времени и памяти
+## Time and memory limits
 
-- Выставляются независимо по каждому доступному компилятору.
+- Set independently for each available compiler.
 
-  - Если для языка доступно несколько компиляторов, то можно выбрать один оптимальный и указать это в примечаниях.
+  - If several compilers are available for a language, one optimal can be chosen and stated in the notes.
 
-- Корректные решения должны заходить **максимум за 0.75** от выставленных ограничений.
+- Correct solutions must pass in **at most 0.75** of the set limits.
 
-  - Эталонное должно заходить максимум за 0.5 от ограничений.
+  - The reference one must pass in at most 0.5 of the limits.
 
-- Неэффективные решения должны заходить **минимум за 2.0** от выставленных ограничений.
+- Inefficient solutions must run for **at least 2.0** of the set limits.
 
-  - То есть в идеальном мире отношение неэффективного к эталонному - не менее 4.0.
+  - That is, in an ideal world the ratio of an inefficient solution to the reference one is at least 4.0.
 
-- (Очень желательно) Ограничения по времени выставляются в целочисленных секундах.
+- (Strongly preferred) Time limits are set in whole seconds.
 
-  - При необходимости выставляются дополнительные 0.5 секунд.
+  - If needed, an extra 0.5 seconds are added.
 
-- (Очень желательно) Ограничения по памяти выставляются кратно 256 Мб.
+- (Strongly preferred) Memory limits are set as a multiple of 256 MB.
 
-  - При необходимости - кратно 2^k Мб (в идеале кратно 32 / 64 / 128)
+  - If needed — as a multiple of 2^k MB (ideally a multiple of 32 / 64 / 128)

@@ -194,8 +194,8 @@ def test_renders_without_optional_lists_and_solutions(spec, tmp_path):
 
     assert result.status == "confirmed"
     user_prompt = mock_call.call_args.args[2]
-    assert "known_wrong_approaches пуст" in user_prompt
-    assert "автор не указал конкретных тестовых сценариев" in user_prompt
+    assert "known_wrong_approaches is empty" in user_prompt
+    assert "the author gave no concrete test scenarios" in user_prompt
 
 
 def test_build_context_sections_takes_input_format_hint_and_wrong_approaches(spec):
