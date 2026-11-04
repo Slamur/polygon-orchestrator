@@ -82,7 +82,7 @@ pull --polygon-id` with a group is an error: they are about one problem.
 What the CLI must provide (`orchestrator/cli.py` —
 the parser, `orchestrator/cli_commands.py` — the commands themselves):
 
-- `orchestrator <problem> init [--ref <base problem>] [--draft NAME [--force]]` —
+- `orchestrator <problem> init [--ref <base problem>] [--draft NAME [--force] [--no-critic] [--critic-rounds N]]` —
   creates the problem directory (if it doesn't exist) with `authoring/spec.yaml`. Without flags — from
   `templates/spec_template.yaml`: `problem_id` (derived from the path)
   is filled in, the other fields are empty, with hint comments.
@@ -109,7 +109,11 @@ the parser, `orchestrator/cli_commands.py` — the commands themselves):
   `prompts/revise.md.j2`); the draft didn't change — the model isn't called
   (`--force` — it is called); `--ref` during a revision is an error. Previous versions of
   the spec and the draft copy — in `.llm_backup/<time>/`, the spec diff — in the
-  report. Without `--draft`, an existing `spec.yaml` is never
+  report. After the model writes or changes the spec, the critic reviews it
+  (`orchestrator/spec_critic.py`, `.claude/rules/step-roles/8-spec_critic.md`):
+  findings on the author's values go to the report, on the model's — removed
+  mechanically or back to the model for `--critic-rounds` rounds (1 by default, at
+  most 2); `--no-critic` turns it off. Without `--draft`, an existing `spec.yaml` is never
   overwritten. It refuses to create a problem inside
   another problem, around already existing problems and with a `problem_id` that
   is already taken by a problem in another directory of either root — all checks

@@ -32,7 +32,9 @@ In scope:
 - a spec draft from the author's free-form draft
   (`orchestrator <problem> init --draft`) — the model keeps
   everything the author wrote and fills in what is missing itself, marking it in
-  the spec; the author reviews the spec before the generative steps;
+  the spec; a critic model then reviews the spec without the draft and proposes
+  only removals and simplifications (`orchestrator/spec_critic.py`); the author
+  reviews the spec before the generative steps;
 - a LaTeX statement draft — in one language, the main one (the spec's `language`,
   `ru` by default, or `en`), in `statement/<code>/`; statements in other Polygon
   languages (their own `statement/<code>/`) are written by the author, the orchestrator only syncs them
@@ -141,7 +143,7 @@ the user can see it) in the same PR.
 │   ├── cli_commands.py              # command implementations, imported from cli.py lazily
 │   ├── step_order.py                # step orders without importing the steps themselves
 │   ├── problem_paths.py, drafts.py, statement_languages.py  # no heavy imports
-│   ├── spec.py, spec_from_draft.py, references.py, limits.py
+│   ├── spec.py, spec_from_draft.py, spec_critic.py, references.py, limits.py
 │   ├── steps/                       # generative steps (+ the mechanical limits_from_constraints), base.py — shared
 │   ├── pipeline.py, cache.py, llm_report.py
 │   ├── model_router.py              # model classes and effort, vendor-independent
