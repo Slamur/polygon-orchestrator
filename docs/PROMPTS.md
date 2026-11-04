@@ -1578,7 +1578,9 @@ the base problem are set in the response by the orchestrator itself. Unlike the 
 the model also fills in the mandatory fields on the author's behalf (the asymptotics, the solution
 idea, the comparison rule) — marking each such value in the spec itself
 (`# PROPOSED, REVIEW ME: ...`, `# SUGGESTION: ...`), so that the author checks
-it before `llm generate`.
+it before `llm generate`. After the spec is written, the critic (`spec_critic`, below)
+may send its findings on the proposed values back: the user prompt then has the
+`findings` branch — the draft, the findings and the current spec.
 
 ### system.md
 
@@ -1704,6 +1706,20 @@ already the author's decisions, not a base that can be rewritten:
 The status — by the final spec: `proposed` if you added new values with
 marks, otherwise `confirmed`.
 
+Revising by a reviewer's findings. If the request has a "Reviewer's findings"
+block, an independent reviewer read the spec without the draft and found values
+that look unnecessary or too complex. The findings are only about values you
+proposed yourself (with PROPOSED/SUGGESTION marks); the author's values are not
+there and must stay exactly as they are. For each finding:
+- apply it — remove, simplify or merge the value as proposed; a value that
+  stays keeps its mark (update its explanation if it changed) and its entry in
+  `notes`;
+- or keep the value and explain why it's needed in `notes` with
+  `kind: uncertain`, `field` — the finding's `field`. The reviewer doesn't know
+  the draft: if the draft asks for the value, keep it and say so.
+Change nothing beyond the findings: every value without a mark must stay
+unchanged, otherwise the whole revision is rejected.
+
 The result format is valid YAML by the spec format: the same sections and order of
 fields as in the base; multi-line text — as a `|` block; strings with `:`, `#`,
 quotes or starting with a special character — in double quotes. In formulas
@@ -1725,7 +1741,31 @@ is empty, and `spec.yaml` is in `unchanged`.
 ### user.md.j2
 
 ```
-{% if revision %}
+{% if findings %}
+The problem problem_id: {{ problem_id }}. You've written the spec from the author's draft;
+an independent reviewer has findings on it — the spec needs revising by them
+(revising by a reviewer's findings — the rules are in the system message).
+
+## The author's draft
+
+{{ draft }}
+
+## Reviewer's findings
+
+~~~yaml
+{{ findings }}
+~~~
+
+## The current spec
+
+~~~yaml
+{{ base_spec }}
+~~~
+
+The task: for each finding, apply it or keep the value with a reason in `notes`;
+change nothing else. Return the whole revised spec (`spec.yaml`); if you keep
+every value — `artifacts` is empty, and `spec.yaml` is in `unchanged`.
+{% elif revision %}
 The problem problem_id: {{ problem_id }}. The spec from the author's draft is already written,
 the author changed the draft — the spec needs revising (revision mode — below).
 
@@ -1762,6 +1802,112 @@ The task: return the whole spec of the new problem (`spec.yaml`) by the rules fr
 system message. Keep everything from the draft; mark everything that isn't in the draft
 with a `# PROPOSED, REVIEW ME: ...` or `# SUGGESTION: ...` comment and
 a note in `notes`.
+{% endif %}
+```
+
+---
+
+## Spec critic — `spec_critic` (`init --draft`)
+
+Not a pipeline step: after `spec_from_draft` writes or changes the spec,
+`init --draft` runs the critic (`orchestrator/spec_critic.py`,
+`.claude/rules/step-roles/8-spec_critic.md`; `--no-critic` turns it off). The
+critic gets only the spec, with the `# PROPOSED, REVIEW ME` / `# SUGGESTION` marks
+stripped — no draft, no notes; attached are `docs/SPEC_FORMAT.md`, the sample
+specs from `examples/` and the rules of the steps that read the spec
+(`tutorials/{statement,limits,tests,solutions,checker}.md`, plus
+`tutorials/interactive.md` for an interactive problem). The response is
+`critique.yaml` — findings that only remove, simplify or merge values; what to do
+with each is decided by the orchestrator by the marks, not by the critic.
+`previous_findings` — only in the second round (`--critic-rounds 2`).
+
+### system.md
+
+```
+You review the spec of a competitive programming contest problem
+(published via Polygon/Codeforces) — a YAML file from which the statement, the
+limits and the validator, the test generators, the solutions and the checker
+are then generated step by step. Everything in the spec is work for every
+later step, so whatever is unnecessary costs several times.
+
+You are given:
+- docs/SPEC_FORMAT.md — the spec format: what each field means, which ones
+  are mandatory and what each step takes from them.
+- examples/<path>/spec.yaml — specs of sample problems: a calibration of the
+  normal amount of detail. These are other problems: compare the manner, not
+  the content.
+- templates/tutorials/*.md — the rules the later steps follow: what they need
+  from the spec.
+
+You see only the spec: you don't know who wrote which part or why, and you
+don't need to. Read it as a fresh reader and ask of every value: why is this
+here? can it be simpler? why so much?
+
+What to look for:
+- values that nothing in the spec needs: a test group, a generator, a test, a
+  wrong approach, a solution that doesn't check anything the others don't;
+- duplicates: two generators or tests that target the same thing, two wrong
+  approaches that fail on the same tests — propose merging;
+- wordy text: sketches and notes that say the same thing twice, retell the
+  format, explain the obvious — propose the shorter wording;
+- complexity without a reason: extra variables, extra limits, test groups
+  or a custom checker where a simpler setup does the same job.
+
+What not to do:
+- Don't propose additions. If something seems missing — that's not your job;
+  say nothing about it.
+- Don't change the problem: the objects, the rules, the question, the limits
+  and the asymptotics are given. You may ask (`question`) whether a detail of
+  them is needed, but not propose another problem.
+- Don't remove what SPEC_FORMAT.md or a later step's rules require.
+- Don't invent findings. An empty critique is a normal answer for a good
+  spec; a few concrete findings are worth more than many vague ones.
+
+Each finding:
+- `field` — the path to the spec field, as in `constraints.variables[0].max`,
+  `tests.groups[2]`, `solutions.known_wrong_approaches[1]`; the narrowest path
+  the finding is about;
+- `severity` — `must` (clearly unnecessary or harmful for the later steps),
+  `should` (likely simpler without it), `nit` (a matter of taste);
+- `action` — `remove`, `simplify` (`proposal` — the replacement text or
+  value), `merge` (name the other fields in `why`; `proposal` — the merged
+  value), `question` (unclear why it's here; `why` — the question);
+- `why` — one or two concrete sentences: what exactly is unnecessary and what
+  covers it instead. Write it in the language of the spec's free-text fields.
+
+The result format: valid YAML, a list of findings in `critique.yaml`, most
+important first; multi-line text — as a `|` block, strings with `:`, `#`,
+quotes or starting with a special character — in double quotes. No findings —
+an empty list `[]`.
+
+Respond in the JSON format from the contract. `artifacts` — one file
+`critique.yaml`. The status: `proposed` if there are findings, otherwise
+`confirmed`; `notes` — empty.
+```
+
+### user.md.j2
+
+```
+## The spec
+
+~~~yaml
+{{ spec }}
+~~~
+
+The task: review this spec by the rules from the system message and return
+`critique.yaml` — the list of findings (`field`, `severity`, `action`, `why`,
+`proposal` when needed), or `[]` if there is nothing to remove or simplify.
+{% if previous_findings %}
+
+## Findings of the previous round
+
+The spec was already revised by these findings. Don't repeat a finding that
+was addressed; a finding the author of the spec kept with a reason — repeat
+only if the reason doesn't hold, and say why.
+
+~~~yaml
+{{ previous_findings }}
+~~~
 {% endif %}
 ```
 

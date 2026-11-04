@@ -10,8 +10,9 @@ The report starts with what requires the author's action (`uncertain`, what wasn
 applied, compile errors, `proposed`), then the model's ideas
 (`suggestion`), what it changed, the step's files and the diffs of changed files
 against the previous versions from `.llm_backup/`. `init --draft` likewise writes
-`llm_reports/spec_from_draft.md`, `llm accept` — `llm_reports/accept.md`
-(what was accepted and what changed in the input of each step).
+`llm_reports/spec_from_draft.md` (with the critic's findings and what was done
+with them), `llm accept` — `llm_reports/accept.md` (what was accepted and what
+changed in the input of each step).
 """
 
 from __future__ import annotations
@@ -118,13 +119,27 @@ def write_spec_from_draft_report(
         lines += ["## The spec does not pass validation yet", ""]
         lines += [f"- {error}" for error in result.validation_errors]
         lines.append("")
+    critique = getattr(result, "critique", None)
+    if critique is not None:
+        lines += _critique_section(critique)
+        lines += _notes_sections(critique.notes, title_prefix="Critic run — ")
     lines += _notes_sections(result.notes)
+    diffs: list[str] = []
     before = (
         None if result.path is None else _backup_of(problem_dir, result.backup_dir, result.path)
     )
     if before is not None:
-        diff = _diff_block(problem_dir, before, result.path, result.path)
-        lines += ["## Diffs", "", *diff] if diff else []
+        diffs += _diff_block(problem_dir, before, result.path, result.path)
+    if critique is not None and critique.changed and result.backup_dir is not None:
+        from orchestrator.spec_critic import BEFORE_CRITIC_FILENAME
+
+        before_critic = _backup_of(
+            problem_dir, result.backup_dir, result.path.with_name(BEFORE_CRITIC_FILENAME)
+        )
+        if before_critic is not None:
+            diffs += ["The critic's changes:", ""]
+            diffs += _diff_block(problem_dir, before_critic, result.path, result.path)
+    lines += ["## Diffs", "", *diffs] if diffs else []
     if result.backup_dir is not None:
         lines += [f"Previous versions: `{_relative(problem_dir, result.backup_dir)}/`", ""]
     return _write(report_path(problem_dir, SPEC_FROM_DRAFT_REPORT), lines)
@@ -150,7 +165,46 @@ def _header(name: str, status_label: str, command_line: str) -> list[str]:
     return [f"# {name}: {status_label}", "", f"`orchestrator {command_line}` · {_stamp()}", ""]
 
 
-def _notes_sections(notes: list[dict[str, Any]]) -> list[str]:
+def _critique_section(critique: Any) -> list[str]:
+    """The critic's findings (`spec_critic.CritiqueOutcome`): first those on the
+    author's values — what the author decides, then those on the model's values with
+    what was done with them, then the rest (nits, repeats, unresolved paths)."""
+    from orchestrator.spec_critic import AUTHOR, FOR_REVIEW, MODEL
+
+    rounds = f", {critique.rounds} round(s)" if critique.rounds > 1 else ""
+    lines = [f"## Critic: {len(critique.findings)} finding(s){rounds}", ""]
+    if not critique.findings:
+        return lines + ["No findings.", ""]
+    groups = (
+        (
+            "Your values — for your review",
+            [f for f in critique.findings if f.owner == AUTHOR and f.outcome == FOR_REVIEW],
+        ),
+        (
+            "Proposed values — sent back to the model",
+            [f for f in critique.findings if f.owner == MODEL and f.outcome != FOR_REVIEW],
+        ),
+    )
+    listed = {id(f) for _, group in groups for f in group}
+    other = [f for f in critique.findings if id(f) not in listed]
+    for title, group in (*groups, ("Other — nits, repeats, unresolved paths", other)):
+        if not group:
+            continue
+        lines += [f"### {title} ({len(group)})", ""]
+        for finding in group:
+            why = finding.why.replace("\n", "\n  ")
+            lines.append(f"- **{finding.field}** · {finding.severity} · {finding.action} — {why}")
+            if finding.proposal:
+                proposal = finding.proposal.replace("\n", "\n  ")
+                lines.append(f"  Proposal: {proposal}")
+            if finding.outcome != FOR_REVIEW:
+                detail = f": {finding.detail}" if finding.detail else ""
+                lines.append(f"  → **{finding.outcome}**{detail}")
+            lines.append("")
+    return lines
+
+
+def _notes_sections(notes: list[dict[str, Any]], *, title_prefix: str = "") -> list[str]:
     known = {kind for kind, _ in _NOTE_SECTIONS}
     sections = [
         (title, [n for n in notes if n.get("kind") == kind]) for kind, title in _NOTE_SECTIONS
@@ -160,7 +214,7 @@ def _notes_sections(notes: list[dict[str, Any]]) -> list[str]:
     for title, group in sections:
         if not group:
             continue
-        lines += [f"## {title} ({len(group)})", ""]
+        lines += [f"## {title_prefix}{title} ({len(group)})", ""]
         for note in group:
             explanation = str(note.get("explanation", "")).strip().replace("\n", "\n  ")
             prefix = "" if title != _OTHER_NOTES_TITLE else f"[{note.get('kind', '?')}] "

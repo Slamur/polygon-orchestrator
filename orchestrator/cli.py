@@ -162,6 +162,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="with --draft and an existing spec: revise it even if the draft has not changed",
     )
     init_parser.add_argument(
+        "--no-critic",
+        action="store_true",
+        help="with --draft: don't run the critic over the written spec (it calls the model "
+        "once more and may send the model's own values back for one revision)",
+    )
+    init_parser.add_argument(
+        "--critic-rounds",
+        type=int,
+        choices=[1, 2],
+        default=1,
+        help="with --draft: rounds of critic + revision (default 1; the second round runs "
+        "only if the critic has new findings)",
+    )
+    init_parser.add_argument(
         "--ref",
         metavar="PROBLEM",
         default=None,

@@ -21,7 +21,7 @@ def _doc_blocks() -> dict[tuple[str, str], str]:
     blocks: dict[tuple[str, str], str] = {}
     # We split by the step headings, not by any `## `: there are lines with `## `
     # inside the user.md.j2 files themselves too.
-    headings = r"## (?:Step \d+|Spec from a draft)"
+    headings = r"## (?:Step \d+|Spec from a draft|Spec critic)"
     for section in re.split(rf"(?m)^(?={headings})", PROMPTS_DOC.read_text(encoding="utf-8")):
         heading = re.match(headings + r"[^\n]*?`(\w+)`", section)
         if not heading:
@@ -36,7 +36,8 @@ def _doc_blocks() -> dict[tuple[str, str], str]:
 
 
 @pytest.mark.parametrize(
-    "step_name", [*(s for s in LLM_STEPS if s not in MECHANICAL_STEPS), "spec_from_draft"]
+    "step_name",
+    [*(s for s in LLM_STEPS if s not in MECHANICAL_STEPS), "spec_from_draft", "spec_critic"],
 )
 @pytest.mark.parametrize("filename", PROMPT_FILES)
 def test_prompts_doc_matches_prompt_file(step_name, filename):

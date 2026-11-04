@@ -1,0 +1,21 @@
+## The spec
+
+~~~yaml
+{{ spec }}
+~~~
+
+The task: review this spec by the rules from the system message and return
+`critique.yaml` — the list of findings (`field`, `severity`, `action`, `why`,
+`proposal` when needed), or `[]` if there is nothing to remove or simplify.
+{% if previous_findings %}
+
+## Findings of the previous round
+
+The spec was already revised by these findings. Don't repeat a finding that
+was addressed; a finding the author of the spec kept with a reason — repeat
+only if the reason doesn't hold, and say why.
+
+~~~yaml
+{{ previous_findings }}
+~~~
+{% endif %}

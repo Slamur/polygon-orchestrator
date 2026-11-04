@@ -39,7 +39,7 @@ def _reset_client():
     model_router._client = None
 
 
-def test_step_to_model_covers_all_steps_and_spec_from_draft():
+def test_step_to_model_covers_all_steps_and_init_draft_calls():
     assert set(STEP_TO_MODEL) == {
         "statement_draft",
         "constraints_pick",
@@ -51,6 +51,7 @@ def test_step_to_model_covers_all_steps_and_spec_from_draft():
         "interactor_draft",
         "spec_from_draft",
         "tutorial_draft",
+        "spec_critic",
     }
 
 

@@ -63,6 +63,9 @@ __all__ = [
 # tutorial_draft — a tutorial from the author's draft (`llm tutorial`): at the author's command
 # the model writes proofs, and an unnoticed mistake in them reaches the contestants —
 # so the strong model, even though the rest of the text expands the author's points.
+# spec_critic — reviews the spec of `init --draft` for excess (`orchestrator/spec_critic.py`):
+# a wrong finding is cheap, every one goes through the generator or the author —
+# so the medium model.
 STEP_TO_MODEL: dict[str, str] = {
     "statement_draft": "medium-model",
     "constraints_pick": "strong-model",
@@ -74,6 +77,7 @@ STEP_TO_MODEL: dict[str, str] = {
     "interactor_draft": "strong-model",
     "spec_from_draft": "strong-model",
     "tutorial_draft": "strong-model",
+    "spec_critic": "medium-model",
 }
 
 # The effort level per step (shared by the vendors that support such a knob;
@@ -84,7 +88,8 @@ STEP_TO_MODEL: dict[str, str] = {
 # reason as the model class: the cost of a mistake in comparing answers is high even
 # with a formally mechanical implementation; statement_draft — medium, it's
 # formatting, not reasoning; spec_from_draft and tutorial_draft — high, like
-# the model class.
+# the model class; spec_critic — high: judging what's unnecessary is reasoning over
+# the whole spec, not formatting.
 STEP_TO_EFFORT: dict[str, str] = {
     "statement_draft": "medium",
     "constraints_pick": "high",
@@ -96,6 +101,7 @@ STEP_TO_EFFORT: dict[str, str] = {
     "interactor_draft": "high",
     "spec_from_draft": "high",
     "tutorial_draft": "high",
+    "spec_critic": "high",
 }
 
 _client: LLMClient | None = None

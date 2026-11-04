@@ -1,4 +1,28 @@
-{% if revision %}
+{% if findings %}
+The problem problem_id: {{ problem_id }}. You've written the spec from the author's draft;
+an independent reviewer has findings on it — the spec needs revising by them
+(revising by a reviewer's findings — the rules are in the system message).
+
+## The author's draft
+
+{{ draft }}
+
+## Reviewer's findings
+
+~~~yaml
+{{ findings }}
+~~~
+
+## The current spec
+
+~~~yaml
+{{ base_spec }}
+~~~
+
+The task: for each finding, apply it or keep the value with a reason in `notes`;
+change nothing else. Return the whole revised spec (`spec.yaml`); if you keep
+every value — `artifacts` is empty, and `spec.yaml` is in `unchanged`.
+{% elif revision %}
 The problem problem_id: {{ problem_id }}. The spec from the author's draft is already written,
 the author changed the draft — the spec needs revising (revision mode — below).
 

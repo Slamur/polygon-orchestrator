@@ -968,6 +968,22 @@ def _init_from_draft(args: argparse.Namespace, init, draft_path: Path, *, revisi
             )
             raise
 
+        critic_failed = False
+        if _should_run_critic(args, result):
+            try:
+                _run_critic(args, init, draft_path, result)
+            except LLMCallError as exc:
+                critic_failed = True
+                logger.error(f"the critic call failed: {exc} — the spec is kept without review")
+                result.notes.append(
+                    {"field": "spec_critic", "kind": "uncertain", "explanation": f"failed: {exc}"}
+                )
+            except Exception:
+                _log_traceback_to_file(
+                    file_handler, f"unhandled error while reviewing the spec of '{args.problem_id}'"
+                )
+                raise
+
         label = _OUTCOME_LABELS.get(result.status, result.status)
         logger.info(f"=== {init.problem_id}: spec from draft {draft_path} — {label} ===")
         report = write_spec_from_draft_report(
@@ -991,7 +1007,49 @@ def _init_from_draft(args: argparse.Namespace, init, draft_path: Path, *, revisi
         else:
             logger.info(f"revised {result.path} — review the changes and new marks")
         logger.info(f"draft copied to {result.draft_copy}")
+        if result.critique is not None:
+            logger.info(_critique_line(result.critique))
         if result.backup_dir is not None:
             logger.info(f"previous versions are backed up in {result.backup_dir}")
         _print_spec_validation_errors(result.validation_errors, logger.info)
-    return 0
+    return 1 if critic_failed else 0
+
+
+def _should_run_critic(args: argparse.Namespace, result) -> bool:
+    """The critic runs over a spec the model has just written or changed."""
+    from orchestrator.steps.base import STATUS_UNCERTAIN
+
+    return (
+        not args.no_critic
+        and result.path is not None
+        and not result.unchanged
+        and result.status != STATUS_UNCERTAIN
+    )
+
+
+def _run_critic(args: argparse.Namespace, init, draft_path: Path, result) -> None:
+    from orchestrator.spec_critic import apply_critique, critique_spec
+
+    outcome = critique_spec(
+        init,
+        Path(draft_path).read_text(encoding="utf-8"),
+        result.path.read_text(encoding="utf-8"),
+        generator_notes=result.notes,
+        rounds=args.critic_rounds,
+        prompts_dir=args.prompts_dir,
+        templates_dir=args.templates_dir,
+        examples_dir=args.base_dir / EXAMPLES_DIR,
+    )
+    apply_critique(init, result, outcome)
+
+
+def _critique_line(outcome) -> str:
+    """The console summary of the critic: findings by outcome."""
+    from collections import Counter
+
+    if not outcome.findings:
+        return "critic: no findings"
+    counts = Counter(f.outcome for f in outcome.findings)
+    summary = ", ".join(f"{count} {name}" for name, count in counts.items())
+    changed = " — the spec was changed" if outcome.changed else ""
+    return f"critic: {len(outcome.findings)} finding(s): {summary}{changed} (see the report)"
