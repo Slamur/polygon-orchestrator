@@ -49,6 +49,7 @@ def test_confirmed_writes_constraints_yaml(spec, tmp_path):
     assert "O((N + K) log N)" in user_prompt
 
 
+@pytest.mark.slow
 def test_confirmed_writes_validator_cpp_and_compiles(spec, tmp_path):
     valid_validator = (REPO_ROOT / "examples/array/prefix-sums/validator.cpp").read_text(
         encoding="utf-8"

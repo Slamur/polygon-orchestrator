@@ -134,11 +134,13 @@ pip install -e '.[dev]'
 ```bash
 orchestrator --help
 pytest               # unit-тесты; к модели и Polygon не обращаются
+pytest --fast        # то же без тестов, которые собирают и запускают C++/Java (~в 5 раз быстрее)
 ruff check .         # линтер (настройки — в pyproject.toml); `--fix` чинит что может
 ruff format .        # форматирование кода
 ```
 
-Все три (форматирование — в режиме `--check`) запускаются в CI на каждый PR (`.github/workflows/ci.yml`).
+Все три (форматирование — в режиме `--check`, тесты — все, вместе со `slow`)
+запускаются в CI на каждый PR (`.github/workflows/ci.yml`).
 
 ### 5. Java и FreeMarker (проверка test-script'а)
 

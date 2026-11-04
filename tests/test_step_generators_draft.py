@@ -65,6 +65,7 @@ def test_missing_plan_raises(spec, tmp_path):
         run_step("valid-spec", spec, _upstream("generators: []"), problems_dir=tmp_path)
 
 
+@pytest.mark.slow
 def test_writes_generators_of_the_plan(spec, tmp_path):
     response = ModelResponse(
         status="confirmed", artifacts={"generators/gen_rand.cpp": VALID_GENERATOR}
@@ -98,6 +99,7 @@ def test_missing_generator_is_asked_for_in_a_separate_call(spec, tmp_path):
     assert "retried" in [note["kind"] for note in result.notes]
 
 
+@pytest.mark.slow
 def test_notes_generators_that_differ_from_the_plan(spec, tmp_path):
     response = ModelResponse(
         status="confirmed",

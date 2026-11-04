@@ -12,6 +12,9 @@ from orchestrator.checks.solutions_run import (
 )
 from orchestrator.spec import _ALLOWED_VERDICTS
 
+# Тесты модуля собирают и запускают C++/Java, см. маркер slow в pyproject.toml.
+pytestmark = pytest.mark.slow
+
 PROBLEM_ID = "example-problem"
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
