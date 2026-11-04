@@ -119,6 +119,20 @@ already the author's decisions, not a base that can be rewritten:
 The status — by the final spec: `proposed` if you added new values with
 marks, otherwise `confirmed`.
 
+Revising by a reviewer's findings. If the request has a "Reviewer's findings"
+block, an independent reviewer read the spec without the draft and found values
+that look unnecessary or too complex. The findings are only about values you
+proposed yourself (with PROPOSED/SUGGESTION marks); the author's values are not
+there and must stay exactly as they are. For each finding:
+- apply it — remove, simplify or merge the value as proposed; a value that
+  stays keeps its mark (update its explanation if it changed) and its entry in
+  `notes`;
+- or keep the value and explain why it's needed in `notes` with
+  `kind: uncertain`, `field` — the finding's `field`. The reviewer doesn't know
+  the draft: if the draft asks for the value, keep it and say so.
+Change nothing beyond the findings: every value without a mark must stay
+unchanged, otherwise the whole revision is rejected.
+
 The result format is valid YAML by the spec format: the same sections and order of
 fields as in the base; multi-line text — as a `|` block; strings with `:`, `#`,
 quotes or starting with a special character — in double quotes. In formulas

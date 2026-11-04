@@ -986,12 +986,22 @@ class Backup:
         self.directory: Path | None = None
 
     def save(self, path: Path) -> None:
+        shutil.copyfile(path, self._target(path))
+
+    def save_text(self, path: Path, text: str) -> Path:
+        """Saves `text` as the version of `path` (a file of the problem that may not exist,
+        e.g. an intermediate version under its own name); returns the backup's path."""
+        target = self._target(path)
+        target.write_text(text, encoding="utf-8")
+        return target
+
+    def _target(self, path: Path) -> Path:
         if self.directory is None:
             stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             self.directory = self.problem_dir / LLM_BACKUP_DIRNAME / stamp
         target = self.directory / path.relative_to(self.problem_dir)
         target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(path, target)
+        return target
 
 
 def _write_artifacts(

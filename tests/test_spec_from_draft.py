@@ -52,14 +52,20 @@ def base_dir(tmp_path):
 
 
 class _FakeModel:
+    """`spec_from_draft` gets `response`; the critic (`spec_critic`) — no findings,
+    its calls are in `critic_calls` (the critic itself — `tests/test_spec_critic.py`)."""
+
     def __init__(self, response: ModelResponse):
         self.response = response
         self.calls: list[dict] = []
+        self.critic_calls: list[dict] = []
 
     def __call__(self, step, system_prompt, user_prompt, context_documents=None):
-        self.calls.append(
-            dict(step=step, system=system_prompt, user=user_prompt, documents=context_documents)
-        )
+        call = dict(step=step, system=system_prompt, user=user_prompt, documents=context_documents)
+        if step == "spec_critic":
+            self.critic_calls.append(call)
+            return ModelResponse(status="confirmed", artifacts={"critique.yaml": "[]\n"})
+        self.calls.append(call)
         return self.response
 
 
@@ -405,6 +411,7 @@ def test_spec_from_draft_prompt_renders_for_both_bases(base_dir):
                 "base_spec": init.base_text,
                 "reference": reference,
                 "revision": False,
+                "findings": None,
             },
             prompts_dir=PROMPTS_DIR,
         )

@@ -27,6 +27,9 @@ draft — the previous draft copy in `authoring/` against the new one — via th
 block `prompts/revise.md.j2`. The draft didn't change — the model isn't
 called (`draft_unchanged`). Previous versions of the spec and the draft copy —
 in `.llm_backup/<time>/`.
+
+After writing, `init --draft` runs the critic (`orchestrator/spec_critic.py`); its
+findings on the values the model proposed come back here — `revise_spec_by_findings`.
 """
 
 from __future__ import annotations
@@ -101,6 +104,19 @@ class SpecFromDraftResult:
     unchanged: bool = False
     validation_errors: list[str] = field(default_factory=list)
     backup_dir: Path | None = None
+    # The critic's run (`spec_critic.CritiqueOutcome`); `None` — the critic didn't run.
+    critique: Any = None
+
+
+@dataclass
+class SpecRevisionByFindings:
+    """The generator's answer to the critic's findings (`revise_spec_by_findings`).
+    `spec_text` — the revised spec with the `problem_id` and the references set,
+    `None` — the model left the spec as is or returned none."""
+
+    status: str
+    spec_text: str | None = None
+    notes: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -189,6 +205,30 @@ def _finalize_spec_text(init: SpecInit, text: str) -> tuple[str, list[dict[str, 
     return text, notes
 
 
+def _call_model(
+    init: SpecInit,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    templates_dir: Path,
+    examples_dir: Path,
+):
+    response = model_router.call_model(
+        STEP_NAME,
+        system_prompt,
+        user_prompt,
+        context_documents=context_documents(
+            templates_dir=templates_dir, examples_dir=examples_dir, skip_reference=init.reference
+        ),
+    )
+    if response.status not in _VALID_STATUSES:
+        raise ValueError(
+            f"'{STEP_NAME}': the model returned an unknown status "
+            f"'{response.status}' (expected one of {sorted(_VALID_STATUSES)})"
+        )
+    return response
+
+
 def generate_spec_from_draft(
     init: SpecInit,
     draft_path: Path,
@@ -214,6 +254,7 @@ def generate_spec_from_draft(
             "base_spec": init.base_text.rstrip("\n"),
             "reference": init.reference,
             "revision": revision is not None,
+            "findings": None,
         },
         prompts_dir=prompts_dir,
     )
@@ -231,19 +272,9 @@ def generate_spec_from_draft(
                 step_revision, {DRAFT_INPUT: draft_text.rstrip("\n")}, prompts_dir=prompts_dir
             )
         )
-    response = model_router.call_model(
-        STEP_NAME,
-        system_prompt,
-        user_prompt,
-        context_documents=context_documents(
-            templates_dir=templates_dir, examples_dir=examples_dir, skip_reference=init.reference
-        ),
+    response = _call_model(
+        init, system_prompt, user_prompt, templates_dir=templates_dir, examples_dir=examples_dir
     )
-    if response.status not in _VALID_STATUSES:
-        raise ValueError(
-            f"'{STEP_NAME}': the model returned an unknown status "
-            f"'{response.status}' (expected one of {sorted(_VALID_STATUSES)})"
-        )
 
     notes = list(response.notes)
     result = SpecFromDraftResult(status=response.status, notes=notes)
@@ -280,4 +311,46 @@ def generate_spec_from_draft(
     shutil.copyfile(draft_path, result.draft_copy)
     result.backup_dir = backup.directory
     result.validation_errors = spec_validation_errors(result.path, expected_id=init.problem_id)
+    return result
+
+
+def revise_spec_by_findings(
+    init: SpecInit,
+    draft_text: str,
+    spec_text: str,
+    findings: str,
+    *,
+    prompts_dir: Path = PROMPTS_DIR,
+    templates_dir: Path = TEMPLATES_DIR,
+    examples_dir: Path = EXAMPLES_DIR,
+) -> SpecRevisionByFindings:
+    """One revision round by the critic's findings (`orchestrator/spec_critic.py`):
+    the model gets the draft, the current spec `spec_text` and `findings` (YAML) and
+    applies each finding or keeps the value with a reason in `notes`. Nothing is
+    written: the critic checks the result before writing it."""
+    system_prompt = read_system_prompt(STEP_NAME, prompts_dir=prompts_dir)
+    user_prompt = render_user_prompt(
+        STEP_NAME,
+        {
+            "problem_id": init.problem_id,
+            "draft": draft_text.rstrip("\n"),
+            "base_spec": spec_text.rstrip("\n"),
+            "reference": None,
+            "revision": True,
+            "findings": findings.rstrip("\n"),
+        },
+        prompts_dir=prompts_dir,
+    )
+    response = _call_model(
+        init, system_prompt, user_prompt, templates_dir=templates_dir, examples_dir=examples_dir
+    )
+    result = SpecRevisionByFindings(status=response.status, notes=list(response.notes))
+    for filename in sorted(set(response.artifacts) - {SPEC_ARTIFACT}):
+        result.notes.append(
+            _note(filename, "uncertain", "unexpected file in the response, ignored")
+        )
+    revised = response.artifacts.get(SPEC_ARTIFACT)
+    if revised is not None and revised.strip():
+        result.spec_text, finalize_notes = _finalize_spec_text(init, revised)
+        result.notes.extend(finalize_notes)
     return result
