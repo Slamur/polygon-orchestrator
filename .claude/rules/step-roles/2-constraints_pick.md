@@ -12,39 +12,39 @@ paths:
   - "tests/test_prompts_doc_sync.py"
 ---
 
-# Роль каждого генеративного шага, пункт 2: `constraints_pick` и `limits_from_constraints`
+# Role of each generative step, item 2: `constraints_pick` and `limits_from_constraints`
 
-Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
-`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
+Common to all steps (revision mode, conflicts, cache, escalation,
+suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
+`.claude/rules/models.md`, `llm` commands — in `.claude/rules/llm-commands.md`.
 
-2. **`constraints_pick`** — вход: секция `constraints` спека, в первую
-   очередь `intended_complexity` и `complexity_reasoning`, + формат ввода из
-   `statement_draft` (`formal_input_sketch`, `indexing`, input примеров —
-   источник порядка чтения для валидатора; легенда не передаётся). Выход:
-   зафиксированные диапазоны переменных, TL/ML, разбиение на тестовые
-   группы (в `constraints.yaml`, включая секцию `validator` —
-   `constants`/`checks`, описывающую, что именно должен проверять
-   валидатор, по формату `templates/constraints_format.yaml`) +
-   `validator.cpp` (по образцу `validator.cpp` из референсов, если есть),
-   реализующий 1-в-1 `validator.constants`/`validator.checks`, которые шаг
-   сам же и зафиксировал в `constraints.yaml` — никаких проверок сверх или
-   помимо перечисленных там. `problem_id` в `constraints.yaml` оркестратор
-   ставит из спека поверх ответа модели. Генерация `validator.cpp` — не отдельный шаг,
-   а последний под-шаг того же рассуждения об ограничениях в рамках одного
-   вызова модели: валидатор целиком выводится из решений, которые
-   `constraints_pick` и так принимает, и раздельные шаги/вызовы рисковали бы
-   разойтись между `constraints.yaml` и `validator.cpp`. Модель **не имеет
-   права** сама придумывать асимптотику по легенде — если
-   `intended_complexity` пуст, шаг обязан завершиться ошибкой
-   "недостаточно данных", а не угадывать; в этом случае `validator.cpp`
-   тоже не пишется — весь ответ шага уходит в `uncertain` целиком.
-   После `constraints_pick` идёт механический шаг **`limits_from_constraints`**
-   (без модели, `step_order.MECHANICAL_STEPS`): пишет `limits.yaml` —
-   актуальные TL/ML задачи, которые загружает `polygon push` и обновляет
-   `polygon pull`, — из TL/ML `constraints.yaml`. Его вход — только эти
-   TL/ML, поэтому `limits.yaml` перезаписывается (прежний — в
-   `.llm_backup/`), лишь когда они изменились: TL/ML, поправленные на Polygon
-   или руками, переживают `llm generate`. Если `limits.yaml` уже есть, а шаг
-   ещё не запускался (файл скачал `polygon pull`), файл принимается как есть;
-   `llm generate --step limits_from_constraints --force` выводит его заново.
+2. **`constraints_pick`** — input: the spec's `constraints` section, first
+   of all `intended_complexity` and `complexity_reasoning`, + the input format from
+   `statement_draft` (`formal_input_sketch`, `indexing`, the examples' input —
+   the source of the reading order for the validator; the legend isn't passed). Output:
+   fixed variable ranges, TL/ML, the split into test
+   groups (in `constraints.yaml`, including the `validator` section —
+   `constants`/`checks`, describing what exactly the validator must check,
+   in the `templates/constraints_format.yaml` format) +
+   `validator.cpp` (following the `validator.cpp` from the references, if any),
+   implementing 1-to-1 the `validator.constants`/`validator.checks` that the step
+   itself fixed in `constraints.yaml` — no checks beyond or
+   besides those listed there. The `problem_id` in `constraints.yaml` is set by the orchestrator
+   from the spec on top of the model's response. Generating `validator.cpp` isn't a separate step,
+   but the last sub-step of the same reasoning about limits within one
+   model call: the validator is derived entirely from the decisions that
+   `constraints_pick` makes anyway, and separate steps/calls would risk
+   diverging between `constraints.yaml` and `validator.cpp`. The model **has no
+   right** to invent the asymptotics from the legend on its own — if
+   `intended_complexity` is empty, the step must end with an
+   "insufficient data" error rather than guess; in that case `validator.cpp`
+   isn't written either — the whole step response goes to `uncertain`.
+   After `constraints_pick` comes the mechanical step **`limits_from_constraints`**
+   (without the model, `step_order.MECHANICAL_STEPS`): it writes `limits.yaml` —
+   the problem's actual TL/ML, which `polygon push` uploads and
+   `polygon pull` updates — from the TL/ML of `constraints.yaml`. Its input is only these
+   TL/ML, so `limits.yaml` is overwritten (the previous one — in
+   `.llm_backup/`) only when they changed: TL/ML fixed on Polygon
+   or by hand survive `llm generate`. If `limits.yaml` already exists but the step
+   hasn't run yet (the file was downloaded by `polygon pull`), the file is accepted as is;
+   `llm generate --step limits_from_constraints --force` derives it again.

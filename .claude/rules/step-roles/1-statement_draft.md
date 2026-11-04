@@ -8,22 +8,22 @@ paths:
   - "tests/test_prompts_doc_sync.py"
 ---
 
-# Роль каждого генеративного шага, пункт 1: `statement_draft`
+# Role of each generative step, item 1: `statement_draft`
 
-Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
-`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
+Common to all steps (revision mode, conflicts, cache, escalation,
+suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
+`.claude/rules/models.md`, `llm` commands — in `.claude/rules/llm-commands.md`.
 
-1. **`statement_draft`** — вход: секция `statement_draft` спека и язык
-   условия (`language`; в хеше — только не `ru`). Выход:
-   черновик условия на этом языке в `problems/<путь задачи>/statement/<language>/` — отдельные `.tex` на
-   легенду/ввод/вывод/примечание (набор имён проверяется до записи на
-   диск), следующий структуре и стилистическим правилам из
-   `templates/tutorials/statement.md`. Input каждого примера в
-   `examples/example_<N>.txt` — копия из `sample_examples`: его пишет
-   оркестратор, а не модель (`GeneratedArtifacts` в
-   `orchestrator/steps/base.py`); файлы примеров, которых больше нет в
-   спеке, помечаются `.removed`.
+1. **`statement_draft`** — input: the spec's `statement_draft` section and the statement
+   language (`language`; in the hash — only if it isn't `ru`). Output:
+   a statement draft in this language in `problems/<problem path>/statement/<language>/` — separate `.tex` files for
+   the legend/input/output/notes (the set of names is checked before writing to
+   disk), following the structure and style rules from
+   `templates/tutorials/statement.md`. The input of each example in
+   `examples/example_<N>.txt` is a copy from `sample_examples`: it is written by
+   the orchestrator, not the model (`GeneratedArtifacts` in
+   `orchestrator/steps/base.py`); example files that are no longer in the
+   spec are marked `.removed`.
 
-У интерактивной задачи шаг получает и протокол взаимодействия — см.
+For an interactive problem the step also gets the interaction protocol — see
 `.claude/rules/step-roles/6-interactor_draft.md`.

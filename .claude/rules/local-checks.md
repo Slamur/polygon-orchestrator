@@ -8,81 +8,81 @@ paths:
   - "tests/test_statement_check.py"
 ---
 
-# Команды `local`: проверки без модели и без сети
+# `local` commands: checks without the model and without the network
 
-Адресация задач и группы — в `.claude/rules/cli.md`.
+Addressing problems and groups — in `.claude/rules/cli.md`.
 
-- `orchestrator <задача> local check` — без модели и без сети:
-  проверяет оформление условия (`statement/<код>/*.tex`, кавычки — только в
-  `ru`): списки в стиле
-  Markdown (строки с `- `, `* `, `1. ` вместо `itemize`/`enumerate`) и
-  кавычки, отличные от `<<…>>` (`"`, `“”`, `«»`, ```` ``…'' ````; вне
-  формул и комментариев), — с файлом и строкой каждой находки. Ещё
-  раскрывает test-script(ы) задачи настоящим FreeMarker (нужна `java`;
-  jar FreeMarker при первом запуске скачивается с Maven Central в
-  `~/.cache/polygon-orchestrator/`) и печатает одинаковые строки — с
-  ними Polygon не генерирует тесты — с указанием, какая строка скрипта
-  и при каких значениях переменных `<#list>` напечатала каждую, и
-  строки, которые Polygon не примет: кавычки в параметрах генератора и
-  `>` не ровно один (только финальное `> $`); их `local fix` не
-  исправляет — это вопрос параметров генератора. Та же
-  проверка — перед загрузкой в `upload_test_script`: найденное
-  останавливает push до сети; если проверку выполнить нельзя или
-  FreeMarker не раскрыл скрипт — только предупреждение
-  (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает её). Детали — в
-  докстринге `orchestrator/checks/test_script_check.py`.
-  С `--full` ещё генерирует тесты по скрипту локально, прогоняет на них
-  валидатор и показывает одинаковые по содержимому, вместе с примерами, и
-  соответствующие им строки скрипта (код возврата от них не зависит). Кэш —
-  `.tests_cache/`: ключ теста — хеш команды и сборки её генераторов, поэтому
-  перенумерация ничего не перегенерирует, правка генератора — только тесты
-  с ним, тесты с пропавшими ключами удаляются (`manifest.txt` — номер, файл
-  и команда каждого). Перед push не запускается. Это приближение: на Polygon
-  другой компилятор, и тесты могут отличаться. Детали — в докстринге
+- `orchestrator <problem> local check` — without the model and without the network:
+  checks the statement's formatting (`statement/<code>/*.tex`, quotes — only in
+  `ru`): Markdown-style
+  lists (lines with `- `, `* `, `1. ` instead of `itemize`/`enumerate`) and
+  quotes other than `<<…>>` (`"`, `“”`, `«»`, ```` ``…'' ````; outside
+  formulas and comments) — with the file and line of each finding. It also
+  expands the problem's test-script(s) with real FreeMarker (needs `java`;
+  the FreeMarker jar is downloaded from Maven Central into
+  `~/.cache/polygon-orchestrator/` on the first run) and prints identical lines — with
+  them Polygon doesn't generate tests — indicating which script line
+  printed each of them and with which values of the `<#list>` variables, and
+  lines Polygon won't accept: quotes in generator parameters and
+  `>` not exactly once (only the final `> $`); `local fix` doesn't
+  fix them — that's a matter of the generator's parameters. The same
+  check — before uploading in `upload_test_script`: a finding
+  stops the push before the network; if the check can't be run or
+  FreeMarker didn't expand the script — only a warning
+  (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` turns it off). Details — in the
+  docstring of `orchestrator/checks/test_script_check.py`.
+  With `--full` it also generates tests from the script locally, runs the
+  validator on them and shows the ones identical in content, together with the examples, and
+  the script lines corresponding to them (the exit code doesn't depend on them). The cache —
+  `.tests_cache/`: a test's key is the hash of the command and of the build of its generators, so
+  renumbering regenerates nothing, editing a generator — only the tests
+  with it, tests with vanished keys are deleted (`manifest.txt` — the number, file
+  and command of each). It doesn't run before push. This is an approximation: Polygon has
+  a different compiler, and the tests may differ. Details — in the docstring of
   `orchestrator/checks/local_tests.py`.
-- `orchestrator <задача> local run` — без модели и без сети: прогоняет
-  на примерах (`statement/examples/example_<N>.txt`) валидатор и все
-  решения из `solutions/`. Отдельно от `local check` и не запускается
-  перед push: сборка и запуск всех решений — долго и нужны не всегда.
-  Сборка: C++ — g++, Java — `javac` (без
-  него — тот же компилятор из модуля `jdk.compiler` через `java -m`), Python
-  — `python3`; TL — из `limits.yaml` (без него — из `constraints.yaml`),
-  время — локальное wall-clock; ответ — `output` примера в спеке, без него —
-  вывод Main correct; вердикт выносит чекер задачи (`checker.cpp` или
-  стандартный из `checker.standard`, исходники — в
-  `orchestrator/checks/std_checkers/`). Решение с вердиктом X в имени может
-  получить на примере OK или X (`tl_ok` — OK или TL), остальное — ошибка
-  (`ALLOWED_VERDICTS`); решение не с вердиктом `tl`, работавшее на примере
-  дольше половины TL (и уложившееся в него), — предупреждение. У
-  интерактивной задачи решение и `interactor.cpp` связаны пайпами,
-  чекер судит `tout` интерактора, ответ — `tout` Main correct (`output`
-  примеров в спеке — реплики диалога, не ответ); решение, не завершившееся
-  за TL с запасом и потратившее меньше половины времени на процессоре, —
-  IL (ждёт ответа: не сбросило вывод), иначе TL; `il` допускает OK или IL.
-  Input/output for statements примеров проверяются тоже: у обычной задачи
-  input — валидатором, показанный вывод — чекером против ответа Main
-  correct на показанном вводе; у интерактивной диалог проигрывается с
-  интерактором (его ответы — по токенам как input for statements, вердикт
-  OK, `tout` проходит чекер). Расхождение — в `errors`.
-  С `--full` к примерам добавляются тесты по скрипту (как у `local check
-  --full`) с ответами от Main correct. Заявленный вердикт здесь требуется:
-  `wa`, `re`, `il`, ни разу его не получившие, — ошибка (тесты их не ловят),
-  `tl` — предупреждение (время локальное), `ml` не проверяется. Эти решения
-  останавливаются на первом заявленном вердикте, `ok` и `tl_ok` идут до конца.
-  Вывод — как у `polygon push`: по ходу заметки и строка на
-  каждое запускаемое решение, в конце группы `expected verdicts`,
-  `unexpected verdicts`, `not run`, `warnings`, `errors`. Это проверка, а
-  не судящий контур: только примеры, без различения MLE. Детали — в
-  докстринге `orchestrator/checks/solutions_run.py`.
-- `orchestrator <задача> local fix` — без модели и без сети:
-  исправляет в условии найденное `local check`, что исправляется
-  механически, — Markdown-списки в `itemize`/`enumerate` (вложенность —
-  по отступу), кавычки в `<<…>>`; абзац с непарными кавычками не трогает
-  и печатает их для ручной правки (код возврата 1). Прежние версии
-  изменённых файлов — в `.fix_backup/<время>/` каталога задачи; следующий
-  `polygon push` загрузит исправленное как обычную правку. Детали — в
-  докстринге `orchestrator/checks/statement_check.py`.
-- `orchestrator <задача> local clear` — без модели и без сети: удаляет
-  локальные кэши проверок, которые они пересоздают сами (`.tests_cache/`,
-  `LOCAL_CACHE_DIRNAMES` в `orchestrator/checks/local_tests.py`). Кэш шагов
-  модели (`.cache/`), `polygon_state.json` и бэкапы не трогает.
+- `orchestrator <problem> local run` — without the model and without the network: runs
+  the validator and all solutions from `solutions/` on the examples
+  (`statement/examples/example_<N>.txt`). Separate from `local check` and not run
+  before push: building and running all solutions takes long and isn't always needed.
+  Building: C++ — g++, Java — `javac` (without
+  it — the same compiler from the `jdk.compiler` module via `java -m`), Python
+  — `python3`; TL — from `limits.yaml` (without it — from `constraints.yaml`),
+  the time — local wall-clock; the answer — the example's `output` in the spec, without it —
+  the output of Main correct; the verdict is given by the problem's checker (`checker.cpp` or
+  the standard one from `checker.standard`, sources — in
+  `orchestrator/checks/std_checkers/`). A solution with verdict X in its name may
+  get OK or X on an example (`tl_ok` — OK or TL), anything else is an error
+  (`ALLOWED_VERDICTS`); a solution without the `tl` verdict that ran on an example
+  longer than half the TL (and fit into it) — a warning. For an
+  interactive problem the solution and `interactor.cpp` are connected with pipes,
+  the checker judges the interactor's `tout`, the answer — the `tout` of Main correct (the examples' `output`
+  in the spec are dialogue lines, not the answer); a solution that didn't finish
+  within TL with a margin and spent less than half of the time on the CPU —
+  IL (waiting for an answer: it didn't flush its output), otherwise TL; `il` allows OK or IL.
+  The examples' input/output for statements are checked too: for a normal problem
+  the input — by the validator, the shown output — by the checker against the answer of Main
+  correct on the shown input; for an interactive one the dialogue is replayed with
+  the interactor (its answers — token-wise as the input for statements, the verdict
+  OK, `tout` passes the checker). A mismatch — in `errors`.
+  With `--full`, tests from the script are added to the examples (as in `local check
+  --full`) with answers from Main correct. The declared verdict is required here:
+  `wa`, `re`, `il` that never got it — an error (the tests don't catch them),
+  `tl` — a warning (the time is local), `ml` isn't checked. These solutions
+  stop at the first declared verdict, `ok` and `tl_ok` go to the end.
+  The output — as in `polygon push`: notes along the way and a line per
+  each solution being run, at the end the groups `expected verdicts`,
+  `unexpected verdicts`, `not run`, `warnings`, `errors`. This is a check, not
+  a judging loop: only examples, without distinguishing MLE. Details — in the
+  docstring of `orchestrator/checks/solutions_run.py`.
+- `orchestrator <problem> local fix` — without the model and without the network:
+  fixes in the statement what `local check` found that can be fixed
+  mechanically — Markdown lists into `itemize`/`enumerate` (nesting —
+  by indentation), quotes into `<<…>>`; a paragraph with unpaired quotes isn't touched
+  and they are printed for manual editing (exit code 1). Previous versions of
+  changed files — in the problem directory's `.fix_backup/<time>/`; the next
+  `polygon push` uploads the fixed version as an ordinary edit. Details — in the
+  docstring of `orchestrator/checks/statement_check.py`.
+- `orchestrator <problem> local clear` — without the model and without the network: deletes
+  the local caches of the checks that they recreate themselves (`.tests_cache/`,
+  `LOCAL_CACHE_DIRNAMES` in `orchestrator/checks/local_tests.py`). The model's step cache
+  (`.cache/`), `polygon_state.json` and backups aren't touched.

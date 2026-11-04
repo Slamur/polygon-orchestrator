@@ -14,123 +14,124 @@ paths:
   - "tests/test_problem_paths.py"
   - "tests/test_spec*.py"
   - "tests/test_statement_languages.py"
+---
 
-# CLI: адресация задач, группы, `init`
+# CLI: addressing problems, groups, `init`
 
-Команды `llm` — в `.claude/rules/llm-commands.md`, `local` — в
-`.claude/rules/local-checks.md`, `polygon` — в `.claude/rules/polygon.md`.
+`llm` commands — in `.claude/rules/llm-commands.md`, `local` — in
+`.claude/rules/local-checks.md`, `polygon` — in `.claude/rules/polygon.md`.
 
-## Запуск
+## Running
 
-Задачи в этом проекте независимы друг от друга: всё, что относится к
-задаче, — спек и результаты шагов — лежит в её каталоге (спек —
-`authoring/spec.yaml`). Каталоги задач лежат в двух корнях — `problems/` (задачи
-автора) и `examples/` (учебные задачи) — на любой глубине: промежуточные
-каталоги только группируют задачи
-(`problems/contest/2026/round-1/my-task`). Каталог задачи — первый каталог
-вниз от корня, в котором есть `authoring/spec.yaml` или
-`polygon_state.json`; задачи друг в друга не вкладываются, а каталог с
-именем `authoring` не может быть задачей или группой задач.
+Problems in this project are independent of each other: everything that relates to
+a problem — the spec and the results of the steps — lies in its directory (the spec —
+`authoring/spec.yaml`). Problem directories lie in two roots — `problems/` (the author's
+problems) and `examples/` (sample problems) — at any depth: intermediate
+directories only group problems
+(`problems/contest/2026/round-1/my-task`). A problem directory is the first directory
+down from the root that contains `authoring/spec.yaml` or
+`polygon_state.json`; problems aren't nested in each other, and a directory
+named `authoring` can't be a problem or a problem group.
 
-Спек, `constraints.yaml` и копия черновика лежат в подкаталоге `authoring/`
-каталога задачи — это файлы, с которыми работают только модель и автор;
-всё остальное, в том числе `limits.yaml`, — в самом каталоге, как на
-Polygon. Задачу, у которой эти файлы ещё лежат прямо в каталоге (раскладка
-до `authoring/`), любая команда к ней сначала переносит в `authoring/`
-(`migrate_to_authoring` в `orchestrator/problem_paths.py`, печатает, что
-перенесено; файл, который есть в обоих местах, — ошибка до любого
-переноса). Пока задачу не перенесли, её находят дополнение и проверки
-`problem_id`, а референсы и `--ref` читают её спек и `constraints.yaml` из
-старого места.
+The spec, `constraints.yaml` and the draft copy lie in the problem directory's
+`authoring/` subdirectory — these are the files only the model and the author work with;
+everything else, including `limits.yaml`, — in the directory itself, as on
+Polygon. A problem whose files still lie directly in its directory (the layout
+from before `authoring/`) is first moved into `authoring/` by any command on it
+(`migrate_to_authoring` in `orchestrator/problem_paths.py`, prints what
+was moved; a file that exists in both places is an error before any
+move). Until the problem is moved, completion and the `problem_id` checks
+find it, and references and `--ref` read its spec and `constraints.yaml` from
+the old place.
 
-Так же условие, лежащее прямо в `statement/` (раскладка до каталогов языков),
-любая команда к задаче сначала переносит в `statement/<language>/` — вместе с
-ключами базы синхронизации в `polygon_state.json`, чтобы push не загрузил его
-заново (`migrate_statement_languages` в `orchestrator/statement_languages.py`,
-печатает одну строку; файл, который есть в обоих местах, — ошибка до любого
-переноса). Референсы читают условие не перенесённой задачи из старого места.
+Likewise, a statement lying directly in `statement/` (the layout from before language directories)
+is first moved into `statement/<language>/` by any command on the problem — together with
+the sync base keys in `polygon_state.json`, so that push doesn't upload it
+again (`migrate_statement_languages` in `orchestrator/statement_languages.py`,
+prints one line; a file that exists in both places is an error before any
+move). References read the statement of a problem not yet moved from the old place.
 
-В CLI задача адресуется путём своего каталога вместе с корнем — дальше
-`<задача>`: `problems/<путь задачи>` или `examples/<путь задачи>`, корень
-обязателен. `problem_id` (поле спека и имя задачи на Polygon) выводится из
-пути: в `problems/` — имя самого вложенного каталога (`my-task`), в
-`examples/` — все компоненты пути через `--` (`examples/array/prefix-sums`
--> `array--prefix-sums`; поэтому в именах каталогов `examples/` `--`
-запрещено). `problem_id` уникален среди задач обоих корней. Всё это — в
+In the CLI a problem is addressed by the path of its directory together with the root — below
+`<problem>`: `problems/<problem path>` or `examples/<problem path>`, the root is
+mandatory. `problem_id` (the spec field and the problem's name on Polygon) is derived from
+the path: in `problems/` — the name of the innermost directory (`my-task`), in
+`examples/` — all path components joined with `--` (`examples/array/prefix-sums`
+-> `array--prefix-sums`; so `--` is forbidden in `examples/` directory
+names). `problem_id` is unique among the problems of both roots. All of this is in
 `orchestrator/problem_paths.py`.
 
-Обычно работа идёт над одной задачей, поэтому задача в CLI стоит
-первой, а команда к ней — после: `orchestrator [--base-dir ...]
-<задача> <init|llm|local|polygon> [команда] [флаги]` (`--base-dir` — каталог, в
-котором лежат `problems/` и `examples/`, по умолчанию текущий). Группы
-команд разделены по тому, чего они стоят: `llm` (и `init --draft`) вызывает
-модель, `polygon` ходит в сеть, `local` — ни то, ни другое; локальная
-проверка живёт в `local`, даже если нужна перед push.
+Usually the work is on one problem, so the problem comes
+first in the CLI, and the command to it — after: `orchestrator [--base-dir ...]
+<problem> <init|llm|local|polygon> [command] [flags]` (`--base-dir` — the directory
+containing `problems/` and `examples/`, the current one by default). The command
+groups are split by what they cost: `llm` (and `init --draft`) calls the
+model, `polygon` goes to the network, `local` — neither; local
+checking lives in `local`, even if it is needed before a push.
 
-Вместо `<задача>` можно указать группу — каталог выше задач или сам корень
-(`problems/contest/2026`, `examples`): команда выполняется для всех задач под
-ним по очереди (`_run_group` в `orchestrator/cli.py`, `problems_under` в
-`orchestrator/problem_paths.py`). Группа — каталог целиком, а не начало имени.
-Сначала печатается список задач (`problem_id` и адрес) и спрашивается
-подтверждение (`[y/N]`, закрытый ввод — отказ); без него работают только
-`llm status` и `polygon status`. Сбой задачи, даже необработанное исключение,
-не останавливает остальные; в конце — сколько прошло и какие не прошли, код
-возврата 1, если не прошла хотя бы одна. `init` групп не принимает, `polygon
-pull --polygon-id` с группой — ошибка: они про одну задачу.
+Instead of `<problem>` you can give a group — a directory above problems or the root itself
+(`problems/contest/2026`, `examples`): the command runs for all problems under
+it in turn (`_run_group` in `orchestrator/cli.py`, `problems_under` in
+`orchestrator/problem_paths.py`). A group is a whole directory, not a name prefix.
+First the list of problems (`problem_id` and address) is printed and a confirmation is asked
+(`[y/N]`, closed input — a refusal); only
+`llm status` and `polygon status` work without it. A failure of a problem, even an unhandled exception,
+doesn't stop the rest; at the end — how many passed and which didn't, exit code
+1 if at least one didn't pass. `init` doesn't accept groups, `polygon
+pull --polygon-id` with a group is an error: they are about one problem.
 
-То, что должно обеспечить CLI (`orchestrator/cli.py` —
-парсер, `orchestrator/cli_commands.py` — сами команды):
+What the CLI must provide (`orchestrator/cli.py` —
+the parser, `orchestrator/cli_commands.py` — the commands themselves):
 
-- `orchestrator <задача> init [--ref <задача-основа>] [--draft NAME [--force]]` —
-  создаёт каталог задачи (если его нет) с `authoring/spec.yaml`. Без флагов — из
-  `templates/spec_template.yaml`: `problem_id` (выведенный из пути)
-  подставлен, остальные поля пустые, с комментариями-подсказками.
-  `--ref` — основа спека не шаблон, а спек другой задачи (адрес с корнем,
-  как у `<задача>`; из `problems/` или `examples/`): копируется как есть,
-  с комментариями, с новым `problem_id`, и задача-основа добавляется в
-  общие `references` — её файлы становятся образцами для шагов.
-  `--draft NAME` — черновик автора в свободной форме из `drafts/` (путь
-  относительно `drafts/` с расширением или без, `icpc/my-idea`; имя без
-  подкаталогов ищется и в подкаталогах; `orchestrator/drafts.py`): спек по нему
-  пишет модель (`orchestrator/spec_from_draft.py`, промпт
-  `prompts/spec_from_draft/`) на основе шаблона или спека `--ref`. Всё из
-  черновика модель сохраняет, а чего в нём нет — дозаполняет сама и может
-  предложить своё (решения, ошибки участников, тесты); каждое такое
-  значение помечено в спеке комментарием `# PROPOSED, REVIEW ME: ...` или
-  `# SUGGESTION: ...` и печатается заметкой. `problem_id` и референс на
-  задачу-основу ставит оркестратор поверх ответа. Спек пишется, даже если
-  ещё не проходит валидацию (ошибки печатаются), копия черновика — в
-  `authoring/draft.<расширение>` каталога задачи, лог — в `llm_generation.log`.
-  Кэша у `init --draft` нет. Если `spec.yaml` уже есть, `init --draft`
-  его дорабатывает, как "Режим доработки" шагов: модель получает текущий
-  спек (с ручными правками автора) и "было → стало" черновика — прошлая
-  копия `authoring/draft.*` против нового (общий блок
-  `prompts/revise.md.j2`); черновик не изменился — модель не вызывается
-  (`--force` — вызывается); `--ref` при доработке — ошибка. Прежние версии
-  спека и копии черновика — в `.llm_backup/<время>/`, дифф спека — в
-  отчёте. Без `--draft` существующий `spec.yaml` не перезаписывается
-  никогда. Отказывается создавать задачу внутри
-  другой задачи, вокруг уже существующих задач и с `problem_id`, который
-  уже занят задачей в другом каталоге любого из корней, — все проверки
-  (и поиск черновика, и спек `--ref`) до вызова модели. Polygon не
-  вызывает; модель — только с `--draft` (те же ограничения на запуск без
-  явной команды, что и для `llm generate`).
+- `orchestrator <problem> init [--ref <base problem>] [--draft NAME [--force]]` —
+  creates the problem directory (if it doesn't exist) with `authoring/spec.yaml`. Without flags — from
+  `templates/spec_template.yaml`: `problem_id` (derived from the path)
+  is filled in, the other fields are empty, with hint comments.
+  `--ref` — the spec's base is not the template but another problem's spec (an address with the root,
+  like `<problem>`; from `problems/` or `examples/`): copied as is,
+  with comments, with the new `problem_id`, and the base problem is added to the
+  shared `references` — its files become samples for the steps.
+  `--draft NAME` — the author's free-form draft from `drafts/` (a path
+  relative to `drafts/` with or without the extension, `icpc/my-idea`; a name without
+  subdirectories is also searched for in subdirectories; `orchestrator/drafts.py`): the spec from it
+  is written by the model (`orchestrator/spec_from_draft.py`, the prompt
+  `prompts/spec_from_draft/`) based on the template or the `--ref` spec. Everything from
+  the draft the model keeps, and what isn't in it — it fills in itself and may
+  propose its own (solutions, contestant mistakes, tests); each such
+  value is marked in the spec with a `# PROPOSED, REVIEW ME: ...` or
+  `# SUGGESTION: ...` comment and printed as a note. The `problem_id` and the reference to
+  the base problem are set by the orchestrator on top of the response. The spec is written even if
+  it doesn't pass validation yet (the errors are printed), the draft copy — to the problem
+  directory's `authoring/draft.<extension>`, the log — to `llm_generation.log`.
+  `init --draft` has no cache. If `spec.yaml` already exists, `init --draft`
+  revises it, like the steps' "Revision mode": the model gets the current
+  spec (with the author's manual edits) and the "before → after" of the draft — the previous
+  copy `authoring/draft.*` against the new one (the shared block
+  `prompts/revise.md.j2`); the draft didn't change — the model isn't called
+  (`--force` — it is called); `--ref` during a revision is an error. Previous versions of
+  the spec and the draft copy — in `.llm_backup/<time>/`, the spec diff — in the
+  report. Without `--draft`, an existing `spec.yaml` is never
+  overwritten. It refuses to create a problem inside
+  another problem, around already existing problems and with a `problem_id` that
+  is already taken by a problem in another directory of either root — all checks
+  (both finding the draft and the `--ref` spec) before calling the model. It doesn't call
+  Polygon; the model — only with `--draft` (the same restrictions on running without an
+  explicit command as for `llm generate`).
 
-`<задача>` дополняется по Tab (`argcomplete`; разовая настройка shell — в
-`docs/SETUP.md`): кандидаты — адреса всех задач в `problems/` и
-`examples/`, со спеком или только с `polygon_state.json` (`polygon
-status|pull` спек не нужен, а команда на момент дополнения адреса ещё не
-набрана); читаются при каждом нажатии, ничего не кэшируется. На каждый Tab shell запускает `cli.py`
-целиком, поэтому на верхнем уровне `cli.py` нельзя импортировать пайплайны
-(pydantic, requests) — они подгружаются лениво через `cli_commands.py`.
-Дополнение только подсказывает: в команду уходит полный адрес задачи или
-группы (кандидаты — только задачи, но каталог группы дополняется как их общее
-начало), сокращённые адреса CLI не принимает.
+`<problem>` is completed by Tab (`argcomplete`; the one-time shell setup — in
+`docs/SETUP.md`): the candidates are the addresses of all problems in `problems/` and
+`examples/`, with a spec or with only `polygon_state.json` (`polygon
+status|pull` don't need a spec, and the command isn't typed yet at the moment of completing the address);
+they are read on every press, nothing is cached. On every Tab the shell runs `cli.py`
+in full, so the top level of `cli.py` must not import the pipelines
+(pydantic, requests) — they are loaded lazily through `cli_commands.py`.
+Completion only suggests: the full address of a problem or
+group goes into the command (the candidates are only problems, but a group directory is completed as their common
+prefix), the CLI doesn't accept abbreviated addresses.
 
-Группировку задач в контесты/раунды с общими дефолтами (TL/ML-конвенции,
-общий стиль тестовых групп на весь раунд) в спек пока сознательно не
-закладываем — решения по этому вопросу пока нет. Если понадобится, самое
-дешёвое расширение — необязательное поле `extends: <contest_id>.yaml` в
-спеке, значения которого мёрджатся в спек как дефолты перед валидацией; сам
-`SPEC_FORMAT.md` под это не переписан, чтобы не фиксировать формат раньше
-времени.
+Grouping problems into contests/rounds with shared defaults (TL/ML conventions,
+a shared test-group style for the whole round) is deliberately not put into the spec
+yet — there is no decision on this question yet. If it becomes necessary, the
+cheapest extension is an optional `extends: <contest_id>.yaml` field in the
+spec, whose values are merged into the spec as defaults before validation;
+`SPEC_FORMAT.md` itself isn't rewritten for this, so as not to fix the format
+prematurely.

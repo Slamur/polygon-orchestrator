@@ -17,194 +17,194 @@ paths:
   - "tests/test_prompts_doc_sync.py"
 ---
 
-# Генеративные шаги: доработка, конфликты, кэш, эскалация
+# Generative steps: revision, conflicts, cache, escalation
 
-Команды `llm generate|tutorial|status|apply|accept` — в `.claude/rules/llm-commands.md`.
-Роль каждого генеративного шага — в `.claude/rules/step-roles/`, по файлу на
-пункт (`<N>-<шаг>.md`). Маршрутизация моделей по шагам — в
+The `llm generate|tutorial|status|apply|accept` commands — in `.claude/rules/llm-commands.md`.
+The role of each generative step — in `.claude/rules/step-roles/`, one file per
+item (`<N>-<step>.md`). Model routing by step — in
 `.claude/rules/models.md`.
 
-## Общее для всех шагов
+## Common to all steps
 
-Каждый шаг — чистая функция от (спек + результаты предыдущих шагов) к
-артефакту(-ам) + отчёту о неуверенности. Шаги идемпотентны: повторный запуск
-с тем же входом должен быть безопасен (перезаписывает `problems/<путь задачи>/...`, не
-аккумулирует состояние) — но по умолчанию повторный запуск с **тем же**
-входом не должен даже дойти до вызова модели, см. ниже "Кэширование по хешу
-спека".
+Each step is a pure function from (spec + results of previous steps) to
+artifact(s) + an uncertainty report. Steps are idempotent: a rerun
+with the same input must be safe (it overwrites `problems/<problem path>/...`, doesn't
+accumulate state) — but by default a rerun with **the same**
+input must not even reach the model call, see "Caching by spec
+hash" below.
 
-**Режим доработки.** Если файлы шага уже есть на диске, перезапуск шага
-(вход изменился или `--force`) по умолчанию не пишет их с нуля: модель
-получает текущие файлы (возможно, с ручными правками автора) и то, что
-изменилось во входе шага с прошлого прогона ("было → стало" по частям
-входа — их значения хранятся в кэше шага, `input_values`), и дорабатывает
-их — общий блок `prompts/revise.md.j2` (`StepRevision` в
-`orchestrator/steps/base.py`, текущие файлы — `current_artifacts` модуля
-шага). Каждый текущий файл в ответе — ровно в одном из `artifacts`
-(изменён), `unchanged`, `removed`, `renamed` (проверяется до записи на
-диск, см. "Конфликты" ниже). Файлы, которые модель предлагает удалить, не удаляются, а
-переименовываются в `<имя>.removed` — автор смотрит и удаляет сам; такие
-файлы не видят ни шаги, ни Polygon-шаги, ни референсы (`is_removed_mark` в
-`orchestrator/problem_paths.py`). На Polygon `.removed`-файлы и старые
-имена переименованных файлов не удаляются — это автор делает руками.
-Переименования (например, смена вердикта решения) применяются сразу.
-Прежние версии перезаписанных и переименованных файлов — в
-`.llm_backup/<время>/` каталога задачи (в любом режиме: `problems/` вне
-git). `llm generate --fresh` — генерация с нуля, без текущих файлов.
+**Revision mode.** If the step's files already exist on disk, rerunning the step
+(the input changed or `--force`) by default doesn't write them from scratch: the model
+gets the current files (possibly with the author's manual edits) and what
+changed in the step's input since the last run ("before → after" by parts of the
+input — their values are stored in the step cache, `input_values`), and revises
+them — the shared block `prompts/revise.md.j2` (`StepRevision` in
+`orchestrator/steps/base.py`, the current files — the step module's `current_artifacts`).
+Each current file in the response is in exactly one of `artifacts`
+(changed), `unchanged`, `removed`, `renamed` (checked before writing to
+disk, see "Conflicts" below). Files the model proposes to delete aren't deleted but
+renamed to `<name>.removed` — the author looks and deletes them themselves; such
+files are seen by neither the steps, nor the Polygon steps, nor references (`is_removed_mark` in
+`orchestrator/problem_paths.py`). On Polygon, `.removed` files and the old
+names of renamed files aren't deleted — the author does that by hand.
+Renames (e.g. a change of a solution's verdict) are applied immediately.
+Previous versions of overwritten and renamed files — in the problem directory's
+`.llm_backup/<time>/` (in any mode: `problems/` is outside
+git). `llm generate --fresh` — generation from scratch, without the current files.
 
-**Конфликты.** Ответ модели применяется как `git merge`
-(`_plan_response` в `orchestrator/steps/base.py`): применимое
-применяется, остальное — конфликт. Текущий файл, о котором ответ молчит,
-остаётся как есть; неизвестное имя в `unchanged`/`removed`/`renamed` —
-игнорируется (обе ситуации — заметкой в выводе шага). Конфликт —
-недопустимое имя файла, текущий файл сразу в нескольких местах ответа,
-переименование в занятое или повторяющееся имя: файл задачи остаётся как
-был, версия модели откладывается в `.llm_conflicts/<шаг>-<время>/` (по
-своему пути в каталоге задачи) с отчётом `CONFLICTS.md` — что и почему не
-применено. Файлы `generators_draft`, `test_script_draft` и
-`solutions_draft` независимы и применяются по одному (`partial_apply`);
-`statement_draft`, `constraints_pick` (`constraints.yaml` и `validator.cpp`
-— 1-в-1), `tests_plan` и `checker_draft` при любом конфликте не применяются целиком — как и ответ,
-не прошедший проверку набора файлов шага (`validate_artifacts`). Шаг с
-конфликтом останавливает пайплайн; пока автор не разберёт конфликты
-(удалит их каталог) и не сделает `llm accept`, `llm generate` модель для
-этого шага не вызывает (`--force` — вызывает заново), `llm status`
-показывает `conflict`. Неполный ответ — без части файлов, которые шаг
-обязан вернуть (`MissingArtifactsError`), — модель один раз дописывает
-отдельным вызовом (`prompts/missing_artifacts.md.j2`: ей показываются
-уже возвращённые файлы, берутся только недостающие; в хеш промпта шага
-этот блок не входит); если файлов не хватает и после него — конфликт, как
-выше. Не применённый целиком ответ остаётся и для
+**Conflicts.** The model's response is applied like a `git merge`
+(`_plan_response` in `orchestrator/steps/base.py`): what can be applied
+is applied, the rest is a conflict. A current file the response is silent about
+stays as is; an unknown name in `unchanged`/`removed`/`renamed` is
+ignored (both situations — a note in the step's output). A conflict is
+an invalid file name, a current file in several places of the response at once,
+a rename to an occupied or duplicate name: the problem file stays as it
+was, the model's version is set aside in `.llm_conflicts/<step>-<time>/` (at
+its own path in the problem directory) with a `CONFLICTS.md` report — what wasn't
+applied and why. The files of `generators_draft`, `test_script_draft` and
+`solutions_draft` are independent and are applied one by one (`partial_apply`);
+`statement_draft`, `constraints_pick` (`constraints.yaml` and `validator.cpp`
+— 1-to-1), `tests_plan` and `checker_draft` on any conflict aren't applied at all — just like a response
+that didn't pass the step's file-set check (`validate_artifacts`). A step with
+a conflict stops the pipeline; until the author resolves the conflicts
+(deletes their directory) and runs `llm accept`, `llm generate` doesn't call the model for
+this step (`--force` — calls it again), `llm status`
+shows `conflict`. An incomplete response — missing some of the files the step
+must return (`MissingArtifactsError`) — the model completes once with a
+separate call (`prompts/missing_artifacts.md.j2`: it is shown the
+files already returned, only the missing ones are taken; this block isn't part of the
+step's prompt hash); if files are still missing after it — a conflict, as
+above. A response not applied in full also remains available for
 `llm apply`.
 
-## Кэширование по хешу спека
+## Caching by spec hash
 
-Каждый вызов генеративной модели стоит денег и времени, а спеки будут
-правиться итеративно (черновик → правки → повторный прогон). Поэтому
-шаг не должен вызывать модель повторно, если ничего из того, что на него
-влияет, не изменилось с прошлого успешного запуска.
+Each call to the generative model costs money and time, and specs will
+be edited iteratively (draft → edits → rerun). So
+a step must not call the model again if nothing that
+affects it has changed since the last successful run.
 
-Что входит в хеш для шага (считается в `orchestrator/cache.py`,
-используется в `orchestrator/pipeline.py` перед вызовом
+What goes into the hash for a step (computed in `orchestrator/cache.py`,
+used in `orchestrator/pipeline.py` before calling
 `model_router`):
 
-- каноническое JSON-представление той секции спека, от которой зависит шаг
-  (`statement_draft` → секция `statement_draft` + `language`, если он не
+- the canonical JSON representation of the spec section the step depends on
+  (`statement_draft` → the `statement_draft` section + `language` if it isn't
   `ru`; `constraints_pick` →
-  секция `constraints` + формат ввода из `statement_draft`
-  (`formal_input_sketch`, `indexing`, input примеров — правка формата входа
-  должна инвалидировать и `validator.cpp`); `tests_plan` → секция
-  `generation` + тот же формат ввода из `statement_draft` (правка
-  формата входа в условии должна инвалидировать план, даже если
-  секция `generation` не менялась) + `legend_sketch` +
-  `problems/<путь задачи>/authoring/constraints.yaml` из шага 2 без TL/ML +
-  `solutions.known_wrong_approaches` и `solutions.algorithm_hint` (если
-  секция `solutions` задана — их правка тоже должна инвалидировать план,
-  не только правка `generation`); `generators_draft` → формат ввода +
-  `constraints.yaml` без TL/ML + каждый генератор `tests_plan.yaml`
-  отдельной частью; `test_script_draft` → `generation.script_style` +
-  `constraints.yaml` без TL/ML + `constants`, `tests` и сигнатуры
-  генераторов плана; `solutions_draft` → секция
-  `solutions` + `constraints.intended_complexity` + ввод-вывод из
-  `statement_draft` (формат ввода и вывода, `indexing`, примеры с ответами,
-  легенда, у интерактивной задачи — протокол) + `constraints.yaml` без TL/ML;
-  `interactor_draft` → секция `interactor` + формат ввода и протокол из
-  `statement_draft`; механический `limits_from_constraints` → только TL/ML
-  из `constraints.yaml`, без промптов и модели). Сборка этой части `statement_draft` —
-  `statement_io_section` в `orchestrator/steps/base.py`, общая для всех
-  трёх шагов;
-- хеш содержимого промпт-шаблонов этого шага (`prompts/<step>/system.md` +
-  `user.md.j2`) и приложенных к нему документов (`templates/` и
-  файлы референсов спека) — если промпт или образец поправили, кэш должен
-  инвалидироваться, даже если спек не менялся;
-- имя/версия модели из `model_router.py` для этого шага (смена модели тоже
-  инвалидирует кэш).
+  the `constraints` section + the input format from `statement_draft`
+  (`formal_input_sketch`, `indexing`, the examples' input — an edit of the input format
+  must invalidate `validator.cpp` too); `tests_plan` → the
+  `generation` section + the same input format from `statement_draft` (an edit of the
+  input format in the statement must invalidate the plan, even if
+  the `generation` section didn't change) + `legend_sketch` +
+  `problems/<problem path>/authoring/constraints.yaml` from step 2 without TL/ML +
+  `solutions.known_wrong_approaches` and `solutions.algorithm_hint` (if
+  the `solutions` section is set — editing them must invalidate the plan too,
+  not only an edit of `generation`); `generators_draft` → the input format +
+  `constraints.yaml` without TL/ML + each generator of `tests_plan.yaml`
+  as a separate part; `test_script_draft` → `generation.script_style` +
+  `constraints.yaml` without TL/ML + `constants`, `tests` and the plan's generator
+  signatures; `solutions_draft` → the
+  `solutions` section + `constraints.intended_complexity` + input/output from
+  `statement_draft` (input and output format, `indexing`, examples with answers,
+  legend, for an interactive problem — the protocol) + `constraints.yaml` without TL/ML;
+  `interactor_draft` → the `interactor` section + the input format and protocol from
+  `statement_draft`; the mechanical `limits_from_constraints` → only TL/ML
+  from `constraints.yaml`, without prompts and model). Assembling this part of `statement_draft` —
+  `statement_io_section` in `orchestrator/steps/base.py`, shared by all
+  three steps;
+- the hash of the contents of this step's prompt templates (`prompts/<step>/system.md` +
+  `user.md.j2`) and of the documents attached to it (`templates/` and
+  the spec's reference files) — if a prompt or a sample was edited, the cache must
+  be invalidated, even if the spec didn't change;
+- the model name/version from `model_router.py` for this step (a model change also
+  invalidates the cache).
 
-Логика в `pipeline.py` перед каждым шагом:
+The logic in `pipeline.py` before each step:
 
-1. Посчитать `input_hash` по правилам выше.
-2. Прочитать `problems/<путь задачи>/.cache/<step>.json`, если есть.
-3. Если `input_hash` совпадает с сохранённым **и** ожидаемые файлы
-   артефактов на месте **и** сохранённый `status` не был `uncertain`
-   (кэшировать "провал по недостатку данных" бессмысленно — он должен
-   всплывать при каждом запуске, пока спек не поправят) — шаг пропускается,
-   в лог идёт "cache hit", `problems/` не трогается.
-4. Иначе — обычный вызов модели, и по успешному результату файл кэша
-   перезаписывается новым `input_hash`/`prompt_hash`/`model`/`status`/
+1. Compute `input_hash` by the rules above.
+2. Read `problems/<problem path>/.cache/<step>.json`, if it exists.
+3. If `input_hash` matches the stored one **and** the expected artifact files
+   are in place **and** the stored `status` wasn't `uncertain`
+   (caching a "failure due to missing data" is pointless — it must
+   surface on every run until the spec is fixed) — the step is skipped,
+   "cache hit" goes to the log, `problems/` isn't touched.
+4. Otherwise — a normal model call, and on a successful result the cache file
+   is overwritten with the new `input_hash`/`prompt_hash`/`model`/`status`/
    `timestamp`.
 
-Помимо общих `input_hash`/`prompt_hash`, кэш хранит хеши по частям
-(`input_parts`: поля секции спека и upstream-артефакты; `prompt_parts`:
-промпт-шаблоны и каждый приложенный документ) — решение о cache hit они не
-меняют, только объясняют в `llm status`/`llm generate`, что изменилось.
-`orchestrator <задача> llm accept` записывает текущие хеши без вызова модели (см.
+Besides the overall `input_hash`/`prompt_hash`, the cache stores hashes by parts
+(`input_parts`: fields of the spec section and upstream artifacts; `prompt_parts`:
+prompt templates and each attached document) — they don't change the cache-hit
+decision, they only explain in `llm status`/`llm generate` what changed.
+`orchestrator <problem> llm accept` records the current hashes without calling the model (see
 `.claude/rules/llm-commands.md`).
 
-Кэш хранит и сами значения частей входа (`input_values`) — по ним
-следующий прогон в режиме доработки показывает модели "было → стало".
-Текущие файлы шага в хеш не входят: это контекст доработки, а не вход —
-ручная правка файла не делает шаг `stale`.
+The cache also stores the values of the input parts themselves (`input_values`) — from them
+the next run in revision mode shows the model "before → after".
+The step's current files aren't part of the hash: they are revision context, not input —
+a manual edit of a file doesn't make the step `stale`.
 
-`--force`/`--fresh` в CLI полностью обходят этот механизм для явной
-принудительной перегенерации (`--force` — доработкой текущих файлов,
-`--fresh` — с нуля).
+`--force`/`--fresh` in the CLI bypass this mechanism completely for an explicit
+forced regeneration (`--force` — by revising the current files,
+`--fresh` — from scratch).
 
-## Правило эскалации при неуверенности
+## Escalation rule on uncertainty
 
-Это правило применяется к промптам всех шагов (см. `prompts/*/system.md`):
+This rule applies to the prompts of all steps (see `prompts/*/system.md`):
 
-- Если для ответа не хватает данных, явно заданных автором в спеке (в первую
-  очередь — asymптотика, точность вещественного ответа, поведение на
-  граничных случаях, которые не описаны в `special_guarantees`) — модель
-  обязана **не додумывать**, а вернуть структурированный ответ с полем
-  `uncertain: true` и конкретным указанием, какого именно поля спека не
-  хватает.
-- Если данных достаточно, но решение неоднозначно (например, автор не
-  указал верхнюю границу переменной, `max: null`) — модель может предложить
-  вариант, но обязана явно пометить его как `status: proposed` (не
-  `status: confirmed`), и указать, на основании чего сделано предположение.
-- Ссылки на источники за пределами приложенных `tutorials/*.md` (например,
-  на testlib-документацию) допустимы, но должны быть явными URL, а не
-  пересказом "по памяти".
-- Оркестратор (Python-код) должен различать эти два случая механически:
-  ответ с `uncertain: true` останавливает пайплайн для этого problem_id и
-  требует правки спека; ответ с `status: proposed` полях — не останавливает
-  пайплайн, но помечает соответствующие файлы/поля в `problems/` как
-  требующие ручной проверки автором (например, суффиксом `# PROPOSED,
-  REVIEW ME` в сгенерированном файле или отдельным полем в
+- If the answer lacks data explicitly set by the author in the spec (first
+  of all — the asymptotics, the precision of a real-valued answer, behavior in
+  edge cases not described in `special_guarantees`) — the model
+  must **not make it up**, but return a structured response with the field
+  `uncertain: true` and a concrete indication of which spec field exactly is
+  missing.
+- If the data is sufficient but the decision is ambiguous (e.g. the author didn't
+  give a variable's upper bound, `max: null`) — the model may propose
+  an option, but must explicitly mark it as `status: proposed` (not
+  `status: confirmed`), and state what the assumption is based on.
+- References to sources beyond the attached `tutorials/*.md` (e.g.
+  to testlib documentation) are allowed, but must be explicit URLs, not
+  a retelling "from memory".
+- The orchestrator (Python code) must distinguish these two cases mechanically:
+  a response with `uncertain: true` stops the pipeline for this problem_id and
+  requires a spec edit; a response with `status: proposed` fields — doesn't stop the
+  pipeline, but marks the corresponding files/fields in `problems/` as
+  requiring manual review by the author (e.g. with a `# PROPOSED,
+  REVIEW ME` suffix in the generated file or a separate field in
   `constraints.yaml`).
 
-### Предложения модели сверх спека
+### Model suggestions beyond the spec
 
-"Не додумывать" относится к тому, что задаёт автор, а не к собственным
-идеям модели. Решения автора — асимптотика, по которой выбираются
-ограничения, алгоритм эталонного решения, заказанные решения и тесты —
-модель реализует как заданы и своими не подменяет. Но если она видит то,
-чего в спеке нет, автор хочет об этом узнать, поэтому сверх заказанного
-модель может предложить своё — с `kind: suggestion` в `notes` (и не ниже
-`status: proposed` у ответа, если добавлены файлы):
+"Don't make it up" refers to what the author sets, not to the model's own
+ideas. The author's decisions — the asymptotics by which the limits are chosen,
+the reference solution's algorithm, the ordered solutions and tests —
+the model implements as given and doesn't substitute its own. But if it sees something
+that isn't in the spec, the author wants to know about it, so beyond what was ordered
+the model may propose its own — with `kind: suggestion` in `notes` (and no lower than
+`status: proposed` for the response, if files were added):
 
-- `solutions_draft` — другое верное решение (лучшая асимптотика, чем
-  `intended_complexity`, — с замечанием, не пересмотреть ли ограничения;
-  заметно более простое) и вероятные ошибки участников, которых нет в
-  `known_wrong_approaches`, — отдельными файлами;
-- `tests_plan` — тесты под ошибки и граничные случаи, не покрытые
-  заказанными автором, — отдельными генераторами и блоками плана со
-  `status: suggestion` (`generators_draft` и `test_script_draft` переносят
-  их в код с комментарием `SUGGESTION: ...`, своего не добавляют);
-- `constraints_pick` — только заметками, не меняя `constraints.yaml`:
-  нестыковки `complexity_reasoning`, лимиты, при которых медленное решение
-  проходит, полезные группы.
+- `solutions_draft` — another correct solution (better asymptotics than
+  `intended_complexity` — with a remark on whether to reconsider the limits;
+  noticeably simpler) and likely contestant mistakes that aren't in
+  `known_wrong_approaches` — as separate files;
+- `tests_plan` — tests for mistakes and edge cases not covered by
+  those ordered by the author — as separate generators and plan blocks with
+  `status: suggestion` (`generators_draft` and `test_script_draft` carry
+  them into code with a `SUGGESTION: ...` comment, they don't add their own);
+- `constraints_pick` — only as notes, without changing `constraints.yaml`:
+  inconsistencies in `complexity_reasoning`, limits under which a slow solution
+  passes, useful groups.
 
-Файлы с идеями модели начинаются с комментария `SUGGESTION: ...` — автор
-видит их и в каталоге задачи, и на Polygon. `statement_draft`,
-`checker_draft` и `interactor_draft` своего не предлагают: условие,
-правило сравнения и поведение интерактора задаёт только автор. `tutorial_draft`
-предлагает своё только заметками, в разбор не пишет: его содержание задаёт драфт.
+Files with the model's ideas start with a `SUGGESTION: ...` comment — the author
+sees them both in the problem directory and on Polygon. `statement_draft`,
+`checker_draft` and `interactor_draft` don't propose their own: the statement,
+the comparison rule and the interactor's behavior are set only by the author. `tutorial_draft`
+proposes its own only as notes, it doesn't write it into the tutorial: its content is set by the draft.
 
-Спек по черновику (`init --draft`) — место, где автор только формулирует
-свои решения, поэтому там модель дозаполняет и их (асимптотику, идею
-решения, правило сравнения в чекере), но каждое такое значение помечает
-прямо в спеке (`# PROPOSED, REVIEW ME: ...`, `# SUGGESTION: ...`): после
-проверки автором они становятся его решениями для всех шагов. Суть задачи
-(объекты, правила, вопрос) и сюжет легенды — только из черновика.
+The spec from a draft (`init --draft`) is where the author only formulates
+their decisions, so there the model fills them in too (the asymptotics, the solution
+idea, the comparison rule in the checker), but marks each such value
+right in the spec (`# PROPOSED, REVIEW ME: ...`, `# SUGGESTION: ...`): after
+the author's review they become their decisions for all steps. The essence of the problem
+(objects, rules, question) and the legend's plot — only from the draft.
