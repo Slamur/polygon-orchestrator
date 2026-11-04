@@ -1,48 +1,48 @@
-## Валидатор
+## Validator
 
-- **Валидатор** - программа, проверяющая корректность формата входных данных.
+- A **validator** is a program checking the correctness of the input data format.
 
-- Все гарантии, указанные в условии, должны обязательно проверяться в валидаторе.
+- All guarantees stated in the statement must necessarily be checked in the validator.
 
-  - Обязательно ограничения на минимальные/максимальные значения (задаются константами в валидаторе).
+  - Necessarily the limits on the minimal/maximal values (set by constants in the validator).
   
-  - Все дополнительные гарантии в формульных ограничениях.
+  - All additional guarantees in the formula limits.
   
-  - Все фразы со словами “гарантируется” и аналогами.
+  - All phrases with the word "it's guaranteed" and its analogues.
   
-  - Все гарантии, обусловленные определениями (например, если в задаче даётся дерево, то оно связное по определению).
+  - All guarantees following from definitions (e.g. if the problem gives a tree, it's connected by definition).
 
-- Валидатор также проверяет пробельные символы.
+- The validator also checks whitespace.
 
-  - Отсутствие пробелов в конце строки.
+  - No spaces at the end of a line.
   
-  - Перевод после каждой строки.
+  - A line break after each line.
   
-  - Отсутствие лишних данных в конце ввода.
+  - No extra data at the end of the input.
 
-- (Очень желательно) Валидаторы пишутся на C++ с использованием [testlib.h](https://codeforces.com/testlib).
+- (Strongly preferred) Validators are written in C++ using [testlib.h](https://codeforces.com/testlib).
 
-## [Testlib](https://codeforces.com/blog/entry/18426) для валидации тестов
+## [Testlib](https://codeforces.com/blog/entry/18426) for validating tests
 
-- Входной поток представлен объектом InStream inf.
+- The input stream is represented by the InStream object inf.
 
-- inf.readSpace / readEoln / readEof: проверка наличия пробела / перевода строки / конца файла.
+- inf.readSpace / readEoln / readEof: checking for a space / a line break / the end of file.
 
-- ensuref: проверка условий с форматированным выводом в случае ошибки.
+- ensuref: checking conditions with formatted output in case of an error.
 
-- inf.readInt / readLong: ввод чисел в заданных границах.
+- inf.readInt / readLong: reading numbers within given bounds.
 
-- inf.readLine / readWord: ввод строк с проверкой по паттерну.
+- inf.readLine / readWord: reading strings checked against a pattern.
 
-- inf.readInts / readLongs / readWords: ввод массива данных в одной строке через пробел.
+- inf.readInts / readLongs / readWords: reading an array of data on one line separated by spaces.
 
-- Для всех операций ввода данных необходимо указывать “имя переменной”.
+- For all input operations a "variable name" must be given.
 
-- setTestCase: указание номера теста для мультитестов.
+- setTestCase: setting the test number for multitests.
 
 ## Source file characters
 
-- The validator source contain only ASCII characters: comments, string literals and
+- The validator source contains only ASCII characters: comments, string literals and
   messages (`ensuref`, `quitf` and the like) are written in English. Some
   compilers, Polygon's among them, fail on non-ASCII characters in a source
   file; the orchestrator reports every line with them as an error.

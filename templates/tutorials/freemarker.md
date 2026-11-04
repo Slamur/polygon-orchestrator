@@ -1,82 +1,82 @@
-**Freemarker** - язык для автоматизации скрипта генерации тестов, используемый в Polygon.
+**Freemarker** is a language for automating the test generation script, used in Polygon.
 
-Ссылка на [полную документацию](https://freemarker.apache.org/docs/index.html).
+A link to the [full documentation](https://freemarker.apache.org/docs/index.html).
 
-Ссылка на базовые примеры доступна на вкладке “Tests”.
+A link to basic examples is available on the "Tests" tab.
 
-## Синтаксис
+## Syntax
 
-### Команды
+### Directives
 
-- Пишутся в формате тегов в угловых скобках <>;
+- Written in the format of tags in angle brackets <>;
 
-  - Многострочная команда требует закрывающий тег, начинающийся со слеша.
+  - A multi-line directive requires a closing tag starting with a slash.
   
-  - Для закрытия однострочной команды слеш опционален.
+  - For closing a one-line directive the slash is optional.
 
-- Имена команд начинаются с #;
+- Directive names start with #;
 
-- Внутри команд можно
+- Inside directives you can
 
-  - вызывать другие функции, макросы;
+  - call other functions, macros;
   
-  - обращаться к значения переменных и производить арифметические вычисления.
+  - refer to variable values and do arithmetic computations.
 
-- Обращение к переменным / функциям вне команд - через ${} (не путаем с $ - итератором номера теста)
+- Variables / functions are referred to outside directives via ${} (not to be confused with $ — the test number iterator)
 
   ```
   gen -n=${maxN} > $
   ```
 
-### Строки скрипта
+### Script lines
 
-- Каждая строка раскрытого скрипта — запуск генератора (или цепочки через `|`)
-  с перенаправлением в тест: `gen -n=5 > $`, `gen -n=5 | upd --rev > $`.
+- Each line of the expanded script is a run of a generator (or a chain via `|`)
+  with a redirection to the test: `gen -n=5 > $`, `gen -n=5 | upd --rev > $`.
 
-- Параметры генератора не могут содержать кавычки (`"`, `'`) и `>`: такие строки
-  Polygon не принимает. `>` в строке ровно один — финальное `> $`.
+- Generator parameters can't contain quotes (`"`, `'`) and `>`: Polygon doesn't accept
+  such lines. There's exactly one `>` in a line — the final `> $`.
 
-- Значение параметра — одно слово без пробелов. Несколько значений —
-  через запятую или отдельными параметрами:
+- A parameter's value is one word without spaces. Several values —
+  separated by commas or as separate parameters:
 
   ```
   gen -p=${a},${b} > $
   gen -pa=${a} -pb=${b} > $
   ```
 
-  но не `gen -p="${a} ${b}" > $`.
+  but not `gen -p="${a} ${b}" > $`.
 
-### Переменные, литералы, базовые операции
+### Variables, literals, basic operations
 
-- Присваивание командой assign
+- Assignment with the assign directive
 
   ```
   <#assign variable = value/>
   ```
 
-- Строки - в двойных кавычках ```“Hello”```
+- Strings — in double quotes ```"Hello"```
 
-- Массивы
+- Arrays
 
-  - в квадратных скобках ```[1, 5, 100]```
+  - in square brackets ```[1, 5, 100]```
   
-  - непрерывный отрезок - через две точки ```10..15```
+  - a contiguous range — with two dots ```10..15```
 
-- Можно обращаться к уже созданным переменным:
+- Already created variables can be referred to:
 
   ```
-  <#assign print = hello + ", “ + “World!”/>
+  <#assign print = hello + ", " + "World!"/>
   ```
 
-### Сравнения
+### Comparisons
 
-- Внутри команды `>` закрывает тег: `<#if value >= n>` читается как `<#if value>`
-  и текст `= n>`, и Polygon отказывается сохранять скрипт.
+- Inside a directive `>` closes the tag: `<#if value >= n>` is read as `<#if value>`
+  and the text `= n>`, and Polygon refuses to save the script.
 
-- Поэтому сравнения внутри команд (`if`, `elseif`, `assign`, `return` и др.) пишутся
-  только словами, в том числе `<` и `<=` — для единообразия:
+- So comparisons inside directives (`if`, `elseif`, `assign`, `return`, etc.) are written
+  only as words, including `<` and `<=` — for uniformity:
 
-  | знак | слово |
+  | sign | word |
   |------|-------|
   | `>`  | `gt`  |
   | `>=` | `gte` |
@@ -88,11 +88,11 @@
   <#assign isSmall = n lt smallN/>
   ```
 
-- `==` и `!=` пишутся как есть.
+- `==` and `!=` are written as is.
 
-### Цикл for
+### The for loop
 
-- Итерация командой list
+- Iteration with the list directive
 
   ```
   <#list values as value>
@@ -100,27 +100,27 @@
   </#list>
   ```
 
-  - values - значение типа “массив”;
+  - values — a value of the "array" type;
 
-  - Можно делать вложенные циклы
+  - Nested loops are possible
 
-- Переменные могут менять состояние в процессе
+- Variables may change their state along the way
 
   ```
   <#assign iteration = iteration + 1/>
   ```
 
-- [Ссылка](https://freemarker.apache.org/docs/ref_directive_list.html) на документацию.
+- [A link](https://freemarker.apache.org/docs/ref_directive_list.html) to the documentation.
 
-### Условный оператор if
+### The if conditional
 
-- [Ссылка](https://freemarker.apache.org/docs/ref_directive_if.html) на документацию.
+- [A link](https://freemarker.apache.org/docs/ref_directive_if.html) to the documentation.
 
-### Функции
+### Functions
 
-- Вычисляют значение на основе параметров
+- Compute a value from the parameters
 
-- Описываются командой function
+- Described with the function directive
 
   ```
   <#function name param1 param2>
@@ -130,13 +130,13 @@
   ${name(first, second)}
   ```
 
-- [Ссылка](https://freemarker.apache.org/docs/ref_directive_function.html) на документацию
+- [A link](https://freemarker.apache.org/docs/ref_directive_function.html) to the documentation
 
-### Макросы
+### Macros
 
-- Являются подпрограммой генерации скрипта;
+- Are a subroutine of the script generation;
 
-- Описываются командой macro
+- Described with the macro directive
 
   ```
   <#macro name param1 param2>
@@ -150,23 +150,23 @@
   >
   ```
 
-  (переводы строк при вызове опциональны)
+  (line breaks in the call are optional)
 
-- [Ссылка](https://freemarker.apache.org/docs/ref_directive_macro.html) на документацию
+- [A link](https://freemarker.apache.org/docs/ref_directive_macro.html) to the documentation
 
-## Стандартные функции
+## Standard functions
 
-Стандартный набор функций скрипта (div, ceil, min, max, pow, fact, contains) —
-в приложенном `test_script_functions.ftl`. Этот блок целиком, без изменений
-копируется в каждый скрипт, даже если часть функций в нём не используется:
-автор пользуется ими при ручной доработке скрипта.
+The standard set of script functions (div, ceil, min, max, pow, fact, contains) is
+in the attached `test_script_functions.ftl`. This block is copied into every script
+in full, without changes, even if some of its functions aren't used:
+the author uses them when editing the script by hand.
 
-## Пример полного скрипта для задачи
+## An example of a full script for a problem
 
-Предполагается, что входными данными является массив из N целых чисел.
+The input data is assumed to be an array of N integers.
 
 ```
-<#-- блок из test_script_functions.ftl, целиком -->
+<#-- the block from test_script_functions.ftl, in full -->
 
 <#assign rand = "gen_rand"/>
 <#assign sort = "sorted"/>

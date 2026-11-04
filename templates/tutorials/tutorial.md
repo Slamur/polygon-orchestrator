@@ -1,57 +1,57 @@
-## Разбор задачи
+## The problem's tutorial
 
-Разбор пишется по драфту автора. Драфт — единственный источник содержания: разбор раскрывает мысли автора, а не излагает решение задачи заново.
+The tutorial is written from the author's draft. The draft is the only source of content: the tutorial expands the author's thoughts, it doesn't present the problem's solution anew.
 
-## Что можно и что нельзя
+## What's allowed and what isn't
 
-- Можно раскрывать мысль, уже записанную в драфте: разворачивать тезис в связный текст, записывать формулами то, что сказано словами, договаривать шаг рассуждения, который автор наметил, и переводить обозначения драфта в обозначения условия.
+- It's allowed to expand a thought already written in the draft: unfold a point into connected text, write down with formulas what's said in words, finish a reasoning step the author outlined, and translate the draft's notation into the statement's notation.
 
-- Порядок мыслей — как в драфте. Абзацы и разделы появляются только там, где этого требует сам текст.
+- The order of thoughts — as in the draft. Paragraphs and sections appear only where the text itself requires it.
 
-- Если автор прямо просит что-то сделать («докажи», «допиши», «распиши», «тут объясни подробнее» и подобное), этот кусок пишется полностью, в том месте, где стоит просьба. Сама просьба в разбор не попадает.
+- If the author explicitly asks to do something ("prove", "finish", "spell out", "explain in more detail here" and the like; in a Russian draft — «докажи», «допиши», «распиши», «тут объясни подробнее»), this piece is written in full, at the place where the request stands. The request itself doesn't get into the tutorial.
 
-- Без такой просьбы нельзя добавлять то, чего в драфте нет:
+- Without such a request it's not allowed to add what isn't in the draft:
 
-  - доказательства и обоснования;
+  - proofs and justifications;
 
-  - асимптотику, оценки времени и памяти;
+  - the asymptotics, time and memory estimates;
 
-  - крайние случаи и предупреждения о типичных ошибках;
+  - edge cases and warnings about typical mistakes;
 
-  - другие решения и оптимизации;
+  - other solutions and optimizations;
 
-  - код и детали реализации;
+  - code and implementation details;
 
-  - вступление, заключение и пересказ условия.
+  - an introduction, a conclusion and a retelling of the statement.
 
-  Даже если кажется, что это важно или что без этого разбор неполон, это не повод дописывать.
+  Even if it seems important or that the tutorial is incomplete without it, that's no reason to add it.
 
-## Решения автора
+## The author's solutions
 
-- Решения приложены, только чтобы понять, что автор имел в виду в драфте: какой алгоритм стоит за коротким тезисом и в каком порядке идут действия.
+- The solutions are attached only to understand what the author meant in the draft: which algorithm stands behind a short point and in what order the actions go.
 
-- Детали реализации, которых нет в драфте, из решения в разбор не переносятся. Код решения вставляется, только если автор прямо об этом попросил.
+- Implementation details that aren't in the draft aren't carried over from a solution into the tutorial. A solution's code is inserted only if the author explicitly asked for it.
 
-## Обращение к читателю
+## Addressing the reader
 
-- Лицо берётся из текста драфта: где автор пишет «мы» — там «мы», где «вы» — там «вы». Обращения не приводятся к одному виду, если в драфте они различаются.
+- The person is taken from the draft's text: where the author writes "we" (in Russian — «мы») — there "we", where "you" («вы») — there "you". The forms of address aren't unified if they differ in the draft.
 
-- Если в этом месте драфта лицо не видно, выбери «мы» или «вы» по соседнему тексту драфта. Безличные конструкции автора можно оставить как есть.
+- If the person isn't visible at this place of the draft, choose "we" or "you" by the neighboring text of the draft. The author's impersonal constructions may be kept as is.
 
-## Оформление
+## Formatting
 
-- Доступна **Tex**-разметка. Вместо обычного или длинного тире используйте `---`.
+- **Tex** markup is available. Use `---` instead of an ordinary or long dash.
 
-- Формулы, переменные и числа — в **Tex** (`$` до и после формулы): `$a_i$`, `$10^{15}$`, `$1 \le N \le 10^9$`, `$k \cdot 10^5$`.
+- Formulas, variables and numbers — in **Tex** (`$` before and after a formula): `$a_i$`, `$10^{15}$`, `$1 \le N \le 10^9$`, `$k \cdot 10^5$`.
 
-- Драфт может быть написан в Markdown, но разбор — это LaTeX. Разметка Markdown (`**`, `#`, обратные кавычки) в разбор не попадает.
+- The draft may be written in Markdown, but the tutorial is LaTeX. Markdown markup (`**`, `#`, backticks) doesn't get into the tutorial.
 
-- Списки — только окружениями LaTeX, а не Markdown-разметкой (строки, начинающиеся с `-`, `*` или `1.`, LaTeX печатает как обычный текст):
+- Lists — only with LaTeX environments, not with Markdown markup (LaTeX prints lines starting with `-`, `*` or `1.` as ordinary text):
 
-  - маркированный список: `\begin{itemize}`, пункты `\item ...`, `\end{itemize}`;
+  - a bulleted list: `\begin{itemize}`, items `\item ...`, `\end{itemize}`;
 
-  - нумерованный список: `\begin{enumerate}`, пункты `\item ...`, `\end{enumerate}`.
+  - a numbered list: `\begin{enumerate}`, items `\item ...`, `\end{enumerate}`.
 
-- Кавычки в русском тексте — `<<` и `>>`: `<<YES>>`, а не `"YES"`, `“YES”` или `«YES»`.
+- Quotes in Russian text — `<<` and `>>`: `<<YES>>`, not `"YES"`, `“YES”` or `«YES»`.
 
-- Кавычки в английском тексте — ``` `` ``` и `''`: ``` ``YES'' ```, а не `"YES"` или `“YES”`.
+- Quotes in English text — ``` `` ``` and `''`: ``` ``YES'' ```, not `"YES"` or `“YES”`.

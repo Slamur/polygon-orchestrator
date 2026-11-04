@@ -1,107 +1,107 @@
-# Черновик спека задачи. Создан командой `orchestrator <задача> init`
-# из templates/spec_template.yaml.
+# A problem spec draft. Created by the `orchestrator <problem> init` command
+# from templates/spec_template.yaml.
 #
-# Полный формат с примерами и пояснениями — docs/SPEC_FORMAT.md.
-# [required] — без поля спек не пройдёт валидацию; [optional] — можно оставить
-# пустым ([] / null / "").
+# The full format with examples and explanations — docs/SPEC_FORMAT.md.
+# [required] — without the field the spec won't pass validation; [optional] — may be left
+# empty ([] / null / "").
 #
-# Многострочный текст удобнее писать блоком:
+# Multi-line text is more convenient to write as a block:
 #   legend_sketch: |
-#     первая строка
-#     вторая строка
+#     the first line
+#     the second line
 
-problem_id: ""                       # [required] заполняется командой init: имя каталога задачи (в examples/ — путь через "--")
-language: ru                         # [optional] основной язык условия, на нём пишут шаги модели: ru | en
+problem_id: ""                       # [required] filled in by the init command: the problem directory's name (in examples/ — the path joined with "--")
+language: ru                         # [optional] the main statement language, the model's steps write in it: ru | en
 title:
-  ru: ""                             # [required для language: ru] начальное название задачи на Polygon
-  en: null                           # [required для language: en, иначе optional]
-references: []                       # [optional] образцы для всех шагов: каталоги задач или файлы, например
+  ru: ""                             # [required for language: ru] the problem's initial name on Polygon
+  en: null                           # [required for language: en, otherwise optional]
+references: []                       # [optional] samples for all steps: problem directories or files, e.g.
                                      #   - "examples/array/prefix-sums"
 
 # ---------------------------------------------------------------------------
-# 1. ЧЕРНОВИК УСЛОВИЯ — шаг statement_draft
+# 1. STATEMENT DRAFT — the statement_draft step
 # ---------------------------------------------------------------------------
 statement_draft:
-  legend_sketch: ""                  # [required] сюжет и модель задачи своими словами: процесс, правила, вопрос
-  formal_input_sketch: ""            # [required] что дано и в каком порядке (форма данных, не ограничения на числа)
-  formal_output_sketch: ""           # [required] что вывести; гарантирован ли ответ, нужен ли "-1"/"NO" и т.п.
+  legend_sketch: ""                  # [required] the plot and the problem model in your own words: the process, the rules, the question
+  formal_input_sketch: ""            # [required] what is given and in which order (the shape of the data, not limits on the numbers)
+  formal_output_sketch: ""           # [required] what to print; whether the answer is guaranteed, whether "-1"/"NO" etc. is needed
   indexing: ""                       # [required] "0-indexed" | "1-indexed" | "irrelevant"
-  sample_examples:                   # [required] минимум один пример; input переносится в тесты Polygon
+  sample_examples:                   # [required] at least one example; the input is carried over into the Polygon tests
     - input: ""
-      output: ""                     # [optional] ответ к примеру
-      note_hint: ""                  # [optional] что объяснить в пояснении к примеру (не сам текст)
-  known_ambiguities: []              # [optional] что в постановке пока не решено
-  preserve_legend_verbatim: false    # [optional] true — сохранять фактуру легенды почти дословно
-  interaction_sketch: null           # [required для интерактивной задачи, иначе null] протокол взаимодействия:
-                                     #   что решение получает в начале, формат запросов и ответов,
-                                     #   лимит запросов, итоговый ответ (formal_input_sketch — тест, который читает интерактор)
-  references: []                     # [optional] образцы только для этого шага
+      output: ""                     # [optional] the example's answer
+      note_hint: ""                  # [optional] what to explain in the example's note (not the text itself)
+  known_ambiguities: []              # [optional] what's not decided in the setting yet
+  preserve_legend_verbatim: false    # [optional] true — keep the legend's facts almost verbatim
+  interaction_sketch: null           # [required for an interactive problem, otherwise null] the interaction protocol:
+                                     #   what the solution gets at the start, the format of queries and answers,
+                                     #   the query limit, the final answer (formal_input_sketch — the test the interactor reads)
+  references: []                     # [optional] samples only for this step
 
 # ---------------------------------------------------------------------------
-# 2. ОГРАНИЧЕНИЯ — шаг constraints_pick (+ валидатор)
+# 2. LIMITS — the constraints_pick step (+ the validator)
 # ---------------------------------------------------------------------------
 constraints:
-  intended_complexity: ""            # [required] асимптотика авторского решения, например "O(N log N)"
-  complexity_reasoning: ""           # [required] какой алгоритм имеется в виду и почему такая асимптотика
-  variables:                         # [required] минимум одна переменная; по элементу на каждую
-    - name: ""                       # например "N"
-      min: ""                        # число или выражение через другие переменные
-      max: null                      # null — модель предложит значение и пометит его как proposed
+  intended_complexity: ""            # [required] the asymptotics of the author's solution, e.g. "O(N log N)"
+  complexity_reasoning: ""           # [required] which algorithm is meant and why these asymptotics
+  variables:                         # [required] at least one variable; an element for each
+    - name: ""                       # e.g. "N"
+      min: ""                        # a number or an expression through other variables
+      max: null                      # null — the model proposes a value and marks it as proposed
       description: ""
-  special_guarantees: []             # [optional] гарантии, не сводящиеся к min/max одной переменной
-  test_groups_hint: []               # [optional] группы тестов, если они уже придуманы:
+  special_guarantees: []             # [optional] guarantees that don't reduce to the min/max of one variable
+  test_groups_hint: []               # [optional] test groups, if they're already invented:
                                      #   - name: "small"
                                      #     subset_of: null
                                      #     max_n: 10
                                      #     special_property: null
-  test_groups_needed: false          # [optional] true — модель сама предложит группы, если hint пуст
-  time_limit_seconds: null           # [optional] null — модель предложит TL
-  memory_limit_mb: 256               # [optional] желательно кратно 256
-  uncertain_points: []               # [optional] в чём сомневаетесь сами — акцент для шага
-  references: []                     # [optional] образцы только для этого шага
+  test_groups_needed: false          # [optional] true — the model proposes groups itself if the hint is empty
+  time_limit_seconds: null           # [optional] null — the model proposes the TL
+  memory_limit_mb: 256               # [optional] preferably a multiple of 256
+  uncertain_points: []               # [optional] what you're unsure about yourself — a focus for the step
+  references: []                     # [optional] samples only for this step
 
 # ---------------------------------------------------------------------------
-# 3. ГЕНЕРАТОРЫ И TEST-SCRIPT — шаги tests_plan, generators_draft, test_script_draft
+# 3. GENERATORS AND TEST-SCRIPT — the tests_plan, generators_draft, test_script_draft steps
 # ---------------------------------------------------------------------------
 generation:
-  generator_ideas: []                # [optional] уже придуманные генераторы:
+  generator_ideas: []                # [optional] already invented generators:
                                      #   - name: "gen_rand"
                                      #     params: ["n", "maxA"]
-                                     #     purpose: "случайный массив"
-  specific_test_ideas: []            # [optional] конкретные сценарии, которые обязательно протестировать
+                                     #     purpose: "a random array"
+  specific_test_ideas: []            # [optional] concrete scenarios that must be tested
   script_style: ""                   # [required] "flat" | "groups"
-  references: []                     # [optional] образцы только для этого шага
+  references: []                     # [optional] samples only for this step
 
 # ---------------------------------------------------------------------------
-# 4. ЧЕРНОВИКИ РЕШЕНИЙ — шаг solutions_draft
-# Секция необязательная: если решения генерировать не нужно, удалите её целиком.
+# 4. SOLUTION DRAFTS — the solutions_draft step
+# The section is optional: if solutions don't need generating, delete it entirely.
 # ---------------------------------------------------------------------------
 solutions:
-  wanted_verdicts: []                # [required] из: ok, wa, tl, tl_ok, ml, re, il (il — интерактивная задача)
-  languages: []                      # [required] например ["cpp", "java", "python"]
-  algorithm_hint: ""                 # [required] идея основного алгоритма
-  alternative_approaches: []         # [optional] другие верные идеи — по ok-решению на каждую
-  known_wrong_approaches: []         # [optional] "<вердикт> (<языки через />): <ошибка>", например
-                                     #   - "wa: off-by-one в правой границе"
-                                     #   - "tl (cpp): O(N^2) перебор"
-  references: []                     # [optional] образцы только для этого шага
+  wanted_verdicts: []                # [required] from: ok, wa, tl, tl_ok, ml, re, il (il — an interactive problem)
+  languages: []                      # [required] e.g. ["cpp", "java", "python"]
+  algorithm_hint: ""                 # [required] the idea of the main algorithm
+  alternative_approaches: []         # [optional] other correct ideas — an ok solution for each
+  known_wrong_approaches: []         # [optional] "<verdict> (<languages separated by />): <mistake>", e.g.
+                                     #   - "wa: off-by-one in the right bound"
+                                     #   - "tl (cpp): O(N^2) brute force"
+  references: []                     # [optional] samples only for this step
 
 # ---------------------------------------------------------------------------
-# 5. ЧЕКЕР — шаг checker_draft (только при custom_needed: true)
+# 5. CHECKER — the checker_draft step (only with custom_needed: true)
 # ---------------------------------------------------------------------------
 checker:
-  standard: ""                       # имя стандартного чекера (ncmp, wcmp, yesno, ...); нужно при custom_needed: false
-  custom_needed: false               # [required] true — нужен свой чекер
-  custom_comparison_notes: null      # [required при custom_needed: true] формат ответа и правило сравнения
-  references: []                     # [optional] образцы только для checker_draft
+  standard: ""                       # the name of a standard checker (ncmp, wcmp, yesno, ...); needed with custom_needed: false
+  custom_needed: false               # [required] true — a custom checker is needed
+  custom_comparison_notes: null      # [required with custom_needed: true] the answer format and the comparison rule
+  references: []                     # [optional] samples only for checker_draft
 
 # ---------------------------------------------------------------------------
-# 6. ИНТЕРАКТОР — шаг interactor_draft (только для интерактивной задачи)
-# Есть секция — задача интерактивная (нужен и statement_draft.interaction_sketch).
-# Для обычной задачи оставьте null; для интерактивной замените null на:
+# 6. INTERACTOR — the interactor_draft step (only for an interactive problem)
+# The section is present — the problem is interactive (statement_draft.interaction_sketch is needed too).
+# For a normal problem leave null; for an interactive one replace null with:
 #   interactor:
-#     behavior_notes: |              # [required] адаптивный ли интерактор, как проверяется итоговый
-#       ...                          #   ответ, что считается ошибкой решения, что писать в tout для чекера
-#     references: []                 # [optional] образцы только для interactor_draft
+#     behavior_notes: |              # [required] whether the interactor is adaptive, how the final
+#       ...                          #   answer is checked, what counts as a solution error, what to write to tout for the checker
+#     references: []                 # [optional] samples only for interactor_draft
 # ---------------------------------------------------------------------------
 interactor: null
