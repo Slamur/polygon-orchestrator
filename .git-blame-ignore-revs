@@ -1,5 +1,5 @@
-# Массовые правки форматирования — git blame их пропускает:
-# git config blame.ignoreRevsFile .git-blame-ignore-revs (GitHub учитывает сам).
+# Mass formatting edits — git blame skips them:
+# git config blame.ignoreRevsFile .git-blame-ignore-revs (GitHub takes it into account itself).
 
 # style: format code with ruff format
 4f668e2c4916646ebc4de52089412a47f5a09828

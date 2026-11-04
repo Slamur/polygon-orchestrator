@@ -6,138 +6,138 @@ paths:
   - "tests/polygon_sync_helpers.py"
 ---
 
-# Интеграция с Polygon
+# Polygon integration
 
-Имена параметров методов Polygon API — только по `docs/POLYGON_API.md`, не
-угадывать. Адресация задач и группы — в `.claude/rules/cli.md`.
+Polygon API method parameter names — only from `docs/POLYGON_API.md`, don't
+guess. Addressing problems and groups — in `.claude/rules/cli.md`.
 
-## Что делают polygon-шаги
+## What the polygon steps do
 
-- создание задачи на Polygon по `problem_id` из спека через Polygon API
-  (`orchestrator/polygon/`; привязка `problem_id` -> Polygon problemId
-  хранится в `problems/<путь задачи>/polygon_state.json`) и перенос
-  актуальных TL/ML из `problems/<путь задачи>/limits.yaml` через
-  `problem.updateInfo` (`set_constraints`), загрузка `problems/<путь задачи>/problem_lib.h` как
-  resource-файла (`upload_problem_lib`), загрузка
-  `problems/<путь задачи>/validator.cpp` и назначение его валидатором
-  (`upload_validator`), назначение чекера (`upload_checker`: для
-  `checker.custom_needed: true` — загрузка `problems/<путь задачи>/checker.cpp`,
-  иначе — стандартный чекер из `checker.standard` без загрузки файла),
-  загрузка `problems/<путь задачи>/interactor.cpp` и назначение его
-  интерактором (`upload_interactor`, только у интерактивной задачи; флаг
-  интерактивности выставляет `set_constraints`),
-  разбор `problems/<путь задачи>/statement/<код>/tutorial.tex` (необязательный;
-  пишет автор, `polygon pull` или шаг `tutorial_draft`) —
-  вместе с условием в `upload_statement`,
-  загрузка `problems/<путь задачи>/authoring/` — `spec.yaml`,
-  `constraints.yaml` (результат `constraints_pick` целиком), `tests_plan.yaml`
-  (план тестов), копии черновика `draft.<расширение>` и драфта разбора
-  `draft-tutorial.md` — как есть в раздел
-  Attachments (по имени файла, без `authoring/`) (aux-файлы,
-  `upload_attachments`) — чтобы `polygon pull` восстанавливал задачу вместе
-  со спеком, ограничениями, планом тестов и черновиком.
-  Шаги загружают только то, что изменилось с последней синхронизации с
-  Polygon (база — `revision`/`synced` в `polygon_state.json`, см.
-  `orchestrator/polygon/sync.py`). После каждого polygon-шага, который
-  что-то загрузил (кроме `create_problem`), рабочая копия задачи
-  коммитится (`problem.commitChanges`, `minorChanges=true`) — при падении
-  на очередном шаге всё сделанное предыдущими уже в ревизии (`polygon push
-  --no-commit` не коммитит, см. `polygon push` ниже).
-  Остальные шаги интеграции (прочие файлы, packages) — позже, по мере
-  проработки.
+- creating the problem on Polygon by the spec's `problem_id` through the Polygon API
+  (`orchestrator/polygon/`; the `problem_id` -> Polygon problemId binding
+  is stored in `problems/<problem path>/polygon_state.json`) and transferring the
+  actual TL/ML from `problems/<problem path>/limits.yaml` via
+  `problem.updateInfo` (`set_constraints`), uploading `problems/<problem path>/problem_lib.h` as
+  a resource file (`upload_problem_lib`), uploading
+  `problems/<problem path>/validator.cpp` and setting it as the validator
+  (`upload_validator`), setting the checker (`upload_checker`: for
+  `checker.custom_needed: true` — uploading `problems/<problem path>/checker.cpp`,
+  otherwise — the standard checker from `checker.standard` without uploading a file),
+  uploading `problems/<problem path>/interactor.cpp` and setting it as the
+  interactor (`upload_interactor`, only for an interactive problem; the
+  interactivity flag is set by `set_constraints`),
+  the tutorial `problems/<problem path>/statement/<code>/tutorial.tex` (optional;
+  written by the author, `polygon pull` or the `tutorial_draft` step) —
+  together with the statement in `upload_statement`,
+  uploading `problems/<problem path>/authoring/` — `spec.yaml`,
+  `constraints.yaml` (the whole `constraints_pick` result), `tests_plan.yaml`
+  (the test plan), the copies of the draft `draft.<extension>` and of the tutorial draft
+  `draft-tutorial.md` — as is into the
+  Attachments section (by file name, without `authoring/`) (aux files,
+  `upload_attachments`) — so that `polygon pull` restores the problem together
+  with the spec, limits, test plan and draft.
+  The steps upload only what changed since the last sync with
+  Polygon (the base — `revision`/`synced` in `polygon_state.json`, see
+  `orchestrator/polygon/sync.py`). After each polygon step that
+  uploaded something (except `create_problem`), the problem's working copy
+  is committed (`problem.commitChanges`, `minorChanges=true`) — on a failure
+  at a later step, everything done by the previous ones is already in a revision (`polygon push
+  --no-commit` doesn't commit, see `polygon push` below).
+  The remaining integration steps (other files, packages) — later, as
+  they are worked out.
 
 
-## Команды `polygon`
+## `polygon` commands
 
-- `orchestrator <задача> polygon push [--step NAME] [--force]` — прогон
-  polygon-шагов по порядку `POLYGON_STEP_ORDER`; каждый шаг загружает
-  только элементы задачи, изменившиеся с последней синхронизации (как
-  `git push` с проверкой fast-forward). Перед первой загрузкой один запрос
-  сверяет ревизию задачи на Polygon с записанной: если Polygon меняли в
-  обход оркестратора (другая ревизия или незакоммиченные правки в рабочей
-  копии) — push останавливается и предлагает `polygon pull` или
-  `--force`. Ревизия неизвестна (задача привязана к уже существующей на
-  Polygon или до появления этой проверки) — push тоже останавливается до
-  `polygon pull`; у задачи, только что созданной `create_problem`, ревизия
-  записывается сразу. `--force` загружает всё без проверки ревизии и
-  затирает закоммиченные правки, сделанные на Polygon (они остаются в
-  истории ревизий); база синхронизации после него — только то, что он
-  загрузил. В конце push записывает отметки версий загруженных файлов на
-  Polygon (время изменения и длина из листинга), чтобы следующий pull их
-  не скачивал. Незакоммиченные правки в рабочей копии на Polygon
-  останавливают push всегда, даже с `--force`: коммит после шага унёс бы
-  их в ревизию оркестратора. Исключение — `--no-commit` (с `--step` и без,
-  можно несколько раз подряд): шаги только загружают в рабочую копию, без
-  коммитов и без записи в базу синхронизации — автор разбирается на Polygon
-  и коммитит там одной пачкой; незакоммиченные правки тогда — только
-  предупреждение (загрузка перезапишет те же файлы), а `polygon status`
-  показывает загруженное как ещё не синхронизированное. После коммита на
-  Polygon ревизия другая — следующий push потребует `polygon pull`, а тот,
-  увидев те же файлы, обновит базу. Вывод: по ходу — строка на шаг, в конце —
-  группы `pushed` (загруженные файлы и прочие элементы задачи), `notes`,
-  `errors`, `not pushed` (шаги, которые из-за ошибки не загрузили своё) и
-  `warnings`; то, что не менялось, не печатается. Реально обращается к Polygon
-  API — те же ограничения на запуск без явной команды, что и для
+- `orchestrator <problem> polygon push [--step NAME] [--force]` — a run of the
+  polygon steps in the `POLYGON_STEP_ORDER` order; each step uploads
+  only the problem elements changed since the last sync (like
+  `git push` with a fast-forward check). Before the first upload one request
+  compares the problem's revision on Polygon with the recorded one: if Polygon was changed
+  bypassing the orchestrator (a different revision or uncommitted edits in the working
+  copy) — the push stops and suggests `polygon pull` or
+  `--force`. The revision is unknown (the problem is bound to one already existing on
+  Polygon or from before this check appeared) — the push also stops until
+  `polygon pull`; for a problem just created by `create_problem`, the revision
+  is recorded right away. `--force` uploads everything without the revision check and
+  overwrites committed edits made on Polygon (they stay in the
+  revision history); the sync base after it — only what it
+  uploaded. At the end the push records the version stamps of the uploaded files on
+  Polygon (modification time and length from the listing), so the next pull doesn't
+  download them. Uncommitted edits in the working copy on Polygon
+  always stop the push, even with `--force`: the commit after a step would carry
+  them into the orchestrator's revision. The exception — `--no-commit` (with `--step` and without,
+  can be run several times in a row): the steps only upload to the working copy, without
+  commits and without writing to the sync base — the author sorts things out on Polygon
+  and commits there in one batch; uncommitted edits are then only a
+  warning (the upload will overwrite the same files), and `polygon status`
+  shows what was uploaded as not yet synced. After the commit on
+  Polygon the revision is different — the next push will require `polygon pull`, and that,
+  seeing the same files, will update the base. Output: along the way — a line per step, at the end —
+  the groups `pushed` (uploaded files and other problem elements), `notes`,
+  `errors`, `not pushed` (steps that didn't upload theirs because of an error) and
+  `warnings`; what didn't change isn't printed. It actually calls the Polygon
+  API — the same restrictions on running without an explicit command as for
   `llm generate`.
-- `orchestrator <задача> polygon status` — что из polygon-шагов уже
-  сделано, без обращения к сети: `done / stale / not run` по
-  `PolygonStep.compute_status` (сравнение локальных файлов с базой
-  синхронизации — тем, что последний push загрузил или pull увидел на
-  Polygon). Правки на Polygon после последней синхронизации отсюда не
-  видны — их замечает только `polygon push`/`pull`.
-- `orchestrator <задача> polygon pull [--polygon-id N] [--overwrite]` —
-  обратное направление: привязывает задачу к уже существующей на
-  Polygon (по `polygon_state.json`, иначе поиском неудалённой задачи
-  с именем `problem_id` — с теми же проверками места, что у `init`;
-  `--polygon-id` дополнительно сужает поиск, если
-  задач с таким именем несколько), сравнивает с ней части задачи, которыми
-  пользуется оркестратор (условие, разбор и примеры, TL/ML, валидатор,
-  нестандартный чекер, генераторы, test-script, решения, спек,
-  `constraints.yaml`, план тестов, черновик и драфт разбора из Attachments), скачивает в
-  каталог задачи недостающие локально и переписывает базу
-  синхронизации по текущей ревизии Polygon. Файлы с временем изменения в
-  листинге Polygon (валидатор, чекер, генераторы, решения, `problem_lib.h`,
-  Attachments) скачиваются, только если с последней синхронизации их
-  версия на Polygon могла измениться (отметка в базе не совпала с
-  листингом и ревизия другая) или их нужно записать на диск. Отличающиеся
-  от Polygon файлы сверяются трёхсторонне, как в `git merge`, с базой
-  синхронизации: менялся только Polygon — локальный файл заменяется
-  (`updated`); менялся только локальный — остаётся (`kept`, следующий push
-  его загрузит), даже с `--overwrite`; менялись обе стороны (`conflict`)
-  или базы нет (`differs`) — остаётся локальный, с `--overwrite` — заменяется версией
-  с Polygon. Заменённые файлы переносятся в `.pull_backup/`. Файлы, которых
-  нет на Polygon, явно перечисляются и никогда не удаляются;
-  файлы из Attachments (спек, `constraints.yaml`, `tests_plan.yaml`, черновик, драфт разбора) сверяются
-  только со своими версиями в Attachments, а TL/ML задачи — только с
-  `limits.yaml` (сверка та же, по значениям TL/ML; `constraints.yaml` они
-  не трогают). Отказывается
-  работать, если на Polygon есть незакоммиченные правки. Каталог задачи
-  создаётся, если его нет; локальный спек не нужен (сам `spec.yaml`
-  сравнивается и скачивается как обычный файл). На Polygon ничего не меняет
-  (только чтение), но в сеть ходит — те же ограничения на запуск без явной
-  команды. Вывод — так же: по ходу строка на часть задачи, в конце группы
+- `orchestrator <problem> polygon status` — which polygon steps are already
+  done, without going to the network: `done / stale / not run` by
+  `PolygonStep.compute_status` (comparing the local files with the sync
+  base — what the last push uploaded or pull saw on
+  Polygon). Edits on Polygon after the last sync aren't visible
+  from here — only `polygon push`/`pull` notice them.
+- `orchestrator <problem> polygon pull [--polygon-id N] [--overwrite]` —
+  the reverse direction: binds the problem to one already existing on
+  Polygon (from `polygon_state.json`, otherwise by searching for a non-deleted problem
+  named `problem_id` — with the same location checks as `init`;
+  `--polygon-id` additionally narrows the search if
+  there are several problems with that name), compares with it the problem parts
+  the orchestrator uses (statement, tutorial and examples, TL/ML, validator,
+  non-standard checker, generators, test-script, solutions, spec,
+  `constraints.yaml`, test plan, draft and tutorial draft from Attachments), downloads into
+  the problem directory those missing locally and rewrites the sync
+  base by the current Polygon revision. Files with a modification time in
+  the Polygon listing (validator, checker, generators, solutions, `problem_lib.h`,
+  Attachments) are downloaded only if their version on Polygon could have changed
+  since the last sync (the stamp in the base didn't match the
+  listing and the revision is different) or they need to be written to disk. Files differing
+  from Polygon are compared three-way, like in `git merge`, with the sync
+  base: only Polygon changed — the local file is replaced
+  (`updated`); only the local one changed — it stays (`kept`, the next push
+  will upload it), even with `--overwrite`; both sides changed (`conflict`)
+  or there is no base (`differs`) — the local one stays, with `--overwrite` — it is replaced by the version
+  from Polygon. Replaced files are moved to `.pull_backup/`. Files that
+  aren't on Polygon are listed explicitly and never deleted;
+  files from Attachments (spec, `constraints.yaml`, `tests_plan.yaml`, draft, tutorial draft) are compared
+  only with their versions in Attachments, and the problem's TL/ML — only with
+  `limits.yaml` (the same comparison, by the TL/ML values; they don't touch
+  `constraints.yaml`). It refuses
+  to work if there are uncommitted edits on Polygon. The problem directory
+  is created if it doesn't exist; a local spec isn't needed (`spec.yaml` itself
+  is compared and downloaded as an ordinary file). It changes nothing on Polygon
+  (read-only), but it goes to the network — the same restrictions on running without an explicit
+  command. Output — likewise: along the way a line per problem part, at the end the groups
   `pulled`, `pulled over local changes` (`--overwrite`), `will be pushed`
-  (у файла, который push загрузит только при определённом спеке, — это
-  условие), `conflicts` (`conflict` и `differs`), `errors`, `warnings`;
-  совпадающее с Polygon не печатается. Детали — в докстринге
+  (for a file that push uploads only with a certain spec — that
+  condition), `conflicts` (`conflict` and `differs`), `errors`, `warnings`;
+  what matches Polygon isn't printed. Details — in the docstring of
   `orchestrator/polygon/pull.py`.
 
 
-## Файлы задачи, которые касаются Polygon
+## Problem files related to Polygon
 
-- `polygon_state.json` — `problem_id` -> Polygon problemId и база
-  синхронизации: `revision`, `synced` (элемент -> sha256), `stamps` (файл ->
-  отметка его версии на Polygon). Не в `.cache/`: это факт состояния на
-  Polygon, а не кэш шага.
-- `statement/<код>/name.txt` — название задачи на этом языке: push создаёт его
-  из `title` спека (`title.ru` у `ru`), если файла нет; pull пишет сюда
-  название с Polygon.
+- `polygon_state.json` — `problem_id` -> Polygon problemId and the sync
+  base: `revision`, `synced` (element -> sha256), `stamps` (file ->
+  the stamp of its version on Polygon). Not in `.cache/`: it's a fact about the state on
+  Polygon, not a step cache.
+- `statement/<code>/name.txt` — the problem's name in this language: push creates it
+  from the spec's `title` (`title.ru` for `ru`) if the file doesn't exist; pull writes the
+  name from Polygon here.
 - `statement/examples/example_<N>.{input,output}_for_statement.txt` —
-  input/output for statements, каждый сам по себе: у интерактивной задачи —
-  диалог от `statement_draft`, у обычной — только от автора;
-  `example_<N>.verify_for_statement.txt` — флаг verify, пишет автор или pull.
-- `polygon.log` — лог push (дописывается): старт шагов, полный текст ошибок,
-  traceback, HTTP-запросы; `.pull_backup/<время>/` — файлы, заменённые pull.
-- `PolygonClient` берёт ключи из `POLYGON_API_KEY`/`POLYGON_API_SECRET`/
-  `POLYGON_API_BASE_URL` (см. `.env.example`), делает паузу между запросами и
-  экспоненциальный back-off на HTTP 429.
+  input/output for statements, each on its own: for an interactive problem —
+  the dialogue from `statement_draft`, for a normal one — only from the author;
+  `example_<N>.verify_for_statement.txt` — the verify flag, written by the author or pull.
+- `polygon.log` — the push log (appended to): step starts, the full text of errors,
+  tracebacks, HTTP requests; `.pull_backup/<time>/` — files replaced by pull.
+- `PolygonClient` takes the keys from `POLYGON_API_KEY`/`POLYGON_API_SECRET`/
+  `POLYGON_API_BASE_URL` (see `.env.example`), pauses between requests and
+  does an exponential back-off on HTTP 429.

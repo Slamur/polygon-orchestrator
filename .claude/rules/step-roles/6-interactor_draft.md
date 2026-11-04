@@ -8,23 +8,23 @@ paths:
   - "tests/test_prompts_doc_sync.py"
 ---
 
-# Роль каждого генеративного шага, пункт 6: `interactor_draft`
+# Role of each generative step, item 6: `interactor_draft`
 
-Общее для всех шагов (режим доработки, конфликты, кэш, эскалация,
-предложения сверх спека) — в `.claude/rules/steps.md`, модели — в
-`.claude/rules/models.md`, команды `llm` — в `.claude/rules/llm-commands.md`.
+Common to all steps (revision mode, conflicts, cache, escalation,
+suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
+`.claude/rules/models.md`, `llm` commands — in `.claude/rules/llm-commands.md`.
 
-6. **`interactor_draft`** (опциональный) — запускается, только если задача
-   интерактивная (в спеке есть секция `interactor`). Вход:
-   `interactor.behavior_notes` (адаптивность, проверка итогового ответа,
-   ошибки решения, что писать в `tout` для чекера) + из `statement_draft`
-   формат теста (`formal_input_sketch`, `indexing`, input примеров — в
-   интерактивной задаче это вход интерактора, а не решения) и протокол
-   `interaction_sketch`. Выход: `interactor.cpp` (testlib,
-   `registerInteraction`). Как и у чекера, модель реализует ровно
-   описанное поведение; чего не хватает — `uncertain`. Протокол
-   интерактивной задачи также получают `statement_draft` (пишет
-   `interaction.tex` и диалог каждого примера — что решение прочитало и
-   что вывело, для "input/output for statements" на Polygon) и
-   `solutions_draft`; правила — `templates/tutorials/interactive.md`,
-   которые эти два шага получают только у интерактивной задачи.
+6. **`interactor_draft`** (optional) — runs only if the problem
+   is interactive (the spec has an `interactor` section). Input:
+   `interactor.behavior_notes` (adaptivity, checking the final answer,
+   solution errors, what to write to `tout` for the checker) + from `statement_draft`
+   the test format (`formal_input_sketch`, `indexing`, the examples' input — in
+   an interactive problem this is the interactor's input, not the solution's) and the protocol
+   `interaction_sketch`. Output: `interactor.cpp` (testlib,
+   `registerInteraction`). As with the checker, the model implements exactly the
+   described behavior; whatever is missing — `uncertain`. The protocol of an
+   interactive problem is also given to `statement_draft` (it writes
+   `interaction.tex` and the dialogue of each example — what the solution read and
+   what it printed, for the "input/output for statements" on Polygon) and
+   `solutions_draft`; the rules — `templates/tutorials/interactive.md`,
+   which these two steps get only for an interactive problem.

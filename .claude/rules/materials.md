@@ -8,83 +8,83 @@ paths:
   - "tests/test_references.py"
 ---
 
-# Приложенные материалы: templates/, examples/, референсы
+# Attached materials: templates/, examples/, references
 
-## Как использовать приложенные материалы
+## How to use the attached materials
 
 
-- `templates/tutorials/*.md` (кроме `polygon.md`) — это **правила**, а не справочный
-  материал "для общего развития". Промпты должны явно инструктировать
-  модель следовать им как обязательным ограничениям, а не как совету.
-  Правила разбиты по темам, и шаг получает только нужные ему
-  (`STEP_CONTEXT_DOCUMENTS`), поэтому правка одной темы инвалидирует кэш
-  только читающих её шагов. Файлы пишутся для модели: каждый
-  самодостаточен, без ссылок на другие файлы правил. `polygon.md` — справка
-  по интерфейсу Polygon, ни одному шагу не прикладывается.
-- `templates/problem_lib.h` и файлы учебных задач
-  `examples/<путь задачи>/` (`validator.cpp`, `checker.cpp`,
+- `templates/tutorials/*.md` (except `polygon.md`) are **rules**, not reference
+  material "for general knowledge". Prompts must explicitly instruct
+  the model to follow them as mandatory constraints, not as advice.
+  The rules are split by topic, and a step gets only the ones it needs
+  (`STEP_CONTEXT_DOCUMENTS`), so editing one topic invalidates the cache
+  only of the steps that read it. The files are written for the model: each is
+  self-contained, without references to other rule files. `polygon.md` is a reference
+  on the Polygon interface, it isn't attached to any step.
+- `templates/problem_lib.h` and the files of the sample problems
+  `examples/<problem path>/` (`validator.cpp`, `checker.cpp`,
   `generators/*.cpp`, `test_script`, `solutions/*`)
-  — это основа, которую нужно расширять, а не переизобретать. Если шаг
-  генерации создаёт новый генератор — он должен `#include "problem_lib.h"` и
-  следовать тем же соглашениям об именовании (`register...`, `opt<T>(...)`,
-  стиль `gen_test` из `generators/*.cpp`). У каждой задачи своя копия
-  `problem_lib.h` (`problems/<путь задачи>/problem_lib.h`, см.
-  `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`): шаблон — только её
-  начальное содержимое, правка шаблона в уже существующие копии не
-  попадает. Compile-check ищет `problem_lib.h` сначала в каталоге задачи,
-  потом в `templates/`; модели прикладывается шаблон.
-- `templates/` — общее для всех задач и прикладывается к шагам
-  всегда (`STEP_CONTEXT_DOCUMENTS` в `orchestrator/steps/base.py`); там же
-  `constraints_format.yaml` — формат результата `constraints_pick`, который
-  читают следующие шаги и `polygon push`, и `tests_plan_format.yaml` —
-  формат плана тестов. `examples/` — учебные
-  задачи, по каталогу `<вид входных данных>/<суть задачи>` на каждую
-  (`array/prefix-sums`), в раскладке `problems/<путь задачи>/` плюс свой
-  спек `authoring/spec.yaml` (`problem_id` — путь через `--`, `array--prefix-sums`;
-  служебные файлы оркестратора в них — кэш, логи, `polygon_state.json`,
-  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `.tests_cache/`, `llm_reports/`, `*.removed` — в `.gitignore`;
-  `limits.yaml` коммитится — актуальные TL/ML задачи, после подгонки на
-  Polygon они расходятся с `constraints.yaml`, и это нормально; ожидаемый по нему
-  результат `constraints_pick` — `authoring/constraints.yaml` рядом, `tests_plan`
-  — `authoring/tests_plan.yaml` (его генераторы — ровно `generators/*.cpp` с
-  теми же параметрами, и он покрывает все пункты спека); при правке
-  образцов держать их согласованными с ними и с `constraints_format.yaml`
-  — это проверяет `tests/test_example_templates.py`, там же compile-check
-  всех `.cpp` образцов).
-- `templates/solutions/<verdict>_<description>.<language>` — скелеты
-  решений (`ok.cpp`, `tl_ok_slowio.java`): способ ввода-вывода автора,
-  `solve()`, отдельное вычисление ответа и точка входа, без алгоритма;
-  язык скелета — его расширение. `solutions_draft` прикладывает все
-  скелеты каждого языка из `solutions.languages`, для которого референсы
-  не дали ни одного `ok`-решения (`extra_context_documents` в
-  `orchestrator/steps/solutions_draft.py`), — так ввод-вывод задан и без
-  референсов. Новый язык или вердикт — новый файл с расширением, как язык
-  назван в именах решений (`ok.kt`), код править не нужно.
-- Образцы (файлы других задач) прикладываются к вызову модели только как
-  **референсы спека** — поле `references` в корне спека (для всех шагов) и
-  в секциях шагов (только для своего шага), см. `docs/SPEC_FORMAT.md`,
-  "Референсы", и `orchestrator/references.py`. Референс — файл или каталог
-  в раскладке `problems/<путь задачи>/` (учебная задача из
-  `examples/`, прошлая задача автора в `problems/`); каждый шаг
-  берёт из каталога только свою часть (`REFERENCE_DOCUMENTS`), решения —
-  только на языках из `solutions.languages`. Без референсов шаг получает
-  только `templates/`. Содержимое референсов входит в хеш промпта
-  шага (см. "Кэширование по хешу спека" в
-  `.claude/rules/steps.md`), сами пути `references` в
-  `input_hash` не входят. Спек и `constraints.yaml` референса модель видит
-  под путём без `authoring/` (`examples/<путь задачи>/constraints.yaml`,
-  `_context_document_key` в `orchestrator/steps/base.py`) — под тем же
-  именем, под которым шаг возвращает свой `constraints.yaml`. Промпты обязаны явно
-  разделять, что из образца переносить (каркас файла, ввод-вывод, функции
-  testlib, композицию генераторов через конвейер), а что нет (формат данных,
-  имена переменных и логику задачи-образца), и работать без образцов — см.
-  `docs/PROMPTS.md`, "Приложенные шаблоны как образцы".
+  are the base to extend, not to reinvent. If a
+  generation step creates a new generator — it must `#include "problem_lib.h"` and
+  follow the same naming conventions (`register...`, `opt<T>(...)`,
+  the `gen_test` style from `generators/*.cpp`). Each problem has its own copy of
+  `problem_lib.h` (`problems/<problem path>/problem_lib.h`, see
+  `PROBLEM_LIB_FILENAME` in `orchestrator/steps/base.py`): the template is only its
+  initial content, an edit of the template doesn't reach already existing copies.
+  Compile-check looks for `problem_lib.h` first in the problem directory,
+  then in `templates/`; the model is given the template.
+- `templates/` is shared by all problems and is always attached to the steps
+  (`STEP_CONTEXT_DOCUMENTS` in `orchestrator/steps/base.py`); also there is
+  `constraints_format.yaml` — the format of the `constraints_pick` result, which
+  the following steps and `polygon push` read, and `tests_plan_format.yaml` —
+  the test plan format. `examples/` are sample
+  problems, a `<input data kind>/<problem gist>` directory for each
+  (`array/prefix-sums`), in the `problems/<problem path>/` layout plus their own
+  spec `authoring/spec.yaml` (`problem_id` — the path joined with `--`, `array--prefix-sums`;
+  the orchestrator's service files in them — cache, logs, `polygon_state.json`,
+  `.pull_backup/`, `.llm_backup/`, `.llm_conflicts/`, `.fix_backup/`, `.tests_cache/`, `llm_reports/`, `*.removed` — are in `.gitignore`;
+  `limits.yaml` is committed — the problem's actual TL/ML, after tuning on
+  Polygon they diverge from `constraints.yaml`, and that's fine; the expected
+  `constraints_pick` result for it — `authoring/constraints.yaml` next to it, `tests_plan`
+  — `authoring/tests_plan.yaml` (its generators are exactly `generators/*.cpp` with
+  the same parameters, and it covers all items of the spec); when editing
+  the samples keep them consistent with these and with `constraints_format.yaml`
+  — this is checked by `tests/test_example_templates.py`, which also compile-checks
+  all `.cpp` samples).
+- `templates/solutions/<verdict>_<description>.<language>` — solution
+  skeletons (`ok.cpp`, `tl_ok_slowio.java`): the author's input/output method,
+  `solve()`, separate answer computation and an entry point, without an algorithm;
+  the skeleton's language is its extension. `solutions_draft` attaches all
+  skeletons of each language from `solutions.languages` for which the references
+  gave no `ok` solution (`extra_context_documents` in
+  `orchestrator/steps/solutions_draft.py`) — so input/output is set even without
+  references. A new language or verdict — a new file with the extension the language
+  is named with in solution names (`ok.kt`), no code changes needed.
+- Samples (files of other problems) are attached to the model call only as
+  **spec references** — the `references` field at the spec root (for all steps) and
+  in step sections (only for their own step), see `docs/SPEC_FORMAT.md`,
+  "References", and `orchestrator/references.py`. A reference is a file or a directory
+  in the `problems/<problem path>/` layout (a sample problem from
+  `examples/`, a past problem of the author in `problems/`); each step
+  takes only its own part from the directory (`REFERENCE_DOCUMENTS`), solutions —
+  only in the languages from `solutions.languages`. Without references a step gets
+  only `templates/`. The references' content is part of the step's prompt hash
+  (see "Caching by spec hash" in
+  `.claude/rules/steps.md`), the `references` paths themselves aren't part of
+  `input_hash`. The model sees a reference's spec and `constraints.yaml`
+  under a path without `authoring/` (`examples/<problem path>/constraints.yaml`,
+  `_context_document_key` in `orchestrator/steps/base.py`) — under the same
+  name under which the step returns its own `constraints.yaml`. Prompts must explicitly
+  separate what to carry over from a sample (the file skeleton, input/output, testlib
+  functions, composing generators through a pipeline) and what not (the data format,
+  variable names and the logic of the sample problem), and work without samples — see
+  `docs/PROMPTS.md`, "Attached templates as samples".
 
 
-## Соглашения об именах в образцах
+## Naming conventions in the samples
 
-- Генераторы: `gen_*.cpp` порождают вход, `upd_*.cpp` преобразуют готовый тест.
-- Решения учебных задач: `<verdict>_<language>_<description>_draft.<ext>`;
-  скелеты в `templates/solutions/` — `<verdict>_<description>.<language>`.
-- Спек учебной задачи — `authoring/spec.yaml` (`problem_id` — путь через `--`),
-  рядом ожидаемые `authoring/constraints.yaml` и `authoring/tests_plan.yaml`.
+- Generators: `gen_*.cpp` produce input, `upd_*.cpp` transform a ready test.
+- Solutions of sample problems: `<verdict>_<language>_<description>_draft.<ext>`;
+  skeletons in `templates/solutions/` — `<verdict>_<description>.<language>`.
+- A sample problem's spec — `authoring/spec.yaml` (`problem_id` — the path joined with `--`),
+  next to it the expected `authoring/constraints.yaml` and `authoring/tests_plan.yaml`.

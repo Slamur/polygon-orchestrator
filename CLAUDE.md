@@ -1,334 +1,343 @@
 # CLAUDE.md — Polygon problem-prep orchestrator
 
-## Что это за репозиторий
+## What this repository is
 
-Python-оркестратор, который берёт структурированный спек задачи
-(`problems/<путь задачи>/authoring/spec.yaml`, формат — см. `docs/SPEC_FORMAT.md`) и прогоняет
-его через последовательность **генеративных шагов**. Каждый шаг — отдельный
-вызов LLM по API (не через Claude Code) плюс минимальная механическая
-проверка результата. Результат — черновики артефактов Polygon-задачи
-(`.tex`-условие, ограничения/группы тестов, генераторы + FreeMarker-скрипт,
-опционально — черновики решений), которые автор потом сам проверяет и
-докручивает руками в Polygon.
+A Python orchestrator that takes a structured problem spec
+(`problems/<problem path>/authoring/spec.yaml`, format — see `docs/SPEC_FORMAT.md`) and runs
+it through a sequence of **generative steps**. Each step is a separate
+LLM call over an API (not through Claude Code) plus a minimal mechanical
+check of the result. The result is drafts of Polygon problem artifacts
+(the `.tex` statement, limits/test groups, generators + a FreeMarker script,
+optionally — solution drafts), which the author then reviews and
+finishes by hand in Polygon.
 
-**Claude Code не генерирует содержимое задач.** Роль Claude Code —
-писать/поддерживать код самого оркестратора, промпт-шаблоны, парсеры спека,
-раннер compile-check/timeout. Контент задач производит отдельная модель,
-вызываемая оркестратором через API.
+**Claude Code does not generate problem content.** Claude Code's role is to
+write/maintain the orchestrator itself, prompt templates, spec parsers,
+the compile-check/timeout runner. Problem content is produced by a separate model
+that the orchestrator calls over an API.
 
-## Скоуп (текущий)
+## Language
 
-В скоупе:
-- черновик спека по черновику автора в свободной форме
-  (`orchestrator <задача> init --draft`) — модель сохраняет
-  всё, что написал автор, а недостающее дозаполняет сама с пометкой в
-  спеке; автор проверяет спек до генеративных шагов;
-- черновик условия в LaTeX — на одном языке, основном (`language` спека,
-  `ru` по умолчанию или `en`), в `statement/<код>/`; условие на других языках
-  Polygon (свои `statement/<код>/`) пишет автор, оркестратор только синхронизирует его
-  с Polygon (`upload_statement`, `polygon pull`), см. `docs/SPEC_FORMAT.md`,
-  "Языки условия", и `orchestrator/statement_languages.py`;
-- выбор ограничений (N/TL/ML, тестовые группы) — **только на основе
-  асимптотики, явно данной автором в спеке**, без самостоятельного вывода
-  сложности из текста легенды;
-- план тестов (какие генераторы и тесты нужны), затем по нему генераторы
-  (C++/testlib) и FreeMarker test-script;
-- опциональные черновики авторских решений (ok/wa/tle) для последующей
-  ручной проверки автором;
-- опциональный черновик кастомного чекера (C++/testlib, по паттерну
-  read_and_check — см. `checker.cpp` учебной задачи в `examples/`), только если
-  `checker.custom_needed: true` в спеке; если используется стандартный
-  чекер (`checker.standard`) — этот шаг не запускается, генерировать
-  нечего;
-- интерактивные задачи (секция `interactor` в спеке): протокол
-  взаимодействия в условии (`interaction.tex`, диалоги примеров) и
-  черновик интерактора (C++/testlib), только если задача интерактивная;
-- черновик разбора `statement/<код>/tutorial.tex` по драфту автора
-  `authoring/draft-tutorial.md` (`orchestrator <задача> llm tutorial`): модель
-  раскрывает мысли автора и дописывает только то, о чём он прямо просит;
-- синхронизация с Polygon через Polygon API (`orchestrator/polygon/`):
-  создание задачи, TL/ML, `problem_lib.h`, валидатор, чекер, интерактор,
-  условие с разбором и примерами, генераторы, test-script, решения и файлы
-  `authoring/` в Attachments; загружается только изменившееся с последней
-  синхронизации, после каждого загрузившего шага — `problem.commitChanges`;
-  обратное направление — `polygon pull`. Подробно — `.claude/rules/polygon.md`.
-  Остальные шаги интеграции (прочие файлы, packages) — позже.
+Everything committed to git — code, comments, docstrings, CLI messages,
+docs, rules, prompts, commit messages and PRs — is written in English.
+Problem content is the exception: statements and tutorials are written in
+the spec's `language` (and in other Polygon languages by the author).
+Generated C++ files (validator, checker, interactor, generators,
+solutions) contain only ASCII — some compilers, Polygon's among them,
+choke on non-ASCII characters in source files.
 
-Вне скоупа (сознательно, добавим отдельно позже):
-- полноценный судящий контур (различение TLE/MLE/RE, батч-стресс-тестинг,
-  сравнение решений между собой на реальных лимитах).
+## Scope (current)
 
-Минимальная страховка вместо судящего контура на этом этапе:
-- **compile-check** после каждого сгенерированного C++-файла
-  (валидатор/чекер/генератор/решение) — компилируется или нет, без запуска;
-- **решения на примерах** (`local run`) — запуск валидатора и решений
-  только на примерах условия, с проверкой, что вердикт совместим с именем
-  решения;
-- **локальные тесты** (`local check --full`, `local run --full`) — генерация
-  тестов по скрипту, валидатор на них, поиск одинаковых тестов и прогон
-  решений с проверкой, что заявленный вердикт достигается; время локальное,
-  без различения MLE и без сравнения решений между собой;
-- **timeout-обёртка** вокруг любого запуска сгенерированного бинаря
-  (например, прогон генератора для смоук-теста) — просто убить процесс по
-  таймауту, без анализа TLE/MLE отдельно.
+In scope:
+- a spec draft from the author's free-form draft
+  (`orchestrator <problem> init --draft`) — the model keeps
+  everything the author wrote and fills in what is missing itself, marking it in
+  the spec; the author reviews the spec before the generative steps;
+- a LaTeX statement draft — in one language, the main one (the spec's `language`,
+  `ru` by default, or `en`), in `statement/<code>/`; statements in other Polygon
+  languages (their own `statement/<code>/`) are written by the author, the orchestrator only syncs them
+  with Polygon (`upload_statement`, `polygon pull`), see `docs/SPEC_FORMAT.md`,
+  "Statement languages", and `orchestrator/statement_languages.py`;
+- choosing limits (N/TL/ML, test groups) — **only based on the
+  asymptotics given explicitly by the author in the spec**, without deriving
+  complexity from the legend text on its own;
+- a test plan (which generators and tests are needed), then generators from it
+  (C++/testlib) and a FreeMarker test-script;
+- optional drafts of author solutions (ok/wa/tle) for later
+  manual review by the author;
+- an optional custom checker draft (C++/testlib, following the
+  read_and_check pattern — see `checker.cpp` of the sample problem in `examples/`), only if
+  `checker.custom_needed: true` in the spec; if a standard
+  checker is used (`checker.standard`) — this step does not run, there is nothing
+  to generate;
+- interactive problems (the `interactor` section of the spec): the interaction
+  protocol in the statement (`interaction.tex`, example dialogues) and
+  an interactor draft (C++/testlib), only if the problem is interactive;
+- a tutorial draft `statement/<code>/tutorial.tex` from the author's draft
+  `authoring/draft-tutorial.md` (`orchestrator <problem> llm tutorial`): the model
+  expands the author's thoughts and adds only what they explicitly ask for;
+- syncing with Polygon through the Polygon API (`orchestrator/polygon/`):
+  creating the problem, TL/ML, `problem_lib.h`, validator, checker, interactor,
+  statement with tutorial and examples, generators, test-script, solutions and
+  `authoring/` files in Attachments; only what changed since the last
+  sync is uploaded, after each step that uploaded something — `problem.commitChanges`;
+  the reverse direction — `polygon pull`. Details — `.claude/rules/polygon.md`.
+  The remaining integration steps (other files, packages) — later.
 
-## Где что описано подробно
+Out of scope (deliberately, to be added separately later):
+- a full judging loop (distinguishing TLE/MLE/RE, batch stress testing,
+  comparing solutions against each other on real limits).
 
-Подробные правила разбиты по темам в `.claude/rules/` и подгружаются
-автоматически, когда работа касается файлов из `paths:` правила. Если
-правишь код, которого правило формально не покрывает, но поведение его
-касается, — прочитай правило сам:
+The minimal safety net instead of a judging loop at this stage:
+- **compile-check** after each generated C++ file
+  (validator/checker/generator/solution) — compiles or not, without running;
+- **solutions on examples** (`local run`) — running the validator and solutions
+  only on the statement examples, checking that the verdict is compatible with the
+  solution's name;
+- **local tests** (`local check --full`, `local run --full`) — generating
+  tests from the script, the validator on them, finding identical tests and running
+  solutions, checking that the declared verdict is reached; local timing,
+  without distinguishing MLE and without comparing solutions against each other;
+- a **timeout wrapper** around any run of a generated binary
+  (e.g. running a generator for a smoke test) — just kill the process on
+  timeout, without analyzing TLE/MLE separately.
 
-| Тема | Файл |
+## Where things are described in detail
+
+Detailed rules are split by topic in `.claude/rules/` and are loaded
+automatically when the work touches files from a rule's `paths:`. If
+you edit code that a rule does not formally cover, but whose behavior it
+concerns, — read the rule yourself:
+
+| Topic | File |
 |---|---|
-| общее для генеративных шагов: режим доработки, конфликты, кэш по хешу, эскалация при неуверенности, предложения сверх спека | `.claude/rules/steps.md` |
-| классы моделей и effort по шагам, клиенты `LLMClient` | `.claude/rules/models.md` |
-| роль конкретного шага (вход, выход, проверки) — по файлу на пункт | `.claude/rules/step-roles/<N>-<шаг>.md` |
-| адресация задач и групп, раскладка `authoring/`, `init`, Tab-дополнение | `.claude/rules/cli.md` |
-| команды `llm` (generate, tutorial, status, apply, accept), логи и отчёты | `.claude/rules/llm-commands.md` |
-| команды `local` (check, run, fix, clear) | `.claude/rules/local-checks.md` |
-| polygon-шаги, `polygon push|status|pull`, база синхронизации | `.claude/rules/polygon.md` |
-| `templates/`, `examples/`, референсы спека | `.claude/rules/materials.md` |
-| формат спека | `docs/SPEC_FORMAT.md` |
-| промпт-шаблоны | `docs/PROMPTS.md` |
-| Polygon API (имена параметров — сверять с ним, а не угадывать) | `docs/POLYGON_API.md` |
-| установка, справочник команд для пользователя | `README.md`, `docs/SETUP.md` |
+| common to the generative steps: revision mode, conflicts, hash cache, escalation on uncertainty, suggestions beyond the spec | `.claude/rules/steps.md` |
+| model classes and effort per step, `LLMClient` clients | `.claude/rules/models.md` |
+| the role of a particular step (input, output, checks) — one file per item | `.claude/rules/step-roles/<N>-<step>.md` |
+| addressing problems and groups, the `authoring/` layout, `init`, Tab completion | `.claude/rules/cli.md` |
+| `llm` commands (generate, tutorial, status, apply, accept), logs and reports | `.claude/rules/llm-commands.md` |
+| `local` commands (check, run, fix, clear) | `.claude/rules/local-checks.md` |
+| polygon steps, `polygon push|status|pull`, the sync base | `.claude/rules/polygon.md` |
+| `templates/`, `examples/`, spec references | `.claude/rules/materials.md` |
+| spec format | `docs/SPEC_FORMAT.md` |
+| prompt templates | `docs/PROMPTS.md` |
+| Polygon API (check parameter names against it, don't guess) | `docs/POLYGON_API.md` |
+| installation, command reference for the user | `README.md`, `docs/SETUP.md` |
 
-Комментарии в коде и документах ссылаются на разделы как `CLAUDE.md,
-"<раздел>"` — эти разделы переехали в `.claude/rules/` с теми же заголовками:
-"Роль каждого генеративного шага" — `step-roles/`, пункт N — в
-`step-roles/<N>-<шаг>.md`; "Режим доработки", "Конфликты",
-"Кэширование по хешу спека", "Правило эскалации при неуверенности" —
-`steps.md`; "Маршрутизация моделей по критичности шага" — `models.md`; "Запуск" —
-`cli.md` (команды `llm` — `llm-commands.md`, `local` — `local-checks.md`,
+Comments in code and documents refer to sections as `CLAUDE.md,
+"<section>"` — these sections moved to `.claude/rules/` with the same headings:
+"Role of each generative step" — `step-roles/`, item N — in
+`step-roles/<N>-<step>.md`; "Revision mode", "Conflicts",
+"Caching by spec hash", "Escalation rule on uncertainty" —
+`steps.md`; "Model routing by step criticality" — `models.md`; "Running" —
+`cli.md` (`llm` commands — `llm-commands.md`, `local` — `local-checks.md`,
 `polygon` — `polygon.md`);
-"Как использовать приложенные материалы" — `materials.md`. "Скоуп (текущий)",
-"Минимальная страховка…", "Структура каталогов" и "Конфиденциальность
-problems/" остались здесь.
+"How to use the attached materials" — `materials.md`. "Scope (current)",
+"The minimal safety net…", "Directory structure" and "Confidentiality of
+problems/" stayed here.
 
-Правила в `.claude/rules/` — описание поведения оркестратора, как и этот
-файл: меняешь поведение — обнови соответствующее правило (и `README.md`, если
-это видно пользователю) в том же PR.
+The rules in `.claude/rules/` describe the orchestrator's behavior, just like this
+file: if you change behavior — update the corresponding rule (and `README.md`, if
+the user can see it) in the same PR.
 
-## Структура каталогов
+## Directory structure
 
 ```
 .
-├── CLAUDE.md, README.md, docs/      # см. "Где что описано подробно"
-├── .claude/rules/                   # правила по темам, см. выше; step-roles/ — роли шагов
-├── templates/                       # общее для всех задач, include-каталог compile-check; шаблоны автора —
-│                                    # структуру не трогать: problem_lib.h, testlib.h, *_format.yaml,
-│                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (скелеты решений),
-│                                    # tutorials/*.md (правила для шагов; polygon.md — справка, шагам не прикладывается)
-├── examples/<вид-входа>/<суть>/     # учебные задачи-образцы в раскладке problems/<путь задачи>/
-├── prompts/<шаг>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2
+├── CLAUDE.md, README.md, docs/      # see "Where things are described in detail"
+├── .claude/rules/                   # rules by topic, see above; step-roles/ — step roles
+├── templates/                       # shared by all problems, the compile-check include dir; the author's templates —
+│                                    # don't touch the structure: problem_lib.h, testlib.h, *_format.yaml,
+│                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons),
+│                                    # tutorials/*.md (rules for the steps; polygon.md — reference, not attached to steps)
+├── examples/<input kind>/<gist>/    # sample problems in the problems/<problem path>/ layout
+├── prompts/<step>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2
 ├── orchestrator/
-│   ├── cli.py                       # парсер и Tab-дополнение; БЕЗ тяжёлых импортов (shell запускает его на каждый Tab)
-│   ├── cli_commands.py              # реализация команд, импортируется из cli.py лениво
-│   ├── step_order.py                # порядки шагов без импорта самих шагов
-│   ├── problem_paths.py, drafts.py, statement_languages.py  # без тяжёлых импортов
+│   ├── cli.py                       # parser and Tab completion; NO heavy imports (the shell runs it on every Tab)
+│   ├── cli_commands.py              # command implementations, imported from cli.py lazily
+│   ├── step_order.py                # step orders without importing the steps themselves
+│   ├── problem_paths.py, drafts.py, statement_languages.py  # no heavy imports
 │   ├── spec.py, spec_from_draft.py, references.py, limits.py
-│   ├── steps/                       # генеративные шаги (+ механический limits_from_constraints), base.py — общее
+│   ├── steps/                       # generative steps (+ the mechanical limits_from_constraints), base.py — shared
 │   ├── pipeline.py, cache.py, llm_report.py
-│   ├── model_router.py              # классы моделей и effort, вендоронезависимо
-│   ├── llm_client.py, model_contracts.py  # Protocol LLMClient и ModelResponse
-│   ├── llm_clients/                 # ClaudeCodeClient (по умолчанию), AnthropicClient; __init__ ничего не импортирует
-│   ├── polygon/                     # client, signing, state, sync, pull, steps/, pipeline; __init__ ничего не импортирует
+│   ├── model_router.py              # model classes and effort, vendor-independent
+│   ├── llm_client.py, model_contracts.py  # the LLMClient Protocol and ModelResponse
+│   ├── llm_clients/                 # ClaudeCodeClient (default), AnthropicClient; __init__ imports nothing
+│   ├── polygon/                     # client, signing, state, sync, pull, steps/, pipeline; __init__ imports nothing
 │   └── checks/                      # compile_check, run_with_timeout, test_script_check, local_tests,
 │                                    # statement_check, solutions_run, std_checkers/, FreemarkerRender.java
-├── githooks/pre-push, .github/workflows/ci.yml  # ruff check, ruff format --check, pytest на каждый PR
+├── githooks/pre-push, .github/workflows/ci.yml  # ruff check, ruff format --check, pytest on every PR
 ├── tests/
-├── drafts/                          # черновики автора для `init --draft`; в .gitignore
-└── problems/<путь задачи>/          # в .gitignore; на любой глубине
+├── drafts/                          # the author's drafts for `init --draft`; in .gitignore
+└── problems/<problem path>/         # in .gitignore; at any depth
     ├── authoring/                   # spec.yaml, draft.<ext>, draft-tutorial.md, constraints.yaml, tests_plan.yaml
-    │                                # (только модель и автор; на Polygon — в Attachments)
-    ├── statement/<код>/*.tex, name.txt; statement/examples/example_<N>*.txt
+    │                                # (model and author only; on Polygon — in Attachments)
+    ├── statement/<code>/*.tex, name.txt; statement/examples/example_<N>*.txt
     ├── limits.yaml, problem_lib.h, validator.cpp, checker.cpp, interactor.cpp
     ├── generators/*.cpp, test_script(_groups), solutions/*
-    ├── polygon_state.json           # привязка к Polygon + база синхронизации (не кэш)
-    ├── .cache/                      # кэш шагов <step>.json и неприменённые ответы <step>.response.json
-    ├── llm_generation.log, polygon.log, llm_reports/<шаг>.md
+    ├── polygon_state.json           # binding to Polygon + the sync base (not a cache)
+    ├── .cache/                      # step cache <step>.json and unapplied responses <step>.response.json
+    ├── llm_generation.log, polygon.log, llm_reports/<step>.md
     ├── .llm_backup/, .llm_conflicts/, .pull_backup/, .fix_backup/, .tests_cache/
-    └── **/<имя>.removed             # предложенные к удалению файлы: удаляет автор
+    └── **/<name>.removed            # files proposed for deletion: the author deletes them
 ```
 
-## Основные принципы
+## Core principles
 
-- Каждый генеративный шаг — чистая функция (спек + результаты предыдущих
-  шагов) → артефакты + отчёт о неуверенности. С тем же входом модель не
-  вызывается (кэш по хешу входа, промптов, приложенных документов и модели);
-  с изменённым — дорабатывает текущие файлы, а не пишет с нуля; ответ
-  применяется как `git merge`, неприменимое — в конфликты.
-- Модель не додумывает то, что задаёт автор: не хватает данных —
-  `uncertain` (останавливает пайплайн), неоднозначно — `status: proposed`
-  (помечается для ручной проверки), своё сверх спека — `kind: suggestion`.
-- Промпты вендоронезависимы: имена моделей и вендорская специфика живут
-  только в реализациях `LLMClient`, классы моделей — в `model_router.py`.
-- `templates/tutorials/*.md` — обязательные правила для модели, а не справка;
-  образцы из `examples/` и `templates/` расширяются, а не переизобретаются.
-- CLI: `orchestrator [--base-dir ...] <задача> <init|llm|local|polygon> ...`;
-  группы разделены по стоимости: `llm` (и `init --draft`) вызывает модель,
-  `polygon` ходит в сеть, `local` — ни то, ни другое.
+- Each generative step is a pure function (spec + results of previous
+  steps) → artifacts + an uncertainty report. With the same input the model is
+  not called (cache by the hash of the input, prompts, attached documents and the model);
+  with a changed one — it revises the current files rather than writing from scratch; the response
+  is applied like a `git merge`, whatever cannot be applied goes to conflicts.
+- The model does not make up what the author sets: data is missing —
+  `uncertain` (stops the pipeline), ambiguous — `status: proposed`
+  (marked for manual review), its own ideas beyond the spec — `kind: suggestion`.
+- Prompts are vendor-independent: model names and vendor specifics live
+  only in `LLMClient` implementations, model classes — in `model_router.py`.
+- `templates/tutorials/*.md` are mandatory rules for the model, not a reference;
+  samples from `examples/` and `templates/` are extended, not reinvented.
+- CLI: `orchestrator [--base-dir ...] <problem> <init|llm|local|polygon> ...`;
+  the groups are split by cost: `llm` (and `init --draft`) calls the model,
+  `polygon` goes to the network, `local` — neither.
 
-## Git-workflow для разработки оркестратора
+## Git workflow for developing the orchestrator
 
-`main` — стабильная ветка. Прямые коммиты в `main` не делаются, в том числе
-Claude Code — весь код оркестратора (парсер спека, шаги, кэш, CLI, промпты)
-проходит через ветку и PR, даже если ревьюер один (автор).
+`main` is the stable branch. No direct commits to `main`, including by
+Claude Code — all orchestrator code (spec parser, steps, cache, CLI, prompts)
+goes through a branch and a PR, even if there is only one reviewer (the author).
 
-Правила для Claude Code:
+Rules for Claude Code:
 
-1. **Никогда не коммитить напрямую в `main`.** Перед началом любой работы —
-   создать ветку от актуального `main`: `git checkout main && git pull &&
+1. **Never commit directly to `main`.** Before starting any work —
+   create a branch from an up-to-date `main`: `git checkout main && git pull &&
    git checkout -b <branch>`.
-2. **Именование веток**: `feature/<кратко-что-делаем>` для нового
-   функционала, `fix/<кратко>` для багфиксов, `chore/<кратко>` для
-   рутины (обновление зависимостей, форматирование). Один логический кусок
-   работы — одна ветка (например, `feature/spec-validation`,
-   `feature/cache-by-hash`, `fix/generators-compile-check`), не смешивать
-   несвязанные изменения в одной ветке/PR.
-3. **Коммиты** — в стиле Conventional Commits (`feat: ...`, `fix: ...`,
-   `docs: ...`, `refactor: ...`, `chore: ...`), атомарные: один коммит —
-   одно осмысленное изменение, а не "накопил всё и закоммитил одним куском".
-4. **Перед push** — `ruff format .`, затем `ruff check .` и `pytest
-   --fast` должны проходить: CI (`.github/workflows/ci.yml`) проверяет
-   все три на каждый PR, тесты — полностью, вместе со `slow` (сборка и
-   запуск C++/Java). Если правка касается сборки или запуска
-   (`orchestrator/checks/`, compile-check шагов, `.cpp` в `examples/` и
-   `templates/`) — перед push и полный `pytest`.
-5. **По завершении работы над веткой** — запушить и открыть PR через `gh`:
-   `gh pr create --fill` (или с явным summary через `--body`). Заголовок и
-   описание PR должны отражать, что и зачем изменено, а не только "what" —
-   в духе того, как это описано в `docs/PROMPTS.md`-контракте (явно,
-   по делу, без домысливания). Ни в названии ветки, ни в коммитах, ни в
-   PR не должно быть `problem_id` и деталей спеков — см. "Конфиденциальность
-   problems/" ниже.
-6. **Claude Code не мержит PR сам**, если это явно не попросили. Дефолт —
-   PR остаётся открытым и ждёт ревью автора; merge/squash — руками через
-   GitHub (или по явной команде "смержи PR").
-7. Если задача явно мелкая и разовая (например, поправить опечатку в
-   `docs/`) — всё равно через ветку+PR, отдельного "быстрого пути" в обход
-   этого правила нет, чтобы не размывать конвенцию.
+2. **Branch naming**: `feature/<briefly-what-we-do>` for new
+   functionality, `fix/<briefly>` for bug fixes, `chore/<briefly>` for
+   routine (dependency updates, formatting). One logical piece of
+   work — one branch (e.g. `feature/spec-validation`,
+   `feature/cache-by-hash`, `fix/generators-compile-check`), don't mix
+   unrelated changes in one branch/PR.
+3. **Commits** — Conventional Commits style (`feat: ...`, `fix: ...`,
+   `docs: ...`, `refactor: ...`, `chore: ...`), atomic: one commit —
+   one meaningful change, not "accumulated everything and committed it in one chunk".
+4. **Before push** — `ruff format .`, then `ruff check .` and `pytest
+   --fast` must pass: CI (`.github/workflows/ci.yml`) checks
+   all three on every PR, the tests — fully, including `slow` (building and
+   running C++/Java). If the change touches building or running
+   (`orchestrator/checks/`, the steps' compile-check, `.cpp` in `examples/` and
+   `templates/`) — the full `pytest` before push too.
+5. **When work on a branch is done** — push and open a PR via `gh`:
+   `gh pr create --fill` (or with an explicit summary via `--body`). The PR title and
+   description must reflect what was changed and why, not only "what" —
+   in the spirit of the `docs/PROMPTS.md` contract (explicit,
+   to the point, without guessing). Neither the branch name, nor the commits, nor the
+   PR may contain a `problem_id` or spec details — see "Confidentiality of
+   problems/" below.
+6. **Claude Code does not merge PRs itself** unless explicitly asked. The default is
+   the PR stays open and waits for the author's review; merge/squash — by hand on
+   GitHub (or on an explicit "merge the PR" command).
+7. If the task is clearly small and one-off (e.g. fixing a typo in
+   `docs/`) — still through a branch+PR, there is no separate "fast path" around
+   this rule, so as not to dilute the convention.
 
-Предполагается, что `gh` CLI уже установлен и авторизован
-(`gh auth login`) — без этого шаг 5 не сработает, и придётся пушить ветку и
-открывать PR руками через веб-интерфейс.
+It is assumed that the `gh` CLI is already installed and authorized
+(`gh auth login`) — without it step 5 won't work, and you will have to push the branch and
+open the PR by hand in the web interface.
 
-Также предполагается, что в клоне выполнено `git config core.hooksPath
-githooks` (см. `docs/SETUP.md`) — `githooks/pre-push` блокирует push, если
-имя ветки или сообщения коммитов содержат `problem_id` любой задачи в `problems/` (имя каталога задачи на любой глубине) или имя (без расширения) любого черновика в `drafts/` на любой глубине (кроме черновиков учебных задач из `examples/` — по имени каталога задачи или её `problem_id`).
-Хук — страховка, а не замена правилам из раздела ниже.
+It is also assumed that `git config core.hooksPath
+githooks` has been run in the clone (see `docs/SETUP.md`) — `githooks/pre-push` blocks the push if
+the branch name or commit messages contain the `problem_id` of any problem in `problems/` (the name of a problem directory at any depth) or the name (without extension) of any draft in `drafts/` at any depth (except drafts of the sample problems from `examples/` — by the problem directory name or its `problem_id`).
+The hook is a safety net, not a replacement for the rules in the section below.
 
-## Конфиденциальность problems/
+## Confidentiality of problems/
 
-`problems/` (вместе со спеками задач `problems/<путь задачи>/authoring/spec.yaml`) и
-`drafts/` (черновики задач для `init --draft`) — в `.gitignore`
-намеренно: репозиторий
-оркестратора публичный, а сами задачи — нет, пока не опубликованы на
-контесте. Это единственный барьер между "черновик задачи" и "виден кому
-угодно с доступом к репозиторию".
+`problems/` (together with the problem specs `problems/<problem path>/authoring/spec.yaml`) and
+`drafts/` (problem drafts for `init --draft`) are in `.gitignore`
+on purpose: the orchestrator repository
+is public, and the problems themselves are not, until they are published at a
+contest. This is the only barrier between "a problem draft" and "visible to
+anyone with access to the repository".
 
-Но коммиты, сообщения коммитов, названия веток, заголовок и описание PR,
-код-комментарии — публичны точно так же, как и остальной код, НЕЗАВИСИМО
-от .gitignore. Если название задачи или её детали попадут в любой из этих
-текстов — .gitignore ничего не спасёт, утечка уже произошла.
+But commits, commit messages, branch names, PR title and description,
+code comments — are public just like the rest of the code, REGARDLESS
+of .gitignore. If a problem's name or its details get into any of these
+texts — .gitignore won't save anything, the leak has already happened.
 
-СТРОГО ЗАПРЕЩЕНО в commit message, названии ветки, заголовке/описании PR,
-код-комментариях и любых других файлах, которые коммитятся в git:
-- `problem_id` конкретной задачи, над которой сейчас идёт работа, и путь её
-  каталога в `problems/` (группирующие каталоги вроде контеста, года,
-  раунда — тоже деталь задачи; pre-push-хук их не ловит, только `problem_id`);
-- содержимое любых полей спека (`legend_sketch`, `formal_input_sketch`,
-  `algorithm_hint` и т.д.) — включая пересказ своими словами, а не только
-  дословные цитаты;
-- любые другие детали, по которым можно догадаться о теме/сюжете/идее
-  задачи (даже отдалённые намёки).
+STRICTLY FORBIDDEN in a commit message, branch name, PR title/description,
+code comments and any other files committed to git:
+- the `problem_id` of a particular problem being worked on, and the path of its
+  directory in `problems/` (grouping directories like a contest, year,
+  round — are also a problem detail; the pre-push hook doesn't catch them, only the `problem_id`);
+- the contents of any spec fields (`legend_sketch`, `formal_input_sketch`,
+  `algorithm_hint`, etc.) — including a retelling in your own words, not only
+  verbatim quotes;
+- any other details from which one could guess the problem's topic/plot/idea
+  (even remote hints).
 
-Это же касается тестов и их фикстур (`tests/`): в них используются только
-синтетические `problem_id` (`example-problem`, `my-task`) и синтетические
-спеки, а не копии или выжимки реальных файлов из `problems/`.
+The same applies to tests and their fixtures (`tests/`): they use only
+synthetic `problem_id`s (`example-problem`, `my-task`) and synthetic
+specs, not copies or extracts of real files from `problems/`.
 
-Названия веток и сообщения коммитов — только про то, ЧТО меняется в коде
-оркестратора, а не про то, НАД КАКОЙ задачей ты его при этом тестировал.
-Правильно: `feature/validator-in-constraints-pick`. Неправильно:
-`feature/example-problem-validator-fix` (здесь `example-problem` стоит на
-месте реального `problem_id` — так делать нельзя).
+Branch names and commit messages are only about WHAT changes in the
+orchestrator code, not about WHICH problem you tested it on.
+Correct: `feature/validator-in-constraints-pick`. Wrong:
+`feature/example-problem-validator-fix` (here `example-problem` stands in place of a real `problem_id` — don't do that).
 
-Если для PR description нужен пример поведения — используй синтетический
-пример (`problem_id: example-problem`, произвольные `N`/условие), а не
-реальный спек, даже если реальный уже лежит в `problems/<путь задачи>/` локально и
-"было бы проще показать на нём".
+If a PR description needs an example of behavior — use a synthetic
+example (`problem_id: example-problem`, arbitrary `N`/statement), not a
+real spec, even if a real one is already lying locally in `problems/<problem path>/` and
+"it would be easier to show it on that".
 
-Это ограничение — только на то, что попадает в git/PR. В обычном ответе в
-терминале (не коммитящемся никуда) упоминать `problem_id` и детали спека
-можно и нужно — иначе с тобой невозможно обсуждать прогон конкретной
-задачи.
+This restriction is only on what gets into git/PRs. In a normal reply in the
+terminal (not committed anywhere) mentioning the `problem_id` and spec details
+is allowed and necessary — otherwise it is impossible to discuss a run of a particular
+problem with you.
 
-### Дополнительно: самопроверка перед открытием PR
+### Additionally: self-check before opening a PR
 
-Правило выше (запрет problem_id/деталей спека в git-артефактах) уже
-нарушалось на практике, несмотря на то что оно явно сформулировано.
-Поэтому перед `gh pr create` — обязательный дополнительный шаг:
+The rule above (no problem_id/spec details in git artifacts) has already
+been violated in practice, even though it is stated explicitly.
+So before `gh pr create` — a mandatory extra step:
 
-1. Перечитать финальный текст заголовка и описания PR целиком (не
-   доверять тому, что "я и так помню, что там ничего лишнего").
-2. Явно проверить: нет ли упоминания того, что изменение
-   тестировалось/проверялось на конкретной реальной задаче — даже без
-   названия. Формулировки вида "протестировано на реальной задаче про..."
-   или "проверил на примере с ограничением N ≤ 10^6 и ответом по модулю
-   простого числа" — тоже запрещены, даже если problem_id нигде не назван:
-   деталь задачи узнаваема сама по себе.
-3. Если в PR вообще есть смысл упомянуть, что проводилась ручная
-   верификация — писать только "вручную проверено на синтетическом
-   примере (`example-problem`)", без каких-либо характеристик реальной
-   задачи, даже отдалённых.
+1. Reread the final text of the PR title and description in full (don't
+   trust "I remember there's nothing extra in there anyway").
+2. Explicitly check: is there any mention that the change was
+   tested/verified on a particular real problem — even without a
+   name. Phrasings like "tested on a real problem about..."
+   or "checked on an example with the limit N ≤ 10^6 and the answer modulo a
+   prime" — are forbidden too, even if the problem_id is not named anywhere:
+   the problem detail is recognizable on its own.
+3. If it makes sense at all to mention in the PR that manual
+   verification was done — write only "manually verified on a synthetic
+   example (`example-problem`)", without any characteristics of the real
+   problem, even remote ones.
 
-Если это правило нарушено снова — сообщить пользователю об этом прямо в
-следующем ответе, а не полагаться на то, что он сам заметит при ревью PR.
+If this rule is violated again — tell the user about it directly in the
+next reply, rather than relying on them noticing it during the PR review.
 
-## Ручные прогоны с реальным API — запрещены без явной команды
+## Manual runs with the real API — forbidden without an explicit command
 
-`orchestrator <задача> llm generate` (с `--step`, `--force` или без),
-`orchestrator <задача> llm tutorial` и `orchestrator <задача> init --draft` вызывают
-реальную модель и стоит каждый раз: через `AnthropicClient.generate` — денег
-с API-баланса, через `ClaudeCodeClient.generate` (`claude -p`) — лимитов
-подписки автора, общих с его интерактивной работой. Это не "проверка кода"
-в обычном смысле — здесь любая проверка = потраченные токены.
+`orchestrator <problem> llm generate` (with `--step`, `--force` or without),
+`orchestrator <problem> llm tutorial` and `orchestrator <problem> init --draft` call the
+real model and cost something every time: through `AnthropicClient.generate` — money
+from the API balance, through `ClaudeCodeClient.generate` (`claude -p`) — the author's
+subscription limits, shared with their interactive work. This is not "checking code"
+in the usual sense — here any check = spent tokens.
 
-СТРОГО ЗАПРЕЩЕНО Claude Code самостоятельно, без явной команды пользователя
-в текущем сообщении, запускать:
-- `orchestrator <задача> llm generate ...`, `orchestrator <задача> llm tutorial ...` и `orchestrator <задача> init --draft ...` на любом `problem_id` (реальном или синтетическом);
-- любой другой код, который инстанцирует `AnthropicClient` и реально
-  доходит до `client.messages.create` — включая "быстро проверить одним
-  шагом", "smoke test", "прогоним и посмотрим, что вернётся";
-- `claude -p` с запросом к модели (вручную или через `ClaudeCodeClient`) —
-  по тем же причинам; `claude --version`/`--help` модель не вызывают и
-  разрешены.
+STRICTLY FORBIDDEN for Claude Code on its own, without an explicit command from the user
+in the current message, to run:
+- `orchestrator <problem> llm generate ...`, `orchestrator <problem> llm tutorial ...` and `orchestrator <problem> init --draft ...` on any `problem_id` (real or synthetic);
+- any other code that instantiates `AnthropicClient` and actually
+  reaches `client.messages.create` — including "quickly check with one
+  step", "smoke test", "let's run it and see what comes back";
+- `claude -p` with a request to the model (by hand or through `ClaudeCodeClient`) —
+  for the same reasons; `claude --version`/`--help` don't call the model and
+  are allowed.
 
-Это касается даже ситуаций, где мотивация выглядит разумной ("хочу
-убедиться, что фикс действительно работает end-to-end") — инициатива здесь
-неуместна: стоимость реального вызова не оправдывает прогон без спроса.
+This applies even to situations where the motivation looks reasonable ("I want
+to make sure the fix really works end-to-end") — initiative is
+out of place here: the cost of a real call doesn't justify a run without asking.
 
-Разрешено без спроса (к модели не обращается):
-- `orchestrator <задача> llm status` — читает только кэш и файлы, в сеть не ходит;
-- `orchestrator <задача> llm apply` — применяет уже полученный ответ модели, к модели
-  не обращается (но пишет файлы задачи — запускать по просьбе автора);
-- `orchestrator <задача> llm accept` — пишет только `problems/<путь задачи>/.cache/`, к модели
-  не обращается (но меняет кэш автора — запускать по его просьбе);
-- `pytest` (integration-тесты по умолчанию выключены `-m 'not integration'`
-  — не трогать `pyproject.toml`, чтобы это не включить случайно);
-- компиляция и статический анализ сгенерированных C++-файлов;
-- unit-тесты с моком `LLMClient` (Protocol в `orchestrator/llm_client.py`)
-  или с замоканным `subprocess.run` для `ClaudeCodeClient`.
+Allowed without asking (doesn't call the model):
+- `orchestrator <problem> llm status` — reads only the cache and files, doesn't go to the network;
+- `orchestrator <problem> llm apply` — applies an already received model response, doesn't call the model
+  (but writes problem files — run it at the author's request);
+- `orchestrator <problem> llm accept` — writes only `problems/<problem path>/.cache/`, doesn't call the model
+  (but changes the author's cache — run it at their request);
+- `pytest` (integration tests are off by default with `-m 'not integration'`
+  — don't touch `pyproject.toml`, so as not to enable it by accident);
+- compiling and statically analyzing generated C++ files;
+- unit tests with a mocked `LLMClient` (the Protocol in `orchestrator/llm_client.py`)
+  or with a mocked `subprocess.run` for `ClaudeCodeClient`.
 
-Если для отладки бага нужен реальный end-to-end прогон — Claude Code должен
-явно спросить и дождаться отдельного подтверждения от пользователя в чате
-("запускай", "прогони N" и т.п.). Формулировка вопроса сама по себе не
-считается разрешением — нужен явный ответ на неё в отдельном сообщении.
+If debugging a bug requires a real end-to-end run — Claude Code must
+explicitly ask and wait for a separate confirmation from the user in the chat
+("run it", "run N", etc.). The wording of the question by itself does not
+count as permission — an explicit answer to it in a separate message is needed.
 
-## Не в скоупе этого CLAUDE.md
+## Not in the scope of this CLAUDE.md
 
-- Как именно вызывается Polygon API — см. `docs/POLYGON_API.md` (имена
-  параметров методов сверять с ним, а не угадывать).
-- Полный судящий контур (TLE/MLE различение, стресс-тесты на паре решений) —
-  отдельная будущая задача, здесь не проектируется.
+- How exactly the Polygon API is called — see `docs/POLYGON_API.md` (check
+  method parameter names against it, don't guess).
+- The full judging loop (TLE/MLE distinction, stress tests on a pair of solutions) —
+  a separate future task, not designed here.

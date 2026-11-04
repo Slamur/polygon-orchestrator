@@ -10,81 +10,81 @@ paths:
   - "tests/test_llm_report.py"
 ---
 
-# Команды `llm`
+# `llm` commands
 
-Адресация задач и группы — в `.claude/rules/cli.md`; шаги, которые запускает
-`llm`, — в `.claude/rules/steps.md` (общее) и `.claude/rules/step-roles/` (роли).
+Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
+`llm` runs — in `.claude/rules/steps.md` (shared) and `.claude/rules/step-roles/` (roles).
 
-## Запуск: команды `llm`
+## Running: `llm` commands
 
-- `orchestrator <задача> llm generate [--step NAME] [--force | --fresh]` —
-  прогон задачи (всех шагов или одного конкретного); шаги, для которых кэш
-  валиден, пропускаются автоматически (см. "Кэширование по хешу спека" в
-  `.claude/rules/steps.md`), остальные дорабатывают свои текущие файлы,
-  если они есть (см. там же "Режим доработки").
-  `--force` игнорирует кэш и вызывает модель заново — тоже в режиме
-  доработки; `--fresh` — заново и с нуля, без текущих файлов (подразумевает
-  `--force`). В консоль — строка на шаг и, у отработавшего шага (вызвал
-  модель или применил сохранённый ответ), путь к его отчёту
-  `llm_reports/<шаг>.md` со счётчиком заметок по видам. Отчёт
-  (`orchestrator/llm_report.py`) — текущее состояние шага, а не история:
-  переписывается только отработавшим шагом; в нём заметки модели по видам
-  (`uncertain`, `proposed`, `suggestion`, `changed`), не применённое, ошибки
-  compile-check, новые/изменённые/переименованные/помеченные `.removed`
-  файлы, каталог `.llm_backup/` и диффы файлов, которые существовали и
-  изменились. Полные заметки по-прежнему пишутся и в
-  `llm_generation.log` (история прогонов). Так же — `llm apply` и
-  `init --draft` (`llm_reports/spec_from_draft.md`). Если в спеке
-  остались пометки `init --draft` (`# PROPOSED, REVIEW ME`,
-  `# SUGGESTION`) — перед прогоном печатается предупреждение со строками
-  пометок (`spec.spec_review_marks`); прогон оно не останавливает. То же
-  предупреждение — в `llm status`.
-- `orchestrator <задача> llm tutorial [--ref SOLUTION ... | --no-ref] [--force | --fresh]`
-  — шаг `tutorial_draft` (см. `.claude/rules/step-roles/7-tutorial_draft.md`):
-  `statement/<language>/tutorial.tex` по `authoring/draft-tutorial.md`. `--ref` повторяется,
-  значение — файл из `solutions/` задачи (`ok.cpp` или `solutions/ok.cpp`), Tab
-  дополняет. Кэш, отчёт и режим доработки — как у `llm generate`, разбор,
-  написанный автором или скачанный с Polygon, дорабатывается, а не затирается;
-  `--fresh` — с нуля. Нет драфта — ошибка до вызова модели; `--ref` с группой
-  задач — ошибка разбора аргументов. Вызывает модель — те же ограничения на
-  запуск без явной команды, что и для `llm generate`.
-- `orchestrator <задача> llm status` — без вызовов модели: печатает
-  таблицу "шаг → cache hit / stale / not run", используя те же хеши, что и
-  `llm generate`. Полезно, чтобы до реального запуска увидеть, что вообще
-  изменилось после правки спека.
-  У `stale` указано, что именно изменилось (поле спека, upstream-артефакт,
-  промпт или приложенный документ, модель) — по хешам частей входа,
-  которые кэш хранит рядом с общими хешами.
-- `orchestrator <задача> llm apply [--step NAME]` — без вызовов
-  модели: применяет ответы, сохранённые `llm generate`, но не
-  применённые. Ответ модели (кроме `uncertain`) сохраняется в
-  `.cache/<step>.response.json` до проверки и записи файлов и удаляется,
-  когда применён хотя бы частично; если из ответа не применено ничего
-  (конфликт шага, применяемого только целиком, см. "Конфликты" в `.claude/rules/steps.md`) или шаг
-  упал с `ValueError` (например, неизвестный статус ответа — пайплайн
-  останавливается с ошибкой шага, а не traceback), ответ остаётся — после
-  правки оркестратора `llm apply` применяет его заново, не тратя новый
-  вызов.
-  Ответ применяется, только если получен на текущий вход шага (те же
-  хеши, что у кэша) и в том же режиме (доработка/с нуля); иначе — ошибка
-  с предложением `llm generate`. `llm status` показывает неприменённые
-  ответы.
-- `orchestrator <задача> llm accept [--step NAME]` — без вызовов
-  модели: принимает текущие артефакты `stale`-шагов как актуальные
-  (перезаписывает их кэш текущими хешами, `accepted: true`). Для случаев,
-  когда изменилось то, что не должно менять результат (рефакторинг
-  промптов/шаблонов), или автор уже поправил файлы руками и подогнал под них
-  спек. Шаги `not run`, `uncertain` и без артефакта на диске не принимаются.
-  Шаг с конфликтами (`conflict`) принимается, только когда автор их
-  разобрал и удалил каталог конфликтов, — даже если вход не менялся.
-  Неприменённый сохранённый ответ принятого шага удаляется. В консоль —
-  строка на шаг с кратким "что изменилось" (модель, спек, промпт) и путь к
-  отчёту `llm_reports/accept.md`, в котором у каждого принятого и не
-  принятого шага — полный список изменившихся частей входа.
+- `orchestrator <problem> llm generate [--step NAME] [--force | --fresh]` —
+  a run of the problem (all steps or one particular step); steps whose cache
+  is valid are skipped automatically (see "Caching by spec hash" in
+  `.claude/rules/steps.md`), the rest revise their current files
+  if they exist (see "Revision mode" there).
+  `--force` ignores the cache and calls the model again — also in revision
+  mode; `--fresh` — again and from scratch, without the current files (implies
+  `--force`). To the console — a line per step and, for a step that worked (called
+  the model or applied a saved response), the path to its report
+  `llm_reports/<step>.md` with a counter of notes by kind. The report
+  (`orchestrator/llm_report.py`) is the step's current state, not a history:
+  it is rewritten only by a step that worked; it contains the model's notes by kind
+  (`uncertain`, `proposed`, `suggestion`, `changed`), what wasn't applied, compile-check
+  errors, new/changed/renamed/marked `.removed`
+  files, the `.llm_backup/` directory and diffs of files that existed and
+  changed. Full notes are still written to
+  `llm_generation.log` too (the run history). Likewise — `llm apply` and
+  `init --draft` (`llm_reports/spec_from_draft.md`). If marks from `init --draft`
+  remain in the spec (`# PROPOSED, REVIEW ME`,
+  `# SUGGESTION`) — a warning with the marked lines is printed before the run
+  (`spec.spec_review_marks`); it doesn't stop the run. The same
+  warning — in `llm status`.
+- `orchestrator <problem> llm tutorial [--ref SOLUTION ... | --no-ref] [--force | --fresh]`
+  — the `tutorial_draft` step (see `.claude/rules/step-roles/7-tutorial_draft.md`):
+  `statement/<language>/tutorial.tex` from `authoring/draft-tutorial.md`. `--ref` is repeated,
+  the value is a file from the problem's `solutions/` (`ok.cpp` or `solutions/ok.cpp`), Tab
+  completes it. Cache, report and revision mode — as in `llm generate`; a tutorial
+  written by the author or downloaded from Polygon is revised, not overwritten;
+  `--fresh` — from scratch. No draft — an error before calling the model; `--ref` with a problem
+  group — an argument parsing error. Calls the model — the same restrictions on
+  running without an explicit command as for `llm generate`.
+- `orchestrator <problem> llm status` — without model calls: prints
+  a "step → cache hit / stale / not run" table, using the same hashes as
+  `llm generate`. Useful to see before a real run what actually
+  changed after a spec edit.
+  For `stale`, it shows what exactly changed (a spec field, an upstream artifact,
+  a prompt or an attached document, the model) — from the hashes of the input parts
+  that the cache stores next to the overall hashes.
+- `orchestrator <problem> llm apply [--step NAME]` — without model
+  calls: applies responses saved by `llm generate` but not
+  applied. The model's response (except `uncertain`) is saved to
+  `.cache/<step>.response.json` before checking and writing the files and is deleted
+  once applied at least partially; if nothing from the response was applied
+  (a conflict of a step applied only in full, see "Conflicts" in `.claude/rules/steps.md`) or the step
+  failed with a `ValueError` (e.g. an unknown response status — the pipeline
+  stops with a step error, not a traceback), the response stays — after
+  fixing the orchestrator, `llm apply` applies it again without spending a new
+  call.
+  A response is applied only if it was received for the step's current input (the same
+  hashes as the cache) and in the same mode (revision/from scratch); otherwise — an error
+  suggesting `llm generate`. `llm status` shows unapplied
+  responses.
+- `orchestrator <problem> llm accept [--step NAME]` — without model
+  calls: accepts the current artifacts of `stale` steps as up to date
+  (overwrites their cache with the current hashes, `accepted: true`). For cases
+  where something changed that shouldn't change the result (refactoring
+  prompts/templates), or the author has already fixed the files by hand and adjusted the
+  spec to them. Steps that are `not run`, `uncertain` and without an artifact on disk aren't accepted.
+  A step with conflicts (`conflict`) is accepted only once the author has
+  resolved them and deleted the conflicts directory — even if the input didn't change.
+  An unapplied saved response of an accepted step is deleted. To the console — a
+  line per step with a brief "what changed" (model, spec, prompt) and the path to
+  the `llm_reports/accept.md` report, in which every accepted and not
+  accepted step has the full list of changed input parts.
 
-## Логи и отчёты в каталоге задачи
+## Logs and reports in the problem directory
 
-`llm_generation.log` — лог `llm generate` (и `init --draft`), дописывается;
-каждый прогон начинается с `===== run started: orchestrator <команда> =====`.
-`llm_reports/<шаг>.md` — отчёт последнего прогона шага (`spec_from_draft.md`
-от `init --draft`, `accept.md` от `llm accept`).
+`llm_generation.log` — the log of `llm generate` (and `init --draft`), appended to;
+each run starts with `===== run started: orchestrator <command> =====`.
+`llm_reports/<step>.md` — the report of the step's last run (`spec_from_draft.md`
+from `init --draft`, `accept.md` from `llm accept`).

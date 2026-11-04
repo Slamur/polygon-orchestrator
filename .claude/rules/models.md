@@ -9,61 +9,60 @@ paths:
   - "tests/test_claude_code_client.py"
 ---
 
-# Модели: классы, effort, клиенты
+# Models: classes, effort, clients
 
-Общая механика шагов (доработка, кэш, эскалация) — в `.claude/rules/steps.md`.
+The shared mechanics of the steps (revision, cache, escalation) — in `.claude/rules/steps.md`.
 
-## Маршрутизация моделей по критичности шага
+## Model routing by step criticality
 
-Критичные по содержанию шаги (там, где ошибка стоит дороже — неверная
-асимптотика, неверные ограничения, некорректное решение) идут через более
-сильную модель; механические/боилерплейт-шаги — через более быструю/дешёвую.
+Steps that are critical in content (where a mistake costs more — wrong
+asymptotics, wrong limits, an incorrect solution) go through a
+stronger model; mechanical/boilerplate steps — through a faster/cheaper one.
 
-| Шаг                        | Критичность | Предлагаемый класс модели |
+| Step                        | Criticality | Proposed model class |
 |-----------------------------|-------------|----------------------------|
-| `constraints_pick`          | высокая     | сильная модель             |
-| `solutions_draft`           | высокая     | сильная модель             |
-| `checker_draft`              | высокая (при неполном `custom_comparison_notes`) | средняя модель |
-| `statement_draft` (LaTeX)   | средняя     | средняя модель              |
-| `tests_plan`                | средняя — дизайн adversarial-тестов | средняя модель, high effort |
-| `generators_draft`          | низкая — реализация плана | средняя модель, medium effort |
-| `test_script_draft`         | низкая — реализация плана | средняя модель, medium effort |
-| `interactor_draft`          | высокая — протокол целиком, ошибка ломает все тесты | сильная модель |
-| `spec_from_draft` (`init --draft`) | высокая — спек вход всех шагов | сильная модель |
-| `tutorial_draft` (`llm tutorial`) | высокая — доказательства по просьбе автора | сильная модель |
+| `constraints_pick`          | high        | strong model             |
+| `solutions_draft`           | high        | strong model             |
+| `checker_draft`              | high (with incomplete `custom_comparison_notes`) | medium model |
+| `statement_draft` (LaTeX)   | medium      | medium model              |
+| `tests_plan`                | medium — designing adversarial tests | medium model, high effort |
+| `generators_draft`          | low — implementing the plan | medium model, medium effort |
+| `test_script_draft`         | low — implementing the plan | medium model, medium effort |
+| `interactor_draft`          | high — the whole protocol, a mistake breaks all tests | strong model |
+| `spec_from_draft` (`init --draft`) | high — the spec is the input of all steps | strong model |
+| `tutorial_draft` (`llm tutorial`) | high — proofs at the author's request | strong model |
 
-`checker_draft` формально механический, когда `custom_comparison_notes`
-полон и однозначен (перевод текстового описания в код по паттерну
-read_and_check) — но ошибка здесь дороже, чем в среднем механическом шаге:
-неверно реализованное сравнение может молча пропускать неверные решения или
-браковать верные, и это может остаться незамеченным долго. Средняя модель —
-компромисс: если на практике `custom_comparison_notes` часто оказывается
-недостаточно точным и шаг слишком часто уходит в `uncertain`
-(что само по себе не страшно — так и задумано), можно поднять шаг до сильной
-модели, как `constraints_pick`/`solutions_draft`.
+`checker_draft` is formally mechanical when `custom_comparison_notes`
+is complete and unambiguous (translating a text description into code following the
+read_and_check pattern) — but a mistake here costs more than in an average mechanical step:
+a wrongly implemented comparison may silently accept wrong solutions or
+reject correct ones, and this may go unnoticed for a long time. The medium model is
+a compromise: if in practice `custom_comparison_notes` often turns out to be
+not precise enough and the step goes to `uncertain` too often
+(which by itself isn't bad — that's by design), the step can be raised to the strong
+model, like `constraints_pick`/`solutions_draft`.
 
-Подготовка тестов разбита на `tests_plan` и `generators_draft`/`test_script_draft`
-не случайно: реализация генератора по готовой идее механическая, а
-**придумывание** adversarial-тестов — как сломать конкретный неверный
-алгоритм — не менее содержательно, чем `constraints_pick`; одним вызовом с
-высоким effort и десятками файлов в ответе это не укладывалось в таймаут.
-Поэтому рассуждение — в `tests_plan` (средняя модель, high effort, небольшой
-ответ), код — в `generators_draft`/`test_script_draft` (средняя модель,
-medium effort). Если качество предложенных тестов будет слабым, следующий шаг
-эскалации — `tests_plan` до сильной модели, как у
+Test preparation is split into `tests_plan` and `generators_draft`/`test_script_draft`
+for a reason: implementing a generator from a ready idea is mechanical, while
+**coming up with** adversarial tests — how to break a particular wrong
+algorithm — is no less substantive than `constraints_pick`; as one call with
+high effort and dozens of files in the response it didn't fit into the timeout.
+So the reasoning is in `tests_plan` (medium model, high effort, a small
+response), the code — in `generators_draft`/`test_script_draft` (medium model,
+medium effort). If the quality of the proposed tests turns out weak, the next
+escalation step is `tests_plan` to the strong model, like
 `constraints_pick`/`solutions_draft`.
 
-Классы моделей ("strong-model"/"medium-model"/"fast-model") и `effort` на
-шаг живут в `orchestrator/model_router.py` — этот модуль вендоронезависим,
-он не знает конкретных имён моделей. Соответствие класса конкретной модели
-вендора (например, `"strong-model" -> "claude-opus-5"`), авторизация, retry
-и формат структурированного вывода — всё это инкапсулировано в реализации
-`LLMClient` (`orchestrator/llm_client.py`), по умолчанию `ClaudeCodeClient`
-(`orchestrator/llm_clients/claude_code_client.py`: модели через Claude Code
-CLI, расход из лимитов подписки, а не с API-баланса — см.
-`docs/SETUP.md`); при `ORCHESTRATOR_LLM_BACKEND=anthropic-api` —
-`AnthropicClient` (`orchestrator/llm_clients/anthropic_client.py`, те же
-модели через Anthropic API). Промпты не должны
-зависеть от того, какая именно модель/вендор их выполняет — вся эта
-информация не должна течь в `prompts/`.
-
+Model classes ("strong-model"/"medium-model"/"fast-model") and the `effort` per
+step live in `orchestrator/model_router.py` — this module is vendor-independent,
+it doesn't know concrete model names. Mapping a class to a vendor's concrete model
+(e.g. `"strong-model" -> "claude-opus-5"`), authorization, retry
+and the structured output format — all of this is encapsulated in the
+`LLMClient` implementation (`orchestrator/llm_client.py`), by default `ClaudeCodeClient`
+(`orchestrator/llm_clients/claude_code_client.py`: models through the Claude Code
+CLI, spending the subscription limits rather than the API balance — see
+`docs/SETUP.md`); with `ORCHESTRATOR_LLM_BACKEND=anthropic-api` —
+`AnthropicClient` (`orchestrator/llm_clients/anthropic_client.py`, the same
+models through the Anthropic API). Prompts must not
+depend on which model/vendor exactly runs them — none of this
+information may leak into `prompts/`.

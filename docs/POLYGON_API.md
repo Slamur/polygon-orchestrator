@@ -156,7 +156,7 @@ Use HTTP POST-requests:
 
 * Use ‘c/ContestUID/contest.xml’ and POST-parameters \<login\>, \<password\> to download a contest descriptor. If the contest has the pin code, provide an optional POST-parameter \<pin\>.  Example:
 
-| wget \--post-data=login=vtapochkin\\\&password=??? \\https://polygon.codeforces.com/с/50431a121273b7e31f4200e7/contest.xml |
+| wget \--post-data=login=vtapochkin\\\&password=??? \\https://polygon.codeforces.com/c/50431a121273b7e31f4200e7/contest.xml |
 | :---- |
 
 # Introduction {#introduction}

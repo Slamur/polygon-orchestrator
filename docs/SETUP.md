@@ -1,81 +1,81 @@
-# Настройка после клонирования
+# Setup after cloning
 
-## Обязательно: подключить git-хуки
+## Required: enable the git hooks
 
-Сразу после `git clone` выполните в корне репозитория **один раз**:
+Right after `git clone`, run in the repository root **once**:
 
 ```bash
 git config core.hooksPath githooks
 ```
 
-Это локальная настройка git (`.git/config`), она не коммитится и не
-передаётся при клонировании — без неё хуки из `githooks/` **не работают**.
+This is a local git setting (`.git/config`), it isn't committed and isn't
+transferred on cloning — without it the hooks from `githooks/` **don't work**.
 
-Проверить, что настройка применена:
+Check that the setting is applied:
 
 ```bash
-git config core.hooksPath   # должно вывести: githooks
+git config core.hooksPath   # should print: githooks
 ```
 
-### Что делает `githooks/pre-push`
+### What `githooks/pre-push` does
 
-Блокирует `git push`, если имя текущей ветки или сообщение любого коммита,
-которого ещё нет в `origin/main`, содержит `problem_id` одной из задач в `problems/` — имя
-каталога задачи (с `authoring/spec.yaml` или `polygon_state.json`) на любой глубине
-вложенности; группирующие каталоги не проверяются. Это страховка для правила из `CLAUDE.md`
-("Конфиденциальность problems/"): `problems/` в `.gitignore`, но имена веток
-и сообщения коммитов публичны.
+Blocks `git push` if the current branch name or the message of any commit
+not yet in `origin/main` contains the `problem_id` of one of the problems in `problems/` — the name
+of a problem directory (with `authoring/spec.yaml` or `polygon_state.json`) at any nesting
+depth; grouping directories aren't checked. This is a safety net for the rule from `CLAUDE.md`
+("Confidentiality of problems/"): `problems/` is in `.gitignore`, but branch names
+and commit messages are public.
 
-- Если в `problems/` нет ни одного каталога — хук ничего не проверяет.
-- Если `origin/main` недоступен (например, самый первый push) — проверяется
-  только имя ветки.
-- Сравнение — по подстроке, без учёта регистра.
+- If `problems/` has no directories at all — the hook checks nothing.
+- If `origin/main` is unavailable (e.g. the very first push) — only the
+  branch name is checked.
+- The comparison is by substring, case-insensitive.
 
-При срабатывании хук пишет в stderr, какой `problem_id` найден и где (ветка
-или хеш коммита). Исправить: переименовать ветку
-(`git branch -m <новое-имя>`) и/или переписать сообщения коммитов
+When it fires, the hook writes to stderr which `problem_id` was found and where (the branch
+or a commit hash). To fix: rename the branch
+(`git branch -m <new-name>`) and/or rewrite the commit messages
 (`git commit --amend` / `git rebase -i origin/main`).
 
-## Опционально: git blame без коммитов форматирования
+## Optional: git blame without formatting commits
 
-Массовые правки форматирования перечислены в `.git-blame-ignore-revs`;
-GitHub пропускает их сам, локальному `git blame` нужно сказать один раз:
+Mass formatting edits are listed in `.git-blame-ignore-revs`;
+GitHub skips them on its own, local `git blame` has to be told once:
 
 ```bash
 git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
-## Опционально: Java для проверки test-script'а и Java-решений
+## Optional: Java for checking the test-script and for Java solutions
 
-Проверка test-script'а в `orchestrator <задача> local check` и перед загрузкой в
-`polygon push` раскрывает FreeMarker test-script настоящим FreeMarker, поэтому
-нужна `java` (JDK 11+, запуск `.java` без сборки):
+The test-script check in `orchestrator <problem> local check` and before uploading in
+`polygon push` expands the FreeMarker test-script with real FreeMarker, so
+`java` is needed (JDK 11+, running `.java` without building):
 
 ```bash
-sudo apt install default-jdk-headless   # или любой другой JDK 11+
+sudo apt install default-jdk-headless   # or any other JDK 11+
 ```
 
-jar FreeMarker скачивается с Maven Central при первом запуске в
-`~/.cache/polygon-orchestrator/` (с проверкой sha1); без сети — положить его
-туда руками или указать путь в `ORCHESTRATOR_FREEMARKER_JAR`. Без `java`
-`polygon push` загружает скрипт без проверки, с предупреждением.
+The FreeMarker jar is downloaded from Maven Central on the first run into
+`~/.cache/polygon-orchestrator/` (with a sha1 check); without a network — put it
+there by hand or give its path in `ORCHESTRATOR_FREEMARKER_JAR`. Without `java`,
+`polygon push` uploads the script without the check, with a warning.
 
-Тот же JDK собирает Java-решения в `local run` (прогон решений на
-примерах): `javac`, а если его нет в `PATH` — компилятор из модуля
-`jdk.compiler` через `java -m`. Без JDK Java-решения не запускаются, с
-ошибкой у каждого.
+The same JDK builds Java solutions in `local run` (running solutions on the
+examples): `javac`, and if it isn't in `PATH` — the compiler from the
+`jdk.compiler` module via `java -m`. Without a JDK, Java solutions don't run, with
+an error for each.
 
-## Опционально: Tab-дополнение команд и адресов задач
+## Optional: Tab completion of commands and problem addresses
 
-`orchestrator` умеет дополнять по Tab имена пайплайнов и команд, значения
-`--step` и адрес задачи (`problems/<путь задачи>`, `examples/<путь задачи>`).
-Адреса нигде не хранятся: при каждом нажатии Tab они читаются из каталогов
-задач в `problems/` и `examples/` (со спеком или только с
-`polygon_state.json` — `polygon status` и `polygon pull` спек не нужен),
-поэтому новая задача дополняется сразу, без какой-либо перегенерации.
+`orchestrator` can complete by Tab the names of pipelines and commands, the values of
+`--step` and the problem address (`problems/<problem path>`, `examples/<problem path>`).
+Addresses aren't stored anywhere: on every Tab press they are read from the problem
+directories in `problems/` and `examples/` (with a spec or with only
+`polygon_state.json` — `polygon status` and `polygon pull` don't need a spec),
+so a new problem is completed right away, without any regeneration.
 
-Настройка — **один раз** на машину, из активированного окружения, где
-установлен оркестратор (`pip install -e .` — подтянет `argcomplete`):
+Setup — **once** per machine, from the activated environment where
+the orchestrator is installed (`pip install -e .` — pulls in `argcomplete`):
 
 ```bash
 mkdir -p ~/.local/share/bash-completion/completions
@@ -83,54 +83,54 @@ register-python-argcomplete orchestrator \
     > ~/.local/share/bash-completion/completions/orchestrator
 ```
 
-Править `~/.bashrc` не нужно: пакет `bash-completion` сам подхватывает файл
-из этого каталога по имени команды при первом нажатии Tab в **новом**
-терминале. Файл — статический shell-сниппет, он не зависит от содержимого
-репозитория и не требует обновления при изменении команд или списка задач.
+There's no need to edit `~/.bashrc`: the `bash-completion` package picks up the file
+from this directory by the command name on the first Tab press in a **new**
+terminal. The file is a static shell snippet, it doesn't depend on the repository's
+contents and doesn't need updating when the commands or the problem list change.
 
-Для zsh вместо этого — строка в `~/.zshrc` (после `compinit`):
+For zsh instead — a line in `~/.zshrc` (after `compinit`):
 
 ```zsh
 eval "$(register-python-argcomplete orchestrator)"
 ```
 
-Проверить: `orchestrator <задача> polygon pu<Tab>` должно дополниться до
+Check: `orchestrator <problem> polygon pu<Tab>` should complete to
 `push`/`pull`.
 
-Ограничения:
+Limitations:
 
-- дополнение работает, только пока `orchestrator` доступен в `PATH` (то
-  есть окружение активировано) — иначе Tab просто ничего не предлагает;
-- `problems/` и `examples/` ищутся относительно текущего каталога, как и при
-  обычном запуске, — дополнять адрес задачи нужно из корня репозитория (либо
-  указав `--base-dir` раньше в той же команде);
-- дополнение только подсказывает: в команду всегда уходит полное имя
-  задачи, сокращённые имена CLI не принимает.
+- completion works only while `orchestrator` is available in `PATH` (that
+  is, the environment is activated) — otherwise Tab just suggests nothing;
+- `problems/` and `examples/` are looked up relative to the current directory, as in
+  a normal run — complete the problem address from the repository root (or
+  give `--base-dir` earlier in the same command);
+- completion only suggests: the full problem name always goes into the command,
+  the CLI doesn't accept abbreviated names.
 
-## Генерация: подписка Claude (Claude Code CLI) или Anthropic API
+## Generation: a Claude subscription (Claude Code CLI) or the Anthropic API
 
-По умолчанию (`ORCHESTRATOR_LLM_BACKEND=claude-code` или переменная не
-задана) `orchestrator <задача> llm generate` прогоняет шаги через Claude Code CLI —
-расход идёт из лимитов подписки Pro/Max (тех же, что у интерактивного
-Claude Code и claude.ai: 5-часовое окно + недельный лимит, текущее
-заполнение — `/usage` в Claude Code). Настройка:
+By default (`ORCHESTRATOR_LLM_BACKEND=claude-code` or the variable isn't
+set) `orchestrator <problem> llm generate` runs the steps through the Claude Code CLI —
+spending the Pro/Max subscription limits (the same as interactive
+Claude Code and claude.ai: a 5-hour window + a weekly limit, the current
+usage — `/usage` in Claude Code). Setup:
 
-1. Установить/обновить CLI: нужна версия с флагами `--system-prompt-file`
-   и `--safe-mode` (`claude update`; старый CLI упадёт с подсказкой
-   обновиться). Плагин VS Code и desktop-приложение несут свои копии
-   бинаря — оркестратор вызывает `claude` из `PATH` либо бинарь из
+1. Install/update the CLI: a version with the `--system-prompt-file`
+   and `--safe-mode` flags is needed (`claude update`; an old CLI fails with a hint
+   to update). The VS Code plugin and the desktop app carry their own copies of the
+   binary — the orchestrator calls `claude` from `PATH` or the binary from
    `CLAUDE_CODE_BIN`.
-2. Убедиться, что CLI залогинен подпиской: `claude`, затем `/status`.
-   Авторизация общая для всех копий Claude Code (`~/.claude/`).
+2. Make sure the CLI is logged in with the subscription: `claude`, then `/status`.
+   Authorization is shared by all copies of Claude Code (`~/.claude/`).
 
-`ANTHROPIC_API_KEY` в `.env` этому бэкенду не нужен и не мешает: клиент
-вырезает его из окружения процесса `claude`, иначе CLI пошёл бы на
-API-биллинг.
+`ANTHROPIC_API_KEY` in `.env` isn't needed by this backend and doesn't get in the way: the client
+strips it from the `claude` process's environment, otherwise the CLI would go to
+API billing.
 
-Альтернатива — `ORCHESTRATOR_LLM_BACKEND=anthropic-api`: те же модели через
-Anthropic API по `ANTHROPIC_API_KEY`, расход — деньги с API-баланса.
-Модели по классам у бэкендов одинаковые, поэтому переключение кэш шагов не
-инвалидирует. Если лимит подписки исчерпан, `llm generate` останавливается
-на текущем шаге — после сброса лимита можно просто запустить его снова
-(готовые шаги пропустятся по кэшу) или временно переключиться на
+The alternative — `ORCHESTRATOR_LLM_BACKEND=anthropic-api`: the same models through
+the Anthropic API with `ANTHROPIC_API_KEY`, spending money from the API balance.
+The models per class are the same for both backends, so switching doesn't invalidate the
+step cache. If the subscription limit is exhausted, `llm generate` stops
+at the current step — after the limit resets you can just run it again
+(finished steps are skipped by the cache) or temporarily switch to
 `anthropic-api`.

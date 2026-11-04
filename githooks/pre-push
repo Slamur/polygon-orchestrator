@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
-# Блокирует push, если имя ветки или сообщения коммитов (относительно
-# origin/main) содержат problem_id любой задачи в problems/ — имя каталога
-# задачи на любой глубине (каталог с authoring/spec.yaml, spec.yaml — до
-# переноса в authoring/ — или polygon_state.json, см.
-# orchestrator/problem_paths.py; группирующие каталоги вроде года или раунда не
-# проверяются — иначе короткие имена давали бы ложные срабатывания), — и имя
-# любого каталога в outputs/ (прежнее имя каталога задач, на случай оставшейся
-# локальной копии), и имя (без расширения) любого черновика в drafts/ на любой
-# глубине (`init --draft`; имена подкаталогов не проверяются — как группирующие
-# каталоги problems/), кроме черновиков учебных задач из examples/ — они
-# публичны. См. "Конфиденциальность problems/" в CLAUDE.md.
+# Blocks the push if the branch name or the commit messages (relative to
+# origin/main) contain the problem_id of any problem in problems/ — the name of a problem
+# directory at any depth (a directory with authoring/spec.yaml, spec.yaml — before
+# the move to authoring/ — or polygon_state.json, see
+# orchestrator/problem_paths.py; grouping directories like a year or a round aren't
+# checked — otherwise short names would give false positives), — and the name of
+# any directory in outputs/ (the former name of the problems directory, in case a local
+# copy remains), and the name (without extension) of any draft in drafts/ at any
+# depth (`init --draft`; subdirectory names aren't checked — like the grouping
+# directories of problems/), except drafts of the sample problems from examples/ — they are
+# public. See "Confidentiality of problems/" in CLAUDE.md.
 #
-# Подключение (один раз после клонирования): git config core.hooksPath githooks
+# Enabling (once after cloning): git config core.hooksPath githooks
 
 set -u
-# Сравнение problem_id с веткой/сообщениями — без учёта регистра.
+# Comparing problem_id with the branch/messages is case-insensitive.
 shopt -s nocasematch
 
 repo_root="$(git rev-parse --show-toplevel)" || exit 0
 
-# Каталог задачи по найденному маркеру: спек в authoring/ — на уровень выше.
+# The problem directory of a found marker: for a spec in authoring/ — one level up.
 marker_problem_dir() {
     local dir
     dir="$(dirname "$1")"
@@ -31,7 +31,7 @@ problem_ids=()
 if [ -d "$repo_root/problems" ]; then
     while IFS= read -r -d '' marker; do
         problem_id="$(basename "$(marker_problem_dir "$marker")")"
-        # spec.yaml и polygon_state.json одной задачи — один problem_id
+        # spec.yaml and polygon_state.json of one problem are one problem_id
         [[ " ${problem_ids[*]} " == *" $problem_id "* ]] || problem_ids+=("$problem_id")
     done < <(find "$repo_root/problems" -mindepth 1 -name '.*' -prune -o \
         -type f \( -name spec.yaml -o -name polygon_state.json \) -print0)
@@ -42,8 +42,8 @@ for legacy_dir in "$repo_root"/outputs/*/; do
 done
 shopt -u nullglob
 
-# Черновики учебных задач из examples/ (публичных) не проверяются: черновик
-# с именем задачи examples/ — её имя каталога или problem_id (путь через "--").
+# Drafts of the sample problems from examples/ (public) aren't checked: a draft
+# named after an examples/ problem — its directory name or problem_id (the path joined with "--").
 example_names=" "
 if [ -d "$repo_root/examples" ]; then
     while IFS= read -r -d '' marker; do
@@ -69,8 +69,8 @@ fi
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
 
-# Коммиты, которых ещё нет в origin/main; если origin/main недоступен
-# (например, самый первый push) — сравниваем против пустого списка.
+# Commits not yet in origin/main; if origin/main is unavailable
+# (e.g. the very first push) — compare against an empty list.
 commits=""
 if git rev-parse --verify --quiet origin/main >/dev/null; then
     commits="$(git rev-list origin/main..HEAD)"

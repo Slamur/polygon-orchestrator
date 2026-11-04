@@ -321,7 +321,7 @@ def test_draft_without_spec_in_response_writes_nothing(base_dir, fake_model):
 def test_context_documents_include_format_and_template():
     documents = context_documents(templates_dir=TEMPLATES_DIR, examples_dir=REPO_ROOT / "examples")
 
-    assert documents[SPEC_FORMAT_DOC.as_posix()].startswith("# Формат входного спека")
+    assert documents[SPEC_FORMAT_DOC.as_posix()].startswith("# Problem input spec format")
     assert "spec_template.yaml" in documents
     assert "examples/array/prefix-sums/spec.yaml" in documents
 
