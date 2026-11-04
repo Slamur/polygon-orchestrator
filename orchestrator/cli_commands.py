@@ -49,6 +49,7 @@ from orchestrator.llm_client import LLMCallError
 from orchestrator.llm_report import (
     note_counts,
     write_accept_report,
+    write_spec_critic_report,
     write_spec_from_draft_report,
     write_step_report,
 )
@@ -367,6 +368,68 @@ def cmd_llm_tutorial(args: argparse.Namespace) -> int:
     return _run_llm_pipeline(
         args, force=args.force, fresh=args.fresh, tutorial_refs=[] if args.no_ref else args.ref
     )
+
+
+def cmd_llm_critic(args: argparse.Namespace) -> int:
+    """`llm critic`: the critic over the spec as it is (`spec_critic.review_spec`) —
+    the findings go to `llm_reports/spec_critic.md`, the spec isn't changed. No cache:
+    every run calls the model."""
+    import yaml
+
+    from orchestrator.spec_critic import review_spec
+
+    path = spec_path(args.problem_id, problems_dir=args.problems_dir)
+    if not path.is_file():
+        print(f"error: {path} does not exist — nothing to review", file=sys.stderr)
+        return 1
+    spec_text = path.read_text(encoding="utf-8")
+    try:
+        yaml.safe_load(spec_text)
+    except yaml.YAMLError as exc:
+        print(f"error: {path} is not valid YAML — fix it first: {exc}", file=sys.stderr)
+        return 1
+
+    logger = _configure_console_logging()
+    with _problem_log_handler(
+        logger, args.problems_dir, args.problem_id, LLM_GENERATION_LOG, args.command_line
+    ) as file_handler:
+        try:
+            outcome = review_spec(
+                spec_text,
+                prompts_dir=args.prompts_dir,
+                templates_dir=args.templates_dir,
+                examples_dir=args.base_dir / EXAMPLES_DIR,
+            )
+        except LLMCallError as exc:
+            logger.error(f"the critic call failed: {exc}")
+            return 1
+        except Exception:
+            _log_traceback_to_file(
+                file_handler, f"unhandled error while reviewing the spec of '{args.problem_id}'"
+            )
+            raise
+        label = f"{len(outcome.findings)} finding(s)" if outcome.findings else "no findings"
+        logger.info(f"=== {args.problem_id}: spec critic — {label} ===")
+        report = write_spec_critic_report(
+            Path(args.problems_dir) / args.problem_id,
+            outcome,
+            spec_path=path,
+            status_label=label,
+            command_line=args.command_line,
+        )
+        logger.info(f"      report: {report}")
+        for finding in outcome.findings:
+            owner = finding.owner or "unresolved"
+            _log_to_file(
+                file_handler,
+                f"      [{finding.severity} {finding.action}] {finding.field} ({owner}): "
+                f"{finding.why}",
+            )
+        for line in _note_lines(outcome.notes):
+            logger.warning(line)
+    # The notes are problems of the run itself (an invalid critique): the call was
+    # spent, but the review is incomplete.
+    return 1 if outcome.notes else 0
 
 
 def cmd_llm_apply(args: argparse.Namespace) -> int:

@@ -2,7 +2,8 @@
 `orchestrator <problem address> <pipeline> <command> [arguments]` (CLAUDE.md,
 "Running"): `init` — a problem directory with a spec draft (from the template, from
 the base problem's spec `--ref` and/or by the model from the author's draft `--draft`),
-`llm generate|tutorial|apply|status|accept` — the generative steps,
+`llm generate|tutorial|critic|apply|status|accept` — the generative steps
+(`critic` — reviewing the spec),
 `local check|run|fix|clear` — checking the problem's files, running solutions,
 mechanically fixing what was found in the statement and deleting the local check
 caches, without the model and without the network, `polygon push|status|pull` —
@@ -238,6 +239,14 @@ def build_parser() -> argparse.ArgumentParser:
         "(implies --force)",
     )
     tutorial_parser.set_defaults(handler="cmd_llm_tutorial")
+
+    critic_parser = llm_commands.add_parser(
+        "critic",
+        help="review the spec as it is with the critic model: what to remove or simplify, "
+        "into llm_reports/spec_critic.md; the spec is not changed (calls the model, no cache; "
+        "not a part of 'llm generate')",
+    )
+    critic_parser.set_defaults(handler="cmd_llm_critic")
 
     apply_parser = llm_commands.add_parser(
         "apply",
