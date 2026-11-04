@@ -17,7 +17,7 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 STEP = "tutorial_draft"
-DRAFT_TEXT = "Заметим, что ответ монотонен. Тут докажи.\n"
+DRAFT_TEXT = "Note that the answer is monotonic. Prove it here.\n"
 _RESPONSE = ModelResponse(status="confirmed", artifacts={"tutorial.tex": "tutorial\n"}, notes=[])
 
 

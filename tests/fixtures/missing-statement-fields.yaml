@@ -4,19 +4,19 @@ title:
 
 statement_draft:
   legend_sketch: |
-    Есть граф городов и дорог, нужно найти кратчайший путь между двумя
-    заданными городами.
+    There's a graph of cities and roads, find the shortest path between two
+    given cities.
   indexing: "1-indexed"
 
 constraints:
   intended_complexity: "O((N + K) log N)"
   complexity_reasoning: |
-    Алгоритм Дейкстры с бинарной кучей.
+    Dijkstra's algorithm with a binary heap.
   variables:
     - name: "N"
       min: 1
       max: 100000
-      description: "количество вершин"
+      description: "the number of vertices"
 
 generation:
   script_style: "flat"

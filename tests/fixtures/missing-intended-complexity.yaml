@@ -4,12 +4,12 @@ title:
 
 statement_draft:
   legend_sketch: |
-    Есть граф городов и дорог, нужно найти кратчайший путь между двумя
-    заданными городами.
+    There's a graph of cities and roads, find the shortest path between two
+    given cities.
   formal_input_sketch: |
-    Дан неориентированный взвешенный граф: N вершин, K рёбер.
+    Given an undirected weighted graph: N vertices, K edges.
   formal_output_sketch: |
-    Одно число — длина кратчайшего пути.
+    One number — the length of the shortest path.
   indexing: "1-indexed"
   sample_examples:
     - input: |
@@ -22,12 +22,12 @@ statement_draft:
 
 constraints:
   complexity_reasoning: |
-    Алгоритм Дейкстры с бинарной кучей.
+    Dijkstra's algorithm with a binary heap.
   variables:
     - name: "N"
       min: 1
       max: 100000
-      description: "количество вершин"
+      description: "the number of vertices"
 
 generation:
   script_style: "flat"

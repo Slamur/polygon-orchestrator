@@ -85,7 +85,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
             {
                 "field": "constraints.intended_complexity",
                 "kind": "uncertain",
-                "explanation": "пусто",
+                "explanation": "empty",
             }
         ],
     )
@@ -167,7 +167,7 @@ def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
             {
                 "field": "constraints.test_groups",
                 "kind": "proposed",
-                "explanation": "hint не задан, предложен разумный набор small/edge/max",
+                "explanation": "no hint given, a reasonable small/edge/max set is proposed",
             }
         ],
     )
@@ -266,10 +266,10 @@ def test_user_prompt_includes_input_format_but_not_legend(spec, tmp_path):
 @pytest.mark.parametrize(
     "field, value, changes",
     [
-        ("formal_input_sketch", "Одна строка: N.", True),
+        ("formal_input_sketch", "One line: N.", True),
         ("indexing", "0-indexed", True),
-        ("legend_sketch", "Другая легенда.", False),
-        ("formal_output_sketch", "Выведите YES или NO.", False),
+        ("legend_sketch", "Another legend.", False),
+        ("formal_output_sketch", "Print YES or NO.", False),
     ],
 )
 def test_compute_input_hash_depends_only_on_input_part_of_statement(spec, field, value, changes):
@@ -288,7 +288,7 @@ def test_problem_id_in_constraints_yaml_comes_from_spec(spec, tmp_path):
     response = ModelResponse(
         status="confirmed",
         artifacts={
-            "constraints.yaml": "problem_id: contest/valid-spec   # из ответа\nn_max: 100000\n"
+            "constraints.yaml": "problem_id: contest/valid-spec   # from the response\nn_max: 100000\n"
         },
         notes=[],
     )
@@ -308,7 +308,7 @@ def test_problem_id_in_constraints_yaml_comes_from_spec(spec, tmp_path):
     written = (tmp_path / "contest" / "valid-spec" / "authoring" / "constraints.yaml").read_text(
         encoding="utf-8"
     )
-    assert written == "problem_id: valid-spec           # из ответа\nn_max: 100000\n"
+    assert written == "problem_id: valid-spec           # from the response\nn_max: 100000\n"
     assert [note["field"] for note in result.notes] == ["problem_id"]
 
 

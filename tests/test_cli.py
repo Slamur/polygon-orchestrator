@@ -125,7 +125,7 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(problems_dir, tmp_path, ca
             {
                 "field": "statement_draft.formal_output_sketch",
                 "kind": "uncertain",
-                "explanation": "нет точности",
+                "explanation": "no precision given",
             }
         ],
     )
@@ -136,14 +136,14 @@ def test_run_uncertain_exits_nonzero_and_prints_notes(problems_dir, tmp_path, ca
     out = capsys.readouterr().out
     assert "statement_draft: uncertain" in out
     assert "(1 uncertain)" in out
-    assert "нет точности" not in out
+    assert "no precision given" not in out
     report = (problems_dir / "p1" / "llm_reports" / "statement_draft.md").read_text(
         encoding="utf-8"
     )
     assert "## Uncertain — the spec needs fixing (1)" in report
-    assert "- **statement_draft.formal_output_sketch** — нет точности" in report
+    assert "- **statement_draft.formal_output_sketch** — no precision given" in report
     log = (problems_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
-    assert "[uncertain] statement_draft.formal_output_sketch: нет точности" in log
+    assert "[uncertain] statement_draft.formal_output_sketch: no precision given" in log
 
 
 def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tmp_path, capsys):

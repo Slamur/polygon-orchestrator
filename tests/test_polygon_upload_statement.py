@@ -17,10 +17,10 @@ from orchestrator.polygon.steps.upload_statement import STEP
 from orchestrator.spec import load_spec
 
 TEX_CONTENT = {
-    "legend.tex": "Легенда.\n",
-    "input_format.tex": "В первой строке задано $n$.\n",
-    "output_format.tex": "Выведите одно число.\n",
-    "notes.tex": "Пояснение к примеру.\n",
+    "legend.tex": "Legend.\n",
+    "input_format.tex": "The first line contains $n$.\n",
+    "output_format.tex": "Print one number.\n",
+    "notes.tex": "A note on the example.\n",
 }
 
 
@@ -231,13 +231,13 @@ def test_name_txt_is_seeded_from_spec_title_once(problems_dir, spec):
     _run(spec, problems_dir, MagicMock())
     assert name_path.read_text(encoding="utf-8") == spec.title.ru + "\n"
 
-    name_path.write_text("Другое название\n", encoding="utf-8")
+    name_path.write_text("Another name\n", encoding="utf-8")
     client = MagicMock()
     message = _run(spec, problems_dir, client, incremental=True)
 
     [statement_call] = client.call.call_args_list
-    assert statement_call.args[1]["name"] == "Другое название"
-    assert "Другое название" in message
+    assert statement_call.args[1]["name"] == "Another name"
+    assert "Another name" in message
 
 
 def test_empty_name_txt_is_an_error(problems_dir, spec):
@@ -259,7 +259,7 @@ def test_status_sees_name_change(problems_dir, spec):
     _write_examples(problems_dir, {1: "1\n"})
     _run(spec, problems_dir, MagicMock())
 
-    (_lang_dir(problems_dir) / "name.txt").write_text("Другое\n", encoding="utf-8")
+    (_lang_dir(problems_dir) / "name.txt").write_text("Another\n", encoding="utf-8")
 
     status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
     assert status == "stale"
@@ -273,7 +273,7 @@ def interactive_spec():
 
 def _write_interactive(problems_dir: Path) -> None:
     _write_tex(problems_dir)
-    (_lang_dir(problems_dir) / "interaction.tex").write_text("Протокол.\n", encoding="utf-8")
+    (_lang_dir(problems_dir) / "interaction.tex").write_text("Protocol.\n", encoding="utf-8")
     _write_examples(problems_dir, {1: "10 3\n"})
     examples_dir = _statement_dir(problems_dir) / "examples"
     (examples_dir / "example_1.input_for_statement.txt").write_text("10\n\n<\n", encoding="utf-8")
@@ -292,7 +292,7 @@ def test_interactive_uploads_protocol_and_dialogues(problems_dir, interactive_sp
     _run(interactive_spec, problems_dir, client)
 
     [statement] = _calls(client, "problem.saveStatement")
-    assert statement["interaction"] == "Протокол.\n"
+    assert statement["interaction"] == "Protocol.\n"
     [test] = _calls(client, "problem.saveTest")
     assert test["testInput"] == "10 3\n"
     assert test["testInputForStatements"] == "10\n\n<\n"
@@ -347,7 +347,7 @@ def test_removed_statement_output_is_cleared_on_polygon(problems_dir, interactiv
     client.call.assert_not_called()
 
 
-def _write_tutorial(problems_dir: Path, content: str = "Разбор.\n") -> Path:
+def _write_tutorial(problems_dir: Path, content: str = "Tutorial.\n") -> Path:
     path = _lang_dir(problems_dir) / "tutorial.tex"
     path.write_text(content, encoding="utf-8")
     return path
@@ -375,19 +375,19 @@ def test_tutorial_is_uploaded_and_synced(problems_dir, spec):
     _run(spec, problems_dir, client)
 
     [statement] = _calls(client, "problem.saveStatement")
-    assert statement["tutorial"] == "Разбор.\n"
+    assert statement["tutorial"] == "Tutorial.\n"
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
     client = MagicMock()
     assert "no changes" in _run(spec, problems_dir, client, incremental=True)
     client.call.assert_not_called()
 
-    path.write_text("Новый разбор.\n", encoding="utf-8")
+    path.write_text("A new tutorial.\n", encoding="utf-8")
     status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
     assert status == "stale" and "statement/ru/tutorial.tex" in detail
     _run(spec, problems_dir, client, incremental=True)
     [statement] = _calls(client, "problem.saveStatement")
-    assert statement["tutorial"] == "Новый разбор.\n"
+    assert statement["tutorial"] == "A new tutorial.\n"
     assert statement["legend"] == TEX_CONTENT["legend.tex"]
 
 

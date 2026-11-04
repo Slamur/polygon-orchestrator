@@ -34,7 +34,7 @@ def spec_custom(spec):
             "checker": spec.checker.model_copy(
                 update={
                     "custom_needed": True,
-                    "custom_comparison_notes": "Сравнивать числа с точностью 1e-6",
+                    "custom_comparison_notes": "Compare numbers with precision 1e-6",
                 }
             )
         }
@@ -68,7 +68,7 @@ def test_compute_input_hash_changes_with_custom_comparison_notes(spec_custom):
     edited = spec_custom.model_copy(
         update={
             "checker": spec_custom.checker.model_copy(
-                update={"custom_comparison_notes": "Сравнивать числа с точностью 1e-9"}
+                update={"custom_comparison_notes": "Compare numbers with precision 1e-9"}
             )
         }
     )
@@ -104,7 +104,7 @@ def test_confirmed_writes_checker_cpp(spec_custom, tmp_path):
     assert written_path.exists()
 
     user_prompt = mock_call.call_args.args[2]
-    assert "Сравнивать числа с точностью 1e-6" in user_prompt
+    assert "Compare numbers with precision 1e-6" in user_prompt
 
 
 def test_uncertain_raises_and_writes_nothing(spec_custom, tmp_path):
@@ -115,7 +115,7 @@ def test_uncertain_raises_and_writes_nothing(spec_custom, tmp_path):
             {
                 "field": "checker.custom_comparison_notes",
                 "kind": "uncertain",
-                "explanation": "не сказано про регистр",
+                "explanation": "case sensitivity isn't stated",
             }
         ],
     )

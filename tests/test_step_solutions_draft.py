@@ -257,7 +257,7 @@ def test_confirmed_writes_solution_files(spec, tmp_path):
     assert written_path.exists()
 
     user_prompt = mock_call.call_args.args[2]
-    assert "Дейкстра" in user_prompt
+    assert "Dijkstra" in user_prompt
     assert "O((N + K) log N)" in user_prompt
 
 
@@ -269,7 +269,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
             {
                 "field": "solutions.algorithm_hint",
                 "kind": "uncertain",
-                "explanation": "слишком расплывчато",
+                "explanation": "too vague",
             }
         ],
     )
@@ -338,18 +338,18 @@ def test_user_prompt_includes_statement_io(spec, tmp_path):
 
 def test_user_prompt_includes_constraints_yaml_without_limits(spec, tmp_path):
     constraints_yaml = (
-        "# комментарий\n"
+        "# comment\n"
         "variables:\n  n: {min: 1, max: 200000}\n"
-        "limits:\n  time_limit_seconds: 7\n  memory_limit_mb: 768\n  rationale: |\n\n    почему\n"
+        "limits:\n  time_limit_seconds: 7\n  memory_limit_mb: 768\n  rationale: |\n\n    why\n"
         "test_groups:\n  - name: g1\n"
     )
     user_prompt = _run_and_get_user_prompt(spec, tmp_path, {"constraints.yaml": constraints_yaml})
 
-    assert "# комментарий\nvariables:\n  n: {min: 1, max: 200000}\n" in user_prompt
+    assert "# comment\nvariables:\n  n: {min: 1, max: 200000}\n" in user_prompt
     assert "test_groups:\n  - name: g1" in user_prompt
     assert "time_limit_seconds" not in user_prompt
     assert "768" not in user_prompt
-    assert "почему" not in user_prompt
+    assert "why" not in user_prompt
 
 
 def test_user_prompt_drops_root_level_limits(spec, tmp_path):
@@ -392,10 +392,10 @@ def test_user_prompt_marks_missing_sample_output(spec, tmp_path):
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("formal_input_sketch", "Одна строка: N."),
-        ("formal_output_sketch", "Выведите YES или NO."),
+        ("formal_input_sketch", "One line: N."),
+        ("formal_output_sketch", "Print YES or NO."),
         ("indexing", "0-indexed"),
-        ("legend_sketch", "Другая легенда."),
+        ("legend_sketch", "Another legend."),
     ],
 )
 def test_compute_input_hash_changes_when_statement_io_changes(spec, field, value):
@@ -428,7 +428,7 @@ def test_compute_input_hash_changes_when_sample_output_changes(spec):
 
 
 def test_user_prompt_includes_alternative_approaches(spec, tmp_path):
-    approach = "ok (cpp): вещественный корень с целочисленной корректировкой"
+    approach = "ok (cpp): a floating-point root with an integer correction"
     spec_alt = spec.model_copy(
         update={
             "solutions": spec.solutions.model_copy(update={"alternative_approaches": [approach]})
@@ -446,7 +446,7 @@ def test_compute_input_hash_changes_when_alternative_approaches_change(spec):
     spec_alt = spec.model_copy(
         update={
             "solutions": spec.solutions.model_copy(
-                update={"alternative_approaches": ["ok: другой подход"]}
+                update={"alternative_approaches": ["ok: another approach"]}
             )
         }
     )
