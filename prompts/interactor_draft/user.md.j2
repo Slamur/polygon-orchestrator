@@ -1,23 +1,23 @@
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Формат теста — то, что интерактор читает из inf (черновик автора)
+## The test format — what the interactor reads from inf (the author's sketch)
 {{ statement.formal_input_sketch }}
 
-## Индексация
+## Indexing
 {{ statement.indexing }}
 
-## Протокол взаимодействия (черновик автора)
+## Interaction protocol (the author's sketch)
 {{ statement.interaction_sketch }}
 
-## Поведение интерактора (от автора)
+## The interactor's behavior (from the author)
 {{ interactor.behavior_notes }}
 
-## Тесты из примеров условия
+## Tests from the statement's examples
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-Задача: напиши interactor.cpp, используя формат теста, протокол и поведение
-выше как единственный источник того, что делает интерактор. Не выводи
-протокол или поведение из чего-либо, кроме этих текстов.
+The task: write interactor.cpp, using the test format, the protocol and the behavior
+above as the only source of what the interactor does. Don't derive the
+protocol or the behavior from anything but these texts.

@@ -1,60 +1,60 @@
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Легенда (черновик автора — для понимания терминов, не источник алгоритма авторского решения)
+## Legend (the author's sketch — for understanding the terms, not a source of the author solution's algorithm)
 {{ statement.legend_sketch }}
 
-## Формат входных данных
+## Input format
 {{ statement.formal_input_sketch }}
 
-## Формат выходных данных
+## Output format
 {{ statement.formal_output_sketch }}
 
-## Индексация
+## Indexing
 {{ statement.indexing }}
 {% if statement.interaction_sketch is defined %}
 
-## Протокол взаимодействия
-Задача интерактивная (правила — interactive.md): решение общается с
-интерактором по протоколу ниже. Формат входных данных выше и input
-примеров — это тест, который читает интерактор, решению он не виден.
+## Interaction protocol
+The problem is interactive (the rules — interactive.md): the solution communicates with the
+interactor by the protocol below. The input format above and the examples'
+input are the test the interactor reads, the solution doesn't see it.
 {{ statement.interaction_sketch }}
 {% endif %}
 
-## Примеры из условия
+## Statement examples
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 Input:
 {{ ex.input }}
 {% if ex.output %}
 Output:
 {{ ex.output }}
 {% else %}
-Output: автор не указал — не вычисляй сам.
+Output: the author didn't give it — don't compute it yourself.
 {% endif %}
 {% endfor %}
 
-## Идея алгоритма (от автора)
+## The algorithm idea (from the author)
 {{ solutions.algorithm_hint }}
 
-## Заявленная и зафиксированная асимптотика (из constraints_pick)
+## The declared and fixed asymptotics (from constraints_pick)
 {{ constraints.intended_complexity }}
 
-## Зафиксированные ограничения (результат шага constraints_pick, без TL/ML)
+## Fixed limits (the result of the constraints_pick step, without TL/ML)
 {{ constraints_pick_result.artifacts["constraints.yaml"] }}
 
-## Нужные вердикты и языки
+## Needed verdicts and languages
 wanted_verdicts: {{ solutions.wanted_verdicts }}
 languages: {{ solutions.languages }}
 
-## Альтернативные верные подходы (если есть)
+## Alternative correct approaches (if any)
 {% for a in solutions.alternative_approaches %}
 - {{ a }}
 {% endfor %}
 
-## Известные неверные подходы (если есть)
+## Known wrong approaches (if any)
 {% for w in solutions.known_wrong_approaches %}
 - {{ w }}
 {% endfor %}
 
-Задача: напиши черновики решений по правилам из системного сообщения. Это
-черновики для ручной проверки автором, не финальный код.
+The task: write the solution drafts by the rules from the system message. These are
+drafts for the author's manual review, not final code.

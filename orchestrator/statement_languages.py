@@ -69,8 +69,8 @@ _CODES = {name: code for code, name in POLYGON_LANGUAGES.items()}
 # The languages the model's steps can write in: code -> the name for the prompt.
 # The formatting rules (quotes, etc.) in `templates/tutorials/` are described for them.
 GENERATION_LANGUAGES = {
-    "ru": "русский",
-    "en": "английский",
+    "ru": "Russian",
+    "en": "English",
 }
 
 # The `statement/` directory that isn't a language: the examples are shared by all languages.

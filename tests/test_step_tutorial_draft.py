@@ -182,7 +182,7 @@ def test_handwritten_tutorial_is_revised_and_backed_up(problems_dir, problem_dir
     _, mock_call = _generate(problems_dir)
 
     prompt = _user_prompt(mock_call)
-    assert "Режим доработки" in prompt
+    assert "Revision mode" in prompt
     assert "hand written" in prompt
     backups = list((problem_dir / ".llm_backup").glob("*/statement/ru/tutorial.tex"))
     assert [path.read_text(encoding="utf-8") for path in backups] == ["hand written\n"]
@@ -221,7 +221,7 @@ def test_new_refs_replace_the_list_and_empty_list_clears_it(problems_dir, proble
 
     _, mock_call = _generate(problems_dir, tutorial_refs=[])
     mock_call.assert_called_once()
-    assert "// ok solution" not in _user_prompt(mock_call).split("Было:")[0]
+    assert "// ok solution" not in _user_prompt(mock_call).split("Before:")[0]
     entry = load_cache_entry("p1", STEP, problems_dir=problems_dir)
     assert tutorial_draft.remembered_refs(entry.input_values) == []
 
@@ -238,7 +238,7 @@ def test_changed_ref_solution_makes_the_step_stale_and_shows_the_change(problems
     _, mock_call = _generate(problems_dir)
     prompt = _user_prompt(mock_call)
     assert "// changed solution" in prompt
-    assert "Было:" in prompt
+    assert "Before:" in prompt
 
 
 def test_changed_unrelated_solution_keeps_the_cache(problems_dir, problem_dir):
@@ -426,7 +426,7 @@ def test_ref_completion_tolerates_no_solutions(tmp_path):
 
 def test_tutorial_is_written_in_the_language_of_the_spec(problems_dir, problem_dir):
     _, mock_call = _generate(problems_dir)
-    assert "Язык условия и разбора: русский" in _user_prompt(mock_call)
+    assert "The language of the statement and the tutorial: Russian" in _user_prompt(mock_call)
     assert _status(problems_dir).state == pipeline.STATUS_CACHE_HIT
 
     spec_path = problem_dir / "authoring" / "spec.yaml"
@@ -436,6 +436,6 @@ def test_tutorial_is_written_in_the_language_of_the_spec(problems_dir, problem_d
     assert _status(problems_dir).state == pipeline.STATUS_STALE
     _, mock_call = _generate(problems_dir)
     prompt = _user_prompt(mock_call)
-    assert "Язык условия и разбора: английский" in prompt
+    assert "The language of the statement and the tutorial: English" in prompt
     assert "english legend" in prompt and "legend text" not in prompt
     assert (problem_dir / "statement" / "en" / "tutorial.tex").is_file()

@@ -91,7 +91,7 @@ def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
     assert "Есть граф городов и дорог" in user_prompt
     assert "1-indexed" in user_prompt
     # and explicitly lists the file names expected from the model — without the examples' input
-    expected_list = user_prompt.split("Ожидаемые файлы в artifacts:")[1].split("Задача:")[0]
+    expected_list = user_prompt.split("Expected files in artifacts:")[1].split("The task:")[0]
     for name in ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]:
         assert f"- {name}" in expected_list
     assert "example_" not in expected_list
@@ -202,7 +202,7 @@ def test_preserve_legend_verbatim_true_includes_instruction(spec, tmp_path):
 
     user_prompt = mock_call.call_args.args[2]
     assert "preserve_legend_verbatim: true" in user_prompt
-    assert "НЕ действует" in user_prompt
+    assert "does NOT apply" in user_prompt
 
 
 def test_preserve_legend_verbatim_false_uses_default_instruction(spec, tmp_path):
@@ -219,7 +219,7 @@ def test_preserve_legend_verbatim_false_uses_default_instruction(spec, tmp_path)
 
     user_prompt = mock_call.call_args.args[2]
     assert "preserve_legend_verbatim: false" in user_prompt
-    assert "действует стандартное правило" in user_prompt
+    assert "the standard rule 1 from the" in user_prompt
 
 
 def test_renders_without_crashing_when_known_ambiguities_is_null(spec, tmp_path):
@@ -266,11 +266,11 @@ def test_prompt_marks_missing_sample_output_and_keeps_given_one(spec, tmp_path):
         )
 
     user_prompt = mock_call.call_args.args[2]
-    first, second = user_prompt.split("### Пример 2")
-    assert "Output (пример от автора, для примечания):\n8\n" in first
-    assert "автор не указал" in second
-    assert "автор не указал" not in first
-    assert "None" not in second.split("## Известные")[0].split("Что важно")[0]
+    first, second = user_prompt.split("### Example 2")
+    assert "Output (the author's example, for the note):\n8\n" in first
+    assert "the author didn't give it" in second
+    assert "the author didn't give it" not in first
+    assert "None" not in second.split("## Known")[0].split("What's important")[0]
 
 
 @pytest.fixture
@@ -314,7 +314,7 @@ def test_interactive_writes_protocol_and_dialogues(interactive_spec, tmp_path):
     assert (statement_dir / "ru" / "interaction.tex").read_text() == "protocol"
     assert (statement_dir / "examples" / "example_1.output_for_statement.txt").exists()
     user_prompt = mock_call.call_args.args[2]
-    assert "## Протокол взаимодействия" in user_prompt
+    assert "## Interaction protocol" in user_prompt
     assert 'Запрос "? y"' in user_prompt
     assert "- examples/example_1.input_for_statement.txt" in user_prompt
     documents = mock_call.call_args.kwargs.get("context_documents") or mock_call.call_args.args[3]
@@ -368,7 +368,7 @@ def test_plain_problem_prompt_has_no_protocol(spec, tmp_path):
         )
 
     user_prompt = mock_call.call_args.args[2]
-    assert "Протокол взаимодействия" not in user_prompt
+    assert "Interaction protocol" not in user_prompt
     assert "interaction.tex" not in user_prompt
 
 
@@ -411,7 +411,7 @@ def test_missing_files_are_asked_for_once_and_applied(interactive_spec, tmp_path
     assert mock_call.call_count == 2
     retry_prompt = mock_call.call_args_list[1].args[2]
     assert retry_prompt.startswith(mock_call.call_args_list[0].args[2].rstrip("\n"))
-    assert "## Дозапрос" in retry_prompt
+    assert "## Re-request" in retry_prompt
     for name in dialogues:
         assert f"- `{name}`" in retry_prompt
     assert "#### `interaction.tex`\n\n````\nprotocol\n````" in retry_prompt
@@ -516,5 +516,5 @@ def test_language_goes_to_prompt_and_hash(spec, tmp_path):
     response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         _run(english, "valid-spec", tmp_path)
-    assert "Пиши условие на этом языке: английский" in mock_call.call_args.args[2]
+    assert "Write the statement in this language: English" in mock_call.call_args.args[2]
     assert (tmp_path / "valid-spec" / "statement" / "en" / "legend.tex").is_file()

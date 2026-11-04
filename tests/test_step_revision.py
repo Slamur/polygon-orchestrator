@@ -108,11 +108,11 @@ def test_revision_prompt_contains_current_files_and_input_changes(problem_dir, p
     )
 
     user_prompt = mock_call.call_args.args[2]
-    assert user_prompt.startswith("context: p1\n\n## Режим доработки")
+    assert user_prompt.startswith("context: p1\n\n## Revision mode")
     assert "#### `ok_py_main.py`\n\n````\nprint(1)\n````" in user_prompt
     assert "#### `spec: algorithm_hint`" in user_prompt
-    assert "Было:\n````\nold\n````" in user_prompt
-    assert "Стало:\n````\nnew\n````" in user_prompt
+    assert "Before:\n````\nold\n````" in user_prompt
+    assert "After:\n````\nnew\n````" in user_prompt
     assert "spec: languages" not in user_prompt
     assert "prompt: solutions_draft/system.md" in user_prompt
 
@@ -127,7 +127,7 @@ def test_revision_prompt_says_changes_are_unknown_without_previous_values(proble
         StepRevision(current_paths=paths),
     )
 
-    assert "Неизвестно: прошлый запуск не сохранил свой вход" in mock_call.call_args.args[2]
+    assert "Unknown: the last run didn't save its input" in mock_call.call_args.args[2]
 
 
 def test_fresh_run_does_not_render_revision_prompt(problem_dir, prompts_dir):
@@ -587,7 +587,7 @@ def test_pipeline_fresh_ignores_cache_and_current_files(spec_file, tmp_path):
 
     assert [c.args[0] for c in mock_call.call_args_list] == ["solutions_draft"]
     assert result.outcomes[0].detail == "from scratch (--fresh)"
-    assert "Режим доработки" not in _user_prompt(mock_call, "solutions_draft")
+    assert "Revision mode" not in _user_prompt(mock_call, "solutions_draft")
 
 
 def test_pipeline_force_revises_current_files(spec_file, tmp_path):
@@ -598,7 +598,7 @@ def test_pipeline_force_revises_current_files(spec_file, tmp_path):
 
     assert result.outcomes[0].detail == "forced (--force); revising 1 current file(s)"
     prompt = _user_prompt(mock_call, "solutions_draft")
-    assert "Вход шага не менялся" in prompt
+    assert "The step's input didn't change" in prompt
     assert "#### `ok_cpp_draft.cpp`" in prompt
 
 
@@ -755,7 +755,7 @@ def test_cli_fresh_flag_and_revision_report(spec_file, tmp_path, capsys):
         side_effect=lambda step, *args, **kw: _PIPELINE_RESPONSES[step],
     ) as mock_call:
         assert cli.main(base + ["--fresh"]) == 0
-    assert "Режим доработки" not in mock_call.call_args.args[2]
+    assert "Revision mode" not in mock_call.call_args.args[2]
     assert "from scratch (--fresh)" in capsys.readouterr().out
 
 

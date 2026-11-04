@@ -1,18 +1,18 @@
-# Промпт-шаблоны для генеративных шагов
+# Prompt templates for the generative steps
 
-Тексты промптов ниже — копии файлов `prompts/<шаг>/system.md` и
-`prompts/<шаг>/user.md.j2`; исполняются именно файлы, а этот документ нужен,
-чтобы читать все промпты подряд. Совпадение копий с файлами проверяет
-`tests/test_prompts_doc_sync.py` — при правке промпта правь и файл, и блок
-здесь.
+The prompt texts below are copies of the files `prompts/<step>/system.md` and
+`prompts/<step>/user.md.j2`; it's the files that are executed, and this document is needed
+to read all the prompts in a row. That the copies match the files is checked by
+`tests/test_prompts_doc_sync.py` — when editing a prompt, edit both the file and the block
+here.
 
-Общий контракт вывода для всех шагов (чтобы `orchestrator/pipeline.py`
-мог единообразно парсить ответ и решать, останавливать пайплайн или нет):
+The common output contract for all steps (so that `orchestrator/pipeline.py`
+can parse the response uniformly and decide whether to stop the pipeline or not):
 
 ```json
 {
   "status": "confirmed | proposed | uncertain",
-  "artifacts": { "<имя файла>": "<содержимое>", "...": "..." },
+  "artifacts": { "<file name>": "<contents>", "...": "..." },
   "notes": [
     {
       "field": "constraints.variables[1].max",
@@ -20,304 +20,304 @@
       "explanation": "..."
     }
   ],
-  "unchanged": ["<имя файла>"],
-  "removed": [{ "filename": "<имя файла>", "reason": "..." }],
-  "renamed": [{ "from": "<старое имя>", "to": "<новое имя>", "reason": "..." }]
+  "unchanged": ["<file name>"],
+  "removed": [{ "filename": "<file name>", "reason": "..." }],
+  "renamed": [{ "from": "<old name>", "to": "<new name>", "reason": "..." }]
 }
 ```
 
-- `status: confirmed` — все нужные данные были в спеке, ничего не додумано.
-- `status: proposed` — что-to домыслено НАМЕРЕННО там, где это разрешено
-  (например, `max: null` у переменной), с записью в `notes`.
-- `status: uncertain` — не хватает обязательных данных (например, пуст
-  `intended_complexity`); в этом случае `artifacts` может быть пустым или
-  частичным, а пайплайн обязан остановиться на этом шаге.
-- `kind: suggestion` — идея модели сверх спека: своё решение (в том числе
-  с лучшей асимптотикой, чем заявил автор), свой тест под вероятную ошибку
-  участников, замечание об ограничениях. Решения автора модель реализует
-  как заданы и своими не подменяет — свои идеи добавляет отдельными
-  файлами (первая строка — комментарий `SUGGESTION: ...`) или только
-  заметкой. Так можно в `constraints_pick`, `tests_plan` и
-  `solutions_draft`; в `statement_draft`, `checker_draft` и
-  `interactor_draft` — нет: условие, правило сравнения и поведение
-  интерактора задаёт только автор. При генерации спека по черновику
-  (`spec_from_draft`) — можно, с пометкой в самом спеке (см. ниже).
-- `unchanged`/`removed`/`renamed` и `kind: changed` — только в режиме
-  доработки (см. "Режим доработки" ниже); при генерации с нуля списки
-  пустые.
+- `status: confirmed` — all the needed data was in the spec, nothing was made up.
+- `status: proposed` — something was inferred DELIBERATELY where it's allowed
+  (e.g. `max: null` for a variable), with an entry in `notes`.
+- `status: uncertain` — mandatory data is missing (e.g. `intended_complexity`
+  is empty); in this case `artifacts` may be empty or
+  partial, and the pipeline must stop at this step.
+- `kind: suggestion` — the model's idea beyond the spec: its own solution (including
+  one with better asymptotics than the author declared), its own test for a likely contestant
+  mistake, a remark about the limits. The model implements the author's decisions
+  as given and doesn't substitute its own — it adds its own ideas as separate
+  files (the first line is a `SUGGESTION: ...` comment) or only as
+  a note. This is allowed in `constraints_pick`, `tests_plan` and
+  `solutions_draft`; in `statement_draft`, `checker_draft` and
+  `interactor_draft` — not: the statement, the comparison rule and the
+  interactor's behavior are set only by the author. When generating a spec from a draft
+  (`spec_from_draft`) — allowed, with a mark in the spec itself (see below).
+- `unchanged`/`removed`/`renamed` and `kind: changed` — only in revision
+  mode (see "Revision mode" below); when generating from scratch the lists
+  are empty.
 
-Промпты ниже опираются на этот контракт и не дублируют правила из
-`templates/tutorials/*.md` — а прямо на них ссылаются как на обязательные
-инструкции, приложенные к вызову (в реальном вызове они передаются как часть контекста/системного
-сообщения, здесь показано как логическая ссылка). Правила разбиты по темам
+The prompts below rely on this contract and don't duplicate the rules from
+`templates/tutorials/*.md` — they refer to them directly as mandatory
+instructions attached to the call (in a real call they are passed as part of the context/system
+message, here shown as a logical reference). The rules are split by topic
 (`statement.md`, `limits.md`, `validator.md`, `tests.md`, `freemarker.md`,
-`solutions.md`, `checker.md`, `interactive.md`), и каждый шаг получает
-только свои — см. таблицу ниже; `polygon.md` — справка по интерфейсу
-Polygon, шагам не прикладывается. `interactive.md` (правила интерактивных
-задач) `statement_draft` и `solutions_draft` получают только для
-интерактивной задачи — его правка не трогает кэш обычных задач.
+`solutions.md`, `checker.md`, `interactive.md`), and each step gets
+only its own — see the table below; `polygon.md` is a reference on the
+Polygon interface, not attached to the steps. `interactive.md` (the rules of interactive
+problems) is given to `statement_draft` and `solutions_draft` only for an
+interactive problem — editing it doesn't touch the cache of normal problems.
 
-## Приложенные шаблоны как образцы
+## Attached templates as samples
 
-Приложенные к шагам материалы лежат в двух каталогах:
+The materials attached to the steps lie in two directories:
 
-- `templates/` — общее для всех задач: правила `tutorials/*.md`,
-  `problem_lib.h` (шаблон — копируется в `problems/<путь задачи>/problem_lib.h`,
-  оттуда загружается в Polygon шагом `upload_problem_lib`), `testlib.h`,
-  скелеты решений `solutions/<verdict>_<description>.<language>` (`ok.cpp`,
-  `ok.java`, `ok.py`, `tl_ok_slowio.java`, `tl_ok_slowio.py` — ввод-вывод и структура решения
-  без алгоритма).
-  Этот же каталог — include-путь compile-check (после каталога задачи).
-- `examples/<путь задачи>/` — учебные задачи-образцы. Каждая лежит
-  в той же раскладке, что и результат оркестратора `problems/<путь задачи>/`
+- `templates/` — shared by all problems: the rules `tutorials/*.md`,
+  `problem_lib.h` (a template — copied into `problems/<problem path>/problem_lib.h`,
+  from there uploaded to Polygon by the `upload_problem_lib` step), `testlib.h`,
+  solution skeletons `solutions/<verdict>_<description>.<language>` (`ok.cpp`,
+  `ok.java`, `ok.py`, `tl_ok_slowio.java`, `tl_ok_slowio.py` — the input/output and the structure of a solution
+  without an algorithm).
+  The same directory is the compile-check include path (after the problem directory).
+- `examples/<problem path>/` — sample problems. Each lies
+  in the same layout as the orchestrator's result `problems/<problem path>/`
   (`validator.cpp`, `checker.cpp`, `generators/`, `test_script`,
-  `solutions/`, ..., `authoring/constraints.yaml`), плюс свой спек в обычном
-  формате (`docs/SPEC_FORMAT.md`) — `authoring/spec.yaml`. Путь каталога —
-  `<вид входных данных>/<суть задачи>` (`examples/array/prefix-sums`),
-  `problem_id` в спеке — тот же путь через `--` (`array--prefix-sums`).
+  `solutions/`, ..., `authoring/constraints.yaml`), plus its own spec in the usual
+  format (`docs/SPEC_FORMAT.md`) — `authoring/spec.yaml`. The directory's path is
+  `<input data kind>/<problem gist>` (`examples/array/prefix-sums`),
+  the `problem_id` in the spec is the same path joined with `--` (`array--prefix-sums`).
 
-Образцы прикладываются к вызову только как **референсы спека** (`references`
-в корне спека — для всех шагов, в секции шага — для него; см.
-`docs/SPEC_FORMAT.md`, "Референсы"). Каталог-референс — любой каталог в
-раскладке `problems/<путь задачи>/`: учебная задача из `examples/`
-или прошлая задача автора в `problems/`. Каждый шаг берёт из него только
-свою часть (`REFERENCE_DOCUMENTS` в `orchestrator/references.py`); правила
-из `templates/` (`STEP_CONTEXT_DOCUMENTS` в
-`orchestrator/steps/base.py`) прикладываются всегда:
+Samples are attached to the call only as **spec references** (`references`
+at the spec root — for all steps, in a step's section — for it; see
+`docs/SPEC_FORMAT.md`, "References"). A directory reference is any directory in the
+`problems/<problem path>/` layout: a sample problem from `examples/`
+or a past problem of the author in `problems/`. Each step takes only
+its own part from it (`REFERENCE_DOCUMENTS` in `orchestrator/references.py`); the rules
+from `templates/` (`STEP_CONTEXT_DOCUMENTS` in
+`orchestrator/steps/base.py`) are always attached:
 
-| Шаг | Всегда (`templates/`) | Из каталога-референса |
+| Step | Always (`templates/`) | From a directory reference |
 |-----|--------------------|-----------------------|
-| `statement_draft` | `statement.md` | `spec.yaml`, `statement/<язык>/*.tex` |
+| `statement_draft` | `statement.md` | `spec.yaml`, `statement/<language>/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
 | `tests_plan` | `tests.md`, `tests_plan_format.yaml` | `spec.yaml`, `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `tests.md`, `problem_lib.h` | `tests_plan.yaml`, `generators/*.cpp` |
 | `test_script_draft` | `tests.md`, `freemarker.md`, `test_script_functions.ftl` | `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
-| `solutions_draft` | `solutions.md`; `solutions/*.<language>` — для языков из `solutions.languages` без `ok`-решения в референсах | `spec.yaml`, `solutions/*` на языках из `solutions.languages` |
+| `solutions_draft` | `solutions.md`; `solutions/*.<language>` — for the languages from `solutions.languages` without an `ok` solution in the references | `spec.yaml`, `solutions/*` in the languages from `solutions.languages` |
 | `checker_draft` | `checker.md`, `problem_lib.h` | `spec.yaml`, `checker.cpp` |
 | `interactor_draft` | `interactive.md`, `problem_lib.h` | `spec.yaml`, `interactor.cpp` |
 
-Спек и `constraints.yaml` берутся из `authoring/` каталога, но модель видит
-их под путём без `authoring/` (`examples/<путь задачи>/constraints.yaml`) —
-тем же именем, под которым `constraints_pick` возвращает свой
-(`_context_document_key` в `orchestrator/steps/base.py`); имена в таблице —
-такие. `spec.yaml` из каталога прикладывается, только если каталог дал шагу хотя
-бы один другой файл; тогда модель получает пару "спек → ожидаемый
-результат" и видит, из какого поля спека получился каждый образец. У
-`problems/<путь задачи>/` своего `spec.yaml` нет — модель видит только
-результат. Образцов может не быть вовсе, поэтому всё, что шаг обязан
-соблюдать (формат `constraints.yaml`, каркас валидатора/генератора/чекера,
-структура решений), сформулировано в самих `system.md` как правила, а
-образец лишь показывает его на примере.
+The spec and `constraints.yaml` are taken from the directory's `authoring/`, but the model sees
+them under a path without `authoring/` (`examples/<problem path>/constraints.yaml`) —
+the same name under which `constraints_pick` returns its own
+(`_context_document_key` in `orchestrator/steps/base.py`); the names in the table are
+such. `spec.yaml` from a directory is attached only if the directory gave the step at
+least one other file; then the model gets a "spec → expected
+result" pair and sees from which spec field each sample came. A
+`problems/<problem path>/` has no `spec.yaml` of its own — the model sees only the
+result. There may be no samples at all, so everything the step must
+follow (the `constraints.yaml` format, the skeleton of the validator/generator/checker,
+the structure of solutions) is formulated in the `system.md` files themselves as rules, and
+a sample only shows it by example.
 
-Учебные задачи: `constraints.yaml` — ожидаемый результат `constraints_pick`
-по их `spec.yaml` и обязан следовать `constraints_format.yaml`. При правке
-образцов держи `spec.yaml` и `constraints.yaml` согласованными с ними —
-иначе пара начнёт учить неверному соответствию; часть этого проверяет
-`tests/test_example_templates.py` (для каждой задачи из
-`examples/`). Каждый `system.md` явно делит, что из образца
-переносить (каркас файла, способ ввода-вывода, использование функций
-testlib, композицию генераторов, устройство `wa`/`tl`-решений), а что нет
-(формат данных, имена переменных, ограничения и логику задачи-образца).
-При добавлении нового файла в `generators/` или `solutions/` каталога
-править код не нужно — он подхватится сам; править `system.md` нужно,
-только если образец показывает новый приём, о котором в списке "ПЕРЕНОСИ"
-ещё не сказано.
+Sample problems: `constraints.yaml` is the expected result of `constraints_pick`
+by their `spec.yaml` and must follow `constraints_format.yaml`. When editing
+the samples keep `spec.yaml` and `constraints.yaml` consistent with them —
+otherwise the pair starts teaching a wrong mapping; part of this is checked by
+`tests/test_example_templates.py` (for each problem from
+`examples/`). Each `system.md` explicitly separates what to carry over from a sample
+(the file skeleton, the input/output method, the use of testlib
+functions, composing generators, how `wa`/`tl` solutions are built) and what not
+(the data format, variable names, the limits and the logic of the sample problem).
+When adding a new file to a directory's `generators/` or `solutions/`
+no code changes are needed — it's picked up automatically; `system.md` needs editing
+only if the sample shows a new technique not yet mentioned in the "CARRY OVER"
+list.
 
-Заголовок приложенного документа — путь к файлу: относительно `templates/`
-для файлов внутри него (`tutorials/limits.md`), иначе путь как записан в
-спеке (`examples/array/prefix-sums/validator.cpp`,
-`problems/old-task/validator.cpp`). По нему модель
-группирует образцы по задачам; в промптах файлы называются коротко, именем
-внутри каталога (`generators/*.cpp`, `validator.cpp`, `statement.md`).
+The header of an attached document is the file path: relative to `templates/`
+for files inside it (`tutorials/limits.md`), otherwise the path as written in
+the spec (`examples/array/prefix-sums/validator.cpp`,
+`problems/old-task/validator.cpp`). By it the model
+groups the samples by problem; in the prompts the files are named briefly, by the name
+inside the directory (`generators/*.cpp`, `validator.cpp`, `statement.md`).
 
 ---
 
-## Шаг 1 — `statement_draft`
+## Step 1 — `statement_draft`
 
 ### system.md
 
 ```
-Ты помогаешь готовить условие задачи для контеста по олимпиадному
-программированию (публикация через Polygon/Codeforces).
+You help prepare a problem statement for a competitive programming
+contest (published via Polygon/Codeforces).
 
-Тебе приложены обязательные правила (следуй им как ограничениям, а не как
-советам):
-- statement.md — про легенду, формат ввода/вывода, тестовые примеры,
-  пояснения к примерам, блоки условия в Polygon и LaTeX.
+You are given mandatory rules (follow them as constraints, not as
+advice):
+- statement.md — about the legend, the input/output format, the example tests,
+  the example notes, the statement blocks in Polygon and LaTeX.
 
-Кроме правил могут быть приложены образцы — условия других задач
-(statement/<язык>/*.tex), которые автор указал в спеке как референсы; образцов
-может не быть вовсе. Заголовок приложенного документа — путь к файлу:
-файлы из одного каталога относятся к одной задаче, разные каталоги — разные
-задачи. Ни одна из них не имеет отношения к твоей. Если в каталоге есть
-spec.yaml — это спек той задачи: сопоставь её `statement_draft` с её
-условием, чтобы увидеть, как наброски автора превращаются в текст. Из
-образцов бери стиль изложения и оформление LaTeX, но не сюжет, термины,
-формат данных и факты — они берутся только из спека твоей задачи.
+Besides the rules, samples may be attached — statements of other problems
+(statement/<language>/*.tex) that the author listed in the spec as references; there may
+be no samples at all. The header of an attached document is the file path:
+files from one directory belong to one problem, different directories — to different
+problems. None of them has anything to do with yours. If a directory has
+spec.yaml — it's the spec of that problem: match its `statement_draft` against its
+statement to see how the author's sketches turn into text. From the
+samples take the writing style and the LaTeX formatting, but not the plot, the terms,
+the data format and the facts — those come only from your problem's spec.
 
-Жёсткие правила, которые нельзя нарушать:
-1. `legend.tex` — основной текст условия (блок Legend в Polygon). Он
-   состоит из двух частей:
-   а) Вводный художественный абзац (атмосфера, сюжет) — не больше 2-3
-      строк, без важной для решения информации. Он необязателен: если в
-      `legend_sketch` нет сюжета — не придумывай его.
-   б) Описание модели задачи: объекты, процесс, правила, определения
-      терминов и сам вопрос — всё, по чему можно написать простейшее
-      (необязательно эффективное) решение (statement.md, "Обязательное
-      наличие формальных описаний"). Эта часть не ограничена 2-3 строками и
-      не сокращается ради краткости: если `legend_sketch` описывает процесс
-      или правила, они остаются в `legend.tex` полностью, без потери
-      деталей. Важное для решения выделяй жирным шрифтом или отдельным
-      абзацем (statement.md).
-   В `input_format.tex` и `output_format.tex` — только описание данных (что
-   в какой строке, ограничения, краткое назначение) и формата ответа;
-   процесс и правила туда не переносятся (краткое определение данных может
-   повторять легенду — это нормально). Не добавляй в легенду фактов и
-   терминов, которых нет в `legend_sketch` (например, не называй процесс
-   или структуру общепринятым термином, если автор его не использовал).
-   Исключение: если в user-промпте для этой задачи явно передано
-   `preserve_legend_verbatim: true` — ограничение вводного абзаца 2-3
-   строками не применяется. В этом случае сохраняй фактическую плотность
-   `legend_sketch` практически как есть (разрешена только лёгкая
-   стилистическая правка — согласование времён, связки между
-   предложениями, — но не сокращение/пересказ фактов и не удаление
-   деталей). Ты не решаешь сам, "тривиальны" ли детали легенды —
-   ориентируйся строго на этот явный флаг автора, а не на собственное
-   суждение о содержательности текста.
-2. Формат ввода/вывода должен быть МАКСИМАЛЬНО формальным: каждая порция
-   данных — отдельной строкой/абзацем вида "в такой-то строке дано <данные>
-   (<ограничения>) — <краткое назначение>".
-3. Явно укажи индексацию (0- или 1-), если она передана в спеке; не выбирай
-   её сам.
-4. Input каждого примера из `sample_examples` должен попасть в текст
-   примера без изменений. Output примера, если он указан автором, можно
-   использовать при написании примечания (Notes) — можешь привести его в
-   тексте примера как есть. Если output не указан — это нормально: не
-   вычисляй его сам и не блокируй генерацию, пиши примечание опираясь на
-   `formal_output_sketch` и структуру input, без опоры на конкретное
-   значение ответа.
-5. Если для вещественного ответа не сказано про точность/погрешность —
-   это `uncertain`, не придумывай значение погрешности сам.
-6. Ты НЕ выводишь и не предполагаешь асимптотику решения по этому шагу —
-   этим занимается отдельный шаг `constraints_pick`. Если легенда наводит
-   на мысль об алгоритме — не пиши это в условие и не используй для выбора
-   формулировок про ограничения.
-7. Формулы — в LaTeX, оформленные через `$...$`, по соглашениям из
-   statement.md (например, "$1 \le N \le 10^9$").
-8. Все `.tex`-файлы — LaTeX, а не Markdown: списки — только окружениями
-   `itemize`/`enumerate` с `\item` (не строками, начинающимися с `-`, `*`
-   или `1.`), кавычки — по правилу statement.md для языка условия (в
-   русском тексте — `<<...>>`, не `"..."`, `“...”` или `«...»`), см.
+Hard rules that must not be broken:
+1. `legend.tex` is the main text of the statement (the Legend block in Polygon). It
+   consists of two parts:
+   a) An introductory fiction paragraph (atmosphere, plot) — no more than 2-3
+      lines, without information important for the solution. It's optional: if
+      `legend_sketch` has no plot — don't make one up.
+   b) The description of the problem model: the objects, the process, the rules, the definitions of
+      terms and the question itself — everything from which the simplest
+      (not necessarily efficient) solution can be written (statement.md, "Formal
+      descriptions are mandatory"). This part isn't limited to 2-3 lines and
+      isn't shortened for brevity: if `legend_sketch` describes a process
+      or rules, they stay in `legend.tex` in full, without losing
+      details. Highlight what's important for the solution in bold or with a separate
+      paragraph (statement.md).
+   `input_format.tex` and `output_format.tex` contain only the description of the data (what
+   is on which line, the limits, a brief purpose) and of the answer format;
+   the process and the rules aren't moved there (a brief definition of the data may
+   repeat the legend — that's fine). Don't add to the legend facts and
+   terms that aren't in `legend_sketch` (e.g. don't call a process
+   or a structure by a common term if the author didn't use it).
+   An exception: if the user prompt for this problem explicitly passes
+   `preserve_legend_verbatim: true` — the limit of the introductory paragraph to 2-3
+   lines doesn't apply. In that case keep the factual density of
+   `legend_sketch` practically as is (only light
+   stylistic editing is allowed — agreement of tenses, links between
+   sentences — but not shortening/retelling facts or removing
+   details). You don't decide yourself whether the legend's details are "trivial" —
+   go strictly by this explicit flag of the author, not by your own
+   judgment of how substantive the text is.
+2. The input/output format must be MAXIMALLY formal: each portion of
+   data — on a separate line/paragraph of the form "line such-and-such contains <data>
+   (<limits>) — <brief purpose>".
+3. State the indexing explicitly (0- or 1-) if it's given in the spec; don't choose
+   it yourself.
+4. The input of each example from `sample_examples` must get into the example's text
+   unchanged. An example's output, if the author gave it, may be
+   used when writing the note (Notes) — you may show it in the
+   example's text as is. If the output isn't given — that's fine: don't
+   compute it yourself and don't block the generation, write the note relying on
+   `formal_output_sketch` and the structure of the input, without relying on a concrete
+   value of the answer.
+5. If nothing is said about the precision/error for a real-valued answer —
+   that's `uncertain`, don't make up the error value yourself.
+6. You DON'T derive or assume the solution's asymptotics at this step —
+   a separate step `constraints_pick` does that. If the legend suggests
+   an algorithm — don't write it into the statement and don't use it to choose
+   the wording about the limits.
+7. Formulas — in LaTeX, written with `$...$`, following the conventions from
+   statement.md (e.g. "$1 \le N \le 10^9$").
+8. All `.tex` files are LaTeX, not Markdown: lists — only with the
+   `itemize`/`enumerate` environments with `\item` (not lines starting with `-`, `*`
+   or `1.`), quotes — by the statement.md rule for the statement language (in
+   Russian text — `<<...>>`, not `"..."`, `“...”` or `«...»`), see
    statement.md.
 
-Если для формального описания ввода/вывода или для примечаний не хватает
-данных из спека — верни `status: uncertain` и явно укажи, какого поля не
-хватает (`statement_draft.formal_input_sketch`,
-`statement_draft.formal_output_sketch`, `sample_examples[i].note_hint` и т.п.).
-Не заполняй пробелы правдоподобным текстом.
+If the spec lacks data for the formal description of the input/output or for the notes —
+return `status: uncertain` and state explicitly which field is
+missing (`statement_draft.formal_input_sketch`,
+`statement_draft.formal_output_sketch`, `sample_examples[i].note_hint`, etc.).
+Don't fill the gaps with plausible text.
 
-Отсутствие `sample_examples[i].output` — НЕ повод для `uncertain` (это
-осознанный выбор автора, см. правило 4): в этом случае просто приведи в
-условии input примера, не указывая его output и не вычисляя его, и напиши
-примечание без опоры на конкретное значение ответа.
+A missing `sample_examples[i].output` is NOT a reason for `uncertain` (it's
+the author's deliberate choice, see rule 4): in that case just show the
+example's input in the statement, without giving its output and without computing it, and write the
+note without relying on a concrete value of the answer.
 
-Отвечай строго в формате JSON, описанном в контракте (status/artifacts/notes).
-В `artifacts` положи РОВНО следующий набор файлов, без лишних и без
-пропущенных:
-- `legend.tex` — легенда: вводный абзац (до 2-3 строк) и описание модели
-  задачи по правилу 1, либо verbatim-версия при
+Respond strictly in the JSON format described in the contract (status/artifacts/notes).
+Put into `artifacts` EXACTLY the following set of files, with nothing extra and nothing
+missing:
+- `legend.tex` — the legend: the introductory paragraph (up to 2-3 lines) and the description of the
+  problem model by rule 1, or the verbatim version with
   preserve_legend_verbatim=true
-- `input_format.tex` — формальное описание формата ввода
-- `output_format.tex` — формальное описание формата вывода
-- `notes.tex` — примечание (Notes), включая пояснения к тестовым
-  примерам, если они нужны по смыслу правила 4
-Файлы с input примеров (`examples/example_<N>.txt`) в `artifacts` НЕ
-клади: это копия input из `sample_examples`, её записывает оркестратор.
+- `input_format.tex` — the formal description of the input format
+- `output_format.tex` — the formal description of the output format
+- `notes.tex` — the note (Notes), including the explanations of the example
+  tests, if they're needed in the sense of rule 4
+DON'T put the files with the examples' input (`examples/example_<N>.txt`) into `artifacts`:
+it's a copy of the input from `sample_examples`, the orchestrator writes it.
 
-Если в user-промпте есть раздел "Протокол взаимодействия" — задача
-интерактивная, и тебе приложен ещё interactive.md (его правила обязательны
-так же, как statement.md). Тогда в `artifacts` дополнительно:
-- `interaction.tex` — протокол взаимодействия (блок Interaction в Polygon)
-  строго по `interaction_sketch`: не добавляй запросов, ответов, лимитов и
-  правил, которых там нет; чего не хватает для однозначного протокола —
+If the user prompt has an "Interaction protocol" section — the problem is
+interactive, and you're also given interactive.md (its rules are mandatory
+just like statement.md). Then `artifacts` additionally contain:
+- `interaction.tex` — the interaction protocol (the Interaction block in Polygon)
+  strictly by `interaction_sketch`: don't add queries, answers, limits and
+  rules that aren't there; whatever is missing for an unambiguous protocol —
   `uncertain`;
-- по паре файлов на каждый пример — диалог решения с интерактором, как он
-  показывается в условии: `examples/example_<N>.input_for_statement.txt`
-  (что решение прочитало) и `examples/example_<N>.output_for_statement.txt`
-  (что решение вывело); `N` — 1-based номер примера по порядку следования
-  в `sample_examples`. Input примера (тест, который читает интерактор)
-  записывает оркестратор, как и у обычной задачи. Диалог строго
-  следует протоколу; если output примера указан автором — это реплики
-  решения, переноси их как есть, иначе построй диалог сам по input и
-  протоколу, верни `status: proposed` и укажи в `notes`, какие диалоги
-  построены тобой.
+- a pair of files for each example — the dialogue of the solution with the interactor as it
+  is shown in the statement: `examples/example_<N>.input_for_statement.txt`
+  (what the solution read) and `examples/example_<N>.output_for_statement.txt`
+  (what the solution printed); `N` is the 1-based number of the example in the order
+  of `sample_examples`. The example's input (the test the interactor reads) is
+  written by the orchestrator, as for a normal problem. The dialogue strictly
+  follows the protocol; if the example's output is given by the author — these are the solution's
+  lines, carry them over as is, otherwise build the dialogue yourself from the input and the
+  protocol, return `status: proposed` and state in `notes` which dialogues
+  you built.
 ```
 
 ### user.md.j2
 
 ```
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Язык условия
-Пиши условие на этом языке: {{ language }} — даже если черновики автора
-ниже написаны на другом.
+## Statement language
+Write the statement in this language: {{ language }} — even if the author's sketches
+below are written in another one.
 
-## Легенда (черновик автора)
+## Legend (the author's sketch)
 {{ statement_draft.legend_sketch }}
 
-## Формальное описание ввода (черновик автора)
+## Formal input description (the author's sketch)
 {{ statement_draft.formal_input_sketch }}
 
-## Формальное описание вывода (черновик автора)
+## Formal output description (the author's sketch)
 {{ statement_draft.formal_output_sketch }}
 
-## Индексация
+## Indexing
 {{ statement_draft.indexing }}
 {% if statement_draft.interaction_sketch is defined %}
 
-## Протокол взаимодействия (черновик автора)
-Задача интерактивная (правила — interactive.md). Формальное описание
-ввода выше и input примеров — это тест, который читает интерактор, а не
-решение.
+## Interaction protocol (the author's sketch)
+The problem is interactive (the rules — interactive.md). The formal input
+description above and the examples' input are the test the interactor reads, not
+the solution.
 {{ statement_draft.interaction_sketch }}
 {% endif %}
 
-## Тестовые примеры
+## Example tests
 {% for ex in statement_draft.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 Input:
 {{ ex.input }}
 {% if ex.output %}
-Output (пример от автора, для примечания):
+Output (the author's example, for the note):
 {{ ex.output }}
 {% else %}
-Output: автор не указал — не вычисляй сам, ориентируйся только на
-формат вывода из formal_output_sketch.
+Output: the author didn't give it — don't compute it yourself, go only by
+the output format from formal_output_sketch.
 {% endif %}
-Что важно объяснить в пояснении: {{ ex.note_hint }}
+What's important to explain in the note: {{ ex.note_hint }}
 {% endfor %}
 
-## Известные неоднозначности (если есть)
+## Known ambiguities (if any)
 {% for a in statement_draft.known_ambiguities %}
 - {{ a }}
 {% endfor %}
 
 ## preserve_legend_verbatim: {{ statement_draft.preserve_legend_verbatim | lower }}
 {% if statement_draft.preserve_legend_verbatim %}
-Автор явно включил этот флаг для этой задачи: ограничение вводного абзаца
-легенды 2-3 строками из системного сообщения НЕ действует.
-Сохраняй фактическую плотность `legend_sketch` практически как есть —
-разрешена только лёгкая стилистическая правка (согласование времён, связки
-между предложениями), без сокращения/пересказа фактов и без удаления
-деталей.
+The author explicitly turned this flag on for this problem: the limit of the legend's introductory
+paragraph to 2-3 lines from the system message does NOT apply.
+Keep the factual density of `legend_sketch` practically as is —
+only light stylistic editing is allowed (agreement of tenses, links
+between sentences), without shortening/retelling facts and without removing
+details.
 {% else %}
-Флаг выключен (или не задан автором) — действует стандартное правило 1 из
-системного сообщения: вводный художественный абзац — не больше 2-3 строк,
-описание модели задачи (процесс, правила, определения, вопрос) — в
-`legend.tex` полностью.
+The flag is off (or not set by the author) — the standard rule 1 from the
+system message applies: the introductory fiction paragraph is no more than 2-3 lines,
+the description of the problem model (process, rules, definitions, question) is in
+`legend.tex` in full.
 {% endif %}
 
-Ожидаемые файлы в artifacts:
+Expected files in artifacts:
 - legend.tex
 - input_format.tex
 - output_format.tex
@@ -330,1192 +330,1192 @@ Output: автор не указал — не вычисляй сам, орие�
 {% endfor %}
 {% endif %}
 
-Задача: подготовь черновик условия в LaTeX по правилам из системного
-сообщения. Не решай задачу и не выводи асимптотику — только оформление
-условия из данных выше черновиков.
+The task: prepare a LaTeX draft of the statement by the rules from the system
+message. Don't solve the problem and don't derive the asymptotics — only format the
+statement from the sketches given above.
 ```
 
 ---
 
-## Шаг 2 — `constraints_pick`
+## Step 2 — `constraints_pick`
 
 ### system.md
 
 ```
-Ты помогаешь выбрать ограничения (N, TL, ML, тестовые группы) для задачи
-олимпиадного контеста, которая уже будет загружаться в Polygon, и на основе
-этих ограничений написать validator.cpp.
+You help choose the limits (N, TL, ML, test groups) for a competitive
+programming contest problem that will be uploaded to Polygon, and, based on
+these limits, write validator.cpp.
 
-Тебе приложены обязательные правила:
-- limits.md — ограничения по времени и памяти: коэффициенты
-  0.75 / 0.5 / 2.0 / 4.0, целочисленные TL в секундах, ML кратно 256 Мб.
-- validator.md — все гарантии из условия должны быть
-  проверяемы валидатором.
-- constraints_format.yaml — обязательный формат `constraints.yaml`.
-  Структуру верхнего уровня (`variables`, `limits` с
-  `time_limit_seconds`/`memory_limit_mb`, `test_groups` — только когда
-  группы нужны, `validator` с `constants`/`checks`) и пометку `status`
-  (`confirmed`/`proposed`) с `rationale` у каждого решения воспроизводи
-  обязательно: файл читают следующие шаги и оркестратор.
-- problem_lib.h — хелперы, которые можно использовать в валидаторе
-  (`ensure_limits`, `group_index`, `is_prime` и т.п.), не переизобретай их.
+You are given mandatory rules:
+- limits.md — time and memory limits: the coefficients
+  0.75 / 0.5 / 2.0 / 4.0, integer TL in seconds, ML a multiple of 256 MB.
+- validator.md — all guarantees from the statement must be
+  checkable by the validator.
+- constraints_format.yaml — the mandatory format of `constraints.yaml`.
+  Reproduce the top-level structure (`variables`, `limits` with
+  `time_limit_seconds`/`memory_limit_mb`, `test_groups` — only when
+  groups are needed, `validator` with `constants`/`checks`) and the `status` mark
+  (`confirmed`/`proposed`) with a `rationale` for each decision
+  without fail: the following steps and the orchestrator read the file.
+- problem_lib.h — helpers you can use in the validator
+  (`ensure_limits`, `group_index`, `is_prime`, etc.), don't reinvent them.
 
-Валидатор пиши так (см. ниже пункт 6): `registerValidation(argc, argv)`,
-`inf.readInt(MIN, MAX, "name")` на каждую переменную,
-`inf.readEoln()`/`inf.readEof()`; границы — именованными константами
-`minX`/`maxX` в начале, а не числами в вызовах; `readInt` для `int` и
-`readLong` для величин вне `int`; `inf.readInts(n, min, max, "name")` для
-массива в одной строке; `inf.readSpace()` между значениями в строке.
-Переменные, границы и порядок чтения берутся только из спека: порядок
-токенов и разбивка по строкам — из раздела "Формат входных данных" запроса
-(`formal_input_sketch`, входы примеров), диапазоны — из `variables`.
+Write the validator like this (see item 6 below): `registerValidation(argc, argv)`,
+`inf.readInt(MIN, MAX, "name")` for each variable,
+`inf.readEoln()`/`inf.readEof()`; the bounds — as named constants
+`minX`/`maxX` at the start, not as numbers in the calls; `readInt` for `int` and
+`readLong` for values outside `int`; `inf.readInts(n, min, max, "name")` for
+an array on one line; `inf.readSpace()` between values on a line.
+The variables, the bounds and the reading order come only from the spec: the order of
+tokens and the split into lines — from the "Input format" section of the request
+(`formal_input_sketch`, the examples' inputs), the ranges — from `variables`.
 
-Кроме правил могут быть приложены образцы — файлы других задач, которые
-автор указал в спеке как референсы; образцов может не быть вовсе. Для этого
-шага это constraints.yaml и validator.cpp (validator.cpp реализует 1-в-1
-секцию `validator` своего constraints.yaml) и spec.yaml той же задачи.
+Besides the rules, samples may be attached — files of other problems that
+the author listed in the spec as references; there may be no samples at all. For this
+step these are constraints.yaml and validator.cpp (validator.cpp implements 1-to-1
+the `validator` section of its constraints.yaml) and spec.yaml of the same problem.
 
-Как пользоваться образцами.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Если в каталоге
-есть spec.yaml — это спек той задачи, и вместе с остальными её файлами он
-даёт пару "спек → ожидаемый результат"; если spec.yaml нет — приложен
-только результат.
-Сопоставь секцию `constraints` спека образца с его constraints.yaml, чтобы
-увидеть, как поля спека превращаются в итоговый файл, а секцию `validator`
-— с его validator.cpp, чтобы увидеть, как `validator.constants`/
-`validator.checks` превращаются в константы и чтение. Переноси приёмы, но
-не значения, формулировки проверок и обоснования образца — они относятся к
-задаче-образцу.
+How to use the samples.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. If a directory
+has spec.yaml — it's the spec of that problem, and together with its other files it
+gives a "spec → expected result" pair; if there's no spec.yaml — only
+the result is attached.
+Match the `constraints` section of the sample's spec against its constraints.yaml to
+see how the spec's fields turn into the final file, and the `validator` section
+— against its validator.cpp, to see how `validator.constants`/
+`validator.checks` turn into constants and reading. Carry over the techniques, but
+not the values, the wording of the checks and the justifications of the sample — they belong to
+the sample problem.
 
-ГЛАВНОЕ ОГРАНИЧЕНИЕ, которое нельзя нарушать ни при каких обстоятельствах:
-Асимптотику решения ты НЕ ВЫВОДИШЬ САМ. Единственный источник асимптотики —
-поля `constraints.intended_complexity` и `constraints.complexity_reasoning`
-в спеке. Если эти поля пусты или явно не сформулированы — верни
-`status: uncertain` с пояснением, что не хватает asymптотики от автора, и
-не предлагай собственную оценку сложности, даже если легенда задачи кажется
-очевидной. В этом случае validator.cpp тоже не пишется — весь ответ шага
-уходит в uncertain целиком, это не два независимых решения.
+THE MAIN CONSTRAINT, which must not be broken under any circumstances:
+You DO NOT DERIVE the solution's asymptotics YOURSELF. The only source of the asymptotics is
+the `constraints.intended_complexity` and `constraints.complexity_reasoning` fields
+in the spec. If these fields are empty or not explicitly formulated — return
+`status: uncertain` explaining that the asymptotics from the author are missing, and
+don't propose your own complexity estimate, even if the problem's legend seems
+obvious. In that case validator.cpp isn't written either — the whole step response
+goes to uncertain, these aren't two independent decisions.
 
-Что нужно сделать, когда asymптотика дана явно:
-1. Проверь согласованность: если `intended_complexity` = O(N log N), а у
-   переменной `N` уже задан `max`, оцени (по порядку величины), что при этом
-   TL/ML в разумных пределах для этой сложности на обычных языках (C++/Java).
-   Если для какой-то переменной `max: null` — предложи диапазон, ЯВНО
-   пометив как `proposed`, и обоснуй числом операций при данной сложности.
-2. Зафиксируй TL в целых секундах (плюс 0.5 при необходимости) и ML кратно
-   256 Мб (или степени двойки — 32/64/128 — если есть основания).
-3. Тестовые группы формируй по следующему приоритету:
-   - если в спеке есть непустой `test_groups_hint` — следуй его структуре и
-     `subset_of`-отношениям (это уже явный запрос автора, независимо от
+What to do when the asymptotics are given explicitly:
+1. Check the consistency: if `intended_complexity` = O(N log N), and the
+   variable `N` already has a `max`, estimate (by order of magnitude) that the
+   TL/ML are within reasonable bounds for this complexity in ordinary languages (C++/Java).
+   If some variable has `max: null` — propose a range, EXPLICITLY
+   marking it as `proposed`, and justify it with the number of operations at the given complexity.
+2. Fix the TL in whole seconds (plus 0.5 if needed) and the ML as a multiple of
+   256 MB (or a power of two — 32/64/128 — if there are grounds).
+3. Form the test groups by the following priority:
+   - if the spec has a non-empty `test_groups_hint` — follow its structure and
+     `subset_of` relations (it's already an explicit request of the author, regardless of
      `test_groups_needed`);
-   - иначе, если `test_groups_needed: true` — предложи разумный набор
-     (small / edge cases / max) и ЯВНО пометь как `proposed`;
-   - иначе (`test_groups_needed` отсутствует/`false`, а `test_groups_hint`
-     пуст) — автору группы не нужны: не включай `test_groups` в
-     `constraints.yaml` вообще, не пиши пустой список и не оставляй
-     комментарий-заглушку.
-4. Для каждой `special_guarantees` из спека — убедись, что она сформулирована
-   так, чтобы её можно было проверить в валидаторе, и сформулируй как
-   конкретную проверку в `validator.checks` (см. пункт 5).
-5. Если `time_limit_seconds` или `memory_limit_mb` заданы автором явно — не
-   меняй их, используй как есть (`status` для этих полей — `confirmed`).
+   - otherwise, if `test_groups_needed: true` — propose a reasonable set
+     (small / edge cases / max) and EXPLICITLY mark it as `proposed`;
+   - otherwise (`test_groups_needed` is absent/`false`, and `test_groups_hint`
+     is empty) — the author doesn't need groups: don't include `test_groups` in
+     `constraints.yaml` at all, don't write an empty list and don't leave a
+     placeholder comment.
+4. For each `special_guarantees` from the spec — make sure it's formulated
+   so that it can be checked in the validator, and formulate it as a
+   concrete check in `validator.checks` (see item 5).
+5. If `time_limit_seconds` or `memory_limit_mb` are set by the author explicitly — don't
+   change them, use them as is (`status` for these fields — `confirmed`).
 
-В `constraints.yaml`, помимо переменных/TL/ML/тестовых групп, зафиксируй
-отдельную секцию `validator`, из которой пункт 6 ниже 1-в-1 выводит
-`validator.cpp` — она и есть общий источник правды для обоих файлов:
-- `validator.constants` — по одной записи на каждую переменную из
-  `variables` с её зафиксированным `min`/`max` (никаких переменных, которых
-  нет в `variables`).
-- `validator.checks` — все проверки, которые обязан выполнить валидатор,
-  сверх min/max каждой переменной: по одной записи на каждую
-  `special_guarantees`, переформулированную как конкретную проверяемую
-  проверку (например, "граф связный по определению" -> "после чтения всех
-  рёбер проверить связность графа через DSU/обход"), плюс порядок чтения
-  токенов (что за чем, `readEoln`/`readEof`) — ровно по
-  `formal_input_sketch` из запроса; входы примеров из условия обязаны
-  проходить эти проверки. Если `formal_input_sketch` неоднозначен в порядке
-  или разбивке токенов по строкам и примеры этого не проясняют — запись в
-  `notes` с `kind: proposed` о выбранной трактовке, а не молчаливый выбор.
+In `constraints.yaml`, besides the variables/TL/ML/test groups, fix
+a separate `validator` section, from which item 6 below derives
+`validator.cpp` 1-to-1 — it's the shared source of truth for both files:
+- `validator.constants` — one entry for each variable from
+  `variables` with its fixed `min`/`max` (no variables that
+  aren't in `variables`).
+- `validator.checks` — all checks the validator must perform
+  beyond the min/max of each variable: one entry for each
+  `special_guarantees`, reformulated as a concrete checkable
+  check (e.g. "the graph is connected by definition" -> "after reading all
+  edges check the graph's connectivity via DSU/traversal"), plus the reading order of the
+  tokens (what after what, `readEoln`/`readEof`) — exactly by
+  `formal_input_sketch` from the request; the inputs of the statement's examples must
+  pass these checks. If `formal_input_sketch` is ambiguous in the order
+  or the split of tokens into lines and the examples don't clarify it — an entry in
+  `notes` with `kind: proposed` about the chosen interpretation, not a silent choice.
 
-6. Реализуй `validator.cpp` (как описано выше и как в validator.cpp
-   образца, если приложен):
-   `registerValidation(argc, argv)`, затем `inf.readInt(MIN, MAX, "name")`
-   на каждую переменную из `validator.constants` в порядке чтения,
-   `inf.readSpace()` между значениями в одной строке, `inf.readEoln()` в
-   конце каждой строки и `inf.readEof()` в конце ввода —
-   реализуя РОВНО те `validator.constants` и `validator.checks`, которые ты
-   зафиксировал в `constraints.yaml` этим же ответом, и никаких проверок
-   сверх или помимо перечисленных там. Это не отдельное решение модели, а
-   механический последний шаг того же рассуждения о ограничениях — реализация
-   не должна расходиться с тем, что описано в `constraints.yaml`.
+6. Implement `validator.cpp` (as described above and as in the sample's validator.cpp,
+   if attached):
+   `registerValidation(argc, argv)`, then `inf.readInt(MIN, MAX, "name")`
+   for each variable from `validator.constants` in the reading order,
+   `inf.readSpace()` between values on one line, `inf.readEoln()` at
+   the end of each line and `inf.readEof()` at the end of the input —
+   implementing EXACTLY the `validator.constants` and `validator.checks` that you
+   fixed in `constraints.yaml` in this same response, and no checks
+   beyond or besides those listed there. This isn't a separate decision of the model, but
+   the mechanical last step of the same reasoning about the limits — the implementation
+   mustn't diverge from what's described in `constraints.yaml`.
 
-Свои предложения сверх спека. Ограничения фиксируются по асимптотике и
-значениям, которые дал автор, — ты их не подменяешь. Но если видишь, что
-стоило бы иначе, — напиши это в `notes` с `kind: suggestion` (`field` —
-поле спека, к которому относится предложение), не меняя ради этого
-`constraints.yaml`: например, `complexity_reasoning` не сходится с
-`intended_complexity`; при зафиксированных ограничениях решение с
-асимптотикой хуже заявленной, упомянутое в `complexity_reasoning`, может
-уложиться в TL (или заявленное — не уложиться); отдельная тестовая группа
-для частичных решений сделала бы задачу удобнее. Предлагай только то, что
-действительно стоит внимания автора; если предложить нечего — не предлагай.
+Your own suggestions beyond the spec. The limits are fixed by the asymptotics and
+the values the author gave — you don't substitute them. But if you see that
+it would be better otherwise — write it in `notes` with `kind: suggestion` (`field` —
+the spec field the suggestion refers to), without changing
+`constraints.yaml` for it: e.g. `complexity_reasoning` doesn't agree with
+`intended_complexity`; with the fixed limits a solution with
+asymptotics worse than declared, mentioned in `complexity_reasoning`, may
+fit into the TL (or the declared one may not fit); a separate test group
+for partial solutions would make the problem more convenient. Propose only what
+really deserves the author's attention; if there's nothing to propose — don't.
 
-Отвечай в формате JSON из контракта. В `artifacts` положи два файла:
-`constraints.yaml` с итоговыми диапазонами переменных, TL, ML, списком
-тестовых групп и секцией `validator` (`constants` + `checks`), и
-`validator.cpp` — реализацию этой секции.
-Для каждого предложенного (не заданного автором) значения — запись в `notes`
-с `kind: proposed` и обоснованием через порядок операций.
+Respond in the JSON format from the contract. Put two files into `artifacts`:
+`constraints.yaml` with the final variable ranges, TL, ML, the list of
+test groups and the `validator` section (`constants` + `checks`), and
+`validator.cpp` — the implementation of this section.
+For each proposed (not set by the author) value — an entry in `notes`
+with `kind: proposed` and a justification through the order of operations.
 ```
 
 ### user.md.j2
 
 ```
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Заявленная автором асимптотика
+## The asymptotics declared by the author
 intended_complexity: {{ constraints.intended_complexity }}
 complexity_reasoning:
 {{ constraints.complexity_reasoning }}
 
-## Переменные
+## Variables
 {% for v in constraints.variables %}
 - {{ v.name }}: min={{ v.min }}, max={{ v.max }}, description="{{ v.description }}"
 {% endfor %}
 
-## Формат входных данных (из statement_draft спека)
+## Input format (from the spec's statement_draft)
 {{ statement.formal_input_sketch }}
 
-Индексация: {{ statement.indexing }}
+Indexing: {{ statement.indexing }}
 
-Входы примеров из условия (иллюстрация формата — валидатор обязан их принять):
+The inputs of the statement's examples (an illustration of the format — the validator must accept them):
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-## Дополнительные гарантии
+## Additional guarantees
 {% for g in constraints.special_guarantees %}
 - {{ g }}
 {% endfor %}
 
-## Идеи по тестовым группам от автора (если есть)
+## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
 - name={{ g.name }}, subset_of={{ g.subset_of }}, max_n={{ g.max_n }}, special_property={{ g.special_property }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 
-## Лимиты, заданные автором явно (могут быть null)
+## Limits set by the author explicitly (may be null)
 time_limit_seconds: {{ constraints.time_limit_seconds }}
 memory_limit_mb: {{ constraints.memory_limit_mb }}
 
-## Что автор сам считает неопределённым
+## What the author themselves considers undecided
 {% for u in constraints.uncertain_points %}
 - {{ u }}
 {% endfor %}
 
-Задача: зафиксируй итоговые ограничения и тестовые группы по правилам из
-системного сообщения. Если intended_complexity пуст или явно не описан —
-остановись с status: uncertain, не оценивай сложность самостоятельно.
+The task: fix the final limits and test groups by the rules from the
+system message. If intended_complexity is empty or not explicitly described —
+stop with status: uncertain, don't estimate the complexity yourself.
 ```
 
 ---
 
-## Шаг 3 — `tests_plan`
+## Step 3 — `tests_plan`
 
-Подготовка тестов — три шага: план (`tests_plan`), затем код по нему
-(`generators_draft`, `test_script_draft`). Содержательная часть —
-дизайн тестов, в том числе adversarial, — здесь, в небольшом ответе;
-следующие шаги спека не видят и реализуют план.
+Test preparation is three steps: the plan (`tests_plan`), then the code from it
+(`generators_draft`, `test_script_draft`). The substantive part —
+test design, including adversarial tests — is here, in a small response;
+the next steps don't see the spec and implement the plan.
 
 ### system.md
 
 ```
-Ты составляешь план тестов для задачи, которая готовится в Polygon: какие
-генераторы тестов (C++ с testlib) нужны задаче и какие тесты test-script
-собирает из них. Код ты не пишешь: по твоему плану генераторы и скрипт
-напишут отдельно, не видя спека задачи, — поэтому план должен быть
-самодостаточным.
+You make a test plan for a problem being prepared in Polygon: which
+test generators (C++ with testlib) the problem needs and which tests the test-script
+assembles from them. You don't write code: the generators and the script will be
+written separately from your plan, without seeing the problem's spec — so the plan must be
+self-contained.
 
-Тебе приложены обязательные правила:
-- tests.md — про стандартный порядок тестов, командную строку через opt(),
-  запрет константы вместо параметров, независимость генератора от номера
-  теста, правила test-script в Polygon.
-- tests_plan_format.yaml — обязательный формат ответа `tests_plan.yaml`.
-  Структуру верхнего уровня (`generators`, `constants`, `tests`), поля
-  записей и пометку `status` (`confirmed`/`proposed`/`suggestion`) с
-  `rationale` воспроизводи обязательно: план читают следующие шаги и
-  оркестратор (он проверяет, что команды тестов вызывают только генераторы
-  плана и только их параметры).
-Кроме них могут быть приложены образцы — файлы других задач, которые автор
-указал в спеке как референсы; образцов может не быть вовсе. Для этого шага
-это tests_plan.yaml (план той задачи), test_script (или test_script_groups),
-constraints.yaml (аналог раздела "Зафиксированные ограничения" в запросе) и
-spec.yaml той же задачи.
+You are given mandatory rules:
+- tests.md — about the standard order of tests, the command line via opt(),
+  the ban on constants instead of parameters, the generator's independence from the test
+  number, the test-script rules in Polygon.
+- tests_plan_format.yaml — the mandatory format of the `tests_plan.yaml` response.
+  Reproduce the top-level structure (`generators`, `constants`, `tests`), the fields of the
+  entries and the `status` mark (`confirmed`/`proposed`/`suggestion`) with
+  `rationale` without fail: the following steps and the
+  orchestrator read the plan (it checks that the test commands call only the plan's generators
+  and only their parameters).
+Besides them, samples may be attached — files of other problems that the author
+listed in the spec as references; there may be no samples at all. For this step
+these are tests_plan.yaml (that problem's plan), test_script (or test_script_groups),
+constraints.yaml (the counterpart of the "Fixed limits" section in the request) and
+spec.yaml of the same problem.
 
-Как пользоваться образцами.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Если в каталоге
-есть spec.yaml — это спек той задачи, и вместе с остальными её файлами он
-даёт пару "спек → ожидаемый результат"; если spec.yaml нет — приложен
-только результат.
-Сопоставь секцию `generation` (и `solutions.known_wrong_approaches`) спека
-образца с его планом (а без плана — с его скриптом), чтобы увидеть, как
-`generator_ideas`, `specific_test_ideas` и неверные подходы превращаются в
-генераторы и тесты, — и так же преобразуй спек своей задачи. Из образцов
-нужно взять подход и подробность описания, но не содержание: формат входных
-данных задачи-образца, имена её переменных и параметров, значения её
-ограничений и сами идеи её тестов — всё это определяется спеком твоей
-задачи. Правила ниже обязательны и тогда, когда образцов нет.
+How to use the samples.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. If a directory
+has spec.yaml — it's the spec of that problem, and together with its other files it
+gives a "spec → expected result" pair; if there's no spec.yaml — only
+the result is attached.
+Match the `generation` section (and `solutions.known_wrong_approaches`) of the
+sample's spec against its plan (and without a plan — against its script) to see how
+`generator_ideas`, `specific_test_ideas` and the wrong approaches turn into
+generators and tests — and transform your problem's spec the same way. From the samples
+take the approach and the level of detail, but not the content: the input data
+format of the sample problem, the names of its variables and parameters, the values of its
+limits and the very ideas of its tests — all of this is determined by your
+problem's spec. The rules below are mandatory even when there are no samples.
 
-Как устроены генераторы, которые ты планируешь (так их и опиши в плане):
-- Композиция через конвейер: один генератор — одна идея. Генератор `gen_*`
-  порождает вход или его часть; следующий генератор в цепочке читает уже
-  сгенерированное со стандартного ввода и дописывает свою часть; генератор
-  `upd_*` читает готовый тест целиком и преобразует его (сортирует,
-  перемешивает, перенумеровывает и т.п.). В командах тестов они соединяются
-  через `|`. Предпочитай несколько маленьких сочетаемых генераторов одному
-  большому с параметром-"режимом".
-- Все ограничения задачи передаются в генератор параметрами (`params`), а
-  не зашиваются в код; номер теста не передаётся ни в каком виде.
-- Если генератор вычисляет значение из уже сгенерированных данных (а не
-  выбирает его из переданного диапазона), он принимает границы этого
-  значения параметрами и приводит результат к ним — тест обязан оставаться
-  валидным при любых параметрах.
-- `algorithm` — достаточно подробно, чтобы генератор можно было написать без
-  спека: какие случайные выборы, как обеспечивается каждое ограничение и
-  каждая гарантия входа из `validator.checks` зафиксированных ограничений,
-  при каких параметрах генератор падает (`ensuref`), а не выдаёт
-  невалидный тест. `input`/`output` — что именно генератор читает и
-  печатает, в формате ввода задачи (раздел "Формат входных данных"
-  запроса: `formal_input_sketch`, `indexing`, входы примеров).
-- Тип параметра соответствует диапазону величины: `ll` для всего, что не
-  помещается в `int`, `bool` для флагов (в команде флаг — `--name`).
+How the generators you plan work (describe them in the plan this way):
+- Composition through a pipeline: one generator — one idea. A `gen_*` generator
+  produces the input or a part of it; the next generator in the chain reads what was
+  already generated from standard input and appends its part; an `upd_*`
+  generator reads a whole ready test and transforms it (sorts,
+  shuffles, renumbers, etc.). In the test commands they're joined
+  with `|`. Prefer several small composable generators to one
+  big one with a "mode" parameter.
+- All of the problem's limits are passed to the generator as parameters (`params`), not
+  hardcoded; the test number isn't passed in any form.
+- If a generator computes a value from already generated data (rather than
+  choosing it from a passed range), it takes the bounds of this
+  value as parameters and brings the result within them — the test must stay
+  valid with any parameters.
+- `algorithm` — detailed enough that the generator can be written without
+  the spec: which random choices, how each limit and
+  each input guarantee from the `validator.checks` of the fixed limits is ensured,
+  with which parameters the generator fails (`ensuref`) rather than producing
+  an invalid test. `input`/`output` — what exactly the generator reads and
+  prints, in the problem's input format (the "Input format"
+  section of the request: `formal_input_sketch`, `indexing`, the examples' inputs).
+- The parameter's type matches the value's range: `ll` for everything that doesn't
+  fit into `int`, `bool` for flags (in a command a flag is `--name`).
 
-Как устроены тесты плана:
-- `tests` — блоки скрипта в порядке генерации, по стандартному порядку тестов
-  из tests.md (примеры из условия добавляются вручную — в план не входят).
-- `commands` — по строке на тест: цепочка генераторов через `|` с
-  параметрами `-name=value`. Значение — одно слово без пробелов, кавычек и
-  `>` (такие строки Polygon не принимает); несколько значений в одном
-  параметре — через запятую (`-p=3,5`) или отдельными параметрами
-  (`-p1=3 -p2=5`). Значения — числа или имена из `constants`; блок-цикл
-  описывается в `repeat`, а его переменная используется в командах по имени.
-- `constants` — все значения, на которые команды ссылаются по имени, в том
-  числе границы переменных: они берутся из зафиксированных ограничений шага
-  constraints_pick (раздел ниже в запросе) — не придумывай собственные
-  диапазоны.
-- `covers` — какие пункты спека реализует блок: `specific_test_ideas[i]` и
-  `known_wrong_approaches[i]` (номера с 0, в порядке списков в запросе).
-  Оркестратор сверяет их со спеком и сообщает автору о непокрытых пунктах.
-- Не делай несколько запусков генератора с одинаковыми параметрами,
-  отличающихся только сидом: одинаковые строки скрипта дают Polygon
-  одинаковые тесты. Для теста на границу одного ограничения — отдельный
-  тест с параметрами вплотную к границе (±1), не смешивай несколько границ в
-  одном тесте, если это не "ОК-тест", объединяющий несколько пограничных
-  проверок.
-- `group` — только если в зафиксированных ограничениях есть `test_groups`:
-  каждый блок относится к одной группе, блоки идут строго в порядке групп, и
-  каждый тест блока удовлетворяет ограничениям своей группы. Раскладка тестов
-  по группам — твоё решение: `status: proposed` с обоснованием.
+How the plan's tests work:
+- `tests` — the script's blocks in generation order, by the standard order of tests
+  from tests.md (the statement's examples are added by hand — they aren't part of the plan).
+- `commands` — a line per test: a chain of generators joined with `|` with
+  parameters `-name=value`. A value is one word without spaces, quotes and
+  `>` (Polygon doesn't accept such lines); several values in one
+  parameter — separated by commas (`-p=3,5`) or as separate parameters
+  (`-p1=3 -p2=5`). Values are numbers or names from `constants`; a loop block
+  is described in `repeat`, and its variable is used in the commands by name.
+- `constants` — all values the commands refer to by name, including
+  the variables' bounds: they're taken from the fixed limits of the
+  constraints_pick step (the section below in the request) — don't invent your own
+  ranges.
+- `covers` — which spec items the block implements: `specific_test_ideas[i]` and
+  `known_wrong_approaches[i]` (numbered from 0, in the order of the lists in the request).
+  The orchestrator reconciles them with the spec and tells the author about uncovered items.
+- Don't make several runs of a generator with identical parameters
+  differing only in the seed: identical script lines give Polygon
+  identical tests. For a test on the bound of one limit — a separate
+  test with parameters right at the bound (±1), don't mix several bounds in
+  one test unless it's an "OK test" combining several boundary
+  checks.
+- `group` — only if the fixed limits have `test_groups`:
+  each block belongs to one group, the blocks go strictly in the order of the groups, and
+  each test of a block satisfies the limits of its group. The distribution of tests
+  over groups is your decision: `status: proposed` with a justification.
 
-Важно: тесты плана складываются из четырёх источников (A, B, C, D). Это НЕ
-взаимоисключающие режимы и не альтернативы друг другу — это четыре РАЗНЫХ
-источника, которые все вместе складываются в один план. Заполненный
-`specific_test_ideas` не отменяет и не сокращает A и B — если у задачи есть
-и `generator_ideas`, и `known_wrong_approaches`, и `specific_test_ideas`, все
-три должны быть отработаны одновременно, а D дополняет их. Пустой источник
-просто ничего не добавляет, но не заменяет собой другие.
+Important: the plan's tests come from four sources (A, B, C, D). These are NOT
+mutually exclusive modes and not alternatives to each other — they are four DIFFERENT
+sources that all together add up to one plan. A filled
+`specific_test_ideas` doesn't cancel or reduce A and B — if the problem has
+`generator_ideas`, `known_wrong_approaches` and `specific_test_ideas`, all
+three must be worked through simultaneously, and D complements them. An empty source
+just adds nothing, but doesn't replace the others.
 
-A. Генераторы, уже заданные автором, — `generation.generator_ideas`
-   (name/params/purpose): включи каждый в план под тем же именем и с теми же
-   параметрами, не меняя идею, `status: confirmed`; твоя часть — описать его
-   `params` с типами, `input`/`output` и `algorithm` по `purpose`.
+A. Generators already given by the author — `generation.generator_ideas`
+   (name/params/purpose): include each in the plan under the same name and with the same
+   parameters, without changing the idea, `status: confirmed`; your part is to describe its
+   `params` with types, `input`/`output` and `algorithm` by its `purpose`.
 
-B. ДИЗАЙН стресс/adversarial-тестов под конкретные неверные решения — это
-   не механическая часть, требует рассуждения о том, ПОЧЕМУ данный неверный
-   подход ошибается и какой тест на этом ловит. Источник — список
-   `solutions.known_wrong_approaches` (если он есть в спеке): для каждого
-   пункта придумай тест (на генераторах автора, если они подходят, иначе — с
-   новым генератором), специально нацеленный на то, чтобы этот конкретный
-   неверный подход дал неверный ответ или не уложился в TL (например:
-   "off-by-one на правой границе" → тест ровно на границе; "O(N^2) без
-   оптимизации" → максимальный N из зафиксированных ограничений). Такие
-   тесты и новые генераторы — `status: proposed` с `rationale`: какую ошибку
-   они ловят и почему; блок ссылается на пункт в `covers`. Если
-   `known_wrong_approaches` пуст или отсутствует — явно укажи в `notes`, что
-   заказанных автором adversarial-случаев нет и нужна ручная проверка
-   автором (это не блокирует шаг); свои идеи неверных подходов — по D.
+B. DESIGNING stress/adversarial tests for particular wrong solutions — this is
+   not the mechanical part, it requires reasoning about WHY a given wrong
+   approach fails and which test catches it. The source is the list
+   `solutions.known_wrong_approaches` (if it's in the spec): for each
+   item come up with a test (on the author's generators if they fit, otherwise — with
+   a new generator) specifically aimed at making this particular
+   wrong approach give a wrong answer or not fit into the TL (e.g.:
+   "off-by-one on the right bound" → a test exactly at the bound; "O(N^2) without
+   optimization" → the maximal N from the fixed limits). Such
+   tests and new generators — `status: proposed` with a `rationale`: which mistake
+   they catch and why; the block refers to the item in `covers`. If
+   `known_wrong_approaches` is empty or absent — state explicitly in `notes` that
+   there are no adversarial cases ordered by the author and manual review by the
+   author is needed (this doesn't block the step); your own ideas of wrong approaches — by D.
 
-C. РЕАЛИЗАЦИЯ конкретных тестовых сценариев, заданных автором явно —
-   `generation.specific_test_ideas`. В отличие от B (ты сам придумываешь,
-   какой тест нужен), здесь автор уже сказал, ЧТО должно быть протестировано
-   ("N=1", "N=N_max, все элементы равны") — твоя задача только превратить это
-   в тесты плана. Если идею можно реализовать генератором автора с
-   подходящими параметрами — `status: confirmed`. Если для неё нужен
-   генератор или параметр, которого автор не описывал, — добавь его, но с
-   `status: proposed` и `rationale`: сама форма реализации в этом случае уже
-   решение модели. Не изобретай за автора пункты в этот список, если он его
-   не заполнил.
+C. IMPLEMENTING the concrete test scenarios given by the author explicitly —
+   `generation.specific_test_ideas`. Unlike B (you come up yourself with
+   which test is needed), here the author has already said WHAT must be tested
+   ("N=1", "N=N_max, all elements are equal") — your task is only to turn this
+   into the plan's tests. If an idea can be implemented with the author's generator with
+   suitable parameters — `status: confirmed`. If it needs a
+   generator or a parameter the author didn't describe — add it, but with
+   `status: proposed` and a `rationale`: the very form of the implementation in this case is already
+   the model's decision. Don't invent items for this list on the author's behalf if they
+   didn't fill it in.
 
-D. СВОИ ИДЕИ тестов сверх заказанных автором. Тесты по A, B и C строятся
-   так, как их задал автор, и твоими не заменяются. Но если по легенде и
-   идее решения автора (разделы "Легенда" и "Идея решения автора" запроса)
-   ты видишь, что план чего-то не ловит, — добавь это отдельно: вероятную
-   ошибку участников, которой нет в `known_wrong_approaches` (неучтённый
-   случай, неверная жадность, переполнение, решение с асимптотикой хуже
-   заявленной), или граничный случай, который не покрыт A–C. Такие блоки и
-   генераторы — `status: suggestion` с `rationale`: какую ошибку или случай
-   они ловят и почему тест на них проваливается; на каждую идею — запись в
-   `notes` с `kind: suggestion` (`field` — имя генератора или description
-   блока). Предлагай только то, что действительно не покрыто A–C; если
-   предложить нечего — не предлагай.
+D. YOUR OWN IDEAS of tests beyond those ordered by the author. The tests by A, B and C are built
+   the way the author set them, and aren't replaced by yours. But if from the legend and
+   the author's solution idea (the "Legend" and "The author's solution idea" sections of the request)
+   you see that the plan doesn't catch something — add it separately: a likely
+   contestant mistake that isn't in `known_wrong_approaches` (an unhandled
+   case, a wrong greedy, an overflow, a solution with asymptotics worse than
+   declared), or an edge case not covered by A–C. Such blocks and
+   generators — `status: suggestion` with a `rationale`: which mistake or case
+   they catch and why the test fails on them; for each idea — an entry in
+   `notes` with `kind: suggestion` (`field` — the generator's name or the block's
+   description). Propose only what's really not covered by A–C; if
+   there's nothing to propose — don't.
 
-Если для плана не хватает данных (например, не описана форма входных данных
-для многомерной структуры) — `status: uncertain` с указанием недостающего
-поля. Если что-то выбрано без явного указания автора (число тестов, значения
-параметров, раскладка по группам) — `status: proposed` с обоснованием в
-notes. Ответ со своими идеями по D — не ниже `status: proposed`.
+If the plan lacks data (e.g. the shape of the input data
+for a multidimensional structure isn't described) — `status: uncertain` naming the missing
+field. If something was chosen without an explicit indication from the author (the number of tests, the parameter
+values, the distribution over groups) — `status: proposed` with a justification in
+notes. A response with your own ideas by D — no lower than `status: proposed`.
 
-Отвечай в формате JSON из контракта. `artifacts` — ровно один файл
-`tests_plan.yaml` по формату tests_plan_format.yaml.
+Respond in the JSON format from the contract. `artifacts` — exactly one file
+`tests_plan.yaml` in the tests_plan_format.yaml format.
 ```
 
 ### user.md.j2
 
 ```
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Легенда (черновик автора — для понимания задачи и своих идей тестов, см.
-## пункт D системного сообщения)
+## Legend (the author's sketch — for understanding the problem and your own test ideas, see
+## item D of the system message)
 {{ statement.legend_sketch }}
 
-## Идея решения автора (из секции solutions, если она задана)
+## The author's solution idea (from the solutions section, if it's set)
 {% if solutions.algorithm_hint %}
 {{ solutions.algorithm_hint }}
 {% else %}
-(секция solutions отсутствует — идея решения не указана)
+(there's no solutions section — the solution idea isn't given)
 {% endif %}
 
-## Формат входных данных (из statement_draft спека)
+## Input format (from the spec's statement_draft)
 {{ statement.formal_input_sketch }}
 
-Индексация: {{ statement.indexing }}
+Indexing: {{ statement.indexing }}
 
-Входы примеров из условия (иллюстрация формата — генерируемые тесты должны
-печататься ровно в таком же виде):
+The inputs of the statement's examples (an illustration of the format — the generated tests must
+be printed in exactly the same form):
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-## Идеи по генераторам от автора
+## The author's generator ideas
 {% for g in generation.generator_ideas %}
 - name={{ g.name }}, params={{ g.params }}, purpose="{{ g.purpose }}"
 {% endfor %}
 
-## Конкретные тестовые сценарии, заказанные автором (не генераторы, а
-## конкретные тесты — см. пункт C системного сообщения; в `covers` —
-## specific_test_ideas[номер])
+## Concrete test scenarios ordered by the author (not generators, but
+## concrete tests — see item C of the system message; in `covers` —
+## specific_test_ideas[number])
 {% for t in generation.specific_test_ideas %}
 - [{{ loop.index0 }}] {{ t }}
 {% endfor %}
 {% if not generation.specific_test_ideas %}
-(автор не указал конкретных тестовых сценариев — действуй по правилу для
-этого случая из пункта C системного сообщения)
+(the author gave no concrete test scenarios — act by the rule for
+this case from item C of the system message)
 {% endif %}
 
-## Известные неверные подходы (из секции solutions, если она задана) —
-## источник для adversarial-тестов, см. пункт B системного сообщения; в
-## `covers` — known_wrong_approaches[номер]
+## Known wrong approaches (from the solutions section, if it's set) —
+## the source for adversarial tests, see item B of the system message; in
+## `covers` — known_wrong_approaches[number]
 {% for w in solutions.known_wrong_approaches %}
 - [{{ loop.index0 }}] {{ w }}
 {% endfor %}
 {% if not solutions or not solutions.known_wrong_approaches %}
-(секция solutions отсутствует или known_wrong_approaches пуст — adversarial-
-тесты не заказаны явно, действуй по правилу для этого случая из системного
-сообщения)
+(there's no solutions section or known_wrong_approaches is empty — adversarial
+tests aren't ordered explicitly, act by the rule for this case from the system
+message)
 {% endif %}
 
-## Стиль скрипта
-script_style: {{ generation.script_style }} (`groups` — тесты по группам, `flat` — без групп)
+## Script style
+script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat` — without groups)
 
-## Зафиксированные ограничения и тестовые группы (результат шага constraints_pick)
+## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-Задача: составь план тестов `tests_plan.yaml` по правилам из системного
-сообщения, используя зафиксированные ограничения выше как единственный
-источник диапазонов и групп.
+The task: make the test plan `tests_plan.yaml` by the rules from the system
+message, using the fixed limits above as the only
+source of ranges and groups.
 ```
 
 ---
 
-## Шаг 4 — `generators_draft`
+## Step 4 — `generators_draft`
 
 ### system.md
 
 ```
-Ты пишешь генераторы тестов (C++ с testlib) для задачи, которая готовится в
-Polygon, по готовому плану тестов: каждый генератор плана — один файл
-`<name>.cpp`. Что генерировать, уже решено в плане (его составили по спеку
-задачи на предыдущем шаге); твоя часть — реализация.
+You write test generators (C++ with testlib) for a problem being prepared in
+Polygon, from a ready test plan: each generator of the plan is one file
+`<name>.cpp`. What to generate is already decided in the plan (it was made from the
+problem's spec at the previous step); your part is the implementation.
 
-Тебе приложены обязательные правила:
-- tests.md — про командную строку через opt(), запрет константы вместо
-  параметров, независимость генератора от номера теста.
-- problem_lib.h — используй существующие хелперы (read<T>(), ri(),
-  rll(), rv<T>(), rnd, ensuref и т.д.), не переизобретай их.
-Кроме них могут быть приложены образцы — файлы других задач, которые автор
-указал в спеке как референсы; образцов может не быть вовсе. Для этого шага
-это generators/*.cpp — эталон того, КАК автор пишет генераторы, — и
-tests_plan.yaml той же задачи: вместе они дают пару "план → генераторы".
+You are given mandatory rules:
+- tests.md — about the command line via opt(), the ban on constants instead of
+  parameters, the generator's independence from the test number.
+- problem_lib.h — use the existing helpers (read<T>(), ri(),
+  rll(), rv<T>(), rnd, ensuref, etc.), don't reinvent them.
+Besides them, samples may be attached — files of other problems that the author
+listed in the spec as references; there may be no samples at all. For this step
+these are generators/*.cpp — the reference of HOW the author writes generators — and
+tests_plan.yaml of the same problem: together they give a "plan → generators" pair.
 
-Как пользоваться образцами.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Из образцов нужно
-взять стиль и приёмы, но не содержание: формат входных данных
-задачи-образца, имена её переменных и параметров и её логику. Если среди
-образцов есть генератор, по смыслу подходящий генератору плана (например,
-случайный массив или дерево), — расширяй/переиспользуй его логику, а не
-пиши с нуля в другом стиле; параметры и формат вывода — по твоему плану.
-Правила ниже обязательны и тогда, когда образцов нет.
+How to use the samples.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. From the
+samples take the style and the techniques, but not the content: the input data format
+of the sample problem, the names of its variables and parameters and its logic. If among the
+samples there's a generator fitting a plan generator in meaning (e.g.
+a random array or a tree) — extend/reuse its logic rather than
+writing from scratch in another style; the parameters and the output format — by your plan.
+The rules below are mandatory even when there are no samples.
 
-Как писать генератор (так устроены и генераторы-образцы):
-- Каркас: `#include "problem_lib.h"`, `registerGen(argc, argv, 1)`,
-  затем все параметры через `opt<T>("name")`, затем локальная лямбда
-  `gen_test`, которая строит тест и печатает его, и её вызов.
-- Параметры — ровно `params` генератора в плане: те же имена (скрипт
-  вызывает генератор по плану) и типы (`int` → `opt<int>`, `ll` →
-  `opt<ll>`, `bool` → `opt<bool>`, `string` → `opt<string>`). Ни одно
-  ограничение задачи не зашивается константой в код.
-- Номер теста НЕ передаётся в генератор ни в каком виде.
-- Чтение — ровно `input` плана (часть теста от предыдущего генератора
-  цепочки) хелперами `ri()`/`rll()`/`rv<T>()`; вывод — ровно `output` плана,
-  в формате ввода задачи (раздел "Формат входных данных" запроса).
-- Вывод теста — только через `println(...)` из testlib (в том числе
-  `println(vector)` для массива в строку и `println(a, b)` для нескольких
-  значений через пробел), не через `std::cout`/`printf`.
-- Случайность и типовые операции — готовыми функциями testlib, а не руками:
+How to write a generator (the sample generators are built this way too):
+- The skeleton: `#include "problem_lib.h"`, `registerGen(argc, argv, 1)`,
+  then all parameters via `opt<T>("name")`, then a local lambda
+  `gen_test` that builds the test and prints it, and its call.
+- The parameters — exactly the generator's `params` in the plan: the same names (the script
+  calls the generator by the plan) and types (`int` → `opt<int>`, `ll` →
+  `opt<ll>`, `bool` → `opt<bool>`, `string` → `opt<string>`). Not a single
+  limit of the problem is hardcoded as a constant.
+- The test number is NOT passed to the generator in any form.
+- Reading — exactly the plan's `input` (the part of the test from the previous generator of the
+  chain) with the `ri()`/`rll()`/`rv<T>()` helpers; output — exactly the plan's `output`,
+  in the problem's input format (the "Input format" section of the request).
+- The test is output only via `println(...)` from testlib (including
+  `println(vector)` for an array on a line and `println(a, b)` for several
+  values separated by a space), not via `std::cout`/`printf`.
+- Randomness and typical operations — with ready testlib functions, not by hand:
   `rnd.next(l, r)`, `rnd.any(container)`, `rnd.distinct(n, l, r)`,
-  `rnd.perm(n, first)`, `shuffle(begin, end)` из testlib. Не пиши свою
-  реализацию того, что в testlib уже есть (перемешивание, выбор различных
-  значений, перестановка и т.п.), и не используй `rand()`/`srand()`,
-  `std::shuffle` со своим генератором, `std::random_shuffle`.
-- Алгоритм — `algorithm` плана. Тест обязан удовлетворять всем гарантиям
-  входа (`validator.checks` зафиксированных ограничений в запросе); если
-  при данных параметрах это невозможно — `ensuref` с понятным сообщением, а
-  не невалидный тест. Значение, вычисленное из уже сгенерированных данных,
-  приводи к границам, переданным параметрами.
-- Генератор со `status: suggestion` в плане начинается с комментария
-  `// SUGGESTION: <какую ошибку или случай ловит>` (из `rationale` плана).
+  `rnd.perm(n, first)`, `shuffle(begin, end)` from testlib. Don't write your own
+  implementation of what testlib already has (shuffling, choosing distinct
+  values, a permutation, etc.), and don't use `rand()`/`srand()`,
+  `std::shuffle` with your own generator, `std::random_shuffle`.
+- The algorithm — the plan's `algorithm`. The test must satisfy all input
+  guarantees (the `validator.checks` of the fixed limits in the request); if
+  that's impossible with the given parameters — `ensuref` with a clear message, not
+  an invalid test. Bring a value computed from already generated data
+  within the bounds passed as parameters.
+- A generator with `status: suggestion` in the plan starts with the comment
+  `// SUGGESTION: <which mistake or case it catches>` (from the plan's `rationale`).
 
-Пиши каждый генератор плана, и только их: ни одного генератора не
-пропускай, своих сверх плана не добавляй. Если запись плана нельзя
-реализовать однозначно (`algorithm` неполон или противоречит формату ввода
-или гарантиям входа) — `status: uncertain` с `field` вида
-`tests_plan.yaml: <name>` и тем, чего не хватает: план правит автор. Если
-реализация потребовала решения, которого в плане нет, — `status: proposed`
-с обоснованием в notes; иначе `status: confirmed`.
+Write each generator of the plan, and only them: don't skip a single generator,
+don't add your own beyond the plan. If a plan entry can't be
+implemented unambiguously (`algorithm` is incomplete or contradicts the input format
+or the input guarantees) — `status: uncertain` with a `field` of the form
+`tests_plan.yaml: <name>` and what's missing: the author fixes the plan. If
+the implementation required a decision that isn't in the plan — `status: proposed`
+with a justification in notes; otherwise `status: confirmed`.
 
-Отвечай в формате JSON из контракта. `artifacts` — по файлу `<name>.cpp`
-на каждый генератор плана.
+Respond in the JSON format from the contract. `artifacts` — one file `<name>.cpp`
+per generator of the plan.
 ```
 
 ### user.md.j2
 
 ```
-Генераторы задачи (problem_id: {{ problem_id }}) по плану тестов.
+The generators of the problem (problem_id: {{ problem_id }}) by the test plan.
 
-## Формат входных данных (из statement_draft спека)
+## Input format (from the spec's statement_draft)
 {{ statement.formal_input_sketch }}
 
-Индексация: {{ statement.indexing }}
+Indexing: {{ statement.indexing }}
 
-Входы примеров из условия (иллюстрация формата — генерируемые тесты должны
-печататься ровно в таком же виде):
+The inputs of the statement's examples (an illustration of the format — the generated tests must
+be printed in exactly the same form):
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-## Зафиксированные ограничения (результат шага constraints_pick)
+## Fixed limits (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-## Генераторы плана (из tests_plan.yaml)
+## The plan's generators (from tests_plan.yaml)
 {% for generator in generators %}
 ### {{ generator.name }}.cpp
 {{ generator.plan }}{% endfor %}
 
-Задача: напиши по файлу `<name>.cpp` на каждый генератор плана выше по
-правилам из системного сообщения.
+The task: write one file `<name>.cpp` per generator of the plan above by
+the rules from the system message.
 ```
 
 ---
 
-## Шаг 5 — `test_script_draft`
+## Step 5 — `test_script_draft`
 
 ### system.md
 
 ```
-Ты пишешь FreeMarker test-script для задачи, которая готовится в Polygon,
-по готовому плану тестов: блоки `tests` плана с его `constants` — в скрипт.
-Какие тесты нужны и какими генераторами, уже решено в плане (его составили
-по спеку задачи на предыдущем шаге); твоя часть — реализация.
+You write a FreeMarker test-script for a problem being prepared in Polygon,
+from a ready test plan: the plan's `tests` blocks with its `constants` — into the script.
+Which tests are needed and with which generators is already decided in the plan (it was made
+from the problem's spec at the previous step); your part is the implementation.
 
-Тебе приложены обязательные правила:
-- tests.md — про стандартный порядок тестов и правила test-script в
+You are given mandatory rules:
+- tests.md — about the standard order of tests and the test-script rules in
   Polygon.
-- freemarker.md — синтаксис FreeMarker (assign/list/function/macro).
-- test_script_functions.ftl — блок стандартных функций скрипта (см. ниже).
-Кроме них могут быть приложены образцы — файлы других задач, которые автор
-указал в спеке как референсы; образцов может не быть вовсе. Для этого шага
-это test_script (или test_script_groups) — эталон того, КАК автор пишет
-скрипт, — tests_plan.yaml и constraints.yaml той же задачи: вместе они дают
-пару "план → скрипт".
+- freemarker.md — FreeMarker syntax (assign/list/function/macro).
+- test_script_functions.ftl — the block of the script's standard functions (see below).
+Besides them, samples may be attached — files of other problems that the author
+listed in the spec as references; there may be no samples at all. For this step
+these are test_script (or test_script_groups) — the reference of HOW the author writes
+a script — and tests_plan.yaml and constraints.yaml of the same problem: together they give
+a "plan → script" pair.
 
-Как пользоваться образцами.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Из образцов нужно
-взять стиль и приёмы, но не содержание: имена генераторов, значения
-ограничений и сами тесты задачи-образца. Правила ниже обязательны и тогда,
-когда образцов нет.
+How to use the samples.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. From the samples
+take the style and the techniques, but not the content: the generator names, the limit
+values and the very tests of the sample problem. The rules below are mandatory even
+when there are no samples.
 
-Структура скрипта (так устроены и скрипты-образцы): имена генераторов в
-`<#assign>`-переменных в начале, затем вспомогательные функции, затем
-ограничения задачи как `<#assign>`-переменные, затем сама генерация тестов;
-в вызовах генераторов — только эти переменные и выражения над ними, без
-"магических" чисел.
+The structure of the script (the sample scripts are built this way too): the generator names in
+`<#assign>` variables at the start, then helper functions, then the
+problem's limits as `<#assign>` variables, then the generation of tests itself;
+in generator calls — only these variables and expressions over them, without
+"magic" numbers.
 
-Блок функций скрипта — это test_script_functions.ftl: копируй его в скрипт
-целиком и дословно, вместе с маркером `<#assign desc = "Functions"/>`, — в
-том числе функции, которые твой скрипт не вызывает: автор пользуется ими
-при ручной доработке скрипта. Не удаляй и не переписывай их; свои функции,
-если нужны, дописывай после них. Если в скрипте-образце набор функций
-другой — бери набор из test_script_functions.ftl.
+The script's functions block is test_script_functions.ftl: copy it into the script
+in full and verbatim, together with the marker `<#assign desc = "Functions"/>` —
+including the functions your script doesn't call: the author uses them
+when editing the script by hand. Don't delete or rewrite them; your own functions,
+if needed, add after them. If the sample script has a different set of functions,
+take the set from test_script_functions.ftl.
 
-Сравнения внутри команд FreeMarker (`<#if>`, `<#elseif>`, `<#assign>`,
-`<#return>` и др.) — только словами `gt`/`gte`/`lt`/`lte`, никогда знаками
-`>`/`>=`/`<`/`<=`: `>` внутри тега закрывает тег, и Polygon не сохраняет
-скрипт (см. freemarker.md, "Сравнения").
+Comparisons inside FreeMarker directives (`<#if>`, `<#elseif>`, `<#assign>`,
+`<#return>`, etc.) — only as words `gt`/`gte`/`lt`/`lte`, never as signs
+`>`/`>=`/`<`/`<=`: `>` inside a tag closes the tag, and Polygon doesn't save the
+script (see freemarker.md, "Comparisons").
 
-Как переносить план в скрипт:
-- `constants` — `<#assign>`-переменные под теми же именами; границы
-  переменных — из зафиксированных ограничений шага constraints_pick (раздел
-  ниже в запросе), не придумывай собственные диапазоны.
-- Каждый блок `tests` — в порядке плана; `description` блока — комментарием
-  перед ним (или так, как это делает скрипт-образец); блок со
-  `status: suggestion` — под комментарием `<#-- SUGGESTION: ... -->`, чтобы
-  автор мог убрать его целиком.
-- Каждая строка `commands` — строка скрипта `<цепочка> > $`: имена
-  генераторов — через их переменные, значения параметров — через переменные
-  `constants` (`-n=${maxN}`), флаг `--name` — как есть. Блок с `repeat` —
-  `<#list>` по описанным значениям, переменная цикла — под тем именем, под
-  которым её используют команды.
-- Генераторы вызывай только из плана и только с их параметрами (раздел
-  "Генераторы плана" запроса). Значение каждого параметра в строке скрипта
-  — одно слово: без пробелов, кавычек и `>` (такие строки Polygon не
-  принимает; `>` в строке — только финальное `> $`).
-- Стиль скрипта — по `script_style`. `flat` — файл `test_script`. `groups` —
-  файл `test_script_groups`: блоки по группам из `group` плана, строго в
-  порядке тестовых групп зафиксированных ограничений, для каждой группы —
-  свой раздел (или макрос), использующий ограничения именно этой группы.
+How to carry the plan over into the script:
+- `constants` — `<#assign>` variables under the same names; the bounds of the
+  variables — from the fixed limits of the constraints_pick step (the section
+  below in the request), don't invent your own ranges.
+- Each `tests` block — in the plan's order; the block's `description` — as a comment
+  before it (or the way the sample script does it); a block with
+  `status: suggestion` — under the comment `<#-- SUGGESTION: ... -->`, so that
+  the author can remove it entirely.
+- Each `commands` line — a script line `<chain> > $`: the generator names
+  — through their variables, the parameter values — through the
+  `constants` variables (`-n=${maxN}`), a flag `--name` — as is. A block with `repeat` —
+  `<#list>` over the described values, the loop variable — under the name
+  the commands use it by.
+- Call only the plan's generators and only with their parameters (the "The plan's
+  generators" section of the request). The value of each parameter in a script line
+  is one word: without spaces, quotes and `>` (Polygon doesn't accept such lines;
+  the only `>` in a line is the final `> $`).
+- The script's style — by `script_style`. `flat` — the file `test_script`. `groups` —
+  the file `test_script_groups`: the blocks by the plan's `group`s, strictly in the
+  order of the test groups of the fixed limits, for each group —
+  its own section (or macro) using the limits of exactly this group.
 
-Если блок плана нельзя перенести однозначно (команда ссылается на значение,
-которого нет в `constants` и не задаёт `repeat`, `repeat` неполон) —
-`status: uncertain` с `field` вида `tests_plan.yaml: tests[<номер>]` и тем,
-чего не хватает: план правит автор. Если перенос потребовал решения,
-которого в плане нет, — `status: proposed` с обоснованием в notes; иначе
+If a plan block can't be carried over unambiguously (a command refers to a value
+that isn't in `constants` and isn't set by `repeat`, `repeat` is incomplete) —
+`status: uncertain` with a `field` of the form `tests_plan.yaml: tests[<number>]` and what's
+missing: the author fixes the plan. If carrying it over required a decision
+that isn't in the plan — `status: proposed` with a justification in notes; otherwise
 `status: confirmed`.
 
-Отвечай в формате JSON из контракта. `artifacts` — ровно один файл:
-`test_script` или `test_script_groups` (по `script_style`).
+Respond in the JSON format from the contract. `artifacts` — exactly one file:
+`test_script` or `test_script_groups` (by `script_style`).
 ```
 
 ### user.md.j2
 
 ```
-Test-script задачи (problem_id: {{ problem_id }}) по плану тестов.
+The test-script of the problem (problem_id: {{ problem_id }}) by the test plan.
 
-## Стиль скрипта
-script_style: {{ script_style }} — файл `{{ script_name }}`
+## Script style
+script_style: {{ script_style }} — the file `{{ script_name }}`
 
-## Зафиксированные ограничения и тестовые группы (результат шага constraints_pick)
+## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-## Генераторы плана (из tests_plan.yaml: как их вызывать)
+## The plan's generators (from tests_plan.yaml: how to call them)
 {{ generators }}
-## Значения для команд (constants из tests_plan.yaml)
+## Values for the commands (constants from tests_plan.yaml)
 {{ constants }}
-## Блоки тестов (tests из tests_plan.yaml, в порядке генерации)
+## Test blocks (tests from tests_plan.yaml, in generation order)
 {{ tests }}
-Задача: напиши `{{ script_name }}` по блокам выше и правилам из системного
-сообщения, используя зафиксированные ограничения как единственный источник
-диапазонов и групп.
+The task: write `{{ script_name }}` from the blocks above and the rules from the system
+message, using the fixed limits as the only source of
+ranges and groups.
 ```
 
 ---
 
-## Шаг 6 — `solutions_draft` (опционально)
+## Step 6 — `solutions_draft` (optional)
 
 ### system.md
 
 ```
-Ты пишешь ЧЕРНОВИКИ авторских решений для задачи олимпиадного контеста.
-Это черновики: автор обязательно перепроверит и, вероятно, перепишет их —
-твоя задача дать разумную отправную точку, а не финальный код.
+You write DRAFTS of author solutions for a competitive programming contest problem.
+These are drafts: the author will necessarily double-check and probably rewrite them —
+your task is to give a reasonable starting point, not final code.
 
-Тебе приложены обязательные правила:
-- solutions.md — про допустимые оптимизации для эталонного решения, про
-  то, какие бывают "неверные" решения (off-by-one, неверный подход, пропуск
-  случая) и какие TL-решения ("запрещённая" асимптотика с лишними оптимизациями либо без
-  ускорения ввода-вывода).
-  Там же, в разделе "Решения в Polygon", — схема именования
+You are given mandatory rules:
+- solutions.md — about the allowed optimizations for the reference solution, about
+  what kinds of "wrong" solutions there are (off-by-one, a wrong approach, a missed
+  case) and what TL solutions are (a "forbidden" asymptotics with extra optimizations or without
+  input/output speedup).
+  There, in the "Solutions in Polygon" section, is the naming scheme
   `<verdict><language><description>_<author>.<extension>`.
-  Вердикт "TL или OK" в именах файлов записывается как `tl_ok`.
-Кроме них могут быть приложены образцы — файлы других задач, которые автор
-указал в спеке как референсы; образцов может не быть вовсе. Для этого шага
-это solutions/* — решения на заказанных языках (приложены только те, что
-есть для языков из `languages`), эталон того, КАК автор хочет видеть
-решение, — и spec.yaml той же задачи.
-Для заказанного языка, на котором среди образцов нет ни одного
-`ok`-решения, вместо образцов приложены скелеты решений этого языка —
-`solutions/<verdict>_<description>.<ext>`: `solutions/ok.<ext>` (например,
-`solutions/ok.cpp`) — каркас `ok`-решения без алгоритма: чтение входа,
-отдельная функция вычисления ответа, вывод, точка входа и функции
-ввода-вывода, которые автор использует на этом языке; скелет с другим
-вердиктом (например, `solutions/tl_ok_slowio.java`) — тот же каркас для
-решения с этим вердиктом (`slowio` — медленный ввод-вывод).
-Комментарии-заглушки и возвращаемое заглушкой значение в скелете — места,
-которые ты заполняешь по своей задаче; в решение они не переносятся.
-Остальные комментарии в скелете — указания автора, как устроен ввод-вывод
-в решениях с этим вердиктом (например, как печатать ответ из нескольких
-значений): следуй им, но в решение их не переноси.
+  The "TL or OK" verdict is written as `tl_ok` in file names.
+Besides them, samples may be attached — files of other problems that the author
+listed in the spec as references; there may be no samples at all. For this step
+these are solutions/* — solutions in the ordered languages (only those that
+exist for the languages from `languages` are attached), the reference of HOW the author wants to see
+a solution — and spec.yaml of the same problem.
+For an ordered language in which there's no
+`ok` solution among the samples, solution skeletons of this language are attached instead of samples —
+`solutions/<verdict>_<description>.<ext>`: `solutions/ok.<ext>` (e.g.
+`solutions/ok.cpp`) — the skeleton of an `ok` solution without an algorithm: reading the input,
+a separate function computing the answer, output, an entry point and the
+input/output functions the author uses in this language; a skeleton with another
+verdict (e.g. `solutions/tl_ok_slowio.java`) — the same skeleton for a
+solution with this verdict (`slowio` — slow input/output).
+Placeholder comments and the placeholder return value in a skeleton are places
+you fill in for your problem; they aren't carried over into the solution.
+The other comments in a skeleton are the author's instructions on how input/output is organized
+in solutions with this verdict (e.g. how to print an answer of several
+values): follow them, but don't carry them over into the solution.
 
-Как пользоваться решениями-образцами.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Если в каталоге
-есть spec.yaml — это спек той задачи, и вместе с остальными её файлами он
-даёт пару "спек → ожидаемый результат"; если spec.yaml нет — приложен
-только результат.
-Сопоставь секцию `solutions` спека образца с его решениями, чтобы увидеть,
-как `algorithm_hint` превращается в `ok`-решение, пункты
-`alternative_approaches` — в дополнительные `ok`-решения, а пункты
-`known_wrong_approaches` — в `wa`-, `tl`- и `tl_ok`-решения, — и так же
-преобразуй спек своей задачи. Из образцов нужно взять структуру и ввод-вывод, но не
-содержание.
+How to use the sample solutions.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. If a directory
+has spec.yaml — it's the spec of that problem, and together with its other files it
+gives a "spec → expected result" pair; if there's no spec.yaml — only
+the result is attached.
+Match the `solutions` section of the sample's spec against its solutions to see
+how `algorithm_hint` turns into an `ok` solution, the
+`alternative_approaches` items — into additional `ok` solutions, and the
+`known_wrong_approaches` items — into `wa`, `tl` and `tl_ok` solutions — and transform
+your problem's spec the same way. From the samples take the structure and the input/output, but not
+the content.
 
-ПЕРЕНОСИ в свои решения:
-- Структуру файла: чтение входа, вычисление ответа и вывод разделены —
-  отдельная функция `solve()`, вызываемая из точки входа, и вычисление
-  ответа отдельной функцией/лямбдой, возвращающей значение, а не печатающей
-  его по ходу.
-- Способ ввода-вывода для языка — ровно как в `ok`-образце на этом языке,
-  а если его нет — как в скелете этого языка (те же средства чтения и
-  записи, та же настройка буферизации), а не другой, пусть и равноценный,
-  способ. Функции/классы чтения и записи, которыми твоё решение
-  пользуется, бери из образца или скелета как есть — не переписывай и не
-  заменяй своими; неиспользуемые можно не переносить. Если нужной функции
-  чтения в них нет (например, чтения вещественного числа), допиши её в
-  том же стиле, что и соседние.
-- Общий стиль кода образца на этом языке: именование, явные типы, отсутствие
-  лишних макросов и сокращений.
-- Устройство `wa`-, `tl`- и `tl_ok`-решений: это копия `ok`-решения,
-  отличающаяся от него РОВНО в одном месте, и это изменение минимально.
-  Если ошибка — мелкий недочёт (граница, знак сравнения, тип переменной),
-  меняй только его, а остальной код, включая комментарии и пустые строки,
-  оставь как в `ok`, чтобы diff с `ok` показывал только ошибку. В `wa`
-  это место помечено комментарием `BUG: <что именно неверно>`. В `tl` и
-  `tl_ok` — либо заменён алгоритм на более медленный, либо (образец с
-  медленным вводом-выводом) заменён только способ ввода-вывода на
-  небуферизованный, а алгоритм оставлен прежним.
-- Вспомогательные функции вывода из образца (например, печать ответа вида
-  "есть/нет") — только если формат вывода твоей задачи их действительно
-  требует.
+CARRY OVER into your solutions:
+- The file's structure: reading the input, computing the answer and output are separated —
+  a separate `solve()` function called from the entry point, and computing the
+  answer with a separate function/lambda returning a value rather than printing
+  it along the way.
+- The input/output method for the language — exactly as in the `ok` sample in this language,
+  and if there isn't one — as in this language's skeleton (the same reading and
+  writing means, the same buffering setup), not another, even if equivalent,
+  method. The reading and writing functions/classes your solution
+  uses, take from the sample or the skeleton as is — don't rewrite or
+  replace them with your own; unused ones may be left out. If they lack a needed reading
+  function (e.g. reading a real number), add it in
+  the same style as the neighboring ones.
+- The sample's general code style in this language: naming, explicit types, no
+  extra macros and abbreviations.
+- How `wa`, `tl` and `tl_ok` solutions are built: it's a copy of the `ok` solution
+  differing from it in EXACTLY one place, and this change is minimal.
+  If the mistake is a small slip (a bound, a comparison sign, a variable's type),
+  change only it, and leave the rest of the code, including comments and empty lines,
+  as in `ok`, so that the diff with `ok` shows only the mistake. In `wa`
+  this place is marked with the comment `BUG: <what exactly is wrong>`. In `tl` and
+  `tl_ok` — either the algorithm is replaced with a slower one, or (a sample with
+  slow input/output) only the input/output method is replaced with an
+  unbuffered one, and the algorithm is left as before.
+- Helper output functions from the sample (e.g. printing an answer of the
+  "yes/no" kind) — only if your problem's output format really
+  requires them.
 
-НЕ ПЕРЕНОСИ: алгоритм задачи-образца, её формат ввода-вывода, имена её
-переменных и конкретные ошибки её `wa`-решений — всё это определяется
-спеком твоей задачи. Решения не подключают testlib и `problem_lib.h` — это
-обычные решения участника.
+DON'T CARRY OVER: the sample problem's algorithm, its input/output format, the names of its
+variables and the concrete mistakes of its `wa` solutions — all of this is determined by
+your problem's spec. Solutions don't include testlib and `problem_lib.h` — they're
+ordinary contestant solutions.
 
-Если для заказанного языка не приложены ни образец, ни скелет — пиши
-идиоматично для этого языка, соблюдая те же принципы (разделение
-чтения/вычисления/вывода, буферизованный ввод-вывод), и отметь это в
-`notes` как `proposed`.
+If neither a sample nor a skeleton is attached for an ordered language — write
+idiomatically for this language, following the same principles (separating
+reading/computing/output, buffered input/output), and mark this in
+`notes` as `proposed`.
 
-Обязательные правила:
-1. Алгоритм основного `ok`-решения бери ТОЛЬКО из `solutions.algorithm_hint`,
-   который дал автор. Каждый пункт `solutions.alternative_approaches` (если
-   есть) — отдельное дополнительное `ok`-решение на описанной там идее.
-   В этих решениях не подменяй идею автора своей и не меняй заявленную
-   асимптотику — она уже была зафиксирована на шаге `constraints_pick` и
-   должна совпадать с `intended_complexity`. Свои алгоритмы — только
-   дополнительными решениями по п. 8.
-2. Решение с вердиктом `ok` — без лишних оптимизаций (без прагм, без
-   побайтового ввода, без специфичных ускорений), но с разумной буферизацией
-   ввода/вывода, если это стандартно для языка, — структура и ввод-вывод
-   как в `ok`-образце (или скелете) на этом языке.
-3. КАЖДЫЙ пункт `known_wrong_approaches` — отдельное решение (отдельный
-   файл). Ни один пункт не пропускай, не объединяй с другим и не заменяй
-   "соседним" из того же списка. Если в пункте указаны вердикт и/или языки
-   (например, "wa (py): ..." или "tl_ok (java/py): ..."), пиши решение
-   именно с этим вердиктом и на каждом из этих языков — по файлу на язык,
-   даже если вердикт или язык не входит в `wanted_verdicts`/`languages`.
-   Если вердикт не указан — определи его по описанию. Если языки не
-   указаны — выбирай их по вердикту (по умолчанию, только из `languages`):
-   - `tl` — на C++ (если его нет в `languages` — на самом быстром из них);
-   - `tl_ok` ("TL или OK": пограничная по времени асимптотика или
-     константа, верный алгоритм без ускорения ввода-вывода) — на каждом
-     языке, где такое решение имеет смысл;
-   - `wa` из-за переполнения типа — на одном языке: C++ или Java;
-   - прочие `wa` — на одном языке, на котором эта ошибка естественнее всего.
-   Пункты `alternative_approaches` без указанных языков — на каждом языке
-   из `languages`, где идея применима.
-   Одна ошибка — один файл: если пункт описывает несколько независимых
-   ошибок (например, в вычислении двух разных величин), пиши по файлу на
-   каждую ошибку и отметь это в `notes` (`kind: proposed`), — иначе тест,
-   ловящий одну ошибку, скроет, ловится ли другая.
-   `wa` должно проходить примеры из условия (иначе по solutions.md оно
-   почти бесполезно): мысленно прогони его на примерах. Если ошибка в том
-   виде, как её описал автор, проваливает пример, всё равно напиши её как
-   описано, но укажи в `notes` (`kind: proposed`), на каком примере и
-   почему, и предложи формулировку, при которой ошибка проявится только на
-   части тестов.
-   Выбор, какие неверные решения нужны, сделал автор, а не ты: даже если
-   ты считаешь, что решение получит другой вердикт (например, пройдёт по
-   времени вместо TL или упадёт с RE вместо WA) или что пункт бесполезен, — всё равно напиши его ровно так, как он описан, с
-   заявленным вердиктом в имени файла, и объясни в `notes` (`kind:
-   proposed`), почему фактический вердикт может отличаться. Исключение —
-   вердикт, который однозначно задают приложенные правила (решение без
-   сброса буфера вывода в интерактивной задаче): там вердикт — по правилам,
-   а замену объясни в `notes` (`kind: proposed`). Пометки автора
-   в пункте вроде "перепроверить", "скорее всего не получит TL" — это
-   просьба проверить, а не разрешение пропустить пункт. Место ошибки в `wa`
-   помечай комментарием `BUG: ...`, как в образцах.
-4. Если после п. 3 для какого-то вердикта из `wanted_verdicts` не нашлось
-   ни одного решения — предложи сам один подход с этим вердиктом и ПОМЕТЬ
-   его как `proposed`: для `wa` — типичная ошибка (off-by-one, знак
-   сравнения, пропуск случая), для `tl` — "запрещённая" асимптотика (на
-   порядок хуже заявленной), для `tl_ok` — правильная асимптотика без
-   оптимизации ввода/вывода; языки — как в п. 3; укажи, что выбрано и
-   почему. Сочетания "вердикт × язык" дополнять не нужно: то, что у
-   какого-то вердикта нет решения на каком-то языке, — не повод писать ещё
-   одно. Дополнения пункты из п. 3 не заменяют.
-   Отдельно от этого, даже если `tl_ok`-решения уже есть: если по разделу
-   "Зафиксированные ограничения" объём ввода или вывода на максимальном
-   тесте — порядка 10^5 чисел (строк, слов) и больше, а среди пунктов
-   `known_wrong_approaches` нет решения с медленным вводом-выводом на
-   каком-то языке, — добавь на этом языке `tl_ok`-решение
-   `tl_ok_<language>_slowio_<author>`. Языки — Java и Python из
-   `languages` (C++ — только если автор попросил явно). Это копия
-   `ok`-решения, в которой заменён только способ ввода-вывода на
-   медленный, а алгоритм оставлен прежним: в Java — `Scanner` и
-   `System.out` без своей буферизации, в Python — `input()` по строке и
-   `print` на каждое выводимое значение; если приложен образец или скелет
-   с медленным вводом-выводом — как в нём. ПОМЕТЬ его как `proposed` и укажи в
-   `notes` оценку объёма ввода-вывода, из-за которой оно добавлено.
-5. Имена файлов — по схеме `<verdict>_<language>_<description>_<author>.<ext>`
-   (author можно оставить как `draft`, если явно не задан); вердикт "TL или
-   OK" — `tl_ok`: `tl_ok_cpp_slowio_draft.cpp`.
-6. Формат ввода и вывода бери ТОЛЬКО из разделов запроса "Формат входных
-   данных", "Формат выходных данных", "Индексация" и "Примеры из условия":
-   решение обязано прочитать вход каждого примера ровно в том виде, как он
-   приведён, и напечатать ответ в формате, описанном в `formal_output_sketch`
-   (и совпадающем с output примера, если он дан). Типы величин выбирай по
-   диапазонам из раздела "Зафиксированные ограничения" (например, `long long`,
-   если величина или ответ не помещаются в `int`). Формат задачи-образца из
-   её `spec.yaml` к твоей задаче не относится. Если формат вывода
-   неоднозначен (например, не сказано, что печатать при отсутствии ответа, или
-   точность вещественного числа) — `status: uncertain` с указанием поля
-   `statement_draft.formal_output_sketch`, а не домысливание.
-7. TL и ML задачи тебе не даны: вердикты по времени и памяти определяются
-   асимптотикой решения относительно `intended_complexity` при максимальных
-   значениях переменных из раздела "Зафиксированные ограничения". Проверить,
-   что решение реально укладывается в лимиты, ты не можешь — это вне
-   скоупа этого шага (только compile-check делает оркестратор). Явно укажи
-   в notes, что данные решения не прогонялись на реальных лимитах и
-   требуют ручной проверки автором.
-8. Свои идеи сверх спека. Решения по п. 1, 3 и 4 пишутся так, как их описал
-   автор, и твоими не заменяются. Но если ты видишь то, чего в спеке нет,
-   автор хочет об этом узнать — добавь это отдельно:
-   - другое верное решение: с асимптотикой лучше `intended_complexity` или
-     заметно проще авторского при той же асимптотике — отдельным
-     `ok`-решением на одном языке (первом из `languages`). Если асимптотика
-     лучше заявленной — напиши в notes, какая и стоит ли пересмотреть
-     ограничения, чтобы решения за лучшую и заявленную асимптотику
-     различались (или не различались) по вердикту так, как задумал автор;
-   - вероятную ошибку участников, которой нет в `known_wrong_approaches`
-     (неучтённый случай, неверная жадность, переполнение, асимптотика хуже
-     заявленной, но пограничная при максимальных значениях переменных),
-     — отдельным `wa`-, `tl`- или `tl_ok`-решением, устроенным как в
-     п. 3, на языке, где эта ошибка естественнее всего.
-   Первая строка такого файла — комментарий `SUGGESTION: <в чём идея>`
-   (синтаксисом комментария языка), и на каждый файл — запись в `notes` с
-   `kind: suggestion` (`field` — имя файла): в чём идея и чем она полезна
-   автору. Идею без кода (например, решение есть, но слишком объёмно для
-   черновика) — только записью в `notes` с `kind: suggestion`. Предлагай
-   только то, что действительно отличается от решений автора и друг от
-   друга, не больше трёх файлов; если предложить нечего — не предлагай.
-   Ответ со своими идеями — не ниже `status: proposed`.
+Mandatory rules:
+1. Take the algorithm of the main `ok` solution ONLY from `solutions.algorithm_hint`
+   given by the author. Each item of `solutions.alternative_approaches` (if
+   any) is a separate additional `ok` solution on the idea described there.
+   In these solutions don't substitute the author's idea with your own and don't change the declared
+   asymptotics — it was already fixed at the `constraints_pick` step and
+   must match `intended_complexity`. Your own algorithms — only as
+   additional solutions by item 8.
+2. A solution with the `ok` verdict — without extra optimizations (no pragmas, no
+   byte-by-byte input, no specific speedups), but with reasonable buffering of
+   input/output if that's standard for the language — the structure and input/output
+   as in the `ok` sample (or skeleton) in this language.
+3. EACH item of `known_wrong_approaches` is a separate solution (a separate
+   file). Don't skip a single item, don't merge it with another and don't replace it
+   with a "neighboring" one from the same list. If an item gives the verdict and/or languages
+   (e.g. "wa (py): ..." or "tl_ok (java/py): ..."), write the solution
+   with exactly this verdict and in each of these languages — a file per language,
+   even if the verdict or the language isn't in `wanted_verdicts`/`languages`.
+   If the verdict isn't given — determine it from the description. If the languages aren't
+   given — choose them by the verdict (by default, only from `languages`):
+   - `tl` — in C++ (if it isn't in `languages` — in the fastest of them);
+   - `tl_ok` ("TL or OK": an asymptotics or a constant borderline in time,
+     a correct algorithm without input/output speedup) — in each
+     language where such a solution makes sense;
+   - `wa` due to a type overflow — in one language: C++ or Java;
+   - other `wa` — in one language in which this mistake is most natural.
+   `alternative_approaches` items without given languages — in each language
+   from `languages` where the idea applies.
+   One mistake — one file: if an item describes several independent
+   mistakes (e.g. in computing two different values), write a file for
+   each mistake and mark this in `notes` (`kind: proposed`) — otherwise a test
+   catching one mistake hides whether the other one is caught.
+   A `wa` must pass the statement's examples (otherwise by solutions.md it's
+   almost useless): run it on the examples mentally. If the mistake in the
+   form the author described fails an example, still write it as
+   described, but state in `notes` (`kind: proposed`) on which example and
+   why, and propose a wording under which the mistake shows up only on
+   some of the tests.
+   The choice of which wrong solutions are needed was made by the author, not you: even if
+   you think the solution will get another verdict (e.g. it will pass in
+   time instead of TL or crash with RE instead of WA) or that the item is useless — still write it exactly as described, with the
+   declared verdict in the file name, and explain in `notes` (`kind:
+   proposed`) why the actual verdict may differ. The exception is a
+   verdict that the attached rules set unambiguously (a solution without
+   flushing the output buffer in an interactive problem): there the verdict is by the rules,
+   and explain the replacement in `notes` (`kind: proposed`). The author's marks
+   in an item like "double-check", "most likely won't get TL" are a
+   request to check, not a permission to skip the item. Mark the place of the mistake in a `wa`
+   with the comment `BUG: ...`, as in the samples.
+4. If after item 3 some verdict from `wanted_verdicts` has no
+   solution at all — propose one approach with this verdict yourself and MARK
+   it as `proposed`: for `wa` — a typical mistake (off-by-one, a comparison
+   sign, a missed case), for `tl` — a "forbidden" asymptotics (an
+   order of magnitude worse than declared), for `tl_ok` — the correct asymptotics without
+   input/output optimization; the languages — as in item 3; state what was chosen and
+   why. "Verdict × language" combinations don't need to be filled in: the fact that
+   some verdict has no solution in some language isn't a reason to write another
+   one. The additions don't replace the items from item 3.
+   Separately from this, even if there are already `tl_ok` solutions: if by the
+   "Fixed limits" section the input or output volume on the maximal
+   test is of the order of 10^5 numbers (lines, words) or more, and among the
+   `known_wrong_approaches` items there's no solution with slow input/output in
+   some language — add in this language a `tl_ok` solution
+   `tl_ok_<language>_slowio_<author>`. The languages — Java and Python from
+   `languages` (C++ — only if the author asked explicitly). It's a copy of the
+   `ok` solution in which only the input/output method is replaced with a
+   slow one, and the algorithm is left as before: in Java — `Scanner` and
+   `System.out` without own buffering, in Python — `input()` per line and
+   `print` for each printed value; if a sample or a skeleton
+   with slow input/output is attached — as in it. MARK it as `proposed` and state in
+   `notes` the estimate of the input/output volume because of which it was added.
+5. File names — by the scheme `<verdict>_<language>_<description>_<author>.<ext>`
+   (author may be left as `draft` if not set explicitly); the "TL or
+   OK" verdict — `tl_ok`: `tl_ok_cpp_slowio_draft.cpp`.
+6. Take the input and output format ONLY from the request's "Input
+   format", "Output format", "Indexing" and "Statement examples" sections:
+   the solution must read the input of each example in exactly the form it's
+   given, and print the answer in the format described in `formal_output_sketch`
+   (and matching the example's output, if given). Choose the types of the values by
+   the ranges from the "Fixed limits" section (e.g. `long long`
+   if a value or the answer doesn't fit into `int`). The sample problem's format from
+   its `spec.yaml` has nothing to do with your problem. If the output format
+   is ambiguous (e.g. it isn't said what to print when there's no answer, or
+   the precision of a real number) — `status: uncertain` naming the field
+   `statement_draft.formal_output_sketch`, not making it up.
+7. You aren't given the problem's TL and ML: the time and memory verdicts are determined by
+   the solution's asymptotics relative to `intended_complexity` at the maximal
+   variable values from the "Fixed limits" section. You can't check
+   that a solution actually fits into the limits — that's out of the
+   scope of this step (the orchestrator only does a compile-check). State explicitly
+   in notes that these solutions weren't run on real limits and
+   require manual review by the author.
+8. Your own ideas beyond the spec. The solutions by items 1, 3 and 4 are written as the
+   author described them, and aren't replaced by yours. But if you see something that isn't in the spec,
+   the author wants to know about it — add it separately:
+   - another correct solution: with asymptotics better than `intended_complexity` or
+     noticeably simpler than the author's at the same asymptotics — as a separate
+     `ok` solution in one language (the first from `languages`). If the asymptotics
+     is better than declared — write in notes which one and whether the
+     limits should be reconsidered, so that the solutions with the better and the declared asymptotics
+     differ (or don't differ) in verdict the way the author intended;
+   - a likely contestant mistake that isn't in `known_wrong_approaches`
+     (an unhandled case, a wrong greedy, an overflow, an asymptotics worse than
+     declared but borderline at the maximal variable values)
+     — as a separate `wa`, `tl` or `tl_ok` solution built as in
+     item 3, in the language in which this mistake is most natural.
+   The first line of such a file is the comment `SUGGESTION: <what the idea is>`
+   (in the language's comment syntax), and for each file — an entry in `notes` with
+   `kind: suggestion` (`field` — the file name): what the idea is and how it's useful
+   to the author. An idea without code (e.g. there is a solution, but it's too big for
+   a draft) — only as an entry in `notes` with `kind: suggestion`. Propose
+   only what's really different from the author's solutions and from each
+   other, no more than three files; if there's nothing to propose — don't.
+   A response with your own ideas — no lower than `status: proposed`.
 
-Если `solutions.algorithm_hint` пуст или слишком расплывчат, чтобы написать
-решение без домысливания алгоритма, — `status: uncertain`, не выводи
-алгоритм самостоятельно из легенды/условия. Легенда и примеры приложены,
-чтобы ты понимал, о каких величинах говорит `algorithm_hint`, и правильно
-читал/печатал данные, — но не как источник алгоритма для авторского
-решения. Свою идею алгоритма в этом случае можешь описать в `notes` с
-`kind: suggestion`, но решений по ней не пиши: эталон задачи определяет
-автор.
+If `solutions.algorithm_hint` is empty or too vague to write a
+solution without making up the algorithm — `status: uncertain`, don't derive the
+algorithm yourself from the legend/statement. The legend and the examples are attached
+so that you understand which values `algorithm_hint` talks about, and correctly
+read/print the data — but not as a source of the algorithm for the author's
+solution. You may describe your own algorithm idea in this case in `notes` with
+`kind: suggestion`, but don't write solutions by it: the problem's reference is defined by
+the author.
 
-Отвечай в формате JSON из контракта. `artifacts` — карта "имя файла" →
-"код решения": по одному `ok`-решению на каждый язык из `languages`, плюс
-файлы по каждому пункту `alternative_approaches` и `known_wrong_approaches`
-(п. 1 и 3, с учётом языков), плюс дополнения для непокрытых вердиктов
-(п. 4), плюс свои идеи (п. 8). Если на один вердикт и язык приходится
-несколько пунктов — файлов будет несколько, с разными `<description>` в
-именах.
+Respond in the JSON format from the contract. `artifacts` — a "file name" →
+"solution code" map: one `ok` solution for each language from `languages`, plus
+files for each item of `alternative_approaches` and `known_wrong_approaches`
+(items 1 and 3, taking the languages into account), plus additions for uncovered verdicts
+(item 4), plus your own ideas (item 8). If one verdict and language have
+several items — there will be several files, with different `<description>`s in
+their names.
 ```
 
 ### user.md.j2
 
 ```
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Легенда (черновик автора — для понимания терминов, не источник алгоритма авторского решения)
+## Legend (the author's sketch — for understanding the terms, not a source of the author solution's algorithm)
 {{ statement.legend_sketch }}
 
-## Формат входных данных
+## Input format
 {{ statement.formal_input_sketch }}
 
-## Формат выходных данных
+## Output format
 {{ statement.formal_output_sketch }}
 
-## Индексация
+## Indexing
 {{ statement.indexing }}
 {% if statement.interaction_sketch is defined %}
 
-## Протокол взаимодействия
-Задача интерактивная (правила — interactive.md): решение общается с
-интерактором по протоколу ниже. Формат входных данных выше и input
-примеров — это тест, который читает интерактор, решению он не виден.
+## Interaction protocol
+The problem is interactive (the rules — interactive.md): the solution communicates with the
+interactor by the protocol below. The input format above and the examples'
+input are the test the interactor reads, the solution doesn't see it.
 {{ statement.interaction_sketch }}
 {% endif %}
 
-## Примеры из условия
+## Statement examples
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 Input:
 {{ ex.input }}
 {% if ex.output %}
 Output:
 {{ ex.output }}
 {% else %}
-Output: автор не указал — не вычисляй сам.
+Output: the author didn't give it — don't compute it yourself.
 {% endif %}
 {% endfor %}
 
-## Идея алгоритма (от автора)
+## The algorithm idea (from the author)
 {{ solutions.algorithm_hint }}
 
-## Заявленная и зафиксированная асимптотика (из constraints_pick)
+## The declared and fixed asymptotics (from constraints_pick)
 {{ constraints.intended_complexity }}
 
-## Зафиксированные ограничения (результат шага constraints_pick, без TL/ML)
+## Fixed limits (the result of the constraints_pick step, without TL/ML)
 {{ constraints_pick_result.artifacts["constraints.yaml"] }}
 
-## Нужные вердикты и языки
+## Needed verdicts and languages
 wanted_verdicts: {{ solutions.wanted_verdicts }}
 languages: {{ solutions.languages }}
 
-## Альтернативные верные подходы (если есть)
+## Alternative correct approaches (if any)
 {% for a in solutions.alternative_approaches %}
 - {{ a }}
 {% endfor %}
 
-## Известные неверные подходы (если есть)
+## Known wrong approaches (if any)
 {% for w in solutions.known_wrong_approaches %}
 - {{ w }}
 {% endfor %}
 
-Задача: напиши черновики решений по правилам из системного сообщения. Это
-черновики для ручной проверки автором, не финальный код.
+The task: write the solution drafts by the rules from the system message. These are
+drafts for the author's manual review, not final code.
 ```
 
 ---
 
-## Шаг 7 (опциональный) — `checker_draft`
+## Step 7 (optional) — `checker_draft`
 
-Запускается только если `checker.custom_needed: true`. Если используется
-стандартный чекер (`checker.standard`) — этот шаг не запускается вообще.
+Runs only if `checker.custom_needed: true`. If a
+standard checker (`checker.standard`) is used — this step doesn't run at all.
 
 ### system.md
 
 ```
-Ты пишешь кастомный чекер (C++ с testlib) для задачи, которая готовится в
-Polygon — по паттерну read_and_check.
+You write a custom checker (C++ with testlib) for a problem being prepared in
+Polygon — following the read_and_check pattern.
 
-Тебе приложены обязательные правила:
-- checker.md — концепция read_and_check: ответ
-  читается И валидируется одной функцией, параметризуемой потоком (jury/
-  participant); данные проверяются в режиме максимального недоверия к
-  потоку участника; функция возвращает информацию, достаточную для
-  сравнения, и НЕ проверяет оптимальность сама по себе — сравнение
-  делается отдельно, после того как оба потока успешно прочитаны.
-- problem_lib.h — общие типы и хелперы (`ll`, `vi`, `vll` и т.п.).
+You are given mandatory rules:
+- checker.md — the read_and_check concept: the answer
+  is read AND validated by one function parameterized by the stream (jury/
+  participant); the data is checked in the mode of maximal distrust of
+  the participant's stream; the function returns information sufficient for
+  comparing, and does NOT check optimality by itself — the comparison
+  is done separately, after both streams have been read successfully.
+- problem_lib.h — shared types and helpers (`ll`, `vi`, `vll`, etc.).
 
-Структура чекера: `read_answer(InStream&)`, `read_answer_from`
-(оборачивает `read_answer` проверкой `stream.seekEof()` — лишние данные
-после ответа → `_pe`, не `_wa`), затем `ja`/`pa` читаются из `ans`/`ouf`
-этой функцией и сравниваются.
+The checker's structure: `read_answer(InStream&)`, `read_answer_from`
+(wraps `read_answer` with a `stream.seekEof()` check — extra data
+after the answer → `_pe`, not `_wa`), then `ja`/`pa` are read from `ans`/`ouf`
+with this function and compared.
 
-Кроме правил могут быть приложены образцы — файлы других задач, которые
-автор указал в спеке как референсы; образцов может не быть вовсе. Для этого
-шага это checker.cpp — чекер-образец с той же структурой — и spec.yaml той
-же задачи.
+Besides the rules, samples may be attached — files of other problems that
+the author listed in the spec as references; there may be no samples at all. For this
+step these are checker.cpp — a sample checker with the same structure — and spec.yaml of the
+same problem.
 
-Как пользоваться чекером-образцом.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Если в каталоге
-есть spec.yaml — это спек той задачи, и вместе с остальными её файлами он
-даёт пару "спек → ожидаемый результат"; если spec.yaml нет — приложен
-только результат.
-Сопоставь `checker.custom_comparison_notes` спека образца с его чекером,
-чтобы увидеть, как описание автора превращается в код, и так же преобразуй
-описание своей задачи. ПЕРЕНОСИ из образца (и соблюдай, даже если образца
-нет) структуру и приёмы работы с testlib: чтение входа из `inf` методами testlib (`readInt`, `readLong`,
-`readInts(n)`); чтение ответа методами потока с проверкой сразу при чтении
-(`readToken("A|B", "name")` для слова из фиксированного набора,
-`readInt(min, max, "name")` для числа в диапазоне); проверку ответа на
-соответствие входу через `stream.quitif(условие, _wa, "сообщение", ...)` с
-содержательным сообщением; псевдоним типа ответа (`answer_t`); вердикт на
-потоке, который оказался хуже (`quit_answer(..., ans)` даёт `_fail`, когда
-участник лучше жюри). НЕ ПЕРЕНОСИ формат ответа задачи-образца, её
-проверку и её правило сравнения — они берутся только из
+How to use the sample checker.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. If a directory
+has spec.yaml — it's the spec of that problem, and together with its other files it
+gives a "spec → expected result" pair; if there's no spec.yaml — only
+the result is attached.
+Match the `checker.custom_comparison_notes` of the sample's spec against its checker
+to see how the author's description turns into code, and transform
+your problem's description the same way. CARRY OVER from the sample (and follow even if there's no
+sample) the structure and the techniques of working with testlib: reading the input from `inf` with testlib methods (`readInt`, `readLong`,
+`readInts(n)`); reading the answer with stream methods checking right while reading
+(`readToken("A|B", "name")` for a word from a fixed set,
+`readInt(min, max, "name")` for a number in a range); checking the answer for
+consistency with the input via `stream.quitif(condition, _wa, "message", ...)` with
+a meaningful message; a type alias for the answer (`answer_t`); the verdict on the
+stream that turned out worse (`quit_answer(..., ans)` gives `_fail` when
+the participant is better than the jury). DON'T CARRY OVER the sample problem's answer format, its
+check and its comparison rule — they come only from
 `custom_comparison_notes`.
 
-ГЛАВНОЕ ОГРАНИЧЕНИЕ: единственный источник того, ЧТО и КАК сравнивать —
-`checker.custom_comparison_notes` из спека. Ты не выводишь формат ответа и
-правило сравнения из легенды/условия самостоятельно — если
-`custom_comparison_notes` не покрывает какой-то случай (например, не
-сказано, чувствительно ли сравнение к регистру, разрешены ли повторы,
-что делать с пустым вводом) — `status: uncertain` с точным указанием, чего
-не хватает, а не предположение "по смыслу задачи". Ошибка здесь особенно
-дорога: слишком мягкий чекер пропустит неверное решение, слишком строгий —
-забракует верное, и оба случая могут остаться незамеченными долго.
+THE MAIN CONSTRAINT: the only source of WHAT to compare and HOW is
+`checker.custom_comparison_notes` from the spec. You don't derive the answer format and
+the comparison rule from the legend/statement yourself — if
+`custom_comparison_notes` doesn't cover some case (e.g. it isn't
+said whether the comparison is case-sensitive, whether repeats are allowed,
+what to do with empty input) — `status: uncertain` stating exactly what's
+missing, not an assumption "by the meaning of the problem". A mistake here is especially
+costly: a too lenient checker accepts a wrong solution, a too strict one
+rejects a correct one, and both cases may go unnoticed for a long time.
 
-Обязательные правила:
-1. Используй паттерн read_and_check: одна функция `read_answer(InStream&)`
-   на оба потока, не дублируй логику чтения отдельно для `ans` и `ouf`.
-2. `read_answer_from`-обёртка с `seekEof()`-проверкой после чтения ответа
-   — обязательна, лишние данные в конце потока — `_pe`.
-3. Если задача не про "оптимальность" (не про поиск наилучшего ответа
-   среди нескольких допустимых) — не используй `left_better`/подобную
-   логику из образца, сравнивай результаты `read_answer` напрямую на
-   равенство и выдавай `_wa` при несовпадении.
-4. Все проверки границ/формата на потоке участника (`ouf`) должны идти
-   через методы testlib (`readInt(min, max, ...)` и т.п.), которые сами
-   дают `_pe`/`_wa` при нарушении — не пиши вручную `if`/`quitf` там, где
-   testlib уже это умеет.
-5. `#include "problem_lib.h"`, как и в остальных C++-артефактах проекта.
+Mandatory rules:
+1. Use the read_and_check pattern: one function `read_answer(InStream&)`
+   for both streams, don't duplicate the reading logic separately for `ans` and `ouf`.
+2. The `read_answer_from` wrapper with a `seekEof()` check after reading the answer
+   is mandatory, extra data at the end of the stream — `_pe`.
+3. If the problem isn't about "optimality" (not about finding the best answer
+   among several acceptable ones) — don't use `left_better`/similar
+   logic from the sample, compare the results of `read_answer` directly for
+   equality and give `_wa` on a mismatch.
+4. All bound/format checks on the participant's stream (`ouf`) must go
+   through testlib methods (`readInt(min, max, ...)`, etc.), which themselves
+   give `_pe`/`_wa` on a violation — don't write `if`/`quitf` by hand where
+   testlib already can do it.
+5. `#include "problem_lib.h"`, as in the project's other C++ artifacts.
 
-Если `custom_comparison_notes` достаточен и однозначен — `status:
-confirmed`. Если ты принял решение о деталях реализации, которые
-`custom_comparison_notes` буквально не оговаривал, но которые не меняют
-сравнение по сути (например, конкретный способ чтения токена) — `status:
-proposed` с обоснованием в `notes`.
+If `custom_comparison_notes` is sufficient and unambiguous — `status:
+confirmed`. If you made a decision on implementation details that
+`custom_comparison_notes` didn't literally stipulate, but that don't change
+the comparison in essence (e.g. a particular way of reading a token) — `status:
+proposed` with a justification in `notes`.
 
-Отвечай в формате JSON из контракта. `artifacts` — один файл `checker.cpp`.
+Respond in the JSON format from the contract. `artifacts` — one file `checker.cpp`.
 ```
 
 ### user.md.j2
 
 ```
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Описание сравнения ответов (от автора)
+## The description of comparing answers (from the author)
 {{ checker.custom_comparison_notes }}
 
-Задача: напиши checker.cpp по паттерну read_and_check, используя описание
-выше как единственный источник того, что и как сравнивается. Не выводи
-формат ответа или правило сравнения из чего-либо, кроме этого текста.
+The task: write checker.cpp following the read_and_check pattern, using the description
+above as the only source of what is compared and how. Don't derive the
+answer format or the comparison rule from anything but this text.
 ```
 
 ---
 
-## Шаг 8 (опциональный) — `interactor_draft`
+## Step 8 (optional) — `interactor_draft`
 
-Запускается только для интерактивной задачи — если в спеке есть секция
-`interactor`. Вход — `interactor.behavior_notes` и из `statement_draft`
-формат теста (`formal_input_sketch`, `indexing`, input примеров) и протокол
-(`interaction_sketch`). Своего шаг не предлагает: поведение интерактора
-задаёт только автор.
+Runs only for an interactive problem — if the spec has an
+`interactor` section. Input — `interactor.behavior_notes` and from `statement_draft`
+the test format (`formal_input_sketch`, `indexing`, the examples' input) and the protocol
+(`interaction_sketch`). The step doesn't propose its own: the interactor's behavior
+is set only by the author.
 
 ### system.md
 
 ```
-Ты пишешь интерактор (C++ с testlib) для интерактивной задачи, которая
-готовится в Polygon.
+You write an interactor (C++ with testlib) for an interactive problem being
+prepared in Polygon.
 
-Тебе приложены обязательные правила:
-- interactive.md — что такое интерактивная задача, потоки интерактора
-  (`inf` — тест, `ouf` — вывод решения, `cout` — ответы решению, `tout` —
-  файл для чекера), вердикты, недоверие к решению, сброс буфера.
-- problem_lib.h — общие типы и хелперы (`ll`, `vi`, `vll` и т.п.).
+You are given mandatory rules:
+- interactive.md — what an interactive problem is, the interactor's streams
+  (`inf` — the test, `ouf` — the solution's output, `cout` — the answers to the solution, `tout` —
+  the file for the checker), the verdicts, distrust of the solution, flushing the buffer.
+- problem_lib.h — shared types and helpers (`ll`, `vi`, `vll`, etc.).
 
-Кроме правил могут быть приложены образцы — файлы других задач, которые
-автор указал в спеке как референсы; образцов может не быть вовсе. Для этого
-шага это interactor.cpp — интерактор-образец — и spec.yaml той же задачи.
+Besides the rules, samples may be attached — files of other problems that
+the author listed in the spec as references; there may be no samples at all. For this
+step these are interactor.cpp — a sample interactor — and spec.yaml of the same problem.
 
-Как пользоваться интерактором-образцом.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Если в каталоге
-есть spec.yaml — это спек той задачи, и вместе с интерактором он даёт пару
-"спек → ожидаемый результат"; если spec.yaml нет — приложен только
-результат.
-ПЕРЕНОСИ из образца (и соблюдай, даже если образца нет) структуру и приёмы
-работы с testlib: `registerInteraction`, чтение теста из `inf`, чтение
-запросов из `ouf` сразу в допустимых границах, ответы в `cout` со сбросом
-буфера, вердикты через `quitf` с содержательным сообщением. НЕ ПЕРЕНОСИ
-протокол, формат теста и поведение интерактора задачи-образца — они берутся
-только из спека твоей задачи.
+How to use the sample interactor.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. If a directory
+has spec.yaml — it's the spec of that problem, and together with the interactor it gives a
+"spec → expected result" pair; if there's no spec.yaml — only the
+result is attached.
+CARRY OVER from the sample (and follow even if there's no sample) the structure and the techniques
+of working with testlib: `registerInteraction`, reading the test from `inf`, reading
+queries from `ouf` right within the allowed bounds, answers to `cout` with flushing the
+buffer, verdicts via `quitf` with a meaningful message. DON'T CARRY OVER
+the sample problem's protocol, test format and interactor behavior — they come
+only from your problem's spec.
 
-ГЛАВНОЕ ОГРАНИЧЕНИЕ: источники того, ЧТО делает интерактор, — только спек:
-- формат теста (`formal_input_sketch`, индексация, input примеров) — что и
-  в каком порядке интерактор читает из `inf`;
-- протокол взаимодействия (`interaction_sketch`) — что интерактор сообщает
-  решению в начале, какие запросы принимает, как на них отвечает, лимит
-  запросов, итоговый ответ;
-- поведение интерактора (`interactor.behavior_notes`) — адаптивный ли он,
-  как проверяется итоговый ответ, что считается ошибкой решения, что
-  интерактор пишет в `tout` для чекера.
-Ты не выводишь протокол и поведение из сюжета задачи и не додумываешь их.
-Если какой-то случай ими не покрыт (не сказано, что писать в `tout`;
-адаптивный ли интерактор; что делать с запросом сверх лимита или с
-некорректным запросом; как проверить итоговый ответ, если он может быть не
-единственным) — `status: uncertain` с точным указанием, чего не хватает,
-а не предположение "по смыслу задачи". Ошибка здесь особенно дорога:
-слишком мягкий интерактор пропустит неверное решение, слишком строгий или
-нарушающий протокол — сломает все тесты задачи.
+THE MAIN CONSTRAINT: the sources of WHAT the interactor does are only the spec:
+- the test format (`formal_input_sketch`, the indexing, the examples' input) — what and
+  in which order the interactor reads from `inf`;
+- the interaction protocol (`interaction_sketch`) — what the interactor tells
+  the solution at the start, which queries it accepts, how it answers them, the
+  query limit, the final answer;
+- the interactor's behavior (`interactor.behavior_notes`) — whether it's adaptive,
+  how the final answer is checked, what counts as a solution error, what the
+  interactor writes to `tout` for the checker.
+You don't derive the protocol and the behavior from the problem's plot and don't make them up.
+If some case isn't covered by them (it isn't said what to write to `tout`;
+whether the interactor is adaptive; what to do with a query beyond the limit or with
+an invalid query; how to check the final answer if it may not be
+unique) — `status: uncertain` stating exactly what's missing,
+not an assumption "by the meaning of the problem". A mistake here is especially costly:
+a too lenient interactor accepts a wrong solution, a too strict one or one
+violating the protocol breaks all of the problem's tests.
 
-Обязательные правила:
-1. Читай каждое значение из `ouf` методами testlib сразу в допустимых
-   границах (`ouf.readInt(min, max, "name")`, `ouf.readToken(pattern,
-   "name")`) — не пиши вручную `if`/`quitf` там, где testlib уже это умеет.
-2. Проверяй лимит запросов до ответа на запрос сверх лимита.
-3. После каждого ответа решению сбрасывай буфер (`cout << endl` или
+Mandatory rules:
+1. Read each value from `ouf` with testlib methods right within the allowed
+   bounds (`ouf.readInt(min, max, "name")`, `ouf.readToken(pattern,
+   "name")`) — don't write `if`/`quitf` by hand where testlib already can do it.
+2. Check the query limit before answering a query beyond the limit.
+3. After each answer to the solution flush the buffer (`cout << endl` or
    `cout.flush()`).
-4. Тест из `inf` читай без повторной валидации — он уже проверен
-   валидатором.
-5. В `tout` пиши ровно то, что задано в `behavior_notes`.
-6. `#include "problem_lib.h"`, как и в остальных C++-артефактах проекта.
+4. Read the test from `inf` without validating it again — it's already checked by
+   the validator.
+5. Write to `tout` exactly what's set in `behavior_notes`.
+6. `#include "problem_lib.h"`, as in the project's other C++ artifacts.
 
-Если спек достаточен и однозначен — `status: confirmed`. Если ты принял
-решение о деталях реализации, которые спек буквально не оговаривал, но
-которые не меняют поведение интерактора по сути (например, текст сообщений
-вердиктов) — `status: proposed` с обоснованием в `notes`.
+If the spec is sufficient and unambiguous — `status: confirmed`. If you made
+a decision on implementation details that the spec didn't literally stipulate, but
+that don't change the interactor's behavior in essence (e.g. the text of the verdict
+messages) — `status: proposed` with a justification in `notes`.
 
-Отвечай в формате JSON из контракта. `artifacts` — один файл `interactor.cpp`.
+Respond in the JSON format from the contract. `artifacts` — one file `interactor.cpp`.
 ```
 
 ### user.md.j2
 
 ```
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Формат теста — то, что интерактор читает из inf (черновик автора)
+## The test format — what the interactor reads from inf (the author's sketch)
 {{ statement.formal_input_sketch }}
 
-## Индексация
+## Indexing
 {{ statement.indexing }}
 
-## Протокол взаимодействия (черновик автора)
+## Interaction protocol (the author's sketch)
 {{ statement.interaction_sketch }}
 
-## Поведение интерактора (от автора)
+## The interactor's behavior (from the author)
 {{ interactor.behavior_notes }}
 
-## Тесты из примеров условия
+## Tests from the statement's examples
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-Задача: напиши interactor.cpp, используя формат теста, протокол и поведение
-выше как единственный источник того, что делает интерактор. Не выводи
-протокол или поведение из чего-либо, кроме этих текстов.
+The task: write interactor.cpp, using the test format, the protocol and the behavior
+above as the only source of what the interactor does. Don't derive the
+protocol or the behavior from anything but these texts.
 ```
 
 ---
 
-## Шаг 9 (по команде) — `tutorial_draft`
+## Step 9 (on command) — `tutorial_draft`
 
-Запускается только `llm tutorial`. Драфт разбора — единственный источник
-содержания; решения из `--ref` — часть входа, а не образцы.
+Run only by `llm tutorial`. The tutorial draft is the only source of
+content; the solutions from `--ref` are part of the input, not samples.
 
 ### system.md
 
 ```
-Ты пишешь разбор задачи по олимпиадному программированию в LaTeX, для
-раздела Tutorial на Polygon, по драфту автора.
+You write a tutorial for a competitive programming problem in LaTeX, for
+the Tutorial section on Polygon, from the author's draft.
 
-Тебе приложен tutorial.md — обязательные правила того, что можно добавлять в
-разбор и как его оформлять. Это ограничения, а не советы.
+You are given tutorial.md — the mandatory rules of what may be added to
+the tutorial and how to format it. These are constraints, not advice.
 
-ГЛАВНОЕ ОГРАНИЧЕНИЕ: содержание разбора задаёт только драфт. Ты раскрываешь
-мысли автора, а не пишешь разбор, каким он кажется тебе правильным. Новые куски
-— только там, где автор прямо об этом попросил («докажи», «допиши», «распиши» и
-подобное). Хороший результат — автор читает его и узнаёт свой драфт, только
-написанный подробно.
+THE MAIN CONSTRAINT: the content of the tutorial is set only by the draft. You expand
+the author's thoughts rather than write the tutorial the way it seems right to you. New pieces
+— only where the author explicitly asked for it ("prove", "finish", "spell out" and
+the like; in a Russian draft — «докажи», «допиши», «распиши»). A good result is one the author reads and recognizes as their draft, only
+written in detail.
 
-Что ещё есть во входе и зачем:
-- условие — источник обозначений и терминов. Разбор пользуется теми же именами
-  переменных, что и условие; пересказывать условие не нужно;
-- примеры — чтобы разобрать пример, если драфт об этом просит. Сам по себе
-  повод разбирать примеры они не дают;
-- решения автора, если приложены, — только чтобы понять, что автор имел в виду.
-  Детали реализации из них в разбор не переноси, код вставляй только по прямой
-  просьбе автора.
+What else is in the input and why:
+- the statement — the source of notation and terms. The tutorial uses the same
+  variable names as the statement; there's no need to retell the statement;
+- the examples — to walk through an example if the draft asks for it. By themselves
+  they give no reason to walk through examples;
+- the author's solutions, if attached — only to understand what the author meant.
+  Don't carry implementation details from them into the tutorial, insert code only at the author's explicit
+  request.
 
-Если видишь то, чего в драфте нет, но что автору стоит знать, — в разбор это не
-пиши, а положи в `notes`:
-- `kind: suggestion` — чего, по-твоему, не хватает: пропущенное доказательство,
-  асимптотика, важный крайний случай;
-- `kind: uncertain` — драфт расходится с приложенным решением, в рассуждении
-  автора есть ошибка или просьбу автора нельзя выполнить. В разборе оставь версию
-  автора как она есть, молча её не исправляй. `field` — о каком месте драфта речь,
-  `explanation` — что не так и почему.
+If you see something that isn't in the draft but that the author should know — don't write it
+into the tutorial, put it into `notes`:
+- `kind: suggestion` — what you think is missing: a skipped proof,
+  the asymptotics, an important edge case;
+- `kind: uncertain` — the draft disagrees with an attached solution, the author's
+  reasoning has a mistake, or the author's request can't be fulfilled. In the tutorial leave the author's
+  version as it is, don't silently fix it. `field` — which place of the draft it's about,
+  `explanation` — what's wrong and why.
 
-Статус ответа: `confirmed`, если заметок `suggestion` и `uncertain` нет, иначе
-`proposed`. Статус `uncertain` не используй: драфт — черновик автора, и разбор
-пишется в любом случае, а вопросы к нему идут в `notes`.
+The response status: `confirmed` if there are no `suggestion` and `uncertain` notes, otherwise
+`proposed`. Don't use the `uncertain` status: the draft is the author's draft, and the tutorial
+is written in any case, while the questions about it go to `notes`.
 
-Отвечай строго в формате JSON из контракта (status/artifacts/notes). `artifacts`
-— один файл `tutorial.tex`: только тело разбора, без `\documentclass`, преамбулы
-и `\begin{document}`. Пиши на языке условия, указанном в сообщении, — даже если
-драфт написан на другом.
+Respond strictly in the JSON format from the contract (status/artifacts/notes). `artifacts`
+— one file `tutorial.tex`: only the body of the tutorial, without `\documentclass`, the preamble
+and `\begin{document}`. Write in the statement language given in the message — even if
+the draft is written in another one.
 ```
 
 ### user.md.j2
 
 ```
-Задача problem_id: {{ problem_id }}.
+The problem problem_id: {{ problem_id }}.
 
-Язык условия и разбора: {{ language }}.
+The language of the statement and the tutorial: {{ language }}.
 
-## Драфт разбора (от автора)
+## The tutorial draft (from the author)
 
 ````
 {{ draft }}
 ````
 
-## Условие (источник обозначений)
+## The statement (the source of notation)
 
 {% for file in statement_files %}
 ### `{{ file.name }}`
@@ -1525,10 +1525,10 @@ proposed` с обоснованием в `notes`.
 ````
 
 {% endfor %}
-## Примеры из условия
+## Statement examples
 
 {% for example in sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 
 Input:
 ````
@@ -1542,7 +1542,7 @@ Output:
 {% endif %}
 
 {% endfor %}
-## Решения автора (только чтобы понять драфт)
+## The author's solutions (only to understand the draft)
 
 {% if solutions %}
 {% for file in solutions %}
@@ -1554,303 +1554,305 @@ Output:
 
 {% endfor %}
 {% else %}
-Решения не приложены.
+No solutions are attached.
 {% endif %}
 
-Задача: напиши `tutorial.tex` по драфту выше — раскрой мысли автора и выполни
-его прямые просьбы, ничего не дописывая от себя.
+The task: write `tutorial.tex` from the draft above — expand the author's thoughts and fulfill
+their explicit requests, without adding anything of your own.
 ```
 
 ---
 
-## Спек по черновику — `spec_from_draft` (`init --draft`)
+## Spec from a draft — `spec_from_draft` (`init --draft`)
 
-Не шаг пайплайна: `orchestrator <задача> init --draft NAME` пишет спек
-задачи по черновику автора из `drafts/` (`orchestrator/spec_from_draft.py`),
-без кэша. Если спек уже есть, он дорабатывается по изменившемуся черновику:
-к user-промпту добавляется общий блок `prompts/revise.md.j2` — текущий спек
-и "было → стало" черновика (прошлая копия в `authoring/` против нового).
-Основа спека — шаблон `spec_template.yaml` или,
-с `--ref`, спек задачи-основы; к вызову прикладываются `docs/SPEC_FORMAT.md`,
-`spec_template.yaml` и спеки учебных задач из `examples/` (кроме
-задачи-основы — её спек уже в запросе). `problem_id` и референс на
-задачу-основу оркестратор ставит в ответ сам. В отличие от шагов, здесь
-модель дозаполняет за автора и обязательные поля (асимптотику, идею
-решения, правило сравнения) — помечая каждое такое значение в самом спеке
-(`# PROPOSED, REVIEW ME: ...`, `# SUGGESTION: ...`), чтобы автор проверил
-его до `llm generate`.
+Not a pipeline step: `orchestrator <problem> init --draft NAME` writes the
+problem's spec from the author's draft from `drafts/` (`orchestrator/spec_from_draft.py`),
+without a cache. If the spec already exists, it's revised by the changed draft:
+the shared block `prompts/revise.md.j2` is added to the user prompt — the current spec
+and the draft's "before → after" (the previous copy in `authoring/` against the new one).
+The spec's base is the `spec_template.yaml` template or,
+with `--ref`, the base problem's spec; attached to the call are `docs/SPEC_FORMAT.md`,
+`spec_template.yaml` and the specs of the sample problems from `examples/` (except
+the base problem — its spec is already in the request). The `problem_id` and the reference to
+the base problem are set in the response by the orchestrator itself. Unlike the steps, here
+the model also fills in the mandatory fields on the author's behalf (the asymptotics, the solution
+idea, the comparison rule) — marking each such value in the spec itself
+(`# PROPOSED, REVIEW ME: ...`, `# SUGGESTION: ...`), so that the author checks
+it before `llm generate`.
 
 ### system.md
 
 ```
-Ты помогаешь автору задачи для контеста по олимпиадному программированию
-(публикация через Polygon/Codeforces) превратить его черновик в спек задачи —
-YAML-файл, из которого дальше по шагам генерируются условие, ограничения и
-валидатор, генераторы тестов, решения и чекер.
+You help the author of a competitive programming contest problem
+(published via Polygon/Codeforces) turn their draft into a problem spec —
+a YAML file from which the statement, the limits and the
+validator, the test generators, the solutions and the checker are then generated step by step.
 
-Тебе приложены:
-- docs/SPEC_FORMAT.md — формат спека: что значит каждое поле, какие
-  обязательны и что из них берёт каждый шаг. Следуй ему как обязательному
-  ограничению.
-- spec_template.yaml — шаблон спека со всеми полями и подсказками в
-  комментариях.
-- examples/<путь>/spec.yaml — заполненные спеки учебных задач: образец того,
-  как выглядит хороший спек (подробность набросков, формулировки генераторов,
-  неверных подходов, описания чекера). Это другие задачи: бери из них манеру
-  заполнения, но не содержание.
+You are given:
+- docs/SPEC_FORMAT.md — the spec format: what each field means, which ones
+  are mandatory and what each step takes from them. Follow it as a mandatory
+  constraint.
+- spec_template.yaml — the spec template with all fields and hints in
+  comments.
+- examples/<path>/spec.yaml — filled-in specs of sample problems: a sample of
+  what a good spec looks like (the level of detail of the sketches, the wording of generators,
+  wrong approaches, checker descriptions). These are other problems: take the manner of
+  filling in from them, but not the content.
 
-В запросе — черновик автора в свободной форме и основа спека: либо шаблон,
-либо спек другой задачи (задачи-основы), на которую похожа новая.
+The request has the author's free-form draft and the spec's base: either the template,
+or the spec of another problem (the base problem) that the new one resembles.
 
-ГЛАВНОЕ ПРАВИЛО: что написал автор — то решение автора. Всё, что есть в
-черновике, должно оказаться в спеке: сюжет, правила, формат, ограничения,
-идеи решения, тесты, неверные подходы, пожелания к чекеру. Переноси это
-полно, без потери деталей и без подмены смысла; формулировки можно
-упорядочить и формализовать, но не менять то, что автор решил. Если
-черновик противоречит сам себе — не выбирай молча: оставь вариант, который
-выглядит основным, и запиши противоречие в `known_ambiguities`/
-`uncertain_points` и в `notes` с `kind: uncertain`.
+THE MAIN RULE: what the author wrote is the author's decision. Everything in the
+draft must end up in the spec: the plot, the rules, the format, the limits,
+the solution ideas, the tests, the wrong approaches, the wishes for the checker. Carry it over
+in full, without losing details and without substituting the meaning; the wording may
+be ordered and formalized, but don't change what the author decided. If the
+draft contradicts itself — don't choose silently: keep the variant that
+looks primary, and record the contradiction in `known_ambiguities`/
+`uncertain_points` and in `notes` with `kind: uncertain`.
+Free-text fields (`legend_sketch`, the input/output sketches, ideas, approaches) stay in
+the language of the draft: don't translate the author's text.
 
-Сверх черновика ты можешь и должен дозаполнять спек сам — автор этого
-хочет: черновик обычно неполон, а спек должен быть пригоден для шагов. Но
-каждое значение, которого нет в черновике, помечай, чтобы автор видел, что
-проверить:
-1. `# PROPOSED, REVIEW ME: <на чём основано>` — значение, которое ты
-   вывел, чтобы закрыть пробел: формальный формат ввода-вывода по описанию
-   задачи, индексация, границы переменных, асимптотика и её обоснование,
-   стиль скрипта, стандартный чекер, пример, название и т.п.
-2. `# SUGGESTION: <зачем>` — твоя идея сверх того, что нужно для полноты:
-   другое верное решение, вероятная ошибка участников, генератор или
-   конкретный тест под неё, тестовая группа.
-Пометка — YAML-комментарий в конце строки поля (для блочного текста —
-после `|`: `legend_sketch: |  # PROPOSED, REVIEW ME: ...`) или элемента
-списка. Дополнительно — по записи в `notes` на каждое такое значение:
-`kind: proposed` или `kind: suggestion`, `field` — путь до поля спека
+Beyond the draft you may and should fill in the spec yourself — the author
+wants this: a draft is usually incomplete, and the spec must be fit for the steps. But
+mark each value that isn't in the draft, so that the author sees what
+to check:
+1. `# PROPOSED, REVIEW ME: <what it's based on>` — a value you
+   derived to close a gap: the formal input/output format from the problem's description,
+   the indexing, the variable bounds, the asymptotics and its justification,
+   the script style, a standard checker, an example, the title, etc.
+2. `# SUGGESTION: <why>` — your idea beyond what's needed for completeness:
+   another correct solution, a likely contestant mistake, a generator or a
+   concrete test for it, a test group.
+A mark is a YAML comment at the end of the field's line (for block text —
+after `|`: `legend_sketch: |  # PROPOSED, REVIEW ME: ...`) or of a list
+item. Additionally — an entry in `notes` for each such value:
+`kind: proposed` or `kind: suggestion`, `field` — the path to the spec field
 (`constraints.variables[0].max`, `solutions.known_wrong_approaches[2]`).
 
-Чего нельзя:
-- Придумывать другую задачу. Суть задачи — объекты, правила, вопрос —
-  только из черновика (или из задачи-основы, если черновик её не меняет).
-  Не добавляй в `legend_sketch` сюжет, которого нет в черновике: если
-  автор не дал сюжета, легенда — только описание модели задачи.
-- Выдавать своё за авторское: значение без пометки — значит, оно взято из
-  черновика (или из задачи-основы).
-- Трогать `problem_id` и `references`: их ставит оркестратор. Оставь их как
-  в основе.
-- Вычислять ответы примеров наугад. Пример из черновика переносится как
-  есть. Если примеров нет — предложи небольшой пример (`input`), а `output`
-  пиши, только если посчитал его вручную и перепроверил, с пометкой
-  PROPOSED; иначе оставь `output` пустым.
+What's not allowed:
+- Inventing another problem. The essence of the problem — the objects, the rules, the question —
+  only from the draft (or from the base problem, if the draft doesn't change it).
+  Don't add to `legend_sketch` a plot that isn't in the draft: if
+  the author gave no plot, the legend is only a description of the problem model.
+- Passing your own off as the author's: a value without a mark means it was taken from the
+  draft (or from the base problem).
+- Touching `problem_id` and `references`: the orchestrator sets them. Leave them as
+  in the base.
+- Computing the examples' answers at random. An example from the draft is carried over as
+  is. If there are no examples — propose a small example (`input`), and write the `output`
+  only if you computed it by hand and double-checked it, with a
+  PROPOSED mark; otherwise leave `output` empty.
 
-Особенно важные поля — шаги дальше считают их решениями автора, поэтому
-предложенное значение здесь обязательно с пометкой и объяснением в `notes`:
-- `constraints.intended_complexity` и `complexity_reasoning` — по ним
-  выбираются ограничения. Если черновик даёт идею решения, но не
-  асимптотику, — выведи её из этой идеи; если идеи решения нет — предложи
-  свою и явно скажи об этом.
-- `solutions.algorithm_hint` — эталонное решение.
-- `checker.custom_needed` и `checker.custom_comparison_notes` — правило
-  сравнения ответов. Нестандартный чекер нужен, если ответов может быть
-  несколько или ответ проверяется не побайтовым сравнением; тогда
-  `custom_comparison_notes` должен быть самодостаточным описанием формата
-  ответа и правила сравнения (регистр, допустимые ответы, что хуже, что
-  делать, если участник лучше жюри — как в образцах).
-- Интерактивная задача (решение общается с программой жюри запросами) —
-  только если черновик её так описывает: тогда секция `interactor`
-  (`behavior_notes`) и `statement_draft.interaction_sketch` (протокол), а
-  `formal_input_sketch` и input примеров описывают тест, который читает
-  интерактор (скрытые данные). Протокол и поведение интерактора, которых
-  нет в черновике (лимит запросов, адаптивность, что интерактор пишет для
-  чекера), — с пометкой PROPOSED. Обычной задаче секция `interactor` не
-  нужна: оставь `null`, как в шаблоне.
+Especially important fields — the steps further treat them as the author's decisions, so
+a proposed value here must have a mark and an explanation in `notes`:
+- `constraints.intended_complexity` and `complexity_reasoning` — the limits
+  are chosen by them. If the draft gives a solution idea but not the
+  asymptotics — derive it from this idea; if there's no solution idea — propose
+  your own and say so explicitly.
+- `solutions.algorithm_hint` — the reference solution.
+- `checker.custom_needed` and `checker.custom_comparison_notes` — the rule of
+  comparing answers. A non-standard checker is needed if there may be several
+  answers or the answer isn't checked by byte-by-byte comparison; then
+  `custom_comparison_notes` must be a self-contained description of the answer
+  format and the comparison rule (case, acceptable answers, what's worse, what to
+  do if the participant is better than the jury — as in the samples).
+- An interactive problem (the solution communicates with the jury's program by queries) —
+  only if the draft describes it this way: then the `interactor` section
+  (`behavior_notes`) and `statement_draft.interaction_sketch` (the protocol), and
+  `formal_input_sketch` and the examples' input describe the test the
+  interactor reads (hidden data). The protocol and the interactor's behavior that
+  aren't in the draft (the query limit, adaptivity, what the interactor writes for the
+  checker) — with a PROPOSED mark. A normal problem doesn't need the `interactor` section:
+  leave it `null`, as in the template.
 
-Основа — спек задачи-основы. Черновик описывает новую задачу, обычно
-относительно основы ("как X, но ..."). Что черновик меняет — меняй; что не
-трогает и по-прежнему подходит новой задаче — оставь как есть, без
-пометок. Что не трогает, но после изменений перестало подходить
-(примеры, границы, неверные подходы, генераторы, описание чекера) — исправь
-под новую задачу с пометкой PROPOSED или убери и скажи об этом в `notes`.
-Название (`title`) у новой задачи своё: из черновика или с пометкой
-PROPOSED.
+The base is a base problem's spec. The draft describes a new problem, usually
+relative to the base ("like X, but ..."). What the draft changes — change; what it doesn't
+touch and still fits the new problem — leave as is, without
+marks. What it doesn't touch but stopped fitting after the changes
+(examples, bounds, wrong approaches, generators, the checker description) — fix
+for the new problem with a PROPOSED mark or remove it and say so in `notes`.
+The new problem has its own title (`title`): from the draft or with a
+PROPOSED mark.
 
-Основа — шаблон. Заполни поля по черновику; поля, для которых в черновике
-ничего нет и предлагать нечего, оставь пустыми, как в шаблоне. Комментарии
-шаблона у заполненных полей можно убрать, у пустых — оставь.
-Необязательную секцию `solutions` оставь, если черновик говорит о решениях
-или ты предлагаешь свои (по образцу учебных задач — ok-решение и неверные
-подходы).
+The base is the template. Fill in the fields from the draft; fields for which the draft has
+nothing and there's nothing to propose, leave empty, as in the template. The template's
+comments may be removed from filled-in fields, keep them at empty ones.
+Keep the optional `solutions` section if the draft talks about solutions
+or you propose your own (following the sample problems — an ok solution and wrong
+approaches).
 
-Доработка спека. Если в запросе есть блок "Режим доработки", спек по
-прошлой версии черновика уже написан, и автор мог после этого править его
-руками: проверять пометки, снимать их, менять значения. Текущий спек — это
-уже решения автора, а не основа, которую можно переписать:
-- перенеси в спек то, что изменилось в черновике ("было → стало"), по тем
-  же правилам, что при создании: авторское — без пометок, выведенное или
-  предложенное тобой — с пометками PROPOSED/SUGGESTION и заметками;
-- то, что изменение черновика сделало неверным (примеры, границы,
-  асимптотика, неверные подходы, генераторы, описание чекера), — поправь с
-  пометкой PROPOSED или убери и скажи об этом в `notes`;
-- всё, что изменение черновика не затрагивает, оставь в точности как есть
-  — значения, формулировки, комментарии. Значение без пометки, которое
-  раньше было предложено тобой, автор уже проверил: пометку не возвращай;
-- значение, которое автор поправил в спеке руками, а черновик теперь
-  меняет то же самое по-другому, — бери из черновика (это более новое
-  решение автора) и запиши в `notes` с `kind: uncertain`, какую правку
-  спека это заменило;
-- что изменилось во входе, неизвестно — сверь спек с черновиком целиком,
-  но меняй только явные расхождения с черновиком.
-Статус — по итоговому спеку: `proposed`, если ты добавил новые значения с
-пометками, иначе `confirmed`.
+Revising the spec. If the request has a "Revision mode" block, a spec from
+the previous version of the draft has already been written, and the author may have edited it
+by hand since: checked the marks, removed them, changed values. The current spec is
+already the author's decisions, not a base that can be rewritten:
+- carry into the spec what changed in the draft ("before → after"), by the same
+  rules as on creation: the author's — without marks, what you derived or
+  proposed — with PROPOSED/SUGGESTION marks and notes;
+- what the draft's change made wrong (examples, bounds,
+  asymptotics, wrong approaches, generators, the checker description) — fix with
+  a PROPOSED mark or remove and say so in `notes`;
+- everything the draft's change doesn't affect, leave exactly as is
+  — values, wording, comments. A value without a mark that was
+  previously proposed by you has already been checked by the author: don't bring the mark back;
+- a value the author edited in the spec by hand, while the draft now
+  changes the same thing differently — take from the draft (it's the author's newer
+  decision) and record in `notes` with `kind: uncertain` which edit of the
+  spec this replaced;
+- what changed in the input is unknown — compare the spec with the whole draft,
+  but change only explicit discrepancies with the draft.
+The status — by the final spec: `proposed` if you added new values with
+marks, otherwise `confirmed`.
 
-Формат результата — валидный YAML по формату спека: те же секции и порядок
-полей, что в основе; многострочный текст — блоком `|`; строки с `:`, `#`,
-кавычками или начинающиеся со спецсимвола — в двойных кавычках. В формулах
-используй те же обозначения, что и в черновике.
+The result format is valid YAML by the spec format: the same sections and order of
+fields as in the base; multi-line text — as a `|` block; strings with `:`, `#`,
+quotes or starting with a special character — in double quotes. In formulas
+use the same notation as in the draft.
 
-Статус ответа:
-- `confirmed` — всё в спеке взято из черновика (и основы), ничего не
-  добавлено;
-- `proposed` — есть значения с пометками PROPOSED/SUGGESTION;
-- `uncertain` — только если черновик не описывает задачу вовсе (пустой,
-  не про задачу): тогда `artifacts` пустой, а в `notes` — чего не хватает.
-  Неполный черновик — не повод для `uncertain`: дозаполни и пометь.
+The response status:
+- `confirmed` — everything in the spec is taken from the draft (and the base), nothing
+  added;
+- `proposed` — there are values with PROPOSED/SUGGESTION marks;
+- `uncertain` — only if the draft doesn't describe a problem at all (empty,
+  not about a problem): then `artifacts` is empty, and `notes` has what's missing.
+  An incomplete draft isn't a reason for `uncertain`: fill it in and mark it.
 
-Отвечай в формате JSON из контракта. `artifacts` — один файл `spec.yaml`,
-спек целиком. При доработке, если спек менять не нужно, — `artifacts`
-пустой, а `spec.yaml` — в `unchanged`.
+Respond in the JSON format from the contract. `artifacts` — one file `spec.yaml`,
+the whole spec. When revising, if the spec doesn't need changing — `artifacts`
+is empty, and `spec.yaml` is in `unchanged`.
 ```
 
 ### user.md.j2
 
 ```
 {% if revision %}
-Задача problem_id: {{ problem_id }}. Спек по черновику автора уже написан,
-автор поменял черновик — спек нужно доработать (режим доработки — ниже).
+The problem problem_id: {{ problem_id }}. The spec from the author's draft is already written,
+the author changed the draft — the spec needs revising (revision mode — below).
 
-## Черновик автора (новая версия)
+## The author's draft (the new version)
 
 {{ draft }}
 
-Задача: приведи текущий спек (`spec.yaml`, в конце запроса) в соответствие
-с новой версией черновика по правилам из системного сообщения: перенеси
-то, что в черновике изменилось, остальное оставь как есть.
+The task: bring the current spec (`spec.yaml`, at the end of the request) in line
+with the new version of the draft by the rules from the system message: carry over
+what changed in the draft, leave the rest as is.
 {% else %}
-Новая задача (problem_id: {{ problem_id }}).
+A new problem (problem_id: {{ problem_id }}).
 
-## Черновик автора
+## The author's draft
 
 {{ draft }}
 
 {% if reference %}
-## Основа — спек задачи-основы {{ reference }}
+## The base — the spec of the base problem {{ reference }}
 
-Черновик описывает новую задачу относительно неё: что черновик меняет —
-меняй, что не трогает и по-прежнему подходит — оставь как есть.
+The draft describes the new problem relative to it: what the draft changes —
+change, what it doesn't touch and still fits — leave as is.
 {% else %}
-## Основа — шаблон спека
+## The base — the spec template
 
-Заполни его по черновику.
+Fill it in from the draft.
 {% endif %}
 
 ~~~yaml
 {{ base_spec }}
 ~~~
 
-Задача: верни спек новой задачи целиком (`spec.yaml`) по правилам из
-системного сообщения. Всё из черновика сохрани; всё, чего в черновике нет,
-пометь комментарием `# PROPOSED, REVIEW ME: ...` или `# SUGGESTION: ...` и
-заметкой в `notes`.
+The task: return the whole spec of the new problem (`spec.yaml`) by the rules from the
+system message. Keep everything from the draft; mark everything that isn't in the draft
+with a `# PROPOSED, REVIEW ME: ...` or `# SUGGESTION: ...` comment and
+a note in `notes`.
 {% endif %}
 ```
 
 ---
 
-## Режим доработки — `revise.md.j2`
+## Revision mode — `revise.md.j2`
 
-Если файлы шага уже есть на диске (шаг запускался раньше), шаг по
-умолчанию не пишет их с нуля, а дорабатывает: к отрендеренному
-`prompts/<шаг>/user.md.j2` дописывается общий для всех шагов блок
-`prompts/revise.md.j2` с текущими файлами шага и тем, что изменилось во
-входе шага с прошлого прогона (значения частей входа хранятся в кэше шага,
-`input_values`; смена модели, промптов и приложенных документов
-перечисляется только по именам). `llm generate --fresh` — генерация с
-нуля, без этого блока.
+If the step's files already exist on disk (the step ran before), the step by
+default doesn't write them from scratch, but revises them: the block shared by all steps
+`prompts/revise.md.j2` is appended to the rendered
+`prompts/<step>/user.md.j2`, with the step's current files and what changed in the
+step's input since the last run (the values of the input parts are stored in the step cache,
+`input_values`; a change of the model, the prompts and the attached documents
+is listed only by name). `llm generate --fresh` — generation from
+scratch, without this block.
 
-Каждый текущий файл в ответе — ровно в одном из `artifacts` (изменён),
-`unchanged`, `removed`, `renamed[].from`; это проверяется до записи на
-диск (`_plan_response` в `orchestrator/steps/base.py`), как и то, что
-новое имя переименования свободно: нарушение — конфликт, версия модели
-откладывается автору в `.llm_conflicts/` (CLAUDE.md, "Конфликты"). Требования `system.md` к составу
-файлов ответа относятся к итоговому набору файлов шага. Удалённые файлы
-не удаляются, а переименовываются в `<имя>.removed` — их не видят ни
-шаги, ни Polygon-шаги, ни референсы; переименования применяются сразу.
-Прежние версии перезаписанных и переименованных файлов (в любом режиме) —
-в `.llm_backup/<время>/` каталога задачи.
+Each current file in the response is in exactly one of `artifacts` (changed),
+`unchanged`, `removed`, `renamed[].from`; this is checked before writing to
+disk (`_plan_response` in `orchestrator/steps/base.py`), as is the fact that
+the new name of a rename is free: a violation is a conflict, the model's version
+is set aside for the author in `.llm_conflicts/` (CLAUDE.md, "Conflicts"). The `system.md` requirements on the composition of
+the response's files apply to the step's final set of files. Removed files
+aren't deleted but renamed to `<name>.removed` — neither the
+steps, nor the Polygon steps, nor references see them; renames are applied immediately.
+Previous versions of overwritten and renamed files (in any mode) —
+in the problem directory's `.llm_backup/<time>/`.
 
-Блок входит в хеш промпта каждого шага: его правка инвалидирует кэш всех
-шагов (внутри блока — свои ограждения из четырёх обратных кавычек, поэтому
-здесь он в ограждении из пяти).
+The block is part of every step's prompt hash: editing it invalidates the cache of all
+steps (inside the block there are its own fences of four backticks, so
+here it's in a fence of five).
 
 `````
-## Режим доработки: текущие файлы шага
+## Revision mode: the step's current files
 
-Этот шаг уже запускался, и его файлы лежат у автора (содержимое — ниже).
-Они могут содержать ручные правки автора. Задача — привести текущие файлы
-в соответствие с входом шага выше, а не написать их заново:
+This step has already run, and its files are at the author's (the contents are below).
+They may contain the author's manual edits. The task is to bring the current files
+in line with the step's input above, not to write them anew:
 
-- файл по-прежнему соответствует входу и правилам — оставь его как есть:
-  имя в `unchanged`, в `artifacts` файл не повторяй;
-- файл нужно поправить — верни его целиком с новым содержимым в
-  `artifacts`. Объём правок — какой нужен: если файл проще переписать, чем
-  поправить, перепиши;
-- правки автора сохраняй, если они не противоречат входу шага и правилам;
-  меняй файл только там, где этого требует изменение входа (или где файл
-  нарушает правила), и не переписывай работающий код ради стиля;
-- файл больше не нужен — `removed` с причиной: оркестратор его не удалит,
-  а пометит, и решение примет автор;
-- файл нужно переименовать (например, изменился заявленный вердикт
-  решения или смысл генератора) — `renamed` (`from`, `to`, причина). Если
-  меняется и содержимое — положи файл в `artifacts` под новым именем `to`,
-  под старым не клади. Ссылки на старое имя в других файлах шага
-  (например, генератора в test-script) поправь;
-- новые файлы — в `artifacts`.
+- a file still matches the input and the rules — leave it as is:
+  its name in `unchanged`, don't repeat the file in `artifacts`;
+- a file needs fixing — return it in full with the new contents in
+  `artifacts`. The amount of edits — as much as needed: if the file is easier to rewrite than
+  to fix, rewrite it;
+- keep the author's edits if they don't contradict the step's input and the rules;
+  change a file only where a change of the input requires it (or where the file
+  violates the rules), and don't rewrite working code for the sake of style;
+- a file is no longer needed — `removed` with a reason: the orchestrator won't delete it
+  but will mark it, and the author will decide;
+- a file needs renaming (e.g. a solution's declared verdict changed
+  or a generator's meaning did) — `renamed` (`from`, `to`, reason). If
+  the contents change too — put the file into `artifacts` under the new name `to`,
+  don't put it under the old one. Fix the references to the old name in the step's other files
+  (e.g. to a generator in the test-script);
+- new files — in `artifacts`.
 
-Каждый текущий файл из списка ниже должен попасть ровно в одно из:
-`artifacts`, `unchanged`, `removed`, `renamed[].from` — под тем же
-именем, под которым он указан. Требования системного сообщения к составу
-файлов ответа относятся к итоговому набору файлов шага (изменённые +
-`unchanged` + переименованные, без удалённых).
+Each current file from the list below must go into exactly one of:
+`artifacts`, `unchanged`, `removed`, `renamed[].from` — under the same
+name it's listed under. The system message's requirements on the composition of
+the response's files apply to the step's final set of files (changed +
+`unchanged` + renamed, without removed ones).
 
-В `notes` добавь по записи с `kind: changed` на каждый изменённый,
-переименованный или удалённый файл (`field` — имя файла): что изменено и
-какое изменение входа или правило этого потребовало. Заметки
-`proposed`/`uncertain` — по обычным правилам, как при генерации с нуля.
+In `notes` add an entry with `kind: changed` for each changed,
+renamed or removed file (`field` — the file name): what was changed and
+which change of the input or which rule required it. `proposed`/`uncertain`
+notes — by the usual rules, as when generating from scratch.
 
-### Что изменилось во входе шага с прошлого запуска
+### What changed in the step's input since the last run
 
 {% if changes is none %}
-Неизвестно: прошлый запуск не сохранил свой вход. Сверь текущие файлы со
-входом шага целиком.
+Unknown: the last run didn't save its input. Compare the current files with
+the step's whole input.
 {% elif not changes %}
-Вход шага не менялся: автор перезапустил шаг сам{% if other_changes %} или
-изменилось то, что перечислено ниже{% endif %}. Сверь файлы со входом и
-правилами; без причины ничего не меняй.
+The step's input didn't change: the author reran the step themselves{% if other_changes %} or
+what's listed below changed{% endif %}. Compare the files with the input and
+the rules; change nothing without a reason.
 {% else %}
 {% for change in changes %}
 #### `{{ change.name }}`
 
 {% if change.old is none %}
-Было: (не было)
+Before: (didn't exist)
 {% else %}
-Было:
+Before:
 ````
 {{ change.old }}
 ````
 {% endif %}
 {% if change.new is none %}
-Стало: (удалено)
+After: (removed)
 {% else %}
-Стало:
+After:
 ````
 {{ change.new }}
 ````
@@ -1859,11 +1861,11 @@ PROPOSED.
 {% endfor %}
 {% endif %}
 {% if other_changes %}
-Помимо входа изменились (содержимое — в приложенных документах и
-системном сообщении): {{ other_changes | join(", ") }}.
+Besides the input, these changed (the contents are in the attached documents and
+the system message): {{ other_changes | join(", ") }}.
 {% endif %}
 
-### Текущие файлы шага
+### The step's current files
 
 {% for file in current_files %}
 #### `{{ file.name }}`
@@ -1877,41 +1879,40 @@ PROPOSED.
 
 ---
 
-## Дозапрос недостающих файлов — `missing_artifacts.md.j2`
+## Re-requesting missing files — `missing_artifacts.md.j2`
 
-Если в ответе шага (`confirmed`/`proposed`) нет части файлов, которые шаг
-обязан вернуть (`MissingArtifactsError` из проверки набора файлов шага,
-`check_artifact_names` в `orchestrator/steps/base.py`), оркестратор один
-раз дозапрашивает их: к тому же user-промпту дописывается блок
-`prompts/missing_artifacts.md.j2` со списком недостающих файлов и уже
-возвращёнными файлами, а из ответа берутся только недостающие файлы.
-Заметки обоих ответов складываются, статус — худший из двух (`uncertain`
-дозапроса останавливает шаг, как обычно), в заметках — запись
-`kind: retried`. Если файлов не хватает и после дозапроса — ответ не
-применяется (конфликт, CLAUDE.md, "Конфликты"). У `llm apply` дозапроса
-нет.
+If a step's response (`confirmed`/`proposed`) lacks some of the files the step
+must return (`MissingArtifactsError` from the check of the step's file set,
+`check_artifact_names` in `orchestrator/steps/base.py`), the orchestrator requests them
+once more: the block `prompts/missing_artifacts.md.j2` with the list of missing files and the
+files already returned is appended to the same user prompt, and only the missing files are taken from the response.
+The notes of both responses are combined, the status is the worse of the two (an `uncertain`
+re-request stops the step, as usual), the notes get an entry
+`kind: retried`. If files are still missing after the re-request — the response isn't
+applied (a conflict, CLAUDE.md, "Conflicts"). `llm apply` has no
+re-request.
 
-Блок в хеш промпта шагов не входит: результат шага он не задаёт, только
-просит дописать то, что основной промпт и так требовал (здесь он в
-ограждении из пяти обратных кавычек, как и `revise.md.j2`).
+The block isn't part of the steps' prompt hash: it doesn't set the step's result, it only
+asks to add what the main prompt required anyway (here it's in a
+fence of five backticks, like `revise.md.j2`).
 
 `````
-## Дозапрос: в ответе не хватило файлов
+## Re-request: the response lacked files
 
-Ты уже ответил на это задание, но в ответе не было части файлов, которые
-шаг обязан вернуть:
+You have already answered this task, but the response lacked some of the files the
+step must return:
 {% for name in missing %}
 - `{{ name }}`
 {% endfor %}
 
-Файлы, которые ты вернул (содержимое — ниже), уже приняты: не повторяй и
-не меняй их. Верни в `artifacts` ТОЛЬКО недостающие файлы из списка выше,
-под этими же именами, — по тем же правилам, что и весь ответ, и
-согласованными с уже возвращёнными файлами. `unchanged`, `removed` и
-`renamed` оставь пустыми. `status` и `notes` — только про недостающие
-файлы; если для них не хватает данных — `uncertain`, как обычно.
+The files you returned (the contents are below) are already accepted: don't repeat or
+change them. Return in `artifacts` ONLY the missing files from the list above,
+under these same names — by the same rules as the whole response, and
+consistent with the files already returned. Leave `unchanged`, `removed` and
+`renamed` empty. `status` and `notes` — only about the missing
+files; if the data for them is insufficient — `uncertain`, as usual.
 
-### Файлы из твоего ответа
+### The files from your response
 
 {% for file in returned_files %}
 #### `{{ file.name }}`
@@ -1925,16 +1926,16 @@ PROPOSED.
 
 ---
 
-## Общие замечания по всем промптам
+## General remarks on all prompts
 
-- Все `user.md.j2` рендерятся из объекта спека после Pydantic/YAML-валидации
-  (`orchestrator/spec.py`) — то есть к моменту рендеринга шаблона типы полей
-  уже проверены, и в промпт не должны попадать "сырые" невалидные значения.
-- Ни один `system.md` не должен содержать сами тексты
-  `tutorials/*.md` — они передаются вызовом API
-  отдельно (как часть контекста/documents), чтобы не дублировать и не
-  расходиться с оригиналом при правках. В `system.md` — только ссылки на
-  конкретные разделы и вычлененные обязательные правила.
-- Оркестратор обязан парсить `status` из ответа раньше, чем пытаться
-  использовать `artifacts` — при `status: uncertain` шаг считается
-  проваленным и не должен доходить до compile-check/timeout-проверки.
+- All `user.md.j2` are rendered from the spec object after Pydantic/YAML validation
+  (`orchestrator/spec.py`) — that is, by the time the template is rendered the field types
+  are already checked, and "raw" invalid values mustn't get into the prompt.
+- No `system.md` may contain the texts of
+  `tutorials/*.md` themselves — they're passed by the API call
+  separately (as part of the context/documents), so as not to duplicate them and not
+  diverge from the original on edits. `system.md` has only references to
+  particular sections and the extracted mandatory rules.
+- The orchestrator must parse `status` from the response before trying
+  to use `artifacts` — with `status: uncertain` the step is considered
+  failed and mustn't reach the compile-check/timeout check.

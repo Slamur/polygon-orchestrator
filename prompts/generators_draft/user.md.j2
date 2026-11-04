@@ -1,24 +1,24 @@
-Генераторы задачи (problem_id: {{ problem_id }}) по плану тестов.
+The generators of the problem (problem_id: {{ problem_id }}) by the test plan.
 
-## Формат входных данных (из statement_draft спека)
+## Input format (from the spec's statement_draft)
 {{ statement.formal_input_sketch }}
 
-Индексация: {{ statement.indexing }}
+Indexing: {{ statement.indexing }}
 
-Входы примеров из условия (иллюстрация формата — генерируемые тесты должны
-печататься ровно в таком же виде):
+The inputs of the statement's examples (an illustration of the format — the generated tests must
+be printed in exactly the same form):
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-## Зафиксированные ограничения (результат шага constraints_pick)
+## Fixed limits (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-## Генераторы плана (из tests_plan.yaml)
+## The plan's generators (from tests_plan.yaml)
 {% for generator in generators %}
 ### {{ generator.name }}.cpp
 {{ generator.plan }}{% endfor %}
 
-Задача: напиши по файлу `<name>.cpp` на каждый генератор плана выше по
-правилам из системного сообщения.
+The task: write one file `<name>.cpp` per generator of the plan above by
+the rules from the system message.

@@ -1,62 +1,62 @@
-## Режим доработки: текущие файлы шага
+## Revision mode: the step's current files
 
-Этот шаг уже запускался, и его файлы лежат у автора (содержимое — ниже).
-Они могут содержать ручные правки автора. Задача — привести текущие файлы
-в соответствие с входом шага выше, а не написать их заново:
+This step has already run, and its files are at the author's (the contents are below).
+They may contain the author's manual edits. The task is to bring the current files
+in line with the step's input above, not to write them anew:
 
-- файл по-прежнему соответствует входу и правилам — оставь его как есть:
-  имя в `unchanged`, в `artifacts` файл не повторяй;
-- файл нужно поправить — верни его целиком с новым содержимым в
-  `artifacts`. Объём правок — какой нужен: если файл проще переписать, чем
-  поправить, перепиши;
-- правки автора сохраняй, если они не противоречат входу шага и правилам;
-  меняй файл только там, где этого требует изменение входа (или где файл
-  нарушает правила), и не переписывай работающий код ради стиля;
-- файл больше не нужен — `removed` с причиной: оркестратор его не удалит,
-  а пометит, и решение примет автор;
-- файл нужно переименовать (например, изменился заявленный вердикт
-  решения или смысл генератора) — `renamed` (`from`, `to`, причина). Если
-  меняется и содержимое — положи файл в `artifacts` под новым именем `to`,
-  под старым не клади. Ссылки на старое имя в других файлах шага
-  (например, генератора в test-script) поправь;
-- новые файлы — в `artifacts`.
+- a file still matches the input and the rules — leave it as is:
+  its name in `unchanged`, don't repeat the file in `artifacts`;
+- a file needs fixing — return it in full with the new contents in
+  `artifacts`. The amount of edits — as much as needed: if the file is easier to rewrite than
+  to fix, rewrite it;
+- keep the author's edits if they don't contradict the step's input and the rules;
+  change a file only where a change of the input requires it (or where the file
+  violates the rules), and don't rewrite working code for the sake of style;
+- a file is no longer needed — `removed` with a reason: the orchestrator won't delete it
+  but will mark it, and the author will decide;
+- a file needs renaming (e.g. a solution's declared verdict changed
+  or a generator's meaning did) — `renamed` (`from`, `to`, reason). If
+  the contents change too — put the file into `artifacts` under the new name `to`,
+  don't put it under the old one. Fix the references to the old name in the step's other files
+  (e.g. to a generator in the test-script);
+- new files — in `artifacts`.
 
-Каждый текущий файл из списка ниже должен попасть ровно в одно из:
-`artifacts`, `unchanged`, `removed`, `renamed[].from` — под тем же
-именем, под которым он указан. Требования системного сообщения к составу
-файлов ответа относятся к итоговому набору файлов шага (изменённые +
-`unchanged` + переименованные, без удалённых).
+Each current file from the list below must go into exactly one of:
+`artifacts`, `unchanged`, `removed`, `renamed[].from` — under the same
+name it's listed under. The system message's requirements on the composition of
+the response's files apply to the step's final set of files (changed +
+`unchanged` + renamed, without removed ones).
 
-В `notes` добавь по записи с `kind: changed` на каждый изменённый,
-переименованный или удалённый файл (`field` — имя файла): что изменено и
-какое изменение входа или правило этого потребовало. Заметки
-`proposed`/`uncertain` — по обычным правилам, как при генерации с нуля.
+In `notes` add an entry with `kind: changed` for each changed,
+renamed or removed file (`field` — the file name): what was changed and
+which change of the input or which rule required it. `proposed`/`uncertain`
+notes — by the usual rules, as when generating from scratch.
 
-### Что изменилось во входе шага с прошлого запуска
+### What changed in the step's input since the last run
 
 {% if changes is none %}
-Неизвестно: прошлый запуск не сохранил свой вход. Сверь текущие файлы со
-входом шага целиком.
+Unknown: the last run didn't save its input. Compare the current files with
+the step's whole input.
 {% elif not changes %}
-Вход шага не менялся: автор перезапустил шаг сам{% if other_changes %} или
-изменилось то, что перечислено ниже{% endif %}. Сверь файлы со входом и
-правилами; без причины ничего не меняй.
+The step's input didn't change: the author reran the step themselves{% if other_changes %} or
+what's listed below changed{% endif %}. Compare the files with the input and
+the rules; change nothing without a reason.
 {% else %}
 {% for change in changes %}
 #### `{{ change.name }}`
 
 {% if change.old is none %}
-Было: (не было)
+Before: (didn't exist)
 {% else %}
-Было:
+Before:
 ````
 {{ change.old }}
 ````
 {% endif %}
 {% if change.new is none %}
-Стало: (удалено)
+After: (removed)
 {% else %}
-Стало:
+After:
 ````
 {{ change.new }}
 ````
@@ -65,11 +65,11 @@
 {% endfor %}
 {% endif %}
 {% if other_changes %}
-Помимо входа изменились (содержимое — в приложенных документах и
-системном сообщении): {{ other_changes | join(", ") }}.
+Besides the input, these changed (the contents are in the attached documents and
+the system message): {{ other_changes | join(", ") }}.
 {% endif %}
 
-### Текущие файлы шага
+### The step's current files
 
 {% for file in current_files %}
 #### `{{ file.name }}`

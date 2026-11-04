@@ -1,17 +1,17 @@
-Test-script задачи (problem_id: {{ problem_id }}) по плану тестов.
+The test-script of the problem (problem_id: {{ problem_id }}) by the test plan.
 
-## Стиль скрипта
-script_style: {{ script_style }} — файл `{{ script_name }}`
+## Script style
+script_style: {{ script_style }} — the file `{{ script_name }}`
 
-## Зафиксированные ограничения и тестовые группы (результат шага constraints_pick)
+## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-## Генераторы плана (из tests_plan.yaml: как их вызывать)
+## The plan's generators (from tests_plan.yaml: how to call them)
 {{ generators }}
-## Значения для команд (constants из tests_plan.yaml)
+## Values for the commands (constants from tests_plan.yaml)
 {{ constants }}
-## Блоки тестов (tests из tests_plan.yaml, в порядке генерации)
+## Test blocks (tests from tests_plan.yaml, in generation order)
 {{ tests }}
-Задача: напиши `{{ script_name }}` по блокам выше и правилам из системного
-сообщения, используя зафиксированные ограничения как единственный источник
-диапазонов и групп.
+The task: write `{{ script_name }}` from the blocks above and the rules from the system
+message, using the fixed limits as the only source of
+ranges and groups.

@@ -1,75 +1,75 @@
-Ты пишешь кастомный чекер (C++ с testlib) для задачи, которая готовится в
-Polygon — по паттерну read_and_check.
+You write a custom checker (C++ with testlib) for a problem being prepared in
+Polygon — following the read_and_check pattern.
 
-Тебе приложены обязательные правила:
-- checker.md — концепция read_and_check: ответ
-  читается И валидируется одной функцией, параметризуемой потоком (jury/
-  participant); данные проверяются в режиме максимального недоверия к
-  потоку участника; функция возвращает информацию, достаточную для
-  сравнения, и НЕ проверяет оптимальность сама по себе — сравнение
-  делается отдельно, после того как оба потока успешно прочитаны.
-- problem_lib.h — общие типы и хелперы (`ll`, `vi`, `vll` и т.п.).
+You are given mandatory rules:
+- checker.md — the read_and_check concept: the answer
+  is read AND validated by one function parameterized by the stream (jury/
+  participant); the data is checked in the mode of maximal distrust of
+  the participant's stream; the function returns information sufficient for
+  comparing, and does NOT check optimality by itself — the comparison
+  is done separately, after both streams have been read successfully.
+- problem_lib.h — shared types and helpers (`ll`, `vi`, `vll`, etc.).
 
-Структура чекера: `read_answer(InStream&)`, `read_answer_from`
-(оборачивает `read_answer` проверкой `stream.seekEof()` — лишние данные
-после ответа → `_pe`, не `_wa`), затем `ja`/`pa` читаются из `ans`/`ouf`
-этой функцией и сравниваются.
+The checker's structure: `read_answer(InStream&)`, `read_answer_from`
+(wraps `read_answer` with a `stream.seekEof()` check — extra data
+after the answer → `_pe`, not `_wa`), then `ja`/`pa` are read from `ans`/`ouf`
+with this function and compared.
 
-Кроме правил могут быть приложены образцы — файлы других задач, которые
-автор указал в спеке как референсы; образцов может не быть вовсе. Для этого
-шага это checker.cpp — чекер-образец с той же структурой — и spec.yaml той
-же задачи.
+Besides the rules, samples may be attached — files of other problems that
+the author listed in the spec as references; there may be no samples at all. For this
+step these are checker.cpp — a sample checker with the same structure — and spec.yaml of the
+same problem.
 
-Как пользоваться чекером-образцом.
-Заголовок приложенного документа — путь к файлу: файлы из одного каталога
-относятся к одной задаче, разные каталоги — разные задачи, не смешивай их
-между собой. Ни одна из них не имеет отношения к твоей. Если в каталоге
-есть spec.yaml — это спек той задачи, и вместе с остальными её файлами он
-даёт пару "спек → ожидаемый результат"; если spec.yaml нет — приложен
-только результат.
-Сопоставь `checker.custom_comparison_notes` спека образца с его чекером,
-чтобы увидеть, как описание автора превращается в код, и так же преобразуй
-описание своей задачи. ПЕРЕНОСИ из образца (и соблюдай, даже если образца
-нет) структуру и приёмы работы с testlib: чтение входа из `inf` методами testlib (`readInt`, `readLong`,
-`readInts(n)`); чтение ответа методами потока с проверкой сразу при чтении
-(`readToken("A|B", "name")` для слова из фиксированного набора,
-`readInt(min, max, "name")` для числа в диапазоне); проверку ответа на
-соответствие входу через `stream.quitif(условие, _wa, "сообщение", ...)` с
-содержательным сообщением; псевдоним типа ответа (`answer_t`); вердикт на
-потоке, который оказался хуже (`quit_answer(..., ans)` даёт `_fail`, когда
-участник лучше жюри). НЕ ПЕРЕНОСИ формат ответа задачи-образца, её
-проверку и её правило сравнения — они берутся только из
+How to use the sample checker.
+The header of an attached document is the file path: files from one directory
+belong to one problem, different directories — to different problems, don't mix them
+with each other. None of them has anything to do with yours. If a directory
+has spec.yaml — it's the spec of that problem, and together with its other files it
+gives a "spec → expected result" pair; if there's no spec.yaml — only
+the result is attached.
+Match the `checker.custom_comparison_notes` of the sample's spec against its checker
+to see how the author's description turns into code, and transform
+your problem's description the same way. CARRY OVER from the sample (and follow even if there's no
+sample) the structure and the techniques of working with testlib: reading the input from `inf` with testlib methods (`readInt`, `readLong`,
+`readInts(n)`); reading the answer with stream methods checking right while reading
+(`readToken("A|B", "name")` for a word from a fixed set,
+`readInt(min, max, "name")` for a number in a range); checking the answer for
+consistency with the input via `stream.quitif(condition, _wa, "message", ...)` with
+a meaningful message; a type alias for the answer (`answer_t`); the verdict on the
+stream that turned out worse (`quit_answer(..., ans)` gives `_fail` when
+the participant is better than the jury). DON'T CARRY OVER the sample problem's answer format, its
+check and its comparison rule — they come only from
 `custom_comparison_notes`.
 
-ГЛАВНОЕ ОГРАНИЧЕНИЕ: единственный источник того, ЧТО и КАК сравнивать —
-`checker.custom_comparison_notes` из спека. Ты не выводишь формат ответа и
-правило сравнения из легенды/условия самостоятельно — если
-`custom_comparison_notes` не покрывает какой-то случай (например, не
-сказано, чувствительно ли сравнение к регистру, разрешены ли повторы,
-что делать с пустым вводом) — `status: uncertain` с точным указанием, чего
-не хватает, а не предположение "по смыслу задачи". Ошибка здесь особенно
-дорога: слишком мягкий чекер пропустит неверное решение, слишком строгий —
-забракует верное, и оба случая могут остаться незамеченными долго.
+THE MAIN CONSTRAINT: the only source of WHAT to compare and HOW is
+`checker.custom_comparison_notes` from the spec. You don't derive the answer format and
+the comparison rule from the legend/statement yourself — if
+`custom_comparison_notes` doesn't cover some case (e.g. it isn't
+said whether the comparison is case-sensitive, whether repeats are allowed,
+what to do with empty input) — `status: uncertain` stating exactly what's
+missing, not an assumption "by the meaning of the problem". A mistake here is especially
+costly: a too lenient checker accepts a wrong solution, a too strict one
+rejects a correct one, and both cases may go unnoticed for a long time.
 
-Обязательные правила:
-1. Используй паттерн read_and_check: одна функция `read_answer(InStream&)`
-   на оба потока, не дублируй логику чтения отдельно для `ans` и `ouf`.
-2. `read_answer_from`-обёртка с `seekEof()`-проверкой после чтения ответа
-   — обязательна, лишние данные в конце потока — `_pe`.
-3. Если задача не про "оптимальность" (не про поиск наилучшего ответа
-   среди нескольких допустимых) — не используй `left_better`/подобную
-   логику из образца, сравнивай результаты `read_answer` напрямую на
-   равенство и выдавай `_wa` при несовпадении.
-4. Все проверки границ/формата на потоке участника (`ouf`) должны идти
-   через методы testlib (`readInt(min, max, ...)` и т.п.), которые сами
-   дают `_pe`/`_wa` при нарушении — не пиши вручную `if`/`quitf` там, где
-   testlib уже это умеет.
-5. `#include "problem_lib.h"`, как и в остальных C++-артефактах проекта.
+Mandatory rules:
+1. Use the read_and_check pattern: one function `read_answer(InStream&)`
+   for both streams, don't duplicate the reading logic separately for `ans` and `ouf`.
+2. The `read_answer_from` wrapper with a `seekEof()` check after reading the answer
+   is mandatory, extra data at the end of the stream — `_pe`.
+3. If the problem isn't about "optimality" (not about finding the best answer
+   among several acceptable ones) — don't use `left_better`/similar
+   logic from the sample, compare the results of `read_answer` directly for
+   equality and give `_wa` on a mismatch.
+4. All bound/format checks on the participant's stream (`ouf`) must go
+   through testlib methods (`readInt(min, max, ...)`, etc.), which themselves
+   give `_pe`/`_wa` on a violation — don't write `if`/`quitf` by hand where
+   testlib already can do it.
+5. `#include "problem_lib.h"`, as in the project's other C++ artifacts.
 
-Если `custom_comparison_notes` достаточен и однозначен — `status:
-confirmed`. Если ты принял решение о деталях реализации, которые
-`custom_comparison_notes` буквально не оговаривал, но которые не меняют
-сравнение по сути (например, конкретный способ чтения токена) — `status:
-proposed` с обоснованием в `notes`.
+If `custom_comparison_notes` is sufficient and unambiguous — `status:
+confirmed`. If you made a decision on implementation details that
+`custom_comparison_notes` didn't literally stipulate, but that don't change
+the comparison in essence (e.g. a particular way of reading a token) — `status:
+proposed` with a justification in `notes`.
 
-Отвечай в формате JSON из контракта. `artifacts` — один файл `checker.cpp`.
+Respond in the JSON format from the contract. `artifacts` — one file `checker.cpp`.

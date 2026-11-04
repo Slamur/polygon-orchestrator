@@ -1,46 +1,46 @@
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Заявленная автором асимптотика
+## The asymptotics declared by the author
 intended_complexity: {{ constraints.intended_complexity }}
 complexity_reasoning:
 {{ constraints.complexity_reasoning }}
 
-## Переменные
+## Variables
 {% for v in constraints.variables %}
 - {{ v.name }}: min={{ v.min }}, max={{ v.max }}, description="{{ v.description }}"
 {% endfor %}
 
-## Формат входных данных (из statement_draft спека)
+## Input format (from the spec's statement_draft)
 {{ statement.formal_input_sketch }}
 
-Индексация: {{ statement.indexing }}
+Indexing: {{ statement.indexing }}
 
-Входы примеров из условия (иллюстрация формата — валидатор обязан их принять):
+The inputs of the statement's examples (an illustration of the format — the validator must accept them):
 {% for ex in statement.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 {{ ex.input }}
 {% endfor %}
 
-## Дополнительные гарантии
+## Additional guarantees
 {% for g in constraints.special_guarantees %}
 - {{ g }}
 {% endfor %}
 
-## Идеи по тестовым группам от автора (если есть)
+## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
 - name={{ g.name }}, subset_of={{ g.subset_of }}, max_n={{ g.max_n }}, special_property={{ g.special_property }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 
-## Лимиты, заданные автором явно (могут быть null)
+## Limits set by the author explicitly (may be null)
 time_limit_seconds: {{ constraints.time_limit_seconds }}
 memory_limit_mb: {{ constraints.memory_limit_mb }}
 
-## Что автор сам считает неопределённым
+## What the author themselves considers undecided
 {% for u in constraints.uncertain_points %}
 - {{ u }}
 {% endfor %}
 
-Задача: зафиксируй итоговые ограничения и тестовые группы по правилам из
-системного сообщения. Если intended_complexity пуст или явно не описан —
-остановись с status: uncertain, не оценивай сложность самостоятельно.
+The task: fix the final limits and test groups by the rules from the
+system message. If intended_complexity is empty or not explicitly described —
+stop with status: uncertain, don't estimate the complexity yourself.

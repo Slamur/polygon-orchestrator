@@ -56,7 +56,7 @@ def test_writes_script_by_style_from_the_plan(spec, tmp_path):
     )
     assert result.notes == []
     user_prompt = mock_call.call_args.args[2]
-    assert "файл `test_script_groups`" in user_prompt
+    assert "the file `test_script_groups`" in user_prompt
     assert "gen_rand -n=maxN" in user_prompt
     assert "n_max: 100000" in user_prompt
     assert "time_limit_seconds" not in user_prompt

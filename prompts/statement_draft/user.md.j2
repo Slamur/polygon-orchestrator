@@ -1,65 +1,65 @@
-Спек задачи (problem_id: {{ problem_id }}):
+The problem spec (problem_id: {{ problem_id }}):
 
-## Язык условия
-Пиши условие на этом языке: {{ language }} — даже если черновики автора
-ниже написаны на другом.
+## Statement language
+Write the statement in this language: {{ language }} — even if the author's sketches
+below are written in another one.
 
-## Легенда (черновик автора)
+## Legend (the author's sketch)
 {{ statement_draft.legend_sketch }}
 
-## Формальное описание ввода (черновик автора)
+## Formal input description (the author's sketch)
 {{ statement_draft.formal_input_sketch }}
 
-## Формальное описание вывода (черновик автора)
+## Formal output description (the author's sketch)
 {{ statement_draft.formal_output_sketch }}
 
-## Индексация
+## Indexing
 {{ statement_draft.indexing }}
 {% if statement_draft.interaction_sketch is defined %}
 
-## Протокол взаимодействия (черновик автора)
-Задача интерактивная (правила — interactive.md). Формальное описание
-ввода выше и input примеров — это тест, который читает интерактор, а не
-решение.
+## Interaction protocol (the author's sketch)
+The problem is interactive (the rules — interactive.md). The formal input
+description above and the examples' input are the test the interactor reads, not
+the solution.
 {{ statement_draft.interaction_sketch }}
 {% endif %}
 
-## Тестовые примеры
+## Example tests
 {% for ex in statement_draft.sample_examples %}
-### Пример {{ loop.index }}
+### Example {{ loop.index }}
 Input:
 {{ ex.input }}
 {% if ex.output %}
-Output (пример от автора, для примечания):
+Output (the author's example, for the note):
 {{ ex.output }}
 {% else %}
-Output: автор не указал — не вычисляй сам, ориентируйся только на
-формат вывода из formal_output_sketch.
+Output: the author didn't give it — don't compute it yourself, go only by
+the output format from formal_output_sketch.
 {% endif %}
-Что важно объяснить в пояснении: {{ ex.note_hint }}
+What's important to explain in the note: {{ ex.note_hint }}
 {% endfor %}
 
-## Известные неоднозначности (если есть)
+## Known ambiguities (if any)
 {% for a in statement_draft.known_ambiguities %}
 - {{ a }}
 {% endfor %}
 
 ## preserve_legend_verbatim: {{ statement_draft.preserve_legend_verbatim | lower }}
 {% if statement_draft.preserve_legend_verbatim %}
-Автор явно включил этот флаг для этой задачи: ограничение вводного абзаца
-легенды 2-3 строками из системного сообщения НЕ действует.
-Сохраняй фактическую плотность `legend_sketch` практически как есть —
-разрешена только лёгкая стилистическая правка (согласование времён, связки
-между предложениями), без сокращения/пересказа фактов и без удаления
-деталей.
+The author explicitly turned this flag on for this problem: the limit of the legend's introductory
+paragraph to 2-3 lines from the system message does NOT apply.
+Keep the factual density of `legend_sketch` practically as is —
+only light stylistic editing is allowed (agreement of tenses, links
+between sentences), without shortening/retelling facts and without removing
+details.
 {% else %}
-Флаг выключен (или не задан автором) — действует стандартное правило 1 из
-системного сообщения: вводный художественный абзац — не больше 2-3 строк,
-описание модели задачи (процесс, правила, определения, вопрос) — в
-`legend.tex` полностью.
+The flag is off (or not set by the author) — the standard rule 1 from the
+system message applies: the introductory fiction paragraph is no more than 2-3 lines,
+the description of the problem model (process, rules, definitions, question) is in
+`legend.tex` in full.
 {% endif %}
 
-Ожидаемые файлы в artifacts:
+Expected files in artifacts:
 - legend.tex
 - input_format.tex
 - output_format.tex
@@ -72,6 +72,6 @@ Output: автор не указал — не вычисляй сам, орие�
 {% endfor %}
 {% endif %}
 
-Задача: подготовь черновик условия в LaTeX по правилам из системного
-сообщения. Не решай задачу и не выводи асимптотику — только оформление
-условия из данных выше черновиков.
+The task: prepare a LaTeX draft of the statement by the rules from the system
+message. Don't solve the problem and don't derive the asymptotics — only format the
+statement from the sketches given above.
