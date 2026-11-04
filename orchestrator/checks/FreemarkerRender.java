@@ -1,7 +1,7 @@
-// Раскрытие FreeMarker test-script'а настоящим FreeMarker — для
-// orchestrator/checks/test_script_check.py. Запускается без сборки:
-// `java -cp freemarker.jar FreemarkerRender.java <script>`; результат — в
-// stdout, ошибка FreeMarker — в stderr с кодом 2.
+// Expanding a FreeMarker test-script with real FreeMarker — for
+// orchestrator/checks/test_script_check.py. Run without building:
+// `java -cp freemarker.jar FreemarkerRender.java <script>`; the result goes to
+// stdout, a FreeMarker error — to stderr with code 2.
 
 import freemarker.template.Configuration;
 import freemarker.template.Template;
@@ -20,8 +20,8 @@ public class FreemarkerRender {
         Path path = Path.of(args[0]);
         Configuration cfg = new Configuration(Configuration.VERSION_2_3_0);
         cfg.setDefaultEncoding("UTF-8");
-        // Числа без разделителей групп разрядов (300000, а не 300,000) — как в
-        // скрипте, раскрытом Polygon.
+        // Numbers without digit group separators (300000, not 300,000) — as in
+        // a script expanded by Polygon.
         cfg.setNumberFormat("computer");
         cfg.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
         cfg.setLogTemplateExceptions(false);

@@ -1,13 +1,13 @@
-"""Общая логика polygon-шагов: "выполнить, если ещё не выполнялся".
+"""The shared logic of the polygon steps: "run if not run yet".
 
-Шаг (`PolygonStep`) описывает только свою специфику — как локально понять,
-что он уже выполнен (`check_done`), и что делать, если нет (`execute`).
-Всё остальное — порядок проверки, ленивое создание `PolygonClient`,
-логирование результата — делает `run_step`, одинаково для всех шагов.
+A step (`PolygonStep`) describes only its specifics — how to tell locally
+that it's already done (`check_done`), and what to do if not (`execute`).
+Everything else — the order of checks, lazily creating `PolygonClient`,
+logging the result — is done by `run_step`, the same for all steps.
 
-Шаги, загружающие содержимое задачи, загружают только изменившиеся с
-последней синхронизации элементы (`changed_items`, база — `synced` в
-`polygon_state.json`, см. `orchestrator/polygon/sync.py`).
+Steps uploading the problem's contents upload only the elements changed since the
+last sync (`changed_items`, the base — `synced` in
+`polygon_state.json`, see `orchestrator/polygon/sync.py`).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from orchestrator.spec import ProblemSpec
 logger = logging.getLogger(__name__)
 
 
-# Состояния polygon-шага для `orchestrator <задача> polygon status` (без сети).
+# The states of a polygon step for `orchestrator <problem> polygon status` (without the network).
 STATUS_DONE = "done"
 STATUS_STALE = "stale"
 STATUS_NOT_RUN = "not run"
@@ -35,18 +35,18 @@ NO_CHANGES_MESSAGE = "no changes since the last sync, skipped"
 
 
 class PolygonStepError(Exception):
-    """Шаг не может быть выполнен из-за отсутствующей зависимости или
-    противоречивых локальных данных. В отличие от `PolygonApiError` — это
-    ошибка ДО обращения к сети."""
+    """The step can't be run because of a missing dependency or
+    contradictory local data. Unlike `PolygonApiError` — this is an
+    error BEFORE going to the network."""
 
 
 @dataclass(frozen=True)
 class StepContext:
-    """Всё, что нужно шагу помимо клиента Polygon.
+    """Everything the step needs besides the Polygon client.
 
-    `synced` — база синхронизации (ключ -> sha256, см. `sync.py`), с которой
-    шаг сравнивает локальные элементы; `None` — база неизвестна или
-    `push --force`: загружать всё."""
+    `synced` — the sync base (key -> sha256, see `sync.py`) with which
+    the step compares the local elements; `None` — the base is unknown or
+    `push --force`: upload everything."""
 
     problem_id: str
     spec: ProblemSpec
@@ -56,11 +56,11 @@ class StepContext:
 
 @dataclass(frozen=True)
 class StepResult:
-    """Итог шага: сообщение и что именно ушло в Polygon (ключ -> sha256).
-    Пустой `uploaded` — Polygon не менялся: коммитить и записывать нечего.
+    """The step's outcome: a message and what exactly went to Polygon (key -> sha256).
+    An empty `uploaded` — Polygon didn't change: there's nothing to commit or record.
 
-    `message` идёт в лог; `notice` — то, что CLI покажет автору отдельно
-    (например, что задача на Polygon создана), пусто — нечего."""
+    `message` goes to the log; `notice` — what the CLI shows the author separately
+    (e.g. that the problem was created on Polygon), empty — nothing."""
 
     message: str
     uploaded: dict[str, str] = field(default_factory=dict)
@@ -69,23 +69,23 @@ class StepResult:
 
 @dataclass(frozen=True)
 class PolygonStep:
-    """Описание одного polygon-шага.
+    """The description of one polygon step.
 
-    `check_done` — только локальная проверка (файлы в `problems/<id>/`), без
-    сетевых вызовов: возвращает человекочитаемое сообщение, если шаг уже
-    выполнен, иначе `None`.
+    `check_done` — only a local check (files in `problems/<id>/`), without
+    network calls: returns a human-readable message if the step is already
+    done, otherwise `None`.
 
-    `execute` — реальная работа через Polygon API; возвращает `StepResult`.
-    `PolygonApiError` и `PolygonStepError` не перехватывает.
+    `execute` — the real work through the Polygon API; returns `StepResult`.
+    It doesn't catch `PolygonApiError` and `PolygonStepError`.
 
-    `compute_status(problem_id, problems_dir)` — только локальная проверка
-    для `status`: пара (одно из `STATUS_*`, пояснение). В отличие от
-    `check_done` не требует спека и может сообщить "stale" — локальные
-    файлы изменились с последней синхронизации.
+    `compute_status(problem_id, problems_dir)` — only a local check
+    for `status`: a pair (one of `STATUS_*`, an explanation). Unlike
+    `check_done` it doesn't require a spec and may report "stale" — the local
+    files changed since the last sync.
 
-    `commits_changes` — коммитить ли рабочую копию задачи на Polygon после
-    шага, загрузившего что-то (см. `run_polygon_pipeline`). `False` — для
-    шагов, которые не меняют содержимое задачи (`create_problem`).
+    `commits_changes` — whether to commit the problem's working copy on Polygon after
+    a step that uploaded something (see `run_polygon_pipeline`). `False` — for
+    steps that don't change the problem's contents (`create_problem`).
     """
 
     name: str
@@ -96,16 +96,16 @@ class PolygonStep:
 
 
 def never_done(ctx: StepContext) -> str | None:
-    """`check_done` шагов, загружающих содержимое: шаг запускается всегда,
-    а что загружать, решает сам по `ctx.synced` (`changed_items`)."""
+    """`check_done` of the steps uploading contents: the step always runs,
+    and what to upload it decides itself by `ctx.synced` (`changed_items`)."""
     return None
 
 
 def require_polygon_state(ctx: StepContext) -> PolygonState:
-    """Состояние задачи из `polygon_state.json` — для всех шагов после
-    `create_problem` (оттуда берётся `polygon_id`). Без сети; если задача
-    ещё не создана на Polygon — `PolygonStepError` с указанием, какой шаг
-    запустить сначала."""
+    """The problem's state from `polygon_state.json` — for all steps after
+    `create_problem` (`polygon_id` is taken from there). Without the network; if the problem
+    isn't created on Polygon yet — `PolygonStepError` saying which step to
+    run first."""
     state = load_polygon_state(ctx.problem_id, problems_dir=ctx.problems_dir)
     if state is None:
         address = problem_address(ctx.problems_dir, ctx.problem_id)
@@ -118,8 +118,8 @@ def require_polygon_state(ctx: StepContext) -> PolygonState:
 
 
 def changed_items(ctx: StepContext, items: dict[str, str]) -> dict[str, str]:
-    """Элементы из `items` (ключ -> текущий sha256), которые отличаются от
-    базы синхронизации; без базы (`ctx.synced is None`) — все."""
+    """The elements from `items` (key -> current sha256) that differ from the
+    sync base; without a base (`ctx.synced is None`) — all of them."""
     if ctx.synced is None:
         return dict(items)
     return {key: value for key, value in items.items() if ctx.synced.get(key) != value}
@@ -132,15 +132,15 @@ def sync_status(
     key_prefix: str | tuple[str, ...],
     read_items: Callable[[], dict[str, str]],
 ) -> tuple[str, str]:
-    """Статус шага для `polygon status` по базе синхронизации.
+    """The step's status for `polygon status` by the sync base.
 
-    `key_prefix` — префикс (или несколько) ключей шага в `synced` (есть ли
-    у шага база вообще); `read_items` — текущие локальные элементы шага (ключ ->
-    sha256), может бросить `PolygonStepError`, если файлов нет.
+    `key_prefix` — the prefix (or several) of the step's keys in `synced` (whether
+    the step has a base at all); `read_items` — the step's current local elements (key ->
+    sha256), may raise `PolygonStepError` if there are no files.
 
-    "not run" — по ключам шага базы нет; "stale" — какой-то элемент
-    отличается от базы (или файлы больше не читаются); "done" — все
-    совпадают.
+    "not run" — there's no base for the step's keys; "stale" — some element
+    differs from the base (or the files can no longer be read); "done" — all
+    match.
     """
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     synced = {
@@ -169,19 +169,19 @@ def run_step(
     client: PolygonClient | None = None,
     synced: dict[str, str] | None = None,
 ) -> StepResult:
-    """Выполняет `step` для `problem_id`, если он ещё не выполнялся.
+    """Runs `step` for `problem_id` if it hasn't run yet.
 
-    Если `step.check_done` сообщает, что шаг уже выполнен, — возвращает это
-    сообщение, не создавая клиент и не делая сетевых вызовов. Иначе
-    вызывает `step.execute`. Сообщение пишется в лог: лог уходит в
-    `problems/<id>/polygon.log`, а возвращаемое значение видит только вывод
-    CLI текущего запуска.
+    If `step.check_done` reports that the step is already done — returns that
+    message without creating a client or making network calls. Otherwise
+    calls `step.execute`. The message is written to the log: the log goes to
+    `problems/<id>/polygon.log`, and only the CLI output of the current run sees
+    the returned value.
 
-    `synced` — база синхронизации (см. `StepContext`); `None` — загружать
-    всё.
+    `synced` — the sync base (see `StepContext`); `None` — upload
+    everything.
 
-    `PolygonApiError` и `PolygonStepError` из `execute` пробрасываются
-    наружу — остановка пайплайна на стороне `orchestrator/polygon/pipeline.py`.
+    `PolygonApiError` and `PolygonStepError` from `execute` are propagated
+    outward — the pipeline stops on the side of `orchestrator/polygon/pipeline.py`.
     """
     ctx = StepContext(
         problem_id=problem_id, spec=spec, problems_dir=Path(problems_dir), synced=synced

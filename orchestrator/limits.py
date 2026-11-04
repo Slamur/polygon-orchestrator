@@ -1,17 +1,17 @@
-"""Актуальные TL/ML задачи — `problems/<путь задачи>/limits.yaml`.
+"""The problem's actual TL/ML — `problems/<problem path>/limits.yaml`.
 
-`constraints.yaml` — результат `constraints_pick`: TL/ML в нём — то, что
-предложила модель (или задал автор в спеке), и после генерации он не
-меняется. Актуальные TL/ML — те, что выставлены на Polygon, — хранит
-`limits.yaml`: его загружает `polygon push` (`set_constraints`), с ним
-сверяет TL/ML задачи `polygon pull`, и его можно править руками. Из
-`constraints.yaml` он выводится шагом `limits_from_constraints`
-(`orchestrator/steps/limits_from_constraints.py`) — только когда TL/ML в
-`constraints.yaml` изменились, так что правка TL/ML на Polygon или руками
-переживает `llm generate`.
+`constraints.yaml` is the result of `constraints_pick`: the TL/ML in it are what
+the model proposed (or the author set in the spec), and it doesn't change after generation.
+The actual TL/ML — those set on Polygon — are stored in
+`limits.yaml`: `polygon push` uploads it (`set_constraints`), `polygon pull` compares the
+problem's TL/ML with it, and it can be edited by hand. It is derived from
+`constraints.yaml` by the `limits_from_constraints` step
+(`orchestrator/steps/limits_from_constraints.py`) — only when the TL/ML in
+`constraints.yaml` changed, so an edit of the TL/ML on Polygon or by hand
+survives `llm generate`.
 
-Ключи — те же, что в `constraints.yaml` (`limits.time_limit_seconds`,
-`limits.memory_limit_mb`), в корне документа.
+The keys are the same as in `constraints.yaml` (`limits.time_limit_seconds`,
+`limits.memory_limit_mb`), at the document root.
 """
 
 from __future__ import annotations
@@ -34,20 +34,20 @@ LIMITS_HEADER = (
 
 
 class LimitsError(ValueError):
-    """TL/ML не читаются: не YAML, нет ключей, не положительные числа."""
+    """The TL/ML can't be read: not YAML, no keys, not positive numbers."""
 
 
 def extract_limits(data: dict[str, Any]) -> tuple[object, object]:
-    """Пара (time_limit_seconds, memory_limit_mb) из разобранного YAML.
+    """The pair (time_limit_seconds, memory_limit_mb) from parsed YAML.
 
-    `constraints.yaml` — свободный YAML: структурированный вывод модели
-    валидирует только форму status/artifacts/notes, не содержимое файла.
-    Поэтому пара встречается и внутри вложенного словаря `limits`, и прямо
-    в корне документа (как в `limits.yaml`) — ищем в обоих местах.
+    `constraints.yaml` is free-form YAML: the model's structured output
+    validates only the status/artifacts/notes shape, not the file's contents.
+    So the pair occurs both inside a nested `limits` dict and right
+    at the document root (as in `limits.yaml`) — we look in both places.
 
-    Если пара есть в обоих местах с РАЗНЫМИ значениями — это противоречие
-    в самом файле: `LimitsError`, а не молчаливый выбор. Значения не
-    проверяются (могут быть `None`) — это делает `parse_limits`.
+    If the pair is in both places with DIFFERENT values — that's a contradiction
+    in the file itself: a `LimitsError`, not a silent choice. The values aren't
+    checked (they may be `None`) — `parse_limits` does that.
     """
     candidates: list[tuple[str, dict]] = []
     limits = data.get("limits")
@@ -73,11 +73,11 @@ def extract_limits(data: dict[str, Any]) -> tuple[object, object]:
 
 
 def parse_limits(text: str) -> tuple[int, int]:
-    """(timeLimit в миллисекундах, memoryLimit в мегабайтах) — в единицах
-    `problem.updateInfo` — из текста `limits.yaml` или `constraints.yaml`.
+    """(timeLimit in milliseconds, memoryLimit in megabytes) — in the units of
+    `problem.updateInfo` — from the text of `limits.yaml` or `constraints.yaml`.
 
-    Единицы: `time_limit_seconds` x 1000 -> миллисекунды; `memory_limit_mb`
-    — как есть, в мегабайтах (конвенция Codeforces/Polygon problem.xml).
+    Units: `time_limit_seconds` x 1000 -> milliseconds; `memory_limit_mb`
+    — as is, in megabytes (the Codeforces/Polygon problem.xml convention).
     """
     try:
         data = yaml.safe_load(text)
@@ -96,7 +96,7 @@ def parse_limits(text: str) -> tuple[int, int]:
 
 
 def render_limits(time_limit_ms: int, memory_limit_mb: int) -> str:
-    """Текст `limits.yaml` для TL/ML в единицах `parse_limits`."""
+    """The text of `limits.yaml` for TL/ML in the units of `parse_limits`."""
     seconds = time_limit_ms / 1000
     return (
         f"{LIMITS_HEADER}"

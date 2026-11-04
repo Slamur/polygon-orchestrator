@@ -1,5 +1,5 @@
-"""Шаг 2 — фиксация ограничений (N/TL/ML, тестовые группы) + validator.cpp,
-CLAUDE.md, "Роль каждого генеративного шага", пункт 2.
+"""Step 2 — fixing the limits (N/TL/ML, test groups) + validator.cpp,
+CLAUDE.md, "Role of each generative step", item 2.
 """
 
 from __future__ import annotations
@@ -34,17 +34,17 @@ from orchestrator.steps.base import (
 
 STEP_NAME = "constraints_pick"
 
-# Optional[list[...]]-поля секции constraints, по которым user.md.j2 делает
-# {% for %} без проверки на null (см. base.with_default_lists).
+# Optional[list[...]] fields of the constraints section over which user.md.j2 does
+# {% for %} without a null check (see base.with_default_lists).
 _LIST_FIELDS = ["special_guarantees", "test_groups_hint", "uncertain_points"]
 
 
 def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
-    """Секции спека для рендера промпта И для входа хеша кэша — единая точка
-    сборки, чтобы они не разошлись. Помимо секции `constraints` — формат
-    ввода из `statement_draft` (`base.statement_io_section`, без легенды и
-    вывода): валидатор читает вход токен за токеном, и порядок/разбивку по
-    строкам ему не из чего взять, кроме `formal_input_sketch`.
+    """The spec sections for rendering the prompt AND for the cache hash input — a single
+    assembly point, so that they don't diverge. Besides the `constraints` section — the input
+    format from `statement_draft` (`base.statement_io_section`, without the legend and
+    the output): the validator reads the input token by token, and it has nowhere to take the order/split into
+    lines from except `formal_input_sketch`.
     """
     return {
         "constraints": with_default_lists(
@@ -57,10 +57,10 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
 def set_spec_problem_id(
     problem_id: str, artifact: str | None = None
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
-    """`postprocess_artifacts` для `run_generative_step`: `problem_id` в
-    YAML-артефакте шага (`artifact`, по умолчанию `constraints.yaml`) ставит
-    оркестратор из спека, а не модель — она могла переписать его неверно.
-    Строки `problem_id:` в ответе нет — файл как есть."""
+    """`postprocess_artifacts` for `run_generative_step`: the `problem_id` in the
+    step's YAML artifact (`artifact`, `constraints.yaml` by default) is set by the
+    orchestrator from the spec, not by the model — it could have rewritten it wrongly.
+    There's no `problem_id:` line in the response — the file as is."""
     artifact = artifact or CONSTRAINTS_ARTIFACT
 
     def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
@@ -77,7 +77,7 @@ def set_spec_problem_id(
             "field": "problem_id",
             "kind": "restored",
             "explanation": (
-                f"problem_id в {artifact} заменён оркестратором на '{problem_id}' из спека"
+                f"problem_id in {artifact} replaced by the orchestrator with '{problem_id}' from the spec"
             ),
         }
         return {**artifacts, artifact: fixed}, [note]
@@ -90,12 +90,12 @@ def compute_input_hash(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
-    """Хеш входа шага без вызова модели — см. `statement_draft.compute_input_hash`
-    и CLAUDE.md, "Кэширование по хешу спека". Вход — секция `constraints` +
-    формат ввода из `statement_draft` (см. `_build_context_sections`): правка
-    формата входа должна инвалидировать и `validator.cpp`.
-    `problem_id`/`upstream_artifacts` не используются, присутствуют ради
-    единой сигнатуры у всех шагов.
+    """The step's input hash without calling the model — see `statement_draft.compute_input_hash`
+    and CLAUDE.md, "Caching by spec hash". The input — the `constraints` section +
+    the input format from `statement_draft` (see `_build_context_sections`): an edit of the
+    input format must invalidate `validator.cpp` too.
+    `problem_id`/`upstream_artifacts` aren't used, they're present for the sake of the
+    single signature of all steps.
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
@@ -105,24 +105,24 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
-    общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_values`), чтобы они не разошлись."""
+    """What goes into the step's input hash: `(spec section, upstream artifacts)` —
+    the shared source for `compute_input_hash` and the per-part hashes
+    (`cache.compute_input_values`), so that they don't diverge."""
     return _build_context_sections(spec), None
 
 
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """Путь к основному артефакту шага, см. `statement_draft.primary_artifact_path`."""
+    """The path to the step's primary artifact, see `statement_draft.primary_artifact_path`."""
     return authoring_path(Path(problems_dir) / problem_id, CONSTRAINTS_ARTIFACT)
 
 
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
-    модель) -> путь — для режима доработки (`base.StepRevision`). `constraints.yaml` и
+    """The step's current files on disk: artifact name (as the
+    model would return it) -> path — for revision mode (`base.StepRevision`). `constraints.yaml` and
     `validator.cpp`."""
     problem_dir = Path(problems_dir) / problem_id
     return existing_artifacts(
@@ -138,10 +138,10 @@ def current_artifacts(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Образцы для конкретного вызова — файлы, которые этому шагу дают
-    референсы спека (общие `references` и `constraints.references`, см.
-    `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
-    `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково.
+    """Samples for a particular call — the files the spec's references
+    give this step (the shared `references` and `constraints.references`, see
+    `orchestrator/references.py`). The single signature with all steps is needed by
+    `pipeline.py` to compute `compute_prompt_hash` the same way.
     """
     return reference_documents(STEP_NAME, spec)
 
@@ -157,43 +157,43 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `constraints_pick` для `problem_id`.
+    """Runs the `constraints_pick` step for `problem_id`.
 
-    Вход: секция `constraints` спека — в первую очередь
-    `intended_complexity` и `complexity_reasoning`, а также `variables`,
-    `special_guarantees`, `test_groups_hint`, лимиты и `uncertain_points`.
-    Плюс формат ввода из `statement_draft` (`formal_input_sketch`,
-    `indexing`, input примеров) — источник порядка чтения для
-    `validator.cpp`; легенда не передаётся.
+    Input: the spec's `constraints` section — first of all
+    `intended_complexity` and `complexity_reasoning`, as well as `variables`,
+    `special_guarantees`, `test_groups_hint`, the limits and `uncertain_points`.
+    Plus the input format from `statement_draft` (`formal_input_sketch`,
+    `indexing`, the examples' input) — the source of the reading order for
+    `validator.cpp`; the legend isn't passed.
 
-    Модель **не имеет права** сама выводить асимптотику решения из легенды
-    задачи — единственный источник асимптотики это
-    `constraints.intended_complexity`/`complexity_reasoning`, данные автором
-    явно (CLAUDE.md, "Роль каждого генеративного шага", п.2). Пустой/не
-    сформулированный `intended_complexity` уже отклоняется на уровне
-    `orchestrator.spec.load_spec` (обязательное непустое поле), но если
-    промпт всё равно не может согласовать ограничения с этим обоснованием —
-    он обязан вернуть `status: uncertain`, а не догадываться, и этот вызов
-    завершится `StepUncertainError` без записи файлов (см. "Правило
-    эскалации при неуверенности"). Для значений, не заданных автором явно
-    (например, `variables[].max: null` или `time_limit_seconds: null`),
-    допускается только `status: proposed` с обоснованием в `notes`, никогда
-    не `confirmed`.
+    The model **has no right** to derive the solution's asymptotics from the problem's
+    legend on its own — the only source of the asymptotics is
+    `constraints.intended_complexity`/`complexity_reasoning`, given by the author
+    explicitly (CLAUDE.md, "Role of each generative step", item 2). An empty/un-
+    formulated `intended_complexity` is already rejected at the level of
+    `orchestrator.spec.load_spec` (a mandatory non-empty field), but if the
+    prompt still can't reconcile the limits with this justification —
+    it must return `status: uncertain` rather than guess, and this call
+    ends with `StepUncertainError` without writing files (see "Escalation rule
+    on uncertainty"). For values not set by the author explicitly
+    (e.g. `variables[].max: null` or `time_limit_seconds: null`),
+    only `status: proposed` with a justification in `notes` is allowed, never
+    `confirmed`.
 
-    Помимо `constraints.yaml`, этот же вызов модели пишет `validator.cpp` —
-    реализацию секции `validator` (`constants`/`checks`) из `constraints.yaml`
-    1-в-1, по образцу `validator.cpp` учебной задачи (CLAUDE.md, "Роль каждого
-    генеративного шага", п.2). Это не отдельный шаг: `status: uncertain`
-    останавливает оба файла разом, `validator.cpp` не пишется без
-    `constraints.yaml` и наоборот.
+    Besides `constraints.yaml`, the same model call writes `validator.cpp` —
+    an implementation of the `validator` section (`constants`/`checks`) from `constraints.yaml`
+    1-to-1, following the `validator.cpp` of the sample problem (CLAUDE.md, "Role of each
+    generative step", item 2). It isn't a separate step: `status: uncertain`
+    stops both files at once, `validator.cpp` isn't written without
+    `constraints.yaml` and vice versa.
 
-    При успехе пишет `problems/<problem_id>/authoring/constraints.yaml` и
-    `problems/<problem_id>/validator.cpp`; `validator.cpp` дополнительно
-    прогоняется через `compile_check` (как и любой другой `.cpp`-артефакт —
-    см. `run_generative_step`).
+    On success it writes `problems/<problem_id>/authoring/constraints.yaml` and
+    `problems/<problem_id>/validator.cpp`; `validator.cpp` is additionally
+    run through `compile_check` (like any other `.cpp` artifact —
+    see `run_generative_step`).
 
-    `upstream_artifacts` не используется: `constraints_pick` зависит только
-    от спека (CLAUDE.md, "Кэширование по хешу спека").
+    `upstream_artifacts` isn't used: `constraints_pick` depends only
+    on the spec (CLAUDE.md, "Caching by spec hash").
     """
     context = {"problem_id": spec.problem_id, **_build_context_sections(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)

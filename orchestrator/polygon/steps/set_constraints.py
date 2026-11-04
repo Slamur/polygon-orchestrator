@@ -1,14 +1,14 @@
-"""Polygon-шаг 2 — перенос актуальных TL/ML из `problems/<problem_id>/limits.yaml`
-(см. `orchestrator/limits.py`; из `constraints.yaml` его выводит шаг
-`limits_from_constraints`) в Polygon через `problem.updateInfo` вместе с
-флагом интерактивности задачи (есть ли в спеке секция `interactor`).
+"""Polygon step 2 — transferring the actual TL/ML from `problems/<problem_id>/limits.yaml`
+(see `orchestrator/limits.py`; the `limits_from_constraints` step derives it from
+`constraints.yaml`) to Polygon via `problem.updateInfo` together with the
+problem's interactivity flag (whether the spec has an `interactor` section).
 
-Флаг — отдельный элемент базы синхронизации (`INTERACTIVE_KEY`), но
-сравнивается, только если задача интерактивная или флаг уже есть в базе:
-у обычных задач, синхронизированных до его появления, его нет, и push не
-должен из-за этого заново отправлять `problem.updateInfo`.
+The flag is a separate element of the sync base (`INTERACTIVE_KEY`), but
+it's compared only if the problem is interactive or the flag is already in the base:
+normal problems synced before it appeared don't have it, and push mustn't
+send `problem.updateInfo` again because of that.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -40,8 +40,8 @@ STEP_NAME = "set_constraints"
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Переносит TL/ML и флаг интерактивности в Polygon, если они отличаются
-    от базы синхронизации (`problem.updateInfo` получает их вместе)."""
+    """Transfers the TL/ML and the interactivity flag to Polygon if they differ
+    from the sync base (`problem.updateInfo` gets them together)."""
     polygon_id = require_polygon_state(ctx).polygon_id
     time_limit_ms, memory_limit_mb = read_limits(ctx.problem_id, ctx.problems_dir)
     interactive = ctx.spec.interactive
@@ -68,9 +68,9 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации (`sync_status`). Ручные правки TL/ML в UI
-    Polygon отсюда не видны; флаг интерактивности — тоже (спек здесь
-    недоступен, смену флага в спеке заметит push)."""
+    """By the sync base (`sync_status`). Manual TL/ML edits in the Polygon UI
+    aren't visible from here; neither is the interactivity flag (the spec isn't
+    available here, push notices a change of the flag in the spec)."""
 
     def read_items() -> dict[str, str]:
         return {LIMITS_KEY: limits_digest(*read_limits(problem_id, problems_dir))}
@@ -83,20 +83,20 @@ def _describe(time_limit_ms: int, memory_limit_mb: int) -> str:
 
 
 def read_limits(problem_id: str, problems_dir: Path) -> tuple[int, int]:
-    """(timeLimit в миллисекундах, memoryLimit в мегабайтах) из
-    `limits.yaml` — в единицах `problem.updateInfo` (`limits.parse_limits`).
-    Без сети; если `limits.yaml` нет или он некорректен — `PolygonStepError`
-    (при отсутствии — с указанием, как его получить). Нужно и `polygon pull`
-    — сравнить локальные TL/ML с Polygon.
+    """(timeLimit in milliseconds, memoryLimit in megabytes) from
+    `limits.yaml` — in the units of `problem.updateInfo` (`limits.parse_limits`).
+    Without the network; if `limits.yaml` doesn't exist or is invalid — `PolygonStepError`
+    (if it's missing — saying how to get it). `polygon pull` needs it too
+    — to compare the local TL/ML with Polygon.
 
-    `problem.updateInfo` получает ещё inputFile="", outputFile="" (см.
-    `_execute`): в формате спека (docs/SPEC_FORMAT.md) нет полей для
-    файлового ввода/вывода, значения отражают дефолт stdin/stdout. Если
-    такие поля появятся — менять нужно там.
+    `problem.updateInfo` also gets inputFile="", outputFile="" (see
+    `_execute`): the spec format (docs/SPEC_FORMAT.md) has no fields for
+    file input/output, the values reflect the stdin/stdout default. If
+    such fields appear — that's where to change it.
 
-    NOTE: в тексте документации `problem.updateInfo` единицы прямо не
-    названы — после первого реального вызова стоит сверить с вкладкой
-    General в UI Polygon.
+    NOTE: the documentation text of `problem.updateInfo` doesn't name the units
+    explicitly — after the first real call it's worth checking against the
+    General tab in the Polygon UI.
     """
     limits_path = Path(problems_dir) / problem_id / LIMITS_FILENAME
     if not limits_path.exists():

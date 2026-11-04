@@ -1,14 +1,14 @@
-"""Кэш по хешу спека для генеративных шагов (см. CLAUDE.md, раздел
-"Кэширование по хешу спека").
+"""The cache by spec hash for the generative steps (see CLAUDE.md, the
+"Caching by spec hash" section).
 
-Шаг не должен вызывать модель повторно, если ничего из того, что на него
-влияет, не изменилось с прошлого успешного запуска: ни соответствующая
-секция спека (+ апстрим-артефакты предыдущих шагов), ни содержимое
-промпт-шаблонов, ни модель из `model_router.py`.
+A step must not call the model again if nothing that
+affects it has changed since the last successful run: neither the corresponding
+spec section (+ the upstream artifacts of previous steps), nor the contents of the
+prompt templates, nor the model from `model_router.py`.
 
-Этот модуль только считает хеши и читает/пишет `problems/<id>/.cache/<step>.json`
-(и неприменённый ответ модели `.cache/<step>.response.json`, см.
-`PendingResponse`) — решение о том, вызывать ли модель, принимает `pipeline.py`.
+This module only computes hashes and reads/writes `problems/<id>/.cache/<step>.json`
+(and the model's unapplied response `.cache/<step>.response.json`, see
+`PendingResponse`) — the decision whether to call the model is made by `pipeline.py`.
 """
 
 from __future__ import annotations
@@ -24,15 +24,15 @@ from orchestrator.problem_paths import PROBLEMS_DIR
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
 
-# Общий для всех шагов блок user-промпта режима доработки
-# (`orchestrator/steps/base.py`), относительно prompts_dir. Входит в хеш
-# промпта каждого шага: правка блока должна инвалидировать кэш, как правка
-# самих промптов шага.
+# The revision-mode user-prompt block shared by all steps
+# (`orchestrator/steps/base.py`), relative to prompts_dir. Part of every step's
+# prompt hash: editing the block must invalidate the cache, like editing the
+# step's prompts themselves.
 REVISE_PROMPT = "revise.md.j2"
 
-# Статус, который никогда не считается валидным кэшем (см. CLAUDE.md,
-# "Кэширование по хешу спека", пункт 3): провал по недостатку данных должен
-# всплывать при каждом запуске, пока автор не поправит спек.
+# The status that is never considered a valid cache (see CLAUDE.md,
+# "Caching by spec hash", item 3): a failure due to missing data must
+# surface on every run until the author fixes the spec.
 UNCERTAIN_STATUS = "uncertain"
 
 
@@ -45,15 +45,15 @@ def compute_input_hash(
     spec_section: Any,
     upstream_artifacts: Any = None,
 ) -> str:
-    """sha256 от канонического JSON-представления входа шага.
+    """sha256 of the canonical JSON representation of the step's input.
 
-    `spec_section` — часть спека, от которой зависит шаг (см. CLAUDE.md:
-    `statement_draft` -> секция `statement_draft`, `constraints_pick` ->
-    секция `constraints`, `tests_plan` -> секция `generation`,
-    `solutions_draft` -> секция `solutions`).
-    `upstream_artifacts` — артефакты предыдущих шагов, от которых зависит
-    текущий (например, содержимое `constraints.yaml` для шагов 3 и 4);
-    `None` для шагов без такой зависимости.
+    `spec_section` — the part of the spec the step depends on (see CLAUDE.md:
+    `statement_draft` -> the `statement_draft` section, `constraints_pick` ->
+    the `constraints` section, `tests_plan` -> the `generation` section,
+    `solutions_draft` -> the `solutions` section).
+    `upstream_artifacts` — the artifacts of previous steps the current one
+    depends on (e.g. the contents of `constraints.yaml` for steps 3 and 4);
+    `None` for steps without such a dependency.
     """
     payload = {
         "step": step_name,
@@ -69,11 +69,11 @@ def _sha256(text: str) -> str:
 
 
 def compute_input_values(spec_section: Any, upstream_artifacts: Any = None) -> dict[str, Any]:
-    """Вход шага по частям — те же данные, что `compute_input_hash`:
-    `spec: <ключ>[.<подключ>]` для полей секции спека (на два уровня вглубь)
-    и `upstream: <имя>` для апстрим-артефактов. Значения сохраняются в кэше
-    (`CacheEntry.input_values`), чтобы следующий прогон в режиме доработки
-    показал модели, что именно изменилось (`changed_input_values`).
+    """The step's input by parts — the same data as `compute_input_hash`:
+    `spec: <key>[.<subkey>]` for the fields of the spec section (two levels deep)
+    and `upstream: <name>` for upstream artifacts. The values are stored in the cache
+    (`CacheEntry.input_values`), so that the next run in revision mode
+    shows the model what exactly changed (`changed_input_values`).
     """
     values: dict[str, Any] = {}
     if isinstance(spec_section, dict):
@@ -91,24 +91,24 @@ def compute_input_values(spec_section: Any, upstream_artifacts: Any = None) -> d
 
 
 def input_parts_from_values(values: dict[str, Any]) -> dict[str, str]:
-    """Хеши частей входа (`compute_input_values`). Решение "валиден ли кэш"
-    принимается только по общему хешу, части нужны, чтобы
-    `llm status`/`llm generate` могли сказать, что именно изменилось
+    """The hashes of the input parts (`compute_input_values`). The "is the cache valid"
+    decision is made only by the overall hash, the parts are needed so that
+    `llm status`/`llm generate` can say what exactly changed
     (`describe_changed_parts`)."""
     return {name: _sha256(_canonical_json(value)) for name, value in values.items()}
 
 
 def compute_input_parts(spec_section: Any, upstream_artifacts: Any = None) -> dict[str, str]:
-    """Хеши отдельных частей входа шага, см. `compute_input_values`."""
+    """The hashes of the individual parts of the step's input, see `compute_input_values`."""
     return input_parts_from_values(compute_input_values(spec_section, upstream_artifacts))
 
 
 def changed_input_values(
     old_values: dict[str, Any] | None, new_values: dict[str, Any]
 ) -> list[tuple[str, Any, Any]] | None:
-    """Изменившиеся части входа: `(имя, было, стало)`; у появившейся части
-    "было" — `None`, у исчезнувшей "стало" — `None`. `old_values=None` (запись
-    кэша без значений) — `None`: что изменилось, неизвестно."""
+    """The changed input parts: `(name, before, after)`; for a part that appeared
+    "before" is `None`, for one that vanished "after" is `None`. `old_values=None` (a cache
+    entry without values) — `None`: what changed is unknown."""
     if old_values is None:
         return None
     changes = [
@@ -127,18 +127,18 @@ def compute_prompt_hash(
     templates_dir: Path = TEMPLATES_DIR,
     extra_context_documents: list[str] | None = None,
 ) -> str:
-    """sha256 от `prompts/<step_name>/{system.md,user.md.j2}` + документов контекста.
+    """sha256 of `prompts/<step_name>/{system.md,user.md.j2}` + the context documents.
 
-    Читает файлы с диска, так что правка промпта инвалидирует кэш шага, даже
-    если сам спек не менялся. Помимо самих промптов (и общего блока режима
-    доработки `REVISE_PROMPT`, если он есть), в хеш также входит
-    содержимое всех документов контекста этого шага
+    Reads the files from disk, so editing a prompt invalidates the step's cache even
+    if the spec itself didn't change. Besides the prompts themselves (and the shared
+    revision-mode block `REVISE_PROMPT`, if there is one), the hash also includes
+    the contents of all of this step's context documents
     (`orchestrator.steps.base.STEP_CONTEXT_DOCUMENTS[step_name]` +
-    `extra_context_documents`, см. `orchestrator.steps.base.
-    load_context_documents`) — иначе правка tutorials/*.md/problem_lib.h/
-    generators/*.cpp и т.п. не инвалидирует кэш шагов, которые от них зависят.
-    Это наш собственный результат-кэш (`problems/<id>/.cache/<step>.json`),
-    не связан с Anthropic prompt caching.
+    `extra_context_documents`, see `orchestrator.steps.base.
+    load_context_documents`) — otherwise editing tutorials/*.md/problem_lib.h/
+    generators/*.cpp etc. wouldn't invalidate the cache of the steps that depend on them.
+    This is our own result cache (`problems/<id>/.cache/<step>.json`),
+    unrelated to Anthropic prompt caching.
     """
     system_text, user_text, context_documents = _read_prompt_inputs(
         step_name,
@@ -167,9 +167,9 @@ def compute_prompt_parts(
     templates_dir: Path = TEMPLATES_DIR,
     extra_context_documents: list[str] | None = None,
 ) -> dict[str, str]:
-    """Хеши по файлам того же набора, что `compute_prompt_hash`: оба
-    промпт-шаблона шага и каждый документ контекста по отдельности. Как и
-    `compute_input_parts`, только для объяснения, что изменилось."""
+    """Per-file hashes of the same set as `compute_prompt_hash`: both
+    prompt templates of the step and each context document separately. Like
+    `compute_input_parts`, only for explaining what changed."""
     system_text, user_text, context_documents = _read_prompt_inputs(
         step_name,
         prompts_dir=prompts_dir,
@@ -189,9 +189,9 @@ def compute_prompt_parts(
 
 
 def _read_revise_prompt(prompts_dir: Path) -> str | None:
-    """`prompts/revise.md.j2`, если он есть. Нет — `None`: в хеш не входит
-    (нужен только в режиме доработки, и там его отсутствие — ошибка
-    рендера)."""
+    """`prompts/revise.md.j2`, if it exists. If not — `None`: it isn't part of the hash
+    (it's needed only in revision mode, and there its absence is a rendering
+    error)."""
     path = Path(prompts_dir) / REVISE_PROMPT
     return path.read_text(encoding="utf-8") if path.is_file() else None
 
@@ -207,8 +207,8 @@ def _read_prompt_inputs(
     system_text = (step_dir / "system.md").read_text(encoding="utf-8")
     user_text = (step_dir / "user.md.j2").read_text(encoding="utf-8")
 
-    # Локальный импорт разрывает цикл base.py (импортирует cache.py) <->
-    # cache.py (импортировал бы base.py на уровне модуля).
+    # A local import breaks the cycle base.py (imports cache.py) <->
+    # cache.py (would import base.py at module level).
     from orchestrator.steps import base as steps_base
 
     context_documents = steps_base.load_context_documents(
@@ -219,19 +219,19 @@ def _read_prompt_inputs(
 
 @dataclass
 class CacheEntry:
-    """Содержимое `problems/<problem_id>/.cache/<step>.json`.
+    """The contents of `problems/<problem_id>/.cache/<step>.json`.
 
-    `input_parts`/`prompt_parts` — хеши по частям (`compute_input_parts`/
-    `compute_prompt_parts`), только для объяснения, что изменилось; `None` у
-    записей, сделанных до их появления. `input_values` — сам вход по частям
-    (`compute_input_values`): что изменилось с прошлого прогона, показывается
-    модели в режиме доработки; `None` у записей, сделанных до его появления.
-    `accepted` — запись сделана
-    `llm accept` (текущие файлы приняты без вызова модели), а не
-    генерацией. `conflicts` — часть ответа модели не применена: каталог
-    конфликтов относительно каталога задачи (`steps.base._write_conflicts`);
-    такая запись — не cache hit, пока автор не разберёт конфликты и не
-    сделает `llm accept`.
+    `input_parts`/`prompt_parts` — hashes by parts (`compute_input_parts`/
+    `compute_prompt_parts`), only for explaining what changed; `None` for
+    entries made before they appeared. `input_values` — the input itself by parts
+    (`compute_input_values`): what changed since the last run is shown to the
+    model in revision mode; `None` for entries made before it appeared.
+    `accepted` — the entry was made by
+    `llm accept` (the current files were accepted without a model call), not by
+    generation. `conflicts` — part of the model's response wasn't applied: the conflicts
+    directory relative to the problem directory (`steps.base._write_conflicts`);
+    such an entry isn't a cache hit until the author resolves the conflicts and
+    runs `llm accept`.
     """
 
     input_hash: str
@@ -253,11 +253,11 @@ def _cache_file_path(problem_id: str, step_name: str, *, problems_dir: Path = PR
 def load_cache_entry(
     problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> CacheEntry | None:
-    """Читает кэш шага, если файл существует и является валидным CacheEntry.
+    """Reads the step's cache if the file exists and is a valid CacheEntry.
 
-    Отсутствующий файл, битый JSON или не соответствующая формату структура
-    трактуются одинаково — как "кэша нет" (`None`), а не как ошибка: в этом
-    случае пайплайн просто вызовет модель заново.
+    A missing file, broken JSON or a structure not matching the format
+    are treated the same — as "no cache" (`None`), not as an error: in that
+    case the pipeline just calls the model again.
     """
     path = _cache_file_path(problem_id, step_name, problems_dir=problems_dir)
     if not path.exists():
@@ -284,7 +284,7 @@ def save_cache_entry(
     *,
     problems_dir: Path = PROBLEMS_DIR,
 ) -> None:
-    """Перезаписывает `problems/<problem_id>/.cache/<step_name>.json`."""
+    """Overwrites `problems/<problem_id>/.cache/<step_name>.json`."""
     path = _cache_file_path(problem_id, step_name, problems_dir=problems_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -299,12 +299,12 @@ def is_cache_valid(
     current_prompt_hash: str,
     current_model: str | None = None,
 ) -> bool:
-    """Можно ли пропустить вызов модели и переиспользовать `entry`.
+    """Whether the model call can be skipped and `entry` reused.
 
-    `uncertain` никогда не считается валидным кэшем, независимо от хешей
-    (см. CLAUDE.md, "Кэширование по хешу спека", пункт 3). Смена модели
-    шага (`current_model`, класс модели из `model_router.STEP_TO_MODEL`)
-    тоже инвалидирует кэш; `None` — не сравнивать модель.
+    `uncertain` is never considered a valid cache, regardless of the hashes
+    (see CLAUDE.md, "Caching by spec hash", item 3). A change of the step's
+    model (`current_model`, the model class from `model_router.STEP_TO_MODEL`)
+    also invalidates the cache; `None` — don't compare the model.
     """
     if entry is None:
         return False
@@ -317,18 +317,18 @@ def is_cache_valid(
 
 @dataclass
 class PendingResponse:
-    """Содержимое `problems/<problem_id>/.cache/<step>.response.json` — ответ
-    модели, который ещё не применён к файлам задачи.
+    """The contents of `problems/<problem_id>/.cache/<step>.response.json` — a model
+    response not yet applied to the problem's files.
 
-    Пишется сразу после вызова модели, до проверки ответа и записи файлов, и
-    удаляется, когда ответ применён (или оказался `uncertain`): если ответ
-    не прошёл проверку, оплаченный вызов не теряется — после правки
-    оркестратора его можно применить заново без модели (`llm apply`).
+    Written right after the model call, before checking the response and writing the files, and
+    deleted once the response is applied (or turned out `uncertain`): if the response
+    failed the check, the paid call isn't lost — after fixing the
+    orchestrator it can be applied again without the model (`llm apply`).
 
-    `cache_entry` — запись кэша, которая сохраняется при успешном применении
-    (её хеши — вход, на который получен ответ); `revised` — ответ получен в
-    режиме доработки (модели показаны текущие файлы шага); `response` —
-    поля `ModelResponse`.
+    `cache_entry` — the cache entry saved on a successful application
+    (its hashes are the input the response was received for); `revised` — the response was received in
+    revision mode (the model was shown the step's current files); `response` —
+    the `ModelResponse` fields.
     """
 
     cache_entry: CacheEntry
@@ -360,7 +360,7 @@ def save_pending_response(
 def load_pending_response(
     problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> PendingResponse | None:
-    """Неприменённый ответ шага; `None` — его нет (или файл битый — как у
+    """The step's unapplied response; `None` — there is none (or the file is broken — as in
     `load_cache_entry`)."""
     path = _pending_response_path(problem_id, step_name, problems_dir=problems_dir)
     if not path.exists():
@@ -385,10 +385,10 @@ def discard_pending_response(
 def describe_changed_parts(
     old_parts: dict[str, str] | None, new_parts: dict[str, str]
 ) -> list[str]:
-    """Какие части изменились между двумя наборами хешей по частям: имя
-    части, с пометкой ` (added)`/` (removed)` для появившихся и исчезнувших.
-    `old_parts=None` (запись кэша без частей) — пустой список: сказать
-    нечего, вызывающий код сообщает об этом сам."""
+    """Which parts changed between two sets of per-part hashes: the part's
+    name, marked ` (added)`/` (removed)` for those that appeared and vanished.
+    `old_parts=None` (a cache entry without parts) — an empty list: there's nothing
+    to say, the calling code reports that itself."""
     if old_parts is None:
         return []
     names = [name for name in new_parts if name in old_parts and old_parts[name] != new_parts[name]]

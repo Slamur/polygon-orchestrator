@@ -1,17 +1,17 @@
-"""Человеко-читаемые отчёты о работе модели: `llm_reports/<шаг>.md` в
-каталоге задачи.
+"""Human-readable reports on the model's work: `llm_reports/<step>.md` in the
+problem directory.
 
-Отчёт — текущее состояние шага, а не история: файл шага переписывается
-только когда шаг в прогоне реально отработал (вызвал модель или применил
-сохранённый ответ, `StepOutcome.ran`); у пропущенного по кэшу шага остаётся
-отчёт его последнего прогона. История прогонов — в `llm_generation.log`.
+A report is the step's current state, not a history: the step's file is rewritten
+only when the step actually worked in the run (called the model or applied a
+saved response, `StepOutcome.ran`); a step skipped by the cache keeps
+the report of its last run. The run history is in `llm_generation.log`.
 
-В отчёте сначала то, что требует действий автора (`uncertain`, не
-применённое, ошибки компиляции, `proposed`), потом идеи модели
-(`suggestion`), что она изменила, файлы шага и диффы изменённых файлов
-против прежних версий из `.llm_backup/`. `init --draft` пишет так же
+The report starts with what requires the author's action (`uncertain`, what wasn't
+applied, compile errors, `proposed`), then the model's ideas
+(`suggestion`), what it changed, the step's files and the diffs of changed files
+against the previous versions from `.llm_backup/`. `init --draft` likewise writes
 `llm_reports/spec_from_draft.md`, `llm accept` — `llm_reports/accept.md`
-(что принято и что изменилось во входе каждого шага).
+(what was accepted and what changed in the input of each step).
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ REPORTS_DIRNAME = "llm_reports"
 SPEC_FROM_DRAFT_REPORT = "spec_from_draft"
 ACCEPT_REPORT = "accept"
 
-# Порядок и заголовки групп заметок; заметки других `kind` — в конце, в
+# The order and titles of the note groups; notes of other `kind`s — at the end, in
 # `_OTHER_NOTES_TITLE`.
 _NOTE_SECTIONS = (
     ("uncertain", "Uncertain — the spec needs fixing"),
@@ -46,8 +46,8 @@ def report_path(problem_dir: Path, name: str) -> Path:
 
 
 def note_counts(notes: list[dict[str, Any]]) -> str:
-    """`2 proposed, 1 changed` — сколько заметок какого вида, в порядке
-    `_NOTE_SECTIONS`; пусто, если заметок нет."""
+    """`2 proposed, 1 changed` — how many notes of which kind, in the order of
+    `_NOTE_SECTIONS`; empty if there are no notes."""
     counts: dict[str, int] = {}
     for note in notes:
         kind = str(note.get("kind", "?"))
@@ -61,8 +61,8 @@ def note_counts(notes: list[dict[str, Any]]) -> str:
 def write_step_report(
     problem_dir: Path, outcome: Any, *, status_label: str, command_line: str
 ) -> Path:
-    """Пишет `llm_reports/<шаг>.md` по `pipeline.StepOutcome` отработавшего
-    шага; возвращает путь отчёта."""
+    """Writes `llm_reports/<step>.md` from the `pipeline.StepOutcome` of a step that worked;
+    returns the report's path."""
     problem_dir = Path(problem_dir)
     lines = _header(outcome.step_name, status_label, command_line)
     if outcome.detail:
@@ -100,7 +100,7 @@ def write_spec_from_draft_report(
     command_line: str,
     draft_path: Path,
 ) -> Path:
-    """Пишет `llm_reports/spec_from_draft.md` по `SpecFromDraftResult`."""
+    """Writes `llm_reports/spec_from_draft.md` from `SpecFromDraftResult`."""
     problem_dir = Path(problem_dir)
     lines = _header(SPEC_FROM_DRAFT_REPORT, status_label, command_line)
     lines += [f"**Draft:** `{draft_path}`", ""]
@@ -131,9 +131,9 @@ def write_spec_from_draft_report(
 
 
 def write_accept_report(problem_dir: Path, statuses: list[Any], *, command_line: str) -> Path:
-    """Пишет `llm_reports/accept.md` по `pipeline.StepStatus` шагов, которые
-    `llm accept` принял или не принял: полное `detail` каждого — в консоль
-    идёт короткое `brief`."""
+    """Writes `llm_reports/accept.md` from the `pipeline.StepStatus` of the steps that
+    `llm accept` accepted or didn't accept: the full `detail` of each — the console
+    gets the short `brief`."""
     lines = [f"# {ACCEPT_REPORT}", "", f"`orchestrator {command_line}` · {_stamp()}", ""]
     for status in statuses:
         lines += [f"## {status.step_name}: {status.state}", ""]
@@ -193,9 +193,9 @@ def _files_section(problem_dir: Path, outcome: Any) -> list[str]:
 
 
 def _diffs_section(problem_dir: Path, outcome: Any) -> list[str]:
-    """Диффы файлов, которые существовали и изменились: перезаписанных (их
-    прежняя версия — в бэкапе) и переименованных (против старого имени)."""
-    pairs: list[tuple[Path, Path, Path]] = []  # (прежняя версия, было, стало)
+    """Diffs of the files that existed and changed: overwritten ones (their
+    previous version is in the backup) and renamed ones (against the old name)."""
+    pairs: list[tuple[Path, Path, Path]] = []  # (previous version, before, after)
     renamed_to = {new_path for _, new_path, _ in outcome.renamed}
     for old, new_path, _ in outcome.renamed:
         before = _backup_of(problem_dir, outcome.backup_dir, old)
@@ -213,8 +213,8 @@ def _diffs_section(problem_dir: Path, outcome: Any) -> list[str]:
 
 
 def _diff_block(problem_dir: Path, before: Path, old: Path, new_path: Path) -> list[str]:
-    """Дифф прежней версии `before` файла `old` против текущего `new_path`
-    — сворачиваемым блоком; пусто, если файла нет или он не изменился."""
+    """The diff of the previous version `before` of the file `old` against the current `new_path`
+    — as a collapsible block; empty if there's no file or it didn't change."""
     if not new_path.is_file():
         return []
     old_name, new_name = _relative(problem_dir, old), _relative(problem_dir, new_path)
@@ -258,15 +258,15 @@ def _relative(problem_dir: Path, path: Path) -> str:
 
 
 def _link(problem_dir: Path, path: Path) -> str:
-    """Ссылка на файл задачи относительно `llm_reports/` — кликабельна в
-    редакторе и в просмотре Markdown."""
+    """A link to a problem file relative to `llm_reports/` — clickable in the
+    editor and in a Markdown preview."""
     relative = _relative(problem_dir, path)
     target = f"../{relative}" if not Path(relative).is_absolute() else relative
     return f"[{relative}](<{target}>)"
 
 
 def _fenced(text: str, language: str) -> list[str]:
-    """Блок кода с ограждением длиннее любой серии обратных кавычек в тексте."""
+    """A code block with a fence longer than any run of backticks in the text."""
     longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
     fence = "`" * max(3, longest + 1)
     return [f"{fence}{language}", text, fence]

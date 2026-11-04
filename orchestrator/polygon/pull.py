@@ -1,123 +1,123 @@
-"""Выгрузка задачи из Polygon в `problems/<problem_id>/` —
-`orchestrator <задача> polygon pull [--overwrite]`.
+"""Downloading a problem from Polygon into `problems/<problem_id>/` —
+`orchestrator <problem> polygon pull [--overwrite]`.
 
-Обратное направление к polygon-шагам (`steps/`): привязывает `problem_id` к
-уже существующей на Polygon задаче (`polygon_state.json`), сравнивает с
-Polygon каждую часть задачи, которой пользуется оркестратор, и
-переписывает базу синхронизации (`revision`/`synced`, см.
-`orchestrator/polygon/sync.py`) по тому, что сейчас на Polygon. По
-аналогии с git — `git pull` с трёхсторонней сверкой: общая база локального
-файла и версии на Polygon — его хеш в базе синхронизации до этого pull
-(`synced[ключ]`, то, что последний push загрузил или pull увидел).
+The reverse direction to the polygon steps (`steps/`): binds `problem_id` to
+a problem already existing on Polygon (`polygon_state.json`), compares with
+Polygon each part of the problem the orchestrator uses, and
+rewrites the sync base (`revision`/`synced`, see
+`orchestrator/polygon/sync.py`) by what's on Polygon now. By
+analogy with git — `git pull` with a three-way comparison: the common base of a local
+file and the version on Polygon is its hash in the sync base before this pull
+(`synced[key]`, what the last push uploaded or pull saw).
 
-Решение принимается по каждому файлу отдельно:
+The decision is made for each file separately:
 
-- локально файла нет — скачивается (`downloaded`);
-- совпадает с Polygon — не трогается (`up to date`);
-- отличается, и локальный файл совпадает с базой — менялся только Polygon:
-  локальный файл заменяется версией с Polygon (`updated`, fast-forward);
-- отличается, и версия на Polygon совпадает с базой — менялся только
-  локальный файл: остаётся локальная версия (`kept`) даже с
-  `--overwrite`, следующий `polygon push` загрузит её (в базу записывается
-  хеш версии с Polygon — push сравнивает с ним локальный);
-- отличается, и обе стороны отличаются от базы — менялись обе (`conflict`),
-  либо базы для файла нет — кто менял, неизвестно (`differs`): без
-  `--overwrite` остаётся локальная версия, с `--overwrite` — заменяется
-  версией с Polygon (`overwritten`);
-- есть только локально — не трогается (`local only`), и следующий push
-  загрузит его (если загружает такую часть при этом спеке — тогда условие
-  в `PullItem.push_condition`); локальные файлы pull никогда не удаляет.
+- there's no local file — it's downloaded (`downloaded`);
+- matches Polygon — it isn't touched (`up to date`);
+- differs, and the local file matches the base — only Polygon changed:
+  the local file is replaced with the version from Polygon (`updated`, fast-forward);
+- differs, and the version on Polygon matches the base — only the
+  local file changed: the local version stays (`kept`) even with
+  `--overwrite`, the next `polygon push` uploads it (the base records the
+  hash of the version from Polygon — push compares the local one with it);
+- differs, and both sides differ from the base — both changed (`conflict`),
+  or there's no base for the file — who changed it is unknown (`differs`): without
+  `--overwrite` the local version stays, with `--overwrite` — it's replaced with the
+  version from Polygon (`overwritten`);
+- exists only locally — it isn't touched (`local only`), and the next push
+  uploads it (if it uploads such a part with this spec — then the condition
+  is in `PullItem.push_condition`); pull never deletes local files.
 
-Заменённый локальный файл (`updated`, `overwritten`) сначала переносится в
-`.pull_backup/<время>/` (`problems/` вне git, другой копии у него нет).
-Отличающийся файл, оставленный локальным (`kept`, `conflict`, `differs`), получает в
-базе хеш версии с Polygon — для следующего pull это уже правка только
-локальная, и `--overwrite` её не заменит. Чтобы отбросить локальную правку
-в этом случае, достаточно удалить файл локально — pull скачает его заново.
+A replaced local file (`updated`, `overwritten`) is first moved to
+`.pull_backup/<time>/` (`problems/` is outside git, it has no other copy).
+A differing file left local (`kept`, `conflict`, `differs`) gets in the
+base the hash of the version from Polygon — for the next pull it's already an edit that's only
+local, and `--overwrite` won't replace it. To discard the local edit
+in this case, it's enough to delete the file locally — pull downloads it again.
 
-Pull отказывается работать, если в рабочей копии задачи на Polygon есть
-незакоммиченные правки: база синхронизации — всегда закоммиченная ревизия.
+Pull refuses to work if the problem's working copy on Polygon has
+uncommitted edits: the sync base is always a committed revision.
 
-Файлы, которые Polygon отдаёт листингом с временем изменения (валидатор,
-нестандартный чекер, генераторы, решения, `problem_lib.h`, Attachments),
-скачиваются, только если версия на Polygon может отличаться от записанной в
-базе. Версия на Polygon считается известной — её хеш равен `synced[ключ]`,
-— если у ключа есть хеш в базе и либо отметка (`stamps`, см.
-`orchestrator/polygon/sync.py`) совпадает с листингом, либо ревизия на
-Polygon равна записанной в базе (с последней синхронизации на Polygon ничего
-не коммитили; ревизии на Polygon только растут, поэтому ключи, сверенные
-даже упавшим pull, относятся к той же ревизии). Для известной версии
-локальный файл сравнивается по хешу без скачивания: совпал — `up to date`,
-отличается — менялся только локальный файл, `kept` без скачивания. Отметки
-записываются вместе с хешами по каждому файлу — частично упавший pull
-оставляет базу, в которой каждая пара "хеш + отметка" верна. Условие,
-примеры, TL/ML и test-script запрашиваются каждый раз — по одному запросу
-на часть, времени изменения у них нет.
+Files that Polygon returns in a listing with a modification time (validator,
+non-standard checker, generators, solutions, `problem_lib.h`, Attachments)
+are downloaded only if the version on Polygon may differ from the one recorded in
+the base. The version on Polygon is considered known — its hash equals `synced[key]` —
+if the key has a hash in the base and either the stamp (`stamps`, see
+`orchestrator/polygon/sync.py`) matches the listing, or the revision on
+Polygon equals the one recorded in the base (nothing was committed on Polygon since the last sync;
+revisions on Polygon only grow, so keys compared
+even by a failed pull belong to the same revision). For a known version
+the local file is compared by hash without downloading: matched — `up to date`,
+differs — only the local file changed, `kept` without downloading. Stamps
+are recorded together with the hashes for each file — a partially failed pull
+leaves a base in which each "hash + stamp" pair is correct. The statement,
+the examples, the TL/ML and the test-script are requested every time — one request
+per part, they have no modification time.
 
-Локальный спек (`problems/<problem_id>/authoring/spec.yaml`) не нужен: команда рассчитана
-в том числе на задачи, у которых локально нет вообще ничего. Сам спек
-сравнивается с Polygon как обычный файл (см. ниже), но не разбирается и не
-валидируется.
+A local spec (`problems/<problem_id>/authoring/spec.yaml`) isn't needed: the command is meant
+also for problems that have nothing at all locally. The spec itself
+is compared with Polygon as an ordinary file (see below), but isn't parsed or
+validated.
 
-Что с чем сравнивается (имена — те же, что читают polygon-шаги):
+What is compared with what (the names are the same that the polygon steps read):
 
-- условие (`problem.statements`) на каждом языке -> `statement/<код>/`
-  (`ru` у `russian`, см. `orchestrator/statement_languages.py`):
+- the statement (`problem.statements`) in each language -> `statement/<code>/`
+  (`ru` for `russian`, see `orchestrator/statement_languages.py`):
   `legend.tex`, `input_format.tex`, `output_format.tex`, `notes.tex`.
-  Пустой на Polygon раздел выгружается пустым файлом — `upload_statement`
-  требует все четыре. Каталог языка, которого нет на Polygon, — `local only`.
-  Протокол взаимодействия интерактивной задачи -> `interaction.tex` того же
-  каталога — только если он непуст на Polygon или файл есть локально.
-  Разбор -> `tutorial.tex` — так же. Название задачи из условия ->
-  `name.txt` (сравнивается без окружающих пробелов и переводов строк);
-- тесты с флагом "use in statements" (`problem.tests`, testset `tests`) ->
-  `statement/examples/example_<K>.txt`, K — порядковый номер такого теста
-  (1-based), а не его индекс на Polygon; input/output for statements
-  (у интерактивной задачи — диалог примера) ->
-  `example_<K>.input_for_statement.txt` и
-  `example_<K>.output_for_statement.txt` — каждый сам по себе, только если
-  поле есть на Polygon или файл локально; флаг "verify input/output for
-  statements" -> `example_<K>.verify_for_statement.txt` (`true`; флага нет
-  — файла нет) так же;
-- aux-файлы (раздел "Attachments", `problem.files` + `problem.viewFile`;
-  загружает шаг `upload_attachments`) -> `authoring/spec.yaml`,
-  `authoring/constraints.yaml` (результат `constraints_pick` целиком), копия
-  черновика `authoring/draft<расширение>` — каждый сверяется только со своей версией в
-  Attachments; прочие aux-файлы не трогаются. `constraints.yaml` из одних
-  TL/ML, который писали прежние версии pull (`PULLED_CONSTRAINTS_HEADER`),
-  уступает место версии из Attachments без `--overwrite`;
-- TL/ML (`problem.info`) -> `limits.yaml` (актуальные TL/ML задачи, см.
-  `orchestrator/limits.py`); `constraints.yaml` они не трогают никогда.
-  Сравниваются значения, а не текст файла; база — хеш TL/ML
-  (`LIMITS_KEY`), сверка та же, что у файлов. Заменённый `limits.yaml`
-  пишется заново (`limits.render_limits`);
-- валидатор (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
-- чекер (`problem.checker`) -> `checker.cpp`, если он не стандартный
-  (`std::...` — скачивать нечего);
-- интерактор (`problem.interactor` — только если задача на Polygon
-  интерактивная, по `problem.info`) -> `interactor.cpp`; флаг
-  интерактивности записывается в базу (`INTERACTIVE_KEY`), чтобы push
-  выставил его по спеку, если они расходятся;
-- остальные source-файлы `*.cpp` (`problem.files`) -> `generators/`
-  (`generator_source_names`: всё, что не валидатор, не чекер и не
-  интерактор);
-- test-script (`problem.script`, testset `tests`) -> `test_script` (или уже
-  существующий локально `test_script_groups`); сравнивается без пустых строк
-  (`normalize_script`) — Polygon выкидывает их при сохранении;
-- решения (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
-  Тег решения на Polygon локально не сохраняется: `upload_solutions` выводит
-  тег из имени файла, поэтому про имена не по его схеме — предупреждение;
-- resource `problem_lib.h` -> `problem_lib.h` (копия задачи, см.
-  `PROBLEM_LIB_FILENAME` в `orchestrator/steps/base.py`; если её нет на
-  Polygon, push загрузит локальную, а без неё — шаблон).
+  A section empty on Polygon is downloaded as an empty file — `upload_statement`
+  requires all four. A language directory that isn't on Polygon — `local only`.
+  The interaction protocol of an interactive problem -> `interaction.tex` of the same
+  directory — only if it's non-empty on Polygon or the file exists locally.
+  The tutorial -> `tutorial.tex` — likewise. The problem's name from the statement ->
+  `name.txt` (compared without surrounding spaces and line breaks);
+- tests with the "use in statements" flag (`problem.tests`, testset `tests`) ->
+  `statement/examples/example_<K>.txt`, K is the ordinal number of such a test
+  (1-based), not its index on Polygon; the input/output for statements
+  (for an interactive problem — the example's dialogue) ->
+  `example_<K>.input_for_statement.txt` and
+  `example_<K>.output_for_statement.txt` — each on its own, only if
+  the field exists on Polygon or the file locally; the "verify input/output for
+  statements" flag -> `example_<K>.verify_for_statement.txt` (`true`; no flag
+  — no file) likewise;
+- aux files (the "Attachments" section, `problem.files` + `problem.viewFile`;
+  uploaded by the `upload_attachments` step) -> `authoring/spec.yaml`,
+  `authoring/constraints.yaml` (the whole `constraints_pick` result), the
+  draft copy `authoring/draft<extension>` — each is compared only with its version in
+  Attachments; other aux files aren't touched. A `constraints.yaml` of only
+  TL/ML, written by previous versions of pull (`PULLED_CONSTRAINTS_HEADER`),
+  gives way to the version from Attachments without `--overwrite`;
+- TL/ML (`problem.info`) -> `limits.yaml` (the problem's actual TL/ML, see
+  `orchestrator/limits.py`); they never touch `constraints.yaml`.
+  The values are compared, not the file's text; the base is the hash of the TL/ML
+  (`LIMITS_KEY`), the comparison is the same as for files. A replaced `limits.yaml`
+  is written anew (`limits.render_limits`);
+- the validator (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
+- the checker (`problem.checker`) -> `checker.cpp` if it isn't standard
+  (`std::...` — there's nothing to download);
+- the interactor (`problem.interactor` — only if the problem on Polygon is
+  interactive, by `problem.info`) -> `interactor.cpp`; the
+  interactivity flag is recorded in the base (`INTERACTIVE_KEY`), so that push
+  sets it by the spec if they diverge;
+- the other source files `*.cpp` (`problem.files`) -> `generators/`
+  (`generator_source_names`: everything that isn't the validator, the checker or the
+  interactor);
+- the test-script (`problem.script`, testset `tests`) -> `test_script` (or an
+  already existing local `test_script_groups`); compared without empty lines
+  (`normalize_script`) — Polygon drops them on saving;
+- solutions (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
+  A solution's tag on Polygon isn't saved locally: `upload_solutions` derives
+  the tag from the file name, so names not following its scheme get a warning;
+- the resource `problem_lib.h` -> `problem_lib.h` (the problem's copy, see
+  `PROBLEM_LIB_FILENAME` in `orchestrator/steps/base.py`; if it isn't on
+  Polygon, push uploads the local one, and without it — the template).
 
-Текст сравнивается с точностью до переводов строк (`\\r\\n` = `\\n`).
-NOTE: не проверено на реальном API, не нормализует ли Polygon содержимое
-как-то ещё (например, концевой перевод строки) — если да, такие файлы
-будут всегда `kept`, и push будет загружать их каждый раз.
+Text is compared up to line breaks (`\\r\\n` = `\\n`).
+NOTE: it isn't verified on the real API whether Polygon normalizes the contents
+in some other way (e.g. the trailing line break) — if it does, such files
+will always be `kept`, and push will upload them every time.
 
-Ошибка Polygon API при выгрузке одной части не останавливает остальные, но
-тогда ревизия в базе не обновляется (`PullResult.ok` ложно).
+A Polygon API error when downloading one part doesn't stop the rest, but
+then the revision in the base isn't updated (`PullResult.ok` is false).
 """
 
 from __future__ import annotations
@@ -200,23 +200,23 @@ from orchestrator.steps.base import PROBLEM_LIB_FILENAME
 
 logger = logging.getLogger(__name__)
 
-# Статусы PullItem.status:
-ITEM_DOWNLOADED = "downloaded"  # локально не было — скачан
-ITEM_SAME = "up to date"  # совпадает с Polygon — не тронут
-ITEM_UPDATED = "updated"  # менялся только на Polygon: заменён, старый — в бэкапе
-ITEM_OVERWRITTEN = "overwritten"  # менялся и локально, --overwrite: заменён, старый — в бэкапе
-ITEM_KEPT = "kept"  # отличается от Polygon, оставлена локальная версия
-ITEM_CONFLICT = "conflict"  # менялся и локально, и на Polygon: оставлена локальная версия
-ITEM_DIFFERS = "differs"  # отличается, базы нет — кто менял, неизвестно: оставлена локальная версия
-ITEM_LOCAL_ONLY = "local only"  # есть только локально — не тронут
-ITEM_ABSENT = "absent"  # нет ни на Polygon, ни локально
+# PullItem.status statuses:
+ITEM_DOWNLOADED = "downloaded"  # wasn't there locally — downloaded
+ITEM_SAME = "up to date"  # matches Polygon — not touched
+ITEM_UPDATED = "updated"  # changed only on Polygon: replaced, the old one is in the backup
+ITEM_OVERWRITTEN = "overwritten"  # changed locally too, --overwrite: replaced, old one backed up
+ITEM_KEPT = "kept"  # differs from Polygon, the local version is kept
+ITEM_CONFLICT = "conflict"  # changed both locally and on Polygon: the local version is kept
+ITEM_DIFFERS = "differs"  # differs, no base — who changed it is unknown: the local version is kept
+ITEM_LOCAL_ONLY = "local only"  # exists only locally — not touched
+ITEM_ABSENT = "absent"  # neither on Polygon nor locally
 ITEM_ERROR = "error"
 
 _TESTSET = "tests"
-# Содержимое файла флага verify input/output for statements.
+# The contents of the verify input/output for statements flag file.
 _VERIFY_CONTENT = b"true\n"
 
-# Поле объекта Statement -> файл в `statement/` (обратное к
+# A Statement object field -> a file in `statement/` (the reverse of
 # `upload_statement._TEX_PARAM_NAMES`).
 _STATEMENT_FILES = {
     "legend": "legend.tex",
@@ -229,21 +229,21 @@ _VALIDATOR_FILENAME = VALIDATOR_FILE_KEY
 _CHECKER_FILENAME = CHECKER_FILE_KEY
 _BACKUP_DIRNAME = ".pull_backup"
 
-# `detail` — только то, что статус сам не говорит (откуда версия на Polygon,
-# чем отличаются TL/ML): CLI печатает его у конфликтов и ошибок.
+# `detail` — only what the status doesn't say itself (where the version on Polygon came from,
+# how the TL/ML differ): the CLI prints it for conflicts and errors.
 _NOT_DOWNLOADED_DETAIL = "unchanged on Polygon since the last sync, not downloaded"
-# Протокол и интерактор push загружает только у интерактивной задачи.
+# Push uploads the protocol and the interactor only for an interactive problem.
 _INTERACTIVE_CONDITION = "the spec has an interactor section"
 
 
 @dataclass
 class PullItem:
-    """Что произошло с одной частью задачи (обычно — с одним файлом)."""
+    """What happened to one part of the problem (usually — to one file)."""
 
-    name: str  # путь относительно `problems/<problem_id>/`
+    name: str  # the path relative to `problems/<problem_id>/`
     status: str
     detail: str = ""
-    # У `local only`: при каком спеке push загрузит файл; пусто — загрузит всегда.
+    # For `local only`: with which spec push uploads the file; empty — it always uploads it.
     push_condition: str = ""
 
 
@@ -253,7 +253,7 @@ class PullResult:
     polygon_id: int
     link_detail: str
     revision: int | None = None
-    backup_dir: Path | None = None  # куда перенесены перезаписанные файлы, если были
+    backup_dir: Path | None = None  # where the overwritten files were moved, if there were any
     items: list[PullItem] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -271,23 +271,23 @@ def pull_problem(
     client: PolygonClient | None = None,
     on_part: Callable[[str], None] | None = None,
 ) -> PullResult:
-    """Привязывает `problem_id` к задаче на Polygon, сравнивает с ней
-    локальные файлы и переписывает базу синхронизации (см. докстринг
-    модуля).
+    """Binds `problem_id` to a problem on Polygon, compares the
+    local files with it and rewrites the sync base (see the module
+    docstring).
 
-    `problem_id` — путь каталога задачи внутри корня `problems_dir` (см.
-    `orchestrator/problem_paths.py`). Какая задача на Polygon: уже
-    записанная в `polygon_state.json`; иначе поиск неудалённой задачи с
-    именем — `problem_id`, выведенным из пути (`problem_id_for`), — и id
-    `polygon_id`, если он передан (на случай нескольких задач с одним
-    именем). Непривязанная задача заводится только там, где её разрешает
-    `check_new_problem_location`. Если
-    задачу определить не удалось или в её рабочей копии есть
-    незакоммиченные правки — `PolygonStepError`, файлы не трогаются.
-    `PolygonApiError` на этом этапе тоже пробрасывается наружу.
+    `problem_id` — the path of the problem directory inside the root `problems_dir` (see
+    `orchestrator/problem_paths.py`). Which problem on Polygon: the one already
+    recorded in `polygon_state.json`; otherwise a search for a non-deleted problem
+    named `problem_id`, derived from the path (`problem_id_for`), and with the id
+    `polygon_id`, if given (in case of several problems with one
+    name). An unbound problem is set up only where
+    `check_new_problem_location` allows it. If
+    the problem couldn't be determined or its working copy has
+    uncommitted edits — `PolygonStepError`, the files aren't touched.
+    A `PolygonApiError` at this stage is also propagated outward.
 
-    `on_part` вызывается с именем части перед её сравнением — чтобы CLI
-    показывал прогресс по мере выполнения.
+    `on_part` is called with the part's name before comparing it — so that the CLI
+    shows progress as it goes.
     """
     client = client or PolygonClient()
     resolved_id, link_detail = _resolve_and_link(problem_id, polygon_id, Path(problems_dir), client)
@@ -341,8 +341,8 @@ def pull_problem(
         except PolygonApiError as exc:
             puller.add(name, ITEM_ERROR, str(exc))
 
-    # Базу по успешно сравненным частям записываем всегда, ревизию — только
-    # если сравнились все: иначе push не должен считать базу полной.
+    # We always write the base for the successfully compared parts, the revision — only
+    # if all of them were compared: otherwise push mustn't consider the base complete.
     update_sync(
         problem_id,
         synced=puller.synced,
@@ -358,8 +358,8 @@ def pull_problem(
 def _resolve_and_link(
     problem_id: str, polygon_id: int | None, problems_dir: Path, client: PolygonClient
 ) -> tuple[int, str]:
-    """(Polygon problemId, сообщение о привязке). Если привязки ещё не было —
-    создаёт `polygon_state.json`."""
+    """(Polygon problemId, a message about the binding). If there was no binding yet —
+    creates `polygon_state.json`."""
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is not None:
         if polygon_id is not None and polygon_id != state.polygon_id:
@@ -376,11 +376,11 @@ def _resolve_and_link(
         raise PolygonStepError(str(exc)) from exc
     name = problem_id_for(problems_dir, problem_id)
 
-    # Имя передаётся всегда, числовой id — если задан: `--polygon-id` только
-    # сужает поиск, а не отменяет проверку имени. Фильтр `name` у
-    # `problems.list` может оказаться неточным (не проверено на реальном
-    # API), а удалённые задачи нам не нужны — оставляем только точные
-    # совпадения среди неудалённых.
+    # The name is always passed, the numeric id — if given: `--polygon-id` only
+    # narrows the search, it doesn't cancel the name check. The `name` filter of
+    # `problems.list` may turn out inexact (not verified on the real
+    # API), and we don't need deleted problems — we keep only exact
+    # matches among the non-deleted ones.
     params = {"name": name, "showDeleted": "false"}
     if polygon_id is not None:
         params["id"] = str(polygon_id)
@@ -419,14 +419,14 @@ def _resolve_and_link(
 
 @dataclass
 class _Puller:
-    """Сравнение частей одной задачи; каждая `pull_*` — одна часть.
+    """Comparing the parts of one problem; each `pull_*` is one part.
 
-    `synced` копит изменения базы синхронизации: ключ -> sha256 версии на
-    Polygon (с точностью до нормализации — того, что легло бы локально), или
-    `None` — версия на Polygon неизвестна или её нет, push должен загрузить.
-    `stamps` — отметки версий на Polygon для тех же ключей (см.
-    `update_sync`). `base_*` и `revision_unchanged` — база до этого pull,
-    по ней решается, какие файлы можно не скачивать (см. докстринг модуля)."""
+    `synced` accumulates the changes of the sync base: key -> the sha256 of the version on
+    Polygon (up to normalization — of what would go locally), or
+    `None` — the version on Polygon is unknown or doesn't exist, push must upload.
+    `stamps` — the version stamps on Polygon for the same keys (see
+    `update_sync`). `base_*` and `revision_unchanged` — the base before this pull,
+    it decides which files may be left undownloaded (see the module docstring)."""
 
     client: PolygonClient
     polygon_id: int
@@ -456,8 +456,8 @@ class _Puller:
         logger.warning("%s", message)
 
     def pull_statement(self) -> None:
-        """Условие каждого языка Polygon -> `statement/<код>/` (`language_code`);
-        каталоги языков, которых нет на Polygon, — `local only`."""
+        """The statement of each Polygon language -> `statement/<code>/` (`language_code`);
+        directories of languages that aren't on Polygon — `local only`."""
         statements = self._call("problem.statements") or {}
         remote: dict[str, dict] = {}
         for language, statement in statements.items():
@@ -480,8 +480,8 @@ class _Puller:
             self._pull_statement(code, remote.get(code))
 
     def _pull_statement(self, code: str, statement: dict | None) -> None:
-        """Условие на языке `code` (объект Statement, `None` — на Polygon его
-        нет, но локально каталог языка есть) -> `statement/<code>/`."""
+        """The statement in the language `code` (a Statement object, `None` — it isn't on Polygon,
+        but the language directory exists locally) -> `statement/<code>/`."""
         prefix = f"{STATEMENT_DIRNAME}/{code}/"
         name_file = f"{prefix}{NAME_FILENAME}"
         name_key = statement_name_key(code)
@@ -528,7 +528,7 @@ class _Puller:
             name_file,
             lambda: f"{name}\n".encode(),
             key=name_key,
-            # Как `upload_statement.read_name`: хеш и сравнение — по самому названию.
+            # Like `upload_statement.read_name`: the hash and the comparison — by the name itself.
             normalize=lambda content: content.decode("utf-8").strip().encode("utf-8"),
         )
 
@@ -541,7 +541,7 @@ class _Puller:
         for number, test in enumerate(statement_tests, start=1):
             self._sync_file(
                 f"statement/examples/example_{number}.txt",
-                # У сгенерированных (не manual) тестов поля `input` нет.
+                # Generated (not manual) tests have no `input` field.
                 lambda test=test: (
                     test["input"].encode("utf-8")
                     if test.get("input") is not None
@@ -573,7 +573,7 @@ class _Puller:
                     verify_name,
                     lambda: _VERIFY_CONTENT,
                     detail=f"Polygon test {test['index']}",
-                    # Как `upload_statement._read_examples`: значение — `true`.
+                    # Like `upload_statement._read_examples`: the value is `true`.
                     normalize=lambda content: content.strip().lower(),
                 )
             else:
@@ -708,8 +708,8 @@ class _Puller:
 
     def pull_interactor(self) -> None:
         interactive = bool(self._info().get("interactive"))
-        # Обычная задача — ключа нет: push сравнивает флаг, только если он
-        # в базе или спек интерактивный (см. `set_constraints`).
+        # A normal problem — no key: push compares the flag only if it's
+        # in the base or the spec is interactive (see `set_constraints`).
         self.synced[INTERACTIVE_KEY] = interactive_digest(True) if interactive else None
         if not interactive:
             self.synced[INTERACTOR_KEY] = None
@@ -765,7 +765,7 @@ class _Puller:
         if not content.strip():
             self._missing_on_polygon(local_name, "empty test script on Polygon", key=SCRIPT_KEY)
             return
-        # Как `upload_test_script`: пустые строки, которые выкидывает Polygon, не в счёт.
+        # Like `upload_test_script`: empty lines that Polygon drops don't count.
         self._sync_file(local_name, lambda: content, key=SCRIPT_KEY, normalize=normalize_script)
 
     def pull_solutions(self) -> None:
@@ -793,10 +793,10 @@ class _Puller:
             self.add("solutions", ITEM_ABSENT, "no solutions on Polygon")
 
     def pull_attachments(self) -> None:
-        """Aux-файлы задачи (`is_attachment_name`: спек, `constraints.yaml`,
-        `tests_plan.yaml`, копия черновика, драфт разбора), их загружает шаг `upload_attachments`; локально они
-        в `authoring/`, ключ базы — имя на Polygon. Прочие aux-файлы на
-        Polygon не трогаются."""
+        """The problem's aux files (`is_attachment_name`: the spec, `constraints.yaml`,
+        `tests_plan.yaml`, the draft copy, the tutorial draft), uploaded by the `upload_attachments` step; locally they are
+        in `authoring/`, the base key is the name on Polygon. Other aux files on
+        Polygon aren't touched."""
         remote_names = sorted(
             file["name"]
             for file in self._polygon_files().get("auxFiles") or []
@@ -819,8 +819,8 @@ class _Puller:
         if CONSTRAINTS_KEY not in remote_names:
             path = self.problem_dir / _authoring_name(CONSTRAINTS_KEY)
             if path.exists() and _is_pulled_constraints(path.read_bytes()):
-                # Файл из одних TL/ML от прежних версий pull — не результат
-                # `constraints_pick`, `upload_attachments` его не загружает.
+                # A file of only TL/ML from previous versions of pull isn't the result of
+                # `constraints_pick`, `upload_attachments` doesn't upload it.
                 self.synced[CONSTRAINTS_KEY] = None
             else:
                 self._missing_on_polygon(
@@ -848,9 +848,9 @@ class _Puller:
             self._missing_on_polygon(_authoring_name(name), "no attachment on Polygon", key=name)
 
     def _drop_pulled_constraints(self) -> None:
-        """Локальный `constraints.yaml` из одних TL/ML, собранный прежними
-        версиями pull, уступает место результату `constraints_pick` из Attachments: в бэкап и
-        удаляется, `_sync_file` скачает файл с Polygon."""
+        """A local `constraints.yaml` of only TL/ML, assembled by previous
+        versions of pull, gives way to the `constraints_pick` result from Attachments: to the backup and
+        deleted, `_sync_file` downloads the file from Polygon."""
         name = _authoring_name(CONSTRAINTS_KEY)
         path = self.problem_dir / name
         if path.exists() and _is_pulled_constraints(path.read_bytes()):
@@ -878,18 +878,18 @@ class _Puller:
         normalize: Callable[[bytes], bytes] = lambda content: content,
         stamped: bool = False,
     ) -> bool:
-        """Сравнивает локальный файл `name` с версией на Polygon (`fetch`) и
-        при необходимости пишет её на диск (см. докстринг модуля). Ключ базы —
-        `key` (по умолчанию `name`); дополнительные записи `also` пишутся,
-        только если файл теперь совпадает с Polygon. `normalize` применяется
-        к содержимому перед сравнением и хешем.
+        """Compares the local file `name` with the version on Polygon (`fetch`) and
+        writes it to disk if needed (see the module docstring). The base key is
+        `key` (`name` by default); the additional entries `also` are written
+        only if the file now matches Polygon. `normalize` is applied
+        to the contents before comparing and hashing.
 
-        `stamped` — у файла есть отметка в листинге Polygon: она пишется в
-        базу вместе с хешем, и если версия на Polygon уже известна по базе,
-        файл не скачивается, пока его не нужно записать на диск.
+        `stamped` — the file has a stamp in the Polygon listing: it's written to the
+        base together with the hash, and if the version on Polygon is already known from the base,
+        the file isn't downloaded until it needs to be written to disk.
 
-        Возвращает, был ли файл записан. Ошибка API — запись "error" по этому
-        файлу, остальные файлы той же части продолжают обрабатываться."""
+        Returns whether the file was written. An API error — an "error" entry for this
+        file, the other files of the same part continue to be processed."""
         key = key or name
         also = also or {}
         stamp = self._remote_stamp(key) if stamped else None
@@ -902,7 +902,7 @@ class _Puller:
                 self.add(name, ITEM_SAME, _join(detail, _NOT_DOWNLOADED_DETAIL))
                 self._record(key, known, stamp, also)
                 return False
-            # Версия на Polygon равна базе — менялся только локальный файл.
+            # The version on Polygon equals the base — only the local file changed.
             self.add(name, ITEM_KEPT, detail)
             self._record(key, known, stamp, {k: None for k in also})
             return False
@@ -944,14 +944,14 @@ class _Puller:
     def _record(
         self, key: str, value: str | None, stamp: str | None, also: dict[str, str | None]
     ) -> None:
-        """Пишет в базу хеш `key` вместе с его отметкой и записи `also`."""
+        """Writes the hash of `key` to the base together with its stamp and the `also` entries."""
         self.synced[key] = value
         self.stamps[key] = stamp
         self.synced.update(also)
 
     def _known_remote_digest(self, key: str, stamp: str | None) -> str | None:
-        """Хеш версии `key` на Polygon, если он известен по базе без
-        скачивания (см. докстринг модуля), иначе `None`."""
+        """The hash of the version of `key` on Polygon if it's known from the base without
+        downloading (see the module docstring), otherwise `None`."""
         base = self.base_synced.get(key)
         if base is None:
             return None
@@ -971,9 +971,9 @@ class _Puller:
         return self._remote_stamps.get(key)
 
     def _listing(self, fetch: Callable[[], object], fallback: object) -> object:
-        """Листинг для отметок; упал — `fallback`: файлы без отметок просто
-        скачиваются, а сама ошибка всплывёт в той части, которой листинг
-        нужен (её ключи тогда не трогаются)."""
+        """The listing for stamps; if it failed — `fallback`: files without stamps are simply
+        downloaded, and the error itself surfaces in the part that needs the
+        listing (its keys aren't touched then)."""
         try:
             return fetch()
         except PolygonApiError as exc:
@@ -988,9 +988,9 @@ class _Puller:
         key: str | None = None,
         push_condition: str = "",
     ) -> None:
-        """Части `name` на Polygon нет: если она есть локально — "local only"
-        (push её загрузит — всегда или при `push_condition`), иначе "absent".
-        В базе её быть не должно."""
+        """The part `name` isn't on Polygon: if it exists locally — "local only"
+        (push uploads it — always or with `push_condition`), otherwise "absent".
+        It mustn't be in the base."""
         self.synced[key or name] = None
         if (self.problem_dir / name).exists():
             self.add(name, ITEM_LOCAL_ONLY, detail, push_condition=push_condition)
@@ -1000,17 +1000,17 @@ class _Puller:
     def _missing_if_local(
         self, name: str, detail: str, *, key: str | None = None, push_condition: str = ""
     ) -> None:
-        """Как `_missing_on_polygon`, но для частей, которые есть не у всех
-        задач (протокол и интерактор интерактивной задачи): если локально
-        файла тоже нет, отчёт о нём не печатается."""
+        """Like `_missing_on_polygon`, but for parts that not all
+        problems have (the protocol and the interactor of an interactive problem): if the
+        file doesn't exist locally either, no report about it is printed."""
         if (self.problem_dir / name).exists():
             self._missing_on_polygon(name, detail, key=key, push_condition=push_condition)
         else:
             self.synced[key or name] = None
 
     def _local_only(self, subdir: str, remote_names: set[str], *, pattern: str) -> list[str]:
-        """Файлы `subdir/` (по `pattern`), которых нет на Polygon, — "local only".
-        Помеченные шагом как удалённые (`is_removed_mark`) — не часть задачи."""
+        """The files of `subdir/` (by `pattern`) that aren't on Polygon — "local only".
+        Those marked by a step as removed (`is_removed_mark`) aren't part of the problem."""
         directory = self.problem_dir / subdir
         names = sorted(
             path.name
@@ -1048,14 +1048,14 @@ class _Puller:
         return self._problem_info
 
     def _interactor_name(self) -> str | None:
-        """Имя назначенного интерактора; у обычной задачи — `None`, без
-        запроса `problem.interactor` (интерактора у неё нет)."""
+        """The name of the assigned interactor; for a normal problem — `None`, without
+        requesting `problem.interactor` (it has no interactor)."""
         if not self._info().get("interactive"):
             return None
         return self._assigned_name("problem.interactor")
 
     def _assigned_name(self, method_name: str) -> str | None:
-        """Имя назначенного валидатора/чекера (`problem.validator`/`problem.checker`)."""
+        """The name of the assigned validator/checker (`problem.validator`/`problem.checker`)."""
         if method_name not in self._assigned:
             self._assigned[method_name] = self._call(method_name)
         return self._assigned[method_name]
@@ -1070,18 +1070,18 @@ class _Puller:
         return self.client.call_raw(method_name, {"problemId": str(self.polygon_id), **params})
 
 
-# Кто менял отличающиеся локальную версию и версию на Polygon с последней
-# синхронизации (`_change`).
+# Who changed the differing local version and the version on Polygon since the last
+# sync (`_change`).
 _LOCAL = "local"
 _REMOTE = "remote"
 _BOTH = "both"
 
 
 def _change(base: str | None, local: str | None, remote: str) -> str | None:
-    """Трёхсторонняя сверка отличающихся версий по хешам: `_LOCAL` — от
-    базы отличается только локальная, `_REMOTE` — только версия на Polygon,
-    `_BOTH` — обе; `None` — базы (или локального хеша) нет, кто менял —
-    неизвестно."""
+    """A three-way comparison of differing versions by hashes: `_LOCAL` — only the local one
+    differs from the base, `_REMOTE` — only the version on Polygon,
+    `_BOTH` — both; `None` — there's no base (or local hash), who changed it is
+    unknown."""
     if base is None or local is None:
         return None
     if local == base:
@@ -1092,7 +1092,7 @@ def _change(base: str | None, local: str | None, remote: str) -> str | None:
 
 
 def _authoring_name(attachment: str) -> str:
-    """Путь файла Attachments в каталоге задачи (`authoring/<имя>`)."""
+    """The path of an Attachments file in the problem directory (`authoring/<name>`)."""
     return f"{AUTHORING_DIRNAME}/{attachment}"
 
 
@@ -1115,6 +1115,6 @@ def _describe_limits(limits: tuple[int, int] | None) -> str:
 
 
 def _is_plain_filename(name: str) -> bool:
-    """Имя файла приходит с Polygon — не даём ему увести запись за пределы
-    каталога части (`../x`, абсолютный путь)."""
+    """The file name comes from Polygon — we don't let it lead the write outside the
+    part's directory (`../x`, an absolute path)."""
     return bool(name) and name not in (".", "..") and Path(name).name == name and "\\" not in name

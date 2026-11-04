@@ -1,16 +1,16 @@
-"""Маршрутизация генеративных шагов по "классу модели" и `effort` (см.
-CLAUDE.md, раздел "Маршрутизация моделей по критичности шага").
+"""Routing generative steps by "model class" and `effort` (see
+CLAUDE.md, the "Model routing by step criticality" section).
 
-Этот модуль сознательно вендоронезависим: он знает только условные классы
-моделей ("strong-model"/"medium-model"/"fast-model") и уровни `effort`
-("low"/"medium"/"high"/"xhigh"/"max") на шаг, но не то, какой конкретно
-вендор их обслуживает. Настоящий вызов делает объект `LLMClient`
-(`orchestrator/llm_client.py`) — по умолчанию `ClaudeCodeClient`
-(`orchestrator/llm_clients/claude_code_client.py`) или `AnthropicClient`
-(`orchestrator/llm_clients/anthropic_client.py`), если
-`ORCHESTRATOR_LLM_BACKEND=anthropic-api`, но его можно подменить
-через `set_client(...)` на что угодно другое (локальная модель, другой
-вендор), не трогая ни этот модуль, ни промпты, ни шаги.
+This module is deliberately vendor-independent: it knows only the nominal
+model classes ("strong-model"/"medium-model"/"fast-model") and the `effort` levels
+("low"/"medium"/"high"/"xhigh"/"max") per step, but not which concrete
+vendor serves them. The actual call is made by an `LLMClient` object
+(`orchestrator/llm_client.py`) — by default `ClaudeCodeClient`
+(`orchestrator/llm_clients/claude_code_client.py`) or `AnthropicClient`
+(`orchestrator/llm_clients/anthropic_client.py`) if
+`ORCHESTRATOR_LLM_BACKEND=anthropic-api`, but it can be replaced
+with `set_client(...)` by anything else (a local model, another
+vendor), without touching this module, the prompts or the steps.
 """
 
 from __future__ import annotations
@@ -18,8 +18,8 @@ from __future__ import annotations
 from orchestrator.llm_client import LLMClient
 from orchestrator.model_contracts import ModelResponse
 
-# Реэкспорт: часть кода и тестов исторически импортирует `ModelResponse`
-# отсюда (`from orchestrator.model_router import ModelResponse`).
+# Re-export: some code and tests historically import `ModelResponse`
+# from here (`from orchestrator.model_router import ModelResponse`).
 __all__ = [
     "STEP_TO_MODEL",
     "STEP_TO_EFFORT",
@@ -28,41 +28,41 @@ __all__ = [
     "call_model",
 ]
 
-# Соответствие шага и условного класса модели. Критичные по содержанию шаги
-# (constraints_pick, solutions_draft) — через сильную модель.
-# Подготовка тестов разбита на три шага, чтобы содержательная часть шла
-# отдельно от объёмной. tests_plan — дизайн тестов, в том числе
-# adversarial-тестов под `solutions.known_wrong_approaches`: самостоятельное
-# рассуждение о том, как сломать конкретный неверный алгоритм (см. CLAUDE.md,
-# "Маршрутизация моделей по критичности шага"), но ответ небольшой — план, а
-# не код; средняя модель с high effort, следующий шаг эскалации — до сильной.
-# generators_draft и test_script_draft — реализация готового плана: кода
-# много, а рассуждения мало, поэтому средняя модель с medium effort — иначе
-# один вызов рассуждал бы дольше таймаута.
-# statement_draft — средняя модель: задача там в основном про форматирование
-# по явным правилам из tutorials/statement.md, а не про рассуждение, так
-# что Opus-уровень для неё не нужен (см. CLAUDE.md).
-# checker_draft — опциональный шаг: формально механический, когда
-# `checker.custom_comparison_notes` полон и однозначен (перевод текстового
-# описания в код по паттерну read_and_check), но ошибка здесь дороже, чем в
-# среднем механическом шаге — неверно реализованное сравнение может молча
-# пропускать неверные решения или браковать верные (см. CLAUDE.md,
-# "Маршрутизация моделей по критичности шага"). Средняя модель — компромисс;
-# если на практике `custom_comparison_notes` часто оказывается недостаточно
-# точным и шаг слишком часто уходит в uncertain, следующий шаг эскалации —
-# до сильной модели, как у constraints_pick/solutions_draft.
-# interactor_draft — опциональный шаг (только интерактивные задачи): в
-# отличие от чекера это не перевод одного правила сравнения в код, а
-# реализация протокола целиком — чтение запросов в режиме недоверия, лимиты,
-# возможно адаптивная стратегия; ошибка молча ломает все тесты задачи —
-# поэтому сильная модель.
-# spec_from_draft — не шаг пайплайна, а `init --draft` (спек по черновику
-# автора, `orchestrator/spec_from_draft.py`): спек — вход всех шагов, и
-# ошибка в нём (или незаметно домысленное значение) расходится по всем —
-# поэтому сильная модель.
-# tutorial_draft — разбор по драфту автора (`llm tutorial`): по команде автора
-# модель пишет доказательства, а незаметная ошибка в них уходит участникам —
-# поэтому сильная модель, хотя остальной текст — раскрытие тезисов автора.
+# The mapping of a step to a nominal model class. Steps critical in content
+# (constraints_pick, solutions_draft) — through the strong model.
+# Test preparation is split into three steps, so that the substantive part goes
+# separately from the voluminous one. tests_plan — test design, including
+# adversarial tests for `solutions.known_wrong_approaches`: independent
+# reasoning about how to break a particular wrong algorithm (see CLAUDE.md,
+# "Model routing by step criticality"), but the response is small — a plan, not
+# code; the medium model with high effort, the next escalation step — to the strong one.
+# generators_draft and test_script_draft — implementing a ready plan: a lot of
+# code, but little reasoning, so the medium model with medium effort — otherwise
+# one call would reason longer than the timeout.
+# statement_draft — the medium model: the task there is mostly about formatting
+# by explicit rules from tutorials/statement.md, not about reasoning, so
+# it doesn't need an Opus level (see CLAUDE.md).
+# checker_draft — an optional step: formally mechanical when
+# `checker.custom_comparison_notes` is complete and unambiguous (translating a text
+# description into code following the read_and_check pattern), but a mistake here costs more than in
+# an average mechanical step — a wrongly implemented comparison may silently
+# accept wrong solutions or reject correct ones (see CLAUDE.md,
+# "Model routing by step criticality"). The medium model is a compromise;
+# if in practice `custom_comparison_notes` often turns out not precise
+# enough and the step goes to uncertain too often, the next escalation step is
+# to the strong model, like constraints_pick/solutions_draft.
+# interactor_draft — an optional step (only interactive problems): unlike
+# the checker it isn't translating one comparison rule into code, but
+# implementing the whole protocol — reading queries in distrust mode, limits,
+# possibly an adaptive strategy; a mistake silently breaks all of the problem's tests —
+# so the strong model.
+# spec_from_draft — not a pipeline step but `init --draft` (a spec from the author's
+# draft, `orchestrator/spec_from_draft.py`): the spec is the input of all steps, and
+# a mistake in it (or an unnoticed made-up value) spreads to all of them —
+# so the strong model.
+# tutorial_draft — a tutorial from the author's draft (`llm tutorial`): at the author's command
+# the model writes proofs, and an unnoticed mistake in them reaches the contestants —
+# so the strong model, even though the rest of the text expands the author's points.
 STEP_TO_MODEL: dict[str, str] = {
     "statement_draft": "medium-model",
     "constraints_pick": "strong-model",
@@ -76,15 +76,15 @@ STEP_TO_MODEL: dict[str, str] = {
     "tutorial_draft": "strong-model",
 }
 
-# Уровень effort на шаг (общее для вендоров, поддерживающих такую ручку;
-# кто не поддерживает — вправе игнорировать). constraints_pick/
-# solutions_draft — самые рискованные по цене ошибки; tests_plan — high
-# из-за дизайна adversarial-тестов, generators_draft/test_script_draft —
-# medium, это реализация плана; checker_draft — high по той же
-# причине, что и класс модели: цена ошибки в сравнении ответов высока даже
-# при формально механической реализации; statement_draft — medium, это
-# оформление, а не рассуждение; spec_from_draft и tutorial_draft — high, как
-# и класс модели.
+# The effort level per step (shared by the vendors that support such a knob;
+# those that don't are entitled to ignore it). constraints_pick/
+# solutions_draft — the riskiest by the cost of a mistake; tests_plan — high
+# because of designing adversarial tests, generators_draft/test_script_draft —
+# medium, it's implementing the plan; checker_draft — high for the same
+# reason as the model class: the cost of a mistake in comparing answers is high even
+# with a formally mechanical implementation; statement_draft — medium, it's
+# formatting, not reasoning; spec_from_draft and tutorial_draft — high, like
+# the model class.
 STEP_TO_EFFORT: dict[str, str] = {
     "statement_draft": "medium",
     "constraints_pick": "high",
@@ -102,30 +102,30 @@ _client: LLMClient | None = None
 
 
 def set_client(client: LLMClient) -> None:
-    """Явно подменяет `LLMClient`, который использует `call_model`.
+    """Explicitly replaces the `LLMClient` that `call_model` uses.
 
-    Точка расширения под других вендоров (локальная модель, другой API) или
-    под тестовые дублёры — вызывающий код (например, `cli.py` или тест)
-    решает, каким клиентом пользоваться, `model_router.py` сам к конкретному
-    вендору не привязан.
+    An extension point for other vendors (a local model, another API) or
+    for test doubles — the calling code (e.g. `cli.py` or a test)
+    decides which client to use, `model_router.py` itself isn't tied to a concrete
+    vendor.
     """
     global _client
     _client = client
 
 
-# Переменная окружения (или строка в `.env`), выбирающая клиента по
-# умолчанию: "claude-code" (по умолчанию) — Claude Code CLI по подписке,
-# "anthropic-api" — Anthropic API по ANTHROPIC_API_KEY.
+# The environment variable (or a line in `.env`) choosing the default
+# client: "claude-code" (default) — the Claude Code CLI on the subscription,
+# "anthropic-api" — the Anthropic API with ANTHROPIC_API_KEY.
 LLM_BACKEND_ENV = "ORCHESTRATOR_LLM_BACKEND"
 _DEFAULT_BACKEND = "claude-code"
 _BACKENDS = ("claude-code", "anthropic-api")
 
 
 def _default_client() -> LLMClient:
-    # Ленивые импорты: если клиент явно подменили через `set_client`, модуль
-    # ни разу не тронет `anthropic`/`python-dotenv` и не потребует
-    # ANTHROPIC_API_KEY — это вендорские пакеты, а не общая зависимость
-    # оркестратора.
+    # Lazy imports: if the client was explicitly replaced with `set_client`, the module
+    # never touches `anthropic`/`python-dotenv` and doesn't require
+    # ANTHROPIC_API_KEY — these are vendor packages, not a shared dependency of the
+    # orchestrator.
     import os
 
     from dotenv import load_dotenv
@@ -158,19 +158,19 @@ def call_model(
     user_prompt: str,
     context_documents: dict[str, str] | None = None,
 ) -> ModelResponse:
-    """Вызывает модель, назначенную шагу `step` через `STEP_TO_MODEL`/`STEP_TO_EFFORT`.
+    """Calls the model assigned to the step `step` via `STEP_TO_MODEL`/`STEP_TO_EFFORT`.
 
-    `system_prompt` и `user_prompt` — уже отрендеренные тексты промптов
-    (`prompts/<step>/system.md` и `prompts/<step>/user.md.j2` после
-    подстановки контекста); эта функция их не читает и не рендерит сама.
-    `context_documents` — карта "путь" -> "содержимое" приложенных документов
-    (`orchestrator/steps/base.py:load_context_documents`), передаётся клиенту
-    как есть.
+    `system_prompt` and `user_prompt` are already rendered prompt texts
+    (`prompts/<step>/system.md` and `prompts/<step>/user.md.j2` after
+    substituting the context); this function doesn't read or render them itself.
+    `context_documents` — a "path" -> "contents" map of the attached documents
+    (`orchestrator/steps/base.py:load_context_documents`), passed to the client
+    as is.
 
-    Сама модель вызывается через текущий `LLMClient` (см. `set_client`) —
-    как именно он добивается структурированного JSON-ответа по контракту
-    status/artifacts/notes (`docs/PROMPTS.md`) — решает реализация клиента,
-    не этот модуль.
+    The model itself is called through the current `LLMClient` (see `set_client`) —
+    how exactly it achieves a structured JSON response by the
+    status/artifacts/notes contract (`docs/PROMPTS.md`) is decided by the client implementation,
+    not this module.
     """
     client = _get_client()
     return client.generate(

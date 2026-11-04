@@ -1,11 +1,11 @@
-"""Шаг 3, третья часть — FreeMarker test-script по плану тестов, CLAUDE.md, "Роль каждого
-генеративного шага", пункт 3.
+"""Step 3, the third part — the FreeMarker test-script from the test plan, CLAUDE.md, "Role of each
+generative step", item 3.
 
-Механическая часть: блоки `tests` плана (`authoring/tests_plan.yaml`, шаг
-`tests_plan`) с его `constants` — в `test_script` (`generation.script_style:
-flat`) или `test_script_groups` (`groups`). Генераторы шаг видит только по
-плану — имя и параметры, без кода: скрипт вызывает их так, как их описал план,
-и правка кода генератора скрипт не инвалидирует.
+The mechanical part: the plan's `tests` blocks (`authoring/tests_plan.yaml`, the
+`tests_plan` step) with its `constants` — into `test_script` (`generation.script_style:
+flat`) or `test_script_groups` (`groups`). The step sees the generators only by the
+plan — the name and parameters, without code: the script calls them the way the plan described them,
+and editing a generator's code doesn't invalidate the script.
 """
 
 from __future__ import annotations
@@ -43,11 +43,11 @@ from orchestrator.steps.tests_plan import (
 
 STEP_NAME = "test_script_draft"
 
-# Стандартные функции test-script'а (div, pow, fact, ...) — шаблон автора в
-# templates/. Модель обязана копировать блок целиком (prompts/
-# test_script_draft/system.md), но на практике выкидывает неиспользуемые
-# функции, а автору они нужны под рукой при ручной правке скрипта, —
-# поэтому выкинутые дописываются механически (`restore_script_functions`).
+# The test-script's standard functions (div, pow, fact, ...) — the author's template in
+# templates/. The model must copy the block in full (prompts/
+# test_script_draft/system.md), but in practice it drops unused
+# functions, and the author needs them at hand when editing the script by hand —
+# so the dropped ones are appended mechanically (`restore_script_functions`).
 SCRIPT_FUNCTIONS_FILENAME = "test_script_functions.ftl"
 SCRIPT_NAMES = ("test_script", "test_script_groups")
 _SCRIPT_SECTION_MARKER = '<#assign desc = "{}"/>'
@@ -55,19 +55,19 @@ _FUNCTION_RE = re.compile(r"<#function\s+(\w+)\b.*?</#function>", re.S)
 
 
 def _script_functions(script: str) -> dict[str, str]:
-    """Имя функции -> её определение `<#function ...>...</#function>`."""
+    """Function name -> its definition `<#function ...>...</#function>`."""
     return {m.group(1): m.group(0) for m in _FUNCTION_RE.finditer(script)}
 
 
 def restore_script_functions(script: str, functions_block: str) -> tuple[str, list[str]]:
-    """Дописывает в `script` функции из `functions_block`, которых в нём нет
-    (по имени; функцию, которую модель переписала, не трогает). Куда:
-    - после маркера секции `<#assign desc = "Functions"/>`, если он есть;
-    - иначе перед первой функцией скрипта, если она есть;
-    - иначе весь блок с маркером — перед секцией "Constraints", а без неё —
-      в начало скрипта (определения функций в FreeMarker видны во всём
-      шаблоне, так что порядок на работу скрипта не влияет).
-    Возвращает новый скрипт и имена дописанных функций (в порядке блока).
+    """Appends to `script` the functions from `functions_block` that it lacks
+    (by name; a function the model rewrote isn't touched). Where:
+    - after the section marker `<#assign desc = "Functions"/>`, if there is one;
+    - otherwise before the script's first function, if there is one;
+    - otherwise the whole block with the marker — before the "Constraints" section, and without it —
+      at the start of the script (function definitions in FreeMarker are visible in the whole
+      template, so the order doesn't affect how the script works).
+    Returns the new script and the names of the appended functions (in the block's order).
     """
     present = _script_functions(script)
     missing = [
@@ -95,16 +95,16 @@ def restore_script_functions(script: str, functions_block: str) -> tuple[str, li
     return script[:insert_at] + block + script[insert_at:], names
 
 
-# Директива FreeMarker, занимающая хвост строки: `<#if value >= n>`. Внутри
-# тега `>` закрывает тег (`<#if value>` + текст `= n>`), поэтому сравнения
-# пишутся словами (`gt`/`gte`/`lt`/`lte`, templates/tutorials/freemarker.md),
-# но модель время от времени пишет знаки. Границы выражения берутся по концу
-# строки, а не по первому `>`, — иначе его не восстановить.
+# A FreeMarker directive taking the tail of a line: `<#if value >= n>`. Inside
+# a tag `>` closes the tag (`<#if value>` + the text `= n>`), so comparisons
+# are written as words (`gt`/`gte`/`lt`/`lte`, templates/tutorials/freemarker.md),
+# but the model writes signs from time to time. The bounds of the expression are taken by the end of
+# the line, not by the first `>` — otherwise it can't be restored.
 _DIRECTIVE_LINE_RE = re.compile(
     r"(<#(?:if|elseif|assign|local|global|return)\s)((?:(?!<[#/@]).)*?)(\s*/?>[ \t]*)$", re.M
 )
 _STRING_RE = re.compile(r"\"(?:[^\"\\]|\\.)*\"|'(?:[^'\\]|\\.)*'")
-# `->` (лямбда) и `..<` (диапазон) — не сравнения.
+# `->` (a lambda) and `..<` (a range) aren't comparisons.
 _COMPARISON_RE = re.compile(r"\s*(?<![-.])(>=|<=|>|<)\s*")
 _COMPARISON_WORDS = {">=": "gte", "<=": "lte", ">": "gt", "<": "lt"}
 
@@ -127,10 +127,10 @@ def _replace_comparisons(expression: str) -> tuple[str, int]:
 
 
 def fix_script_comparisons(script: str) -> tuple[str, int]:
-    """Заменяет знаки сравнения в директивах скрипта на `gt`/`gte`/`lt`/`lte`
-    (см. `_DIRECTIVE_LINE_RE`). Только директивы, которые заканчиваются в
-    конце своей строки; строковые литералы не трогает. Возвращает новый
-    скрипт и число замен."""
+    """Replaces comparison signs in the script's directives with `gt`/`gte`/`lt`/`lte`
+    (see `_DIRECTIVE_LINE_RE`). Only directives that end at the
+    end of their line; string literals aren't touched. Returns the new
+    script and the number of replacements."""
     total = 0
 
     def replace(match: re.Match[str]) -> str:
@@ -145,10 +145,10 @@ def fix_script_comparisons(script: str) -> tuple[str, int]:
 def _restore_functions_in_artifacts(
     functions_block: str,
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
-    """`postprocess_artifacts` для `run_generative_step`: прогоняет каждый
-    test-script ответа через `fix_script_comparisons` и
-    `restore_script_functions` и оставляет заметку по каждому, где что-то
-    исправлено или дописано."""
+    """`postprocess_artifacts` for `run_generative_step`: runs each
+    test-script of the response through `fix_script_comparisons` and
+    `restore_script_functions` and leaves a note on each where something was
+    fixed or appended."""
 
     def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
         result = dict(artifacts)
@@ -163,8 +163,8 @@ def _restore_functions_in_artifacts(
                         "field": name,
                         "kind": "restored",
                         "explanation": (
-                            f"знаки сравнения внутри директив FreeMarker ({fixed} шт.) заменены "
-                            "оркестратором на gt/gte/lt/lte: `>` внутри тега закрывает тег"
+                            f"comparison signs inside FreeMarker directives ({fixed}) replaced "
+                            "by the orchestrator with gt/gte/lt/lte: `>` inside a tag closes the tag"
                         ),
                     }
                 )
@@ -175,8 +175,8 @@ def _restore_functions_in_artifacts(
                         "field": name,
                         "kind": "restored",
                         "explanation": (
-                            f"модель не скопировала стандартные функции {', '.join(restored)} "
-                            f"из {SCRIPT_FUNCTIONS_FILENAME} — дописаны оркестратором"
+                            f"the model didn't copy the standard functions {', '.join(restored)} "
+                            f"from {SCRIPT_FUNCTIONS_FILENAME} — appended by the orchestrator"
                         ),
                     }
                 )
@@ -186,8 +186,8 @@ def _restore_functions_in_artifacts(
 
 
 def _generator_signatures(plan: dict[str, Any]) -> list[dict[str, Any]]:
-    """Генераторы плана без `algorithm`/`rationale`: скрипту нужно только,
-    как их вызывать."""
+    """The plan's generators without `algorithm`/`rationale`: the script only needs
+    to know how to call them."""
     keys = ("name", "params", "input", "output")
     return [{key: generator.get(key) for key in keys} for generator in plan_generators(plan)]
 
@@ -201,9 +201,9 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """`(секция спека, апстрим-артефакты)`: `generation.script_style`;
-    `constraints.yaml` без TL/ML (ограничения и группы скрипта), из плана —
-    `constants`, `tests` и сигнатуры генераторов (`_generator_signatures`)."""
+    """`(spec section, upstream artifacts)`: `generation.script_style`;
+    `constraints.yaml` without TL/ML (the script's limits and groups), from the plan —
+    `constants`, `tests` and the generator signatures (`_generator_signatures`)."""
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     plan = load_tests_plan(STEP_NAME, problem_id, upstream_artifacts)
     return {"generation": {"script_style": spec.generation.script_style}}, {
@@ -225,22 +225,22 @@ def compute_input_hash(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Образцы — test-script'ы из референсов спека (`orchestrator/references.py`)."""
+    """Samples — test-scripts from the spec's references (`orchestrator/references.py`)."""
     return reference_documents(STEP_NAME, spec)
 
 
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """Путь к test-script'у: имя зависит от `generation.script_style`
-    (CLAUDE.md, "Структура каталогов")."""
+    """The path to the test-script: the name depends on `generation.script_style`
+    (CLAUDE.md, "Directory structure")."""
     return Path(problems_dir) / problem_id / script_name(spec)
 
 
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага для режима доработки: оба test-script'а, какие есть."""
+    """The step's current files for revision mode: both test-scripts, whichever exist."""
     problem_dir = Path(problems_dir) / problem_id
     return existing_artifacts({name: problem_dir / name for name in SCRIPT_NAMES})
 
@@ -256,13 +256,13 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `test_script_draft` для `problem_id`.
+    """Runs the `test_script_draft` step for `problem_id`.
 
-    Вход: `constants`, `tests` и сигнатуры генераторов плана,
-    `constraints.yaml` без TL/ML — единственный источник диапазонов и групп,
-    `generation.script_style`. Выход — `test_script` или `test_script_groups`
-    в каталоге задачи; знаки сравнения в директивах и выкинутые моделью
-    стандартные функции исправляет оркестратор (`_restore_functions_in_artifacts`).
+    Input: `constants`, `tests` and the signatures of the plan's generators,
+    `constraints.yaml` without TL/ML — the only source of ranges and groups,
+    `generation.script_style`. Output — `test_script` or `test_script_groups`
+    in the problem directory; comparison signs in directives and standard functions
+    dropped by the model are fixed by the orchestrator (`_restore_functions_in_artifacts`).
     """
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     plan = load_tests_plan(STEP_NAME, problem_id, upstream_artifacts)
@@ -301,7 +301,7 @@ def run_step(
         saved_response=saved_response,
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
-        # Файлы независимы: посторонний файл в ответе не мешает скрипту.
+        # The files are independent: an extraneous file in the response doesn't interfere with the script.
         partial_apply=True,
         prompts_dir=prompts_dir,
         problems_dir=problems_dir,

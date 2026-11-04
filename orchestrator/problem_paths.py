@@ -1,40 +1,40 @@
-"""Адрес задачи и её `problem_id`.
+"""A problem's address and its `problem_id`.
 
-Задачи лежат в двух корнях — `problems/` (задачи автора) и `examples/`
-(учебные задачи-образцы) — на любой глубине вложенности: промежуточные
-каталоги только группируют задачи (`problems/<контест>/<год>/<раунд>/...`).
-Каталог задачи — первый каталог на пути вниз от корня, в котором есть
-`authoring/spec.yaml` или `polygon_state.json` (`PROBLEM_MARKERS`); внутрь
-каталога задачи поиск не спускается, задачи друг в друга не вкладываются.
+Problems lie in two roots — `problems/` (the author's problems) and `examples/`
+(sample problems) — at any nesting depth: intermediate
+directories only group problems (`problems/<contest>/<year>/<round>/...`).
+A problem directory is the first directory on the way down from the root that contains
+`authoring/spec.yaml` or `polygon_state.json` (`PROBLEM_MARKERS`); the search doesn't descend
+into a problem directory, problems aren't nested in each other.
 
-Файлы, с которыми работает только модель и автор, — спек, результат
-`constraints_pick`, копия черновика и драфт разбора (`is_authoring_name`) — лежат в подкаталоге
-`authoring/` каталога задачи; всё остальное (условие, валидатор, генераторы,
-`limits.yaml`, ...) — в самом каталоге задачи, как на Polygon. Задачи,
-созданные до `authoring/`, переносит `migrate_to_authoring`.
+The files only the model and the author work with — the spec, the result of
+`constraints_pick`, the draft copy and the tutorial draft (`is_authoring_name`) — lie in the problem directory's
+`authoring/` subdirectory; everything else (statement, validator, generators,
+`limits.yaml`, ...) — in the problem directory itself, as on Polygon. Problems
+created before `authoring/` are moved by `migrate_to_authoring`.
 
-Адрес задачи — путь её каталога вместе с корнем, так он и пишется в CLI:
+A problem's address is the path of its directory together with the root, that's how it's written in the CLI:
 `problems/contest/2026/round-1/my-task`, `examples/array/prefix-sums`.
-Внутри оркестратора адрес передаётся парой: `problems_dir` — корень
-(`problems/` или `examples/`), аргумент `problem_id` функций — путь каталога
-задачи внутри корня (у задачи прямо в корне он совпадает с её `problem_id`).
-Адрес группы — такой же путь до промежуточного каталога или сам корень
-(`problems/contest/2026`, `examples`): команда применяется ко всем задачам
-под ним (`problems_under`).
+Inside the orchestrator the address is passed as a pair: `problems_dir` — the root
+(`problems/` or `examples/`), the `problem_id` argument of functions — the path of the problem
+directory inside the root (for a problem right in the root it matches its `problem_id`).
+A group's address is the same kind of path to an intermediate directory or the root itself
+(`problems/contest/2026`, `examples`): the command applies to all problems
+under it (`problems_under`).
 
-`problem_id` задачи — поле `problem_id` спека и имя задачи на Polygon —
-выводится из пути (`problem_id_for`):
-- в `problems/` — имя самого вложенного каталога
+A problem's `problem_id` — the spec's `problem_id` field and the problem's name on Polygon —
+is derived from the path (`problem_id_for`):
+- in `problems/` — the name of the innermost directory
   (`contest/2026/round-1/my-task` -> `my-task`);
-- в `examples/` — все компоненты пути через `--`
-  (`array/prefix-sums` -> `array--prefix-sums`), поэтому компоненты пути
-  примеров не могут содержать `--`.
+- in `examples/` — all path components joined with `--`
+  (`array/prefix-sums` -> `array--prefix-sums`), so the path components of
+  the examples can't contain `--`.
 
-`problem_id` уникален среди всех задач обоих корней (у Polygon одно
-пространство имён) — это проверяет `check_new_problem_location` при
-создании каталога задачи (`init`, `polygon pull`).
+`problem_id` is unique among all problems of both roots (Polygon has one
+namespace) — this is checked by `check_new_problem_location` when
+creating a problem directory (`init`, `polygon pull`).
 
-Модуль без тяжёлых импортов: им пользуется Tab-дополнение в `cli.py`.
+A module without heavy imports: Tab completion in `cli.py` uses it.
 """
 
 from __future__ import annotations
@@ -51,19 +51,19 @@ PROBLEM_ROOTS = (PROBLEMS_DIR, EXAMPLES_DIR)
 AUTHORING_DIRNAME = "authoring"
 SPEC_FILENAME = "spec.yaml"
 CONSTRAINTS_FILENAME = "constraints.yaml"
-# Результат шага `tests_plan` — план генераторов и тестов.
+# The result of the `tests_plan` step — the plan of generators and tests.
 TESTS_PLAN_FILENAME = "tests_plan.yaml"
-# Копия черновика автора (`init --draft`): `draft<расширение>`, см.
+# A copy of the author's draft (`init --draft`): `draft<extension>`, see
 # `orchestrator/drafts.py`.
 DRAFT_STEM = "draft"
 POLYGON_STATE_FILENAME = "polygon_state.json"
-# Разбор в `statement/`: необязательный файл, пишет автор, `polygon pull` или
-# шаг `tutorial_draft` — по драфту автора `authoring/draft-tutorial.md`.
+# The tutorial in `statement/`: an optional file, written by the author, `polygon pull` or
+# the `tutorial_draft` step — from the author's draft `authoring/draft-tutorial.md`.
 TUTORIAL_FILENAME = "tutorial.tex"
 TUTORIAL_DRAFT_FILENAME = "draft-tutorial.md"
-# `spec.yaml` прямо в каталоге задачи — задача, ещё не перенесённая в
-# `authoring/` (`migrate_to_authoring`): её тоже находят дополнение и
-# проверка уникальности `problem_id`.
+# `spec.yaml` directly in the problem directory — a problem not yet moved into
+# `authoring/` (`migrate_to_authoring`): completion and the
+# `problem_id` uniqueness check find it too.
 PROBLEM_MARKERS = (
     f"{AUTHORING_DIRNAME}/{SPEC_FILENAME}",
     SPEC_FILENAME,
@@ -72,35 +72,35 @@ PROBLEM_MARKERS = (
 
 EXAMPLE_ID_SEPARATOR = "--"
 
-# Суффикс файла задачи, который генеративный шаг в режиме доработки
-# предложил удалить (`orchestrator/steps/base.py`): файл не удаляется, а
-# переименовывается в `<имя>.removed`, чтобы автор посмотрел и удалил сам.
-# Такие файлы — уже не часть задачи: их не видят ни шаги, ни Polygon-шаги,
-# ни референсы (`is_removed_mark`).
+# The suffix of a problem file that a generative step in revision mode
+# proposed to delete (`orchestrator/steps/base.py`): the file isn't deleted but
+# renamed to `<name>.removed`, so that the author looks and deletes it themselves.
+# Such files are no longer part of the problem: neither the steps, nor the Polygon steps,
+# nor references see them (`is_removed_mark`).
 REMOVED_SUFFIX = ".removed"
 
 
 def is_removed_mark(path: Path | str) -> bool:
-    """Файл помечен шагом как удалённый (`REMOVED_SUFFIX`)."""
+    """The file is marked as deleted by a step (`REMOVED_SUFFIX`)."""
     return Path(path).name.endswith(REMOVED_SUFFIX)
 
 
-# Компонент пути задачи: ASCII-буквы/цифры/'-'/'_', без '-' по краям — иначе
-# склейка компонентов примеров через `--` перестала бы быть однозначной.
+# A component of a problem path: ASCII letters/digits/'-'/'_', without '-' at the ends — otherwise
+# joining the examples' components with `--` would stop being unambiguous.
 _COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?$")
-# `problem_id` спека и имя задачи на Polygon.
+# The spec's `problem_id` and the problem's name on Polygon.
 PROBLEM_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
 
 def is_draft_name(name: str) -> bool:
-    """Копия черновика автора (`draft<расширение>`)."""
+    """A copy of the author's draft (`draft<extension>`)."""
     return "/" not in name and PurePosixPath(name).stem == DRAFT_STEM
 
 
 def is_authoring_name(name: str) -> bool:
-    """Файл, который лежит в `authoring/`: спек, `constraints.yaml`,
-    `tests_plan.yaml`, копия черновика, драфт разбора (по имени файла, без
-    каталога)."""
+    """A file that lies in `authoring/`: the spec, `constraints.yaml`,
+    `tests_plan.yaml`, the draft copy, the tutorial draft (by file name, without
+    the directory)."""
     return name in (
         SPEC_FILENAME,
         CONSTRAINTS_FILENAME,
@@ -114,24 +114,24 @@ def authoring_dir(problem_dir: Path) -> Path:
 
 
 def authoring_path(problem_dir: Path, name: str) -> Path:
-    """Путь файла `authoring/` (`is_authoring_name`) в каталоге задачи."""
+    """The path of an `authoring/` file (`is_authoring_name`) in the problem directory."""
     return authoring_dir(problem_dir) / name
 
 
 def find_authoring_file(problem_dir: Path, name: str) -> Path:
-    """Файл `authoring/` другой задачи, которую читают как образец (`--ref`,
-    референсы спека): та задача может быть ещё не перенесена
-    (`migrate_to_authoring`) — тогда файл берётся из самого её каталога."""
+    """An `authoring/` file of another problem that is read as a sample (`--ref`,
+    spec references): that problem may not be moved yet
+    (`migrate_to_authoring`) — then the file is taken from its directory itself."""
     path = authoring_path(problem_dir, name)
     legacy = Path(problem_dir) / name
     return legacy if not path.exists() and legacy.exists() else path
 
 
 def migrate_to_authoring(problem_dir: Path) -> list[tuple[Path, Path]]:
-    """Переносит спек, `constraints.yaml` и копию черновика из самого каталога
-    задачи (раскладка до `authoring/`) в `authoring/`; [(откуда, куда), ...].
-    Файл, который есть в обоих местах, — `ProblemPathError` до любого
-    переноса: какой из двух актуален, решает автор."""
+    """Moves the spec, `constraints.yaml` and the draft copy from the problem directory
+    itself (the layout from before `authoring/`) into `authoring/`; [(from, to), ...].
+    A file that exists in both places is a `ProblemPathError` before any
+    move: which of the two is current is for the author to decide."""
     problem_dir = Path(problem_dir)
     if not problem_dir.is_dir():
         return []
@@ -153,17 +153,17 @@ def migrate_to_authoring(problem_dir: Path) -> list[tuple[Path, Path]]:
 
 
 class ProblemPathError(ValueError):
-    """Неверный адрес задачи или место для нового каталога задачи."""
+    """An invalid problem address or location for a new problem directory."""
 
 
 def is_examples_root(problems_dir: Path) -> bool:
-    """Корень учебных задач (`examples/`) — по имени каталога корня."""
+    """The root of the sample problems (`examples/`) — by the name of the root directory."""
     return Path(problems_dir).name == EXAMPLES_DIR.name
 
 
 def problem_id_for(problems_dir: Path, problem_path: str) -> str:
-    """`problem_id` задачи по её пути `problem_path` внутри корня `problems_dir`
-    (правила — в докстринге модуля)."""
+    """The `problem_id` of a problem by its path `problem_path` inside the root `problems_dir`
+    (the rules — in the module docstring)."""
     parts = PurePosixPath(problem_path).parts
     if is_examples_root(problems_dir):
         return EXAMPLE_ID_SEPARATOR.join(parts)
@@ -171,8 +171,8 @@ def problem_id_for(problems_dir: Path, problem_path: str) -> str:
 
 
 def problem_address(problems_dir: Path, problem_path: str) -> str:
-    """Адрес задачи, как он пишется в CLI (`problems/<путь>`, `examples/<путь>`) —
-    для подсказок вида "запустите `orchestrator <адрес> ...`"."""
+    """The problem's address as it's written in the CLI (`problems/<path>`, `examples/<path>`) —
+    for hints like "run `orchestrator <address> ...`"."""
     return f"{Path(problems_dir).name}/{problem_path}"
 
 
@@ -185,10 +185,10 @@ def _address_root_error(address: str) -> ProblemPathError:
 
 
 def parse_address_path(address: str) -> tuple[Path, str]:
-    """(корень, путь внутри корня) по адресу из CLI — задачи или группы задач,
-    поэтому путь может быть пустым (сам корень), а имя последнего каталога не
-    обязано подходить под `problem_id`. Завершающий `/` (его подставляет
-    дополнение путей shell) допускается."""
+    """(root, path inside the root) by an address from the CLI — of a problem or a problem group,
+    so the path may be empty (the root itself), and the name of the last directory doesn't
+    have to fit `problem_id`. A trailing `/` (the shell's path completion adds it)
+    is allowed."""
     parts = [part for part in address.strip().split("/") if part]
     roots = {root.name: root for root in PROBLEM_ROOTS}
     if not parts or parts[0] not in roots:
@@ -214,7 +214,7 @@ def parse_address_path(address: str) -> tuple[Path, str]:
 
 
 def parse_problem_address(address: str) -> tuple[Path, str]:
-    """(корень, путь задачи внутри корня) по адресу задачи из CLI."""
+    """(root, the problem's path inside the root) by a problem address from the CLI."""
     root, problem_path = parse_address_path(address)
     if not problem_path:
         raise _address_root_error(address)
@@ -227,8 +227,8 @@ def parse_problem_address(address: str) -> tuple[Path, str]:
 
 
 def is_problem_dir(path: Path) -> bool:
-    """`authoring/` — не задача, хотя спек в нём и подходит под маркер
-    задачи, ещё не перенесённой в `authoring/`."""
+    """`authoring/` isn't a problem, even though the spec in it fits the marker of
+    a problem not yet moved into `authoring/`."""
     path = Path(path)
     if path.name == AUTHORING_DIRNAME:
         return False
@@ -236,8 +236,8 @@ def is_problem_dir(path: Path) -> bool:
 
 
 def iter_problem_dirs(directory: Path) -> Iterator[Path]:
-    """Каталоги задач под `directory` (сам `directory` не в счёт); скрытые
-    каталоги пропускаются, внутрь каталога задачи обход не спускается."""
+    """Problem directories under `directory` (`directory` itself doesn't count); hidden
+    directories are skipped, the traversal doesn't descend into a problem directory."""
     directory = Path(directory)
     for current, dirnames, _ in os.walk(directory):
         current = Path(current)
@@ -249,15 +249,15 @@ def iter_problem_dirs(directory: Path) -> Iterator[Path]:
 
 
 def problem_paths(problems_dir: Path) -> list[str]:
-    """Пути задач внутри корня `problems_dir` (posix, отсортированы)."""
+    """The paths of problems inside the root `problems_dir` (posix, sorted)."""
     return sorted(
         path.relative_to(problems_dir).as_posix() for path in iter_problem_dirs(problems_dir)
     )
 
 
 def problems_under(problems_dir: Path, group_path: str) -> list[str]:
-    """Пути задач (внутри корня) в группе `group_path` — каталоге внутри корня
-    (`""` — сам корень). Пусто, если задач под ним нет или это сама задача."""
+    """The paths of problems (inside the root) in the group `group_path` — a directory inside the root
+    (`""` — the root itself). Empty if there are no problems under it or it's a problem itself."""
     problems_dir = Path(problems_dir)
     if group_path and is_problem_dir(problems_dir / group_path):
         return []
@@ -268,10 +268,10 @@ def problems_under(problems_dir: Path, group_path: str) -> list[str]:
 
 
 def check_new_problem_location(problems_dir: Path, problem_path: str) -> None:
-    """Проверяет, что в `problems_dir/<problem_path>` можно завести новую
-    задачу: этот каталог не лежит внутри другой задачи, внутри него нет
-    задач, а её `problem_id` не занят задачей в другом месте — ни в этом
-    корне, ни в соседнем (`problems/` и `examples/` лежат рядом). Иначе
+    """Checks that a new problem can be set up in `problems_dir/<problem_path>`:
+    this directory doesn't lie inside another problem, there are no problems
+    inside it, and its `problem_id` isn't taken by a problem elsewhere — neither in this
+    root, nor in the neighboring one (`problems/` and `examples/` lie side by side). Otherwise
     `ProblemPathError`."""
     problems_dir = Path(problems_dir)
     problem_dir = problems_dir / problem_path

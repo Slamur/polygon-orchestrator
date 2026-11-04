@@ -1,35 +1,35 @@
-"""Инкрементальная синхронизация с Polygon: что считается "тем же самым".
+"""Incremental sync with Polygon: what counts as "the same".
 
-`polygon_state.json` хранит базу синхронизации (как `origin/...` в git):
+`polygon_state.json` stores the sync base (like `origin/...` in git):
 
-- `revision` — ревизия задачи на Polygon, с которой локальная база
-  последний раз совпадала (после коммита `polygon push` или после
-  `polygon pull`); `None` — неизвестна (задача создана/привязана до
-  появления этого поля или ещё ни разу не синхронизировалась);
-- `synced` — ключ элемента задачи -> sha256 его содержимого в этой ревизии.
+- `revision` — the problem's revision on Polygon that the local base
+  last matched (after a `polygon push` commit or after
+  `polygon pull`); `None` — unknown (the problem was created/bound before
+  this field appeared or hasn't been synced even once);
+- `synced` — the key of a problem element -> the sha256 of its contents in this revision.
 
-`polygon push` загружает только элементы, чей текущий локальный хеш
-отличается от `synced` — и только если ревизия на Polygon всё ещё равна
-`revision`, а в рабочей копии нет незакоммиченных правок (иначе Polygon
-меняли в обход оркестратора — см. `orchestrator/polygon/pipeline.py`). `polygon pull`
-переписывает базу по тому, что сейчас на Polygon.
+`polygon push` uploads only the elements whose current local hash
+differs from `synced` — and only if the revision on Polygon still equals
+`revision`, and the working copy has no uncommitted edits (otherwise Polygon
+was changed bypassing the orchestrator — see `orchestrator/polygon/pipeline.py`). `polygon pull`
+rewrites the base by what's on Polygon now.
 
-Ключ — путь файла относительно `problems/<problem_id>/` (или
-`templates/` для `problem_lib.h`), кроме нескольких "не-файлов":
-TL/ML, имя назначенного валидатора/чекера, название задачи в условии
-каждого языка.
-Хеш всегда считается от того, что лежит/легло бы локально, — поэтому
-`push` и `pull` получают одинаковые значения для одинакового содержимого.
+The key is the file's path relative to `problems/<problem_id>/` (or
+`templates/` for `problem_lib.h`), except for a few "non-files":
+the TL/ML, the name of the assigned validator/checker, the problem's name in the statement of
+each language.
+The hash is always computed from what lies/would lie locally — so
+`push` and `pull` get the same values for the same contents.
 
-`stamps` — для файлов, которые Polygon отдаёт листингом с временем
-изменения (`problem.files`, `problem.solutions`; см. `remote_stamps`):
-ключ -> отметка той версии файла на Polygon, которой соответствует хеш
-ключа в `synced`. Совпала отметка в листинге — файл на Polygon с тех пор не
-менялся, и `polygon pull` не скачивает его, а берёт хеш из базы. Отметку
-записывает pull (вместе с хешем) и push в конце прогона (`pipeline.py`).
-Лишнее несовпадение (файл пересохранили без изменений) стоит только
-скачивания; совпадения при изменённом файле не бывает, пока Polygon
-обновляет время изменения при каждой правке.
+`stamps` — for files that Polygon returns in a listing with a modification
+time (`problem.files`, `problem.solutions`; see `remote_stamps`):
+key -> the stamp of the version of the file on Polygon that the key's hash
+in `synced` corresponds to. The stamp in the listing matched — the file on Polygon hasn't
+changed since, and `polygon pull` doesn't download it but takes the hash from the base. The stamp
+is written by pull (together with the hash) and by push at the end of the run (`pipeline.py`).
+An extra mismatch (the file was re-saved without changes) costs only a
+download; a match with a changed file doesn't happen as long as Polygon
+updates the modification time on every edit.
 """
 
 from __future__ import annotations
@@ -46,29 +46,29 @@ from orchestrator.problem_paths import (
     SPEC_FILENAME,
     TESTS_PLAN_FILENAME,
     is_authoring_name,
-    is_draft_name,  # noqa: F401 — часть интерфейса модуля (pull, upload_attachments)
+    is_draft_name,  # noqa: F401 — part of the module's interface (pull, upload_attachments)
 )
 
 LIMITS_KEY = "limits"
 PROBLEM_LIB_KEY = "problem_lib.h"
 VALIDATOR_FILE_KEY = "validator.cpp"
-VALIDATOR_KEY = "validator"  # имя файла, назначенного валидатором
+VALIDATOR_KEY = "validator"  # the name of the file assigned as the validator
 CHECKER_FILE_KEY = "checker.cpp"
-CHECKER_KEY = "checker"  # имя назначенного чекера (`checker.cpp` или `std::...`)
-INTERACTIVE_KEY = "interactive"  # флаг интерактивности задачи (`problem.updateInfo`)
+CHECKER_KEY = "checker"  # the name of the assigned checker (`checker.cpp` or `std::...`)
+INTERACTIVE_KEY = "interactive"  # the problem's interactivity flag (`problem.updateInfo`)
 INTERACTOR_FILE_KEY = "interactor.cpp"
-INTERACTOR_KEY = "interactor"  # имя назначенного интерактора
-SCRIPT_KEY = "test_script"  # один на testset, какой бы локальный файл ни был
-# Attachments — файлы `authoring/` каталога задачи; на Polygon и в базе — по
-# имени файла, без каталога.
+INTERACTOR_KEY = "interactor"  # the name of the assigned interactor
+SCRIPT_KEY = "test_script"  # one per testset, whatever the local file
+# Attachments are the `authoring/` files of the problem directory; on Polygon and in the base — by
+# file name, without the directory.
 SPEC_KEY = SPEC_FILENAME
-CONSTRAINTS_KEY = CONSTRAINTS_FILENAME  # файл целиком; TL/ML задачи — `LIMITS_KEY`
+CONSTRAINTS_KEY = CONSTRAINTS_FILENAME  # the whole file; the problem's TL/ML — `LIMITS_KEY`
 TESTS_PLAN_KEY = TESTS_PLAN_FILENAME
 
-# Заголовок `constraints.yaml`, который писали прежние версии `polygon pull`,
-# когда на Polygon есть только TL/ML (теперь TL/ML — в `limits.yaml`): такой
-# файл — не результат `constraints_pick`, и `upload_attachments` его не
-# загружает.
+# The `constraints.yaml` header written by previous versions of `polygon pull`
+# when Polygon has only TL/ML (now the TL/ML are in `limits.yaml`): such a
+# file isn't the result of `constraints_pick`, and `upload_attachments` doesn't
+# upload it.
 PULLED_CONSTRAINTS_HEADER = (
     "# Pulled from Polygon (orchestrator <problem> polygon pull): TL/ML only.\n"
     "# This is NOT a constraints_pick result — there are no variable ranges,\n"
@@ -76,8 +76,8 @@ PULLED_CONSTRAINTS_HEADER = (
     "# as input (tests_plan and the steps after it) will see only this.\n"
 )
 
-# Локальные имена валидатора, чекера и интерактора: source-файлы с такими
-# именами — не генераторы, даже если не назначены (см. `generator_source_names`).
+# The local names of the validator, the checker and the interactor: source files with such
+# names aren't generators, even if not assigned (see `generator_source_names`).
 VALIDATOR_FILENAME = "validator.cpp"
 CHECKER_FILENAME = "checker.cpp"
 INTERACTOR_FILENAME = "interactor.cpp"
@@ -85,21 +85,21 @@ STANDARD_CHECKER_PREFIX = "std::"
 
 
 def is_attachment_name(name: str) -> bool:
-    """Aux-файл на Polygon, который хранит файл `authoring/` каталога задачи
-    (шаг `upload_attachments`): спек, `constraints.yaml`, `tests_plan.yaml`,
-    копия черновика.
-    Ключ в базе синхронизации — само имя."""
+    """An aux file on Polygon that stores an `authoring/` file of the problem directory
+    (the `upload_attachments` step): the spec, `constraints.yaml`, `tests_plan.yaml`,
+    the draft copy.
+    The key in the sync base is the name itself."""
     return is_authoring_name(name)
 
 
 def statement_file_key(filename: str, language: str) -> str:
-    """Ключ файла условия на языке `language` (код, `ru`) — как файл лежит
-    локально: `statement/<код>/<файл>`."""
+    """The key of a statement file in the language `language` (a code, `ru`) — as the file lies
+    locally: `statement/<code>/<file>`."""
     return f"statement/{language}/{filename}"
 
 
 def statement_name_key(language: str) -> str:
-    """Ключ названия задачи в условии на языке `language` (`name.txt`)."""
+    """The key of the problem's name in the statement in the language `language` (`name.txt`)."""
     return f"statement/{language}/name"
 
 
@@ -108,7 +108,7 @@ def example_key(number: int) -> str:
 
 
 def dialogue_keys(number: int) -> tuple[str, str]:
-    """Ключи диалога примера интерактивной задачи (input/output for statement)."""
+    """The keys of an interactive problem's example dialogue (input/output for statement)."""
     return (
         f"statement/examples/example_{number}.input_for_statement.txt",
         f"statement/examples/example_{number}.output_for_statement.txt",
@@ -116,7 +116,7 @@ def dialogue_keys(number: int) -> tuple[str, str]:
 
 
 def verify_key(number: int) -> str:
-    """Ключ флага "verify input/output for statements" примера."""
+    """The key of an example's "verify input/output for statements" flag."""
     return f"statement/examples/example_{number}.verify_for_statement.txt"
 
 
@@ -138,10 +138,10 @@ def generator_source_names(
     checker: str | None,
     interactor: str | None = None,
 ) -> list[str]:
-    """Имена генераторов среди source-файлов задачи на Polygon. Эвристика:
-    Polygon не различает генераторы и прочие source-файлы, поэтому
-    генератор — любой `*.cpp`, кроме валидатора, чекера и интерактора
-    (назначенных или с локальными именами `validator.cpp`/`checker.cpp`/
+    """The names of the generators among the problem's source files on Polygon. A heuristic:
+    Polygon doesn't distinguish generators from other source files, so a
+    generator is any `*.cpp` except the validator, the checker and the interactor
+    (assigned or with the local names `validator.cpp`/`checker.cpp`/
     `interactor.cpp`)."""
     not_generators = {
         VALIDATOR_FILENAME,
@@ -158,7 +158,7 @@ def generator_source_names(
     )
 
 
-# Ключи-"не-файлы" -> как их показывать автору (`describe_keys`).
+# "Non-file" keys -> how to show them to the author (`describe_keys`).
 _KEY_LABELS = {
     LIMITS_KEY: "TL/ML (limits.yaml)",
     VALIDATOR_KEY: "validator assignment",
@@ -167,7 +167,7 @@ _KEY_LABELS = {
     INTERACTIVE_KEY: "interactive flag",
     SCRIPT_KEY: "test script",
 }
-# Назначение -> файл, при загрузке которого назначение отдельно не показывается.
+# Assignment -> the file on whose upload the assignment isn't shown separately.
 _ASSIGNED_FILES = {
     VALIDATOR_KEY: VALIDATOR_FILE_KEY,
     CHECKER_KEY: CHECKER_FILE_KEY,
@@ -176,10 +176,10 @@ _ASSIGNED_FILES = {
 
 
 def describe_keys(keys: Iterable[str]) -> list[str]:
-    """Ключи базы -> имена для вывода CLI, по порядку ключей: файлы — путём в
-    каталоге задачи (Attachments — с `authoring/`), остальное — словами.
-    Назначение валидатора/чекера/интерактора вместе с его файлом — одна
-    строка, файл."""
+    """Base keys -> names for the CLI output, in the order of the keys: files — by their path in the
+    problem directory (Attachments — with `authoring/`), the rest — in words.
+    The assignment of the validator/checker/interactor together with its file is one
+    line, the file."""
     keys = list(keys)
     return [
         _KEY_LABELS.get(key)
@@ -190,8 +190,8 @@ def describe_keys(keys: Iterable[str]) -> list[str]:
 
 
 def _statement_label(key: str) -> str:
-    """Название в условии (`statement_name_key`) — файлом `name.txt`;
-    остальные ключи и есть пути."""
+    """The name in the statement (`statement_name_key`) — as the `name.txt` file;
+    the other keys are paths themselves."""
     parts = key.split("/")
     if len(parts) == 3 and parts[0] == "statement" and parts[2] == "name":
         return f"{key}.txt"
@@ -199,7 +199,7 @@ def _statement_label(key: str) -> str:
 
 
 def is_stamped_key(key: str) -> bool:
-    """Есть ли у ключа отметка в листинге Polygon (см. `remote_stamps`)."""
+    """Whether the key has a stamp in the Polygon listing (see `remote_stamps`)."""
     return (
         key
         in (
@@ -214,8 +214,8 @@ def is_stamped_key(key: str) -> bool:
 
 
 def file_stamp(file: dict) -> str | None:
-    """Отметка версии файла/решения на Polygon (объекты `File`/`Solution`):
-    имя, время изменения, длина. `None` — Polygon не отдал время."""
+    """The stamp of a file's/solution's version on Polygon (the `File`/`Solution` objects):
+    the name, the modification time, the length. `None` — Polygon didn't return the time."""
     mtime = file.get("modificationTimeSeconds")
     if mtime is None:
         return None
@@ -229,10 +229,10 @@ def remote_stamps(
     checker: str | None,
     interactor: str | None = None,
 ) -> dict[str, str]:
-    """Ключ базы -> отметка текущей версии на Polygon, по ответам
+    """Base key -> the stamp of the current version on Polygon, from the responses of
     `problem.files`, `problem.solutions`, `problem.validator`,
-    `problem.checker`, `problem.interactor` (только у интерактивной задачи)
-    — для всех файлов, которые сравнивает pull."""
+    `problem.checker`, `problem.interactor` (only for an interactive problem)
+    — for all files pull compares."""
     sources = {file["name"]: file for file in files.get("sourceFiles") or []}
     by_key: dict[str, dict] = {}
     for file in files.get("resourceFiles") or []:
@@ -258,9 +258,9 @@ def remote_stamps(
 def fetch_remote_stamps(
     client: PolygonClient, polygon_id: int, *, interactive: bool = False
 ) -> dict[str, str]:
-    """`remote_stamps` для задачи `polygon_id` — четыре запроса, у
-    интерактивной задачи пять (`problem.interactor` у обычной задачи не
-    запрашивается: интерактора у неё нет)."""
+    """`remote_stamps` for the problem `polygon_id` — four requests, for an
+    interactive problem five (`problem.interactor` isn't requested for a normal problem:
+    it has no interactor)."""
     params = {"problemId": str(polygon_id)}
     return remote_stamps(
         client.call("problem.files", params) or {},
@@ -283,14 +283,14 @@ def limits_digest(time_limit_ms: int, memory_limit_mb: int) -> str:
 
 @dataclass(frozen=True)
 class PolygonRevision:
-    """Ревизия задачи на Polygon (поля объекта `Problem`)."""
+    """The problem's revision on Polygon (the fields of the `Problem` object)."""
 
     revision: int
-    modified: bool  # есть незакоммиченные правки в рабочей копии
+    modified: bool  # there are uncommitted edits in the working copy
 
 
 def fetch_revision(client: PolygonClient, polygon_id: int) -> PolygonRevision:
-    """Текущая ревизия задачи `polygon_id` — один вызов `problems.list`."""
+    """The current revision of the problem `polygon_id` — one `problems.list` call."""
     found = [
         item
         for item in client.call("problems.list", {"id": str(polygon_id)}) or []

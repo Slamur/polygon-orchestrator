@@ -1,23 +1,23 @@
-"""Polygon-шаг 5 — назначение чекера задачи (`problem.setChecker`).
+"""Polygon step 5 — assigning the problem's checker (`problem.setChecker`).
 
 - `checker.custom_needed: true` — `problems/<problem_id>/checker.cpp`
-  (результат генеративного шага `checker_draft`) загружается как
-  source-файл (`problem.saveFile`, `type=source`) и назначается чекером.
-- `checker.custom_needed: false` — `problem.setChecker` вызывается с именем
-  стандартного чекера из `checker.standard`, без загрузки файла
-  (стандартные чекеры уже встроены в Polygon). В спеке имя пишется коротко
-  (`ncmp`), Polygon ждёт `std::ncmp.cpp` — см. `_polygon_standard_name`.
+  (the result of the `checker_draft` generative step) is uploaded as a
+  source file (`problem.saveFile`, `type=source`) and assigned as the checker.
+- `checker.custom_needed: false` — `problem.setChecker` is called with the name
+  of the standard checker from `checker.standard`, without uploading a file
+  (the standard checkers are already built into Polygon). In the spec the name is written short
+  (`ncmp`), Polygon expects `std::ncmp.cpp` — see `_polygon_standard_name`.
 
-Валидация спека (`Checker._check_custom_notes` в `orchestrator/spec.py`) не
-требует `checker.standard` при `custom_needed: false` — такой спек проходит
-`load_spec`. Здесь это ловится явной `PolygonStepError` до первого сетевого
-вызова, а не уходит в API как `None`. Место для настоящего исправления —
-`spec.py`, это отдельная задача.
+Spec validation (`Checker._check_custom_notes` in `orchestrator/spec.py`) doesn't
+require `checker.standard` with `custom_needed: false` — such a spec passes
+`load_spec`. Here it's caught with an explicit `PolygonStepError` before the first network
+call, rather than going to the API as `None`. The place for the real fix is
+`spec.py`, it's a separate task.
 
-По смыслу шаг идёт после `upload_validator`, но технически от него не
-зависит — ничего из того, что тот пишет, здесь не читается.
+Logically the step goes after `upload_validator`, but technically it doesn't
+depend on it — nothing of what that one writes is read here.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -50,9 +50,9 @@ _STANDARD_SUFFIX = ".cpp"
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Назначает чекер (custom или стандартный, по `ctx.spec.checker`), если
-    он отличается от базы синхронизации. Для custom отличие файла или
-    назначенного чекера — оба вызова, как в `upload_validator`."""
+    """Assigns the checker (custom or standard, by `ctx.spec.checker`) if
+    it differs from the sync base. For a custom one, a difference of the file or of the
+    assigned checker means both calls, as in `upload_validator`."""
     polygon_id = require_polygon_state(ctx).polygon_id
 
     if ctx.spec.checker.custom_needed:
@@ -87,10 +87,10 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации. Спек здесь недоступен, поэтому custom или
-    стандартный — по базе: есть в ней `checker.cpp` — сравнивается
-    локальный `checker.cpp`, иначе стандартный чекер считается "done"
-    (смена `checker.standard` в спеке отсюда не видна)."""
+    """By the sync base. The spec isn't available here, so custom or
+    standard — by the base: if it has `checker.cpp` — the local
+    `checker.cpp` is compared, otherwise the standard checker is considered "done"
+    (a change of `checker.standard` in the spec isn't visible from here)."""
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     synced = state.synced if state is not None else {}
     if CHECKER_FILE_KEY not in synced and CHECKER_KEY in synced:
@@ -133,7 +133,7 @@ def _require_standard_name(ctx: StepContext) -> str:
 
 
 def _polygon_standard_name(standard: str) -> str:
-    """`ncmp` -> `std::ncmp.cpp`; уже полное имя (`std::ncmp.cpp`) — как есть."""
+    """`ncmp` -> `std::ncmp.cpp`; an already full name (`std::ncmp.cpp`) — as is."""
     name = standard if standard.startswith(_STANDARD_PREFIX) else _STANDARD_PREFIX + standard
     return name if name.endswith(_STANDARD_SUFFIX) else name + _STANDARD_SUFFIX
 

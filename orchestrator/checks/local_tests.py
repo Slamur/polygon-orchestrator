@@ -1,31 +1,31 @@
-"""Локальная генерация тестов по test-script'у — `orchestrator <задача> local
-check --full`. Без модели и без сети; приближение к тому, что сгенерирует
-Polygon, а не гарантия: `rnd` testlib детерминирован, но `long`,
-`std::shuffle`, порядок `unordered_*` и нестабильная сортировка зависят от
-компилятора и ОС.
+"""Local generation of tests from the test-script — `orchestrator <problem> local
+check --full`. Without the model and without the network; an approximation of what
+Polygon generates, not a guarantee: testlib's `rnd` is deterministic, but `long`,
+`std::shuffle`, the order of `unordered_*` and unstable sorting depend on the
+compiler and the OS.
 
-Что делается:
+What is done:
 
-1. Скрипт раскрывается и проверяется (`test_script_check.check_script`);
-   скрипт с одинаковыми или непринимаемыми строками не генерируется.
-2. Строка `<генератор> <параметры> [| <генератор> ...] > $` запускается
-   цепочкой; вывод — тест. Номера тестов — после примеров: примеры занимают
-   `testIndex` 1..N (`upload_statement`), `$` — следующий свободный.
-   Явные номера (`> 5`) не поддерживаются: такие строки — ошибка.
-3. Кэш — в `.tests_cache/` каталога задачи. Тест — чистая функция команды и
-   кода генераторов: сид `registerGen` берётся из аргументов, а номер теста
-   генератору не передаётся. Поэтому ключ теста (`_test_key`) — хеш команды
-   и хешей сборки её генераторов (исходник, `problem_lib.h`, `testlib.h`,
-   флаги); перенумерация тестов кэш не задевает, правка генератора
-   инвалидирует только тесты с ним. Файлы с ключами, которых в наборе больше
-   нет, удаляются. `manifest.txt` там же — номер, файл и команда каждого
-   теста, для ручного разбора.
-4. Одинаковые тесты ищутся по содержимому (`find_equal_tests`), вместе с
-   примерами: разные команды могут дать один и тот же тест. Концы строк
-   нормализуются, остальное сравнивается побайтово. Это сведения для автора,
-   а не ошибка: `format_equal_tests` показывает, каким строкам скрипта они
-   соответствуют, код возврата от них не зависит.
-5. Валидатор (`validator.cpp`, если есть) прогоняется на каждом тесте.
+1. The script is expanded and checked (`test_script_check.check_script`);
+   a script with identical or unacceptable lines isn't generated.
+2. A line `<generator> <parameters> [| <generator> ...] > $` is run as
+   a chain; the output is a test. Test numbers come after the examples: the examples take
+   `testIndex` 1..N (`upload_statement`), `$` — the next free one.
+   Explicit numbers (`> 5`) aren't supported: such lines are an error.
+3. The cache — in the problem directory's `.tests_cache/`. A test is a pure function of the command and
+   the generators' code: the `registerGen` seed is taken from the arguments, and the test number
+   isn't passed to the generator. So a test's key (`_test_key`) is the hash of the command
+   and of the build hashes of its generators (source, `problem_lib.h`, `testlib.h`,
+   flags); renumbering tests doesn't touch the cache, editing a generator
+   invalidates only the tests with it. Files with keys no longer in the set
+   are deleted. `manifest.txt` there — the number, file and command of each
+   test, for manual inspection.
+4. Identical tests are searched for by content (`find_equal_tests`), together with
+   the examples: different commands can give the same test. Line endings
+   are normalized, the rest is compared byte by byte. This is information for the author,
+   not an error: `format_equal_tests` shows which script lines they
+   correspond to, the exit code doesn't depend on them.
+5. The validator (`validator.cpp`, if any) is run on each test.
 """
 
 from __future__ import annotations
@@ -58,15 +58,15 @@ EXAMPLES_SUBDIR = "examples"
 _EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 _PROBLEM_LIB = "problem_lib.h"
 _TESTLIB = "testlib.h"
-# Меняются вместе с флагами `compile_check`: другие флаги — другая сборка.
+# They change together with the `compile_check` flags: other flags — another build.
 _BUILD_VERSION = "g++ -std=c++17 -O2"
 _COMPILE_TIMEOUT_SECONDS = 60.0
 _GENERATOR_TIMEOUT_SECONDS = 60.0
 _VALIDATOR_TIMEOUT_SECONDS = 30.0
 _NEXT_TEST_TARGET = "$"
-# Что удаляет `local clear`: только то, что локальные проверки пересоздают
-# сами. Кэш шагов модели (`.cache/`), `polygon_state.json` и бэкапы сюда не
-# входят: их не восстановить без затрат или вообще.
+# What `local clear` deletes: only what the local checks recreate
+# themselves. The model's step cache (`.cache/`), `polygon_state.json` and backups aren't
+# included: they can't be restored without cost, or at all.
 LOCAL_CACHE_DIRNAMES = (TESTS_CACHE_DIRNAME,)
 
 Progress = Callable[[str], None]
@@ -77,7 +77,7 @@ class LocalTest:
     number: int
     command: str
     path: Path
-    # Имя файла скрипта и строка, напечатавшая команду (`None` — не опознана).
+    # The script's file name and the line that printed the command (`None` — not recognized).
     script: str = ""
     script_line: int | None = None
 
@@ -88,7 +88,7 @@ class LocalTest:
 
 @dataclass
 class EqualTests:
-    """Группа тестов с одинаковым содержимым: имена в порядке номеров."""
+    """A group of tests with identical contents: the names in the order of their numbers."""
 
     names: list[str]
 
@@ -111,8 +111,8 @@ def _test_key(command: str, generator_hashes: list[str]) -> str:
 
 
 def parse_chain(text: str) -> tuple[str, list[list[str]]]:
-    """Строка раскрытого скрипта -> (команда без `> $`, части цепочки: имя
-    генератора и его аргументы). `ValueError` — строку нельзя запустить."""
+    """A line of the expanded script -> (the command without `> $`, the parts of the chain: the
+    generator's name and its arguments). `ValueError` — the line can't be run."""
     command, separator, target = text.rpartition(">")
     if not separator:
         raise ValueError("no '> $' redirect")
@@ -125,14 +125,14 @@ def parse_chain(text: str) -> tuple[str, list[list[str]]]:
 
 
 def _generator_source(problem_dir: Path, name: str) -> Path | None:
-    # На Polygon генератор называется по файлу без расширения.
+    # On Polygon a generator is named after its file without the extension.
     path = problem_dir / GENERATORS_DIRNAME / f"{name}.cpp"
     return path if path.is_file() and not is_removed_mark(path) else None
 
 
 def _build_hash(source: Path, problem_dir: Path, templates_dir: Path) -> str:
-    """Хеш всего, от чего зависит сборка: исходник и общие заголовки — той
-    же версии, которую найдёт компилятор (`-I` задачи, потом `templates/`)."""
+    """The hash of everything the build depends on: the source and the shared headers — of the
+    same version the compiler finds (the problem's `-I`, then `templates/`)."""
     digest = hashlib.sha256(_BUILD_VERSION.encode("utf-8"))
     digest.update(source.read_bytes())
     for header in (_PROBLEM_LIB, _TESTLIB):
@@ -147,7 +147,7 @@ def _build_hash(source: Path, problem_dir: Path, templates_dir: Path) -> str:
 def _build_generator(
     source: Path, build_hash: str, bin_dir: Path, problem_dir: Path, templates_dir: Path
 ) -> tuple[Path | None, str]:
-    """(бинарь, ошибка). Сборка кэшируется по `build_hash`."""
+    """(binary, error). The build is cached by `build_hash`."""
     target = bin_dir / f"{source.stem}-{build_hash[:16]}.bin"
     if target.is_file():
         return target, ""
@@ -162,8 +162,8 @@ def _build_generator(
 
 
 def _run_chain(stages: list[tuple[Path, list[str]]], cwd: Path) -> tuple[bytes | None, str]:
-    """(вывод последнего генератора, ошибка): байты как есть, вывод каждого —
-    вход следующего."""
+    """(the output of the last generator, error): bytes as is, the output of each is
+    the input of the next."""
     data = b""
     for binary, args in stages:
         try:
@@ -192,12 +192,12 @@ def _describe_line(line: ScriptLine) -> str:
 def generate_tests(
     problem_dir: Path, templates_dir: Path, progress: Progress | None = None
 ) -> LocalTestsResult:
-    """Раскрывает скрипт задачи и приводит кэш тестов к текущему набору (см.
-    докстринг модуля). Ошибка строки не мешает генерировать остальные."""
-    # Генераторы запускаются из каталога кэша — пути должны быть абсолютными.
+    """Expands the problem's script and brings the test cache to the current set (see the
+    module docstring). An error in a line doesn't prevent generating the rest."""
+    # Generators are run from the cache directory — the paths must be absolute.
     problem_dir, templates_dir = Path(problem_dir).resolve(), Path(templates_dir).resolve()
     result = LocalTestsResult()
-    # Первый существующий: так же выбирает скрипт `upload_test_script`.
+    # The first existing one: `upload_test_script` chooses the script the same way.
     script = next(
         (problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()), None
     )
@@ -309,7 +309,7 @@ def generate_tests(
 
 
 def example_files(examples_dir: Path) -> list[tuple[int, Path]]:
-    """Файлы input примеров по порядку номеров: (N, `example_<N>.txt`)."""
+    """The examples' input files in the order of their numbers: (N, `example_<N>.txt`)."""
     if not examples_dir.is_dir():
         return []
     return sorted(
@@ -320,7 +320,7 @@ def example_files(examples_dir: Path) -> list[tuple[int, Path]]:
 
 
 def sample_paths(problem_dir: Path) -> list[tuple[str, Path]]:
-    """Примеры (тесты 1..N) по порядку: имя и файл input."""
+    """The examples (tests 1..N) in order: the name and the input file."""
     return [
         (path.stem, path)
         for _, path in example_files(problem_dir / STATEMENT_DIRNAME / EXAMPLES_SUBDIR)
@@ -332,8 +332,8 @@ def _normalized_hash(path: Path) -> str:
 
 
 def find_equal_tests(problem_dir: Path, tests: list[LocalTest]) -> list[EqualTests]:
-    """Группы тестов (и примеров) с одинаковым содержимым — в порядке первого
-    появления."""
+    """Groups of tests (and examples) with identical contents — in the order of first
+    appearance."""
     groups: dict[str, list[str]] = {}
     for name, path in sample_paths(problem_dir):
         groups.setdefault(_normalized_hash(path), []).append(name)
@@ -343,8 +343,8 @@ def find_equal_tests(problem_dir: Path, tests: list[LocalTest]) -> list[EqualTes
 
 
 def clear_local_caches(problem_dir: Path) -> list[tuple[str, int]]:
-    """Удаляет локальные кэши проверок задачи (`LOCAL_CACHE_DIRNAMES`).
-    Возвращает (имя каталога, сколько байт занимал) по каждому удалённому."""
+    """Deletes the problem's local check caches (`LOCAL_CACHE_DIRNAMES`).
+    Returns (the directory name, how many bytes it took) for each deleted one."""
     removed = []
     for name in LOCAL_CACHE_DIRNAMES:
         path = Path(problem_dir) / name
@@ -359,8 +359,8 @@ def clear_local_caches(problem_dir: Path) -> list[tuple[str, int]]:
 
 
 def format_equal_tests(groups: list[EqualTests], tests: list[LocalTest]) -> str:
-    """Отчёт: какие тесты получаются одинаковыми при запуске и какие строки
-    скрипта им соответствуют."""
+    """The report: which tests turn out identical when run and which script
+    lines correspond to them."""
     by_name = {test.name: test for test in tests}
     lines = [f"equal tests: {len(groups)} group(s) come out identical when generated:"]
     for group in groups:
@@ -378,8 +378,8 @@ def format_equal_tests(groups: list[EqualTests], tests: list[LocalTest]) -> str:
 def validate_tests(
     problem_dir: Path, templates_dir: Path, tests: list[LocalTest]
 ) -> tuple[list[str], bool]:
-    """(ошибки, запускался ли валидатор). Нет `validator.cpp` — не запускался.
-    Сборка кэшируется, как у генераторов."""
+    """(errors, whether the validator was run). No `validator.cpp` — it wasn't run.
+    The build is cached, as for generators."""
     problem_dir, templates_dir = Path(problem_dir).resolve(), Path(templates_dir).resolve()
     source = problem_dir / VALIDATOR_FILENAME
     if not source.is_file():

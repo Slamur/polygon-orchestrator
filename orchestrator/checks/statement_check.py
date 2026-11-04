@@ -1,25 +1,25 @@
-"""Проверка оформления LaTeX-условия (`statement/<код языка>/*.tex`) — `orchestrator
-<задача> local check` — и его механическое исправление — `orchestrator
-<задача> local fix`. К Polygon не обращается.
+"""Checking the formatting of a LaTeX statement (`statement/<language code>/*.tex`) — `orchestrator
+<problem> local check` — and fixing it mechanically — `orchestrator
+<problem> local fix`. Doesn't call Polygon.
 
-Что проверяется:
+What is checked:
 
-- **списки в стиле Markdown** — строки, начинающиеся с `- `, `* `, `+ `
-  (маркированный список) или `1. `, `1) ` (нумерованный). LaTeX их не
-  понимает и печатает как обычный текст; исправление — окружения
-  `itemize`/`enumerate` с `\\item` (вложенность — по отступу);
-- **кавычки** — только в русскоязычном условии (`statement/ru/`, см.
-  `orchestrator/statement_languages.py`): кавычки в нём — `<<`/`>>`
-  (лигатуры «ёлочек» в LaTeX). Прямые `"`,
-  типографские `“ ” „`, `«»` и английские LaTeX-кавычки ```` ``…'' ````
-  заменяются на `<<…>>`. Кавычки разбираются по абзацам (между пустыми
-  строками), вне формул (`$…$`, `$$…$$`, `\\(…\\)`, `\\[…\\]`), вне
-  комментариев `%` и без `\\"` (акцент LaTeX). Абзац, где кавычки не
-  складываются в пары, не исправляется — только печатается проверкой.
+- **Markdown-style lists** — lines starting with `- `, `* `, `+ `
+  (a bulleted list) or `1. `, `1) ` (a numbered one). LaTeX doesn't
+  understand them and prints them as ordinary text; the fix — the
+  `itemize`/`enumerate` environments with `\\item` (nesting — by indentation);
+- **quotes** — only in a Russian statement (`statement/ru/`, see
+  `orchestrator/statement_languages.py`): the quotes in it are `<<`/`>>`
+  (the LaTeX ligatures for guillemets). Straight `"`,
+  typographic `“ ” „`, `«»` and English LaTeX quotes ```` ``…'' ````
+  are replaced with `<<…>>`. Quotes are parsed by paragraph (between empty
+  lines), outside formulas (`$…$`, `$$…$$`, `\\(…\\)`, `\\[…\\]`), outside
+  `%` comments and without `\\"` (a LaTeX accent). A paragraph where the quotes don't
+  pair up isn't fixed — it's only printed by the check.
 
-Разбор — построчный и по регулярным выражениям, а не полный парсер LaTeX:
-списки внутри `verbatim`-окружений и формул на несколько строк не
-различаются (в условиях задач их практически не бывает).
+The parsing is line by line and with regular expressions, not a full LaTeX parser:
+lists inside `verbatim` environments and multi-line formulas aren't
+distinguished (they practically never occur in problem statements).
 """
 
 from __future__ import annotations
@@ -29,18 +29,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from orchestrator.statement_languages import (
-    STATEMENT_DIRNAME,  # noqa: F401 — часть интерфейса модуля (local_tests, solutions_run)
+    STATEMENT_DIRNAME,  # noqa: F401 — part of the module's interface (local_tests, solutions_run)
     statement_languages,
 )
 
-# Прежние версии файлов, изменённых `local fix`: `.fix_backup/<время>/`.
+# Previous versions of files changed by `local fix`: `.fix_backup/<time>/`.
 FIX_BACKUP_DIRNAME = ".fix_backup"
 
 KIND_MARKDOWN_LIST = "markdown list"
 KIND_QUOTES = "quotes"
 KIND_UNPAIRED_QUOTES = "unpaired quotes"
 
-# Язык (код), в котором кавычки — `<<…>>`.
+# The language (code) in which quotes are `<<…>>`.
 QUOTES_LANGUAGE = "ru"
 
 OPEN_QUOTE = "<<"
@@ -55,10 +55,10 @@ _ENUMERATE = "enumerate"
 
 @dataclass(frozen=True)
 class StatementIssue:
-    file: str  # путь относительно каталога задачи (`statement/ru/legend.tex`)
+    file: str  # the path relative to the problem directory (`statement/ru/legend.tex`)
     line: int  # 1-based
     kind: str
-    text: str  # строка файла, без перевода строки
+    text: str  # a line of the file, without the line break
     fixable: bool = True
 
     def format(self) -> str:
@@ -67,8 +67,8 @@ class StatementIssue:
 
 
 def statement_files(problem_dir: Path) -> list[tuple[Path, str]]:
-    """`.tex`-файлы условия задачи с кодом языка каждого
-    (`statement/<код>/*.tex`), по языкам. `*.tex.removed` в glob не попадают."""
+    """The problem's statement `.tex` files with the language code of each
+    (`statement/<code>/*.tex`), by language. `*.tex.removed` don't match the glob."""
     statement_dir = problem_dir / STATEMENT_DIRNAME
     return [
         (path, code)
@@ -79,8 +79,8 @@ def statement_files(problem_dir: Path) -> list[tuple[Path, str]]:
 
 
 def check_text(text: str, file: str, *, quotes: bool = True) -> list[StatementIssue]:
-    """Проблемы оформления `text`; `quotes=False` — без кавычек (условие не
-    на `QUOTES_LANGUAGE`)."""
+    """The formatting problems of `text`; `quotes=False` — without quotes (the statement isn't
+    in `QUOTES_LANGUAGE`)."""
     lines = text.split("\n")
     issues = [
         StatementIssue(file, number, KIND_MARKDOWN_LIST, lines[number - 1])
@@ -99,15 +99,15 @@ def check_text(text: str, file: str, *, quotes: bool = True) -> list[StatementIs
 
 
 def fix_text(text: str, *, quotes: bool = True) -> str:
-    """Списки Markdown -> `itemize`/`enumerate`, кавычки -> `<<…>>` (кроме
-    абзацев с непарными кавычками; `quotes=False` — кавычки не трогаются)."""
+    """Markdown lists -> `itemize`/`enumerate`, quotes -> `<<…>>` (except
+    paragraphs with unpaired quotes; `quotes=False` — quotes aren't touched)."""
     lines = text.split("\n")
     if quotes:
         lines = _fix_quotes(lines)
     return "\n".join(_fix_lists(lines))
 
 
-# --- списки -------------------------------------------------------------------
+# --- lists --------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -136,11 +136,11 @@ def _indent(line: str) -> int:
 
 def _fix_lists(lines: list[str]) -> list[str]:
     out: list[str] = []
-    stack: list[tuple[int, str]] = []  # открытые окружения: (отступ пунктов, окружение)
+    stack: list[tuple[int, str]] = []  # open environments: (item indentation, environment)
 
     def close(down_to: int) -> None:
-        # Пустая строка перед `\end` остаётся после него — как в исходном тексте,
-        # где пустая строка отделяла список от следующего абзаца.
+        # An empty line before `\end` stays after it — as in the source text,
+        # where an empty line separated the list from the next paragraph.
         trailing: list[str] = []
         while out and not out[-1].strip() and stack:
             trailing.append(out.pop())
@@ -163,7 +163,7 @@ def _fix_lists(lines: list[str]) -> list[str]:
         elif not line.strip():
             out.append(line)
         elif stack and _indent(line) > stack[-1][0] and (out and out[-1].strip()):
-            # Продолжение пункта: строка с отступом сразу после него.
+            # A continuation of an item: an indented line right after it.
             out.append(line)
         else:
             close(0)
@@ -172,25 +172,25 @@ def _fix_lists(lines: list[str]) -> list[str]:
     return out
 
 
-# --- кавычки ------------------------------------------------------------------
+# --- quotes -------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class _Quote:
-    line: int  # 1-based номер строки файла
-    column: int  # позиция в строке
+    line: int  # 1-based line number in the file
+    column: int  # the position in the line
     text: str  # `"`, `“`, ``` `` ``` …
 
 
 _OPENING = {"«", "„", "``"}
 _CLOSING = {"»", "”", "''"}
-# Прямая кавычка закрывает, если открыта прямой же; `“` — открывающая в
-# английском стиле и закрывающая в немецком („…“).
+# A straight quote closes if it was opened by a straight one too; `“` is opening in
+# the English style and closing in the German one („…“).
 _TOGGLING = {'"': {'"'}, "“": {"„", "“"}}
 
 
 def _paragraphs(lines: list[str]) -> list[list[tuple[int, str]]]:
-    """Абзацы — группы непустых строк: [(1-based номер строки, строка)]."""
+    """Paragraphs — groups of non-empty lines: [(1-based line number, line)]."""
     paragraphs: list[list[tuple[int, str]]] = []
     current: list[tuple[int, str]] = []
     for number, line in enumerate(lines, 1):
@@ -205,10 +205,10 @@ def _paragraphs(lines: list[str]) -> list[list[tuple[int, str]]]:
 
 
 def _quote_tokens(paragraph: list[tuple[int, str]]) -> list[_Quote]:
-    """Кавычки абзаца вне формул и комментариев. Формула может продолжаться
-    на следующей строке абзаца."""
+    """A paragraph's quotes outside formulas and comments. A formula may continue
+    on the next line of the paragraph."""
     tokens: list[_Quote] = []
-    math_end: str | None = None  # закрывающий разделитель открытой формулы
+    math_end: str | None = None  # the closing delimiter of an open formula
     for number, line in paragraph:
         i = 0
         while i < len(line):
@@ -219,7 +219,7 @@ def _quote_tokens(paragraph: list[tuple[int, str]]) -> list[_Quote]:
                     math_end = None
                 elif math_end is None and two in ("\\(", "\\["):
                     math_end = "\\)" if two == "\\(" else "\\]"
-                i += 2  # команда/экранирование: `\$`, `\%`, `\"`, `\\`
+                i += 2  # a command/escape: `\$`, `\%`, `\"`, `\\`
                 continue
             if ch == "%":
                 break
@@ -243,8 +243,8 @@ def _quote_tokens(paragraph: list[tuple[int, str]]) -> list[_Quote]:
 
 
 def _pair_quotes(tokens: list[_Quote]) -> list[bool] | None:
-    """Для каждой кавычки — открывающая ли она; None, если кавычки абзаца
-    не складываются в пары."""
+    """For each quote — whether it's an opening one; None if the paragraph's quotes
+    don't pair up."""
     stack: list[str] = []
     opening: list[bool] = []
     for token in tokens:
@@ -270,7 +270,7 @@ def _fix_quotes(lines: list[str]) -> list[str]:
         opening = _pair_quotes(tokens)
         if not tokens or opening is None:
             continue
-        # С конца строки, чтобы позиции ещё не заменённых кавычек не сдвигались.
+        # From the end of the line, so that the positions of quotes not yet replaced don't shift.
         for token, is_open in sorted(
             zip(tokens, opening, strict=True),
             key=lambda pair: (pair[0].line, pair[0].column),

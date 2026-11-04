@@ -1,36 +1,36 @@
-"""Проверка строк раскрытого FreeMarker test-script'а — до загрузки в
-Polygon (`orchestrator <задача> local check` и проверка перед загрузкой в
+"""Checking the lines of an expanded FreeMarker test-script — before uploading to
+Polygon (`orchestrator <problem> local check` and the check before uploading in
 `upload_test_script`).
 
-Polygon раскрывает скрипт в построчный список команд и отказывается
-генерировать тесты, если две строки совпали. Ищется именно совпадение строк
-скрипта, а не одинаковые тесты.
+Polygon expands the script into a line-by-line list of commands and refuses to
+generate tests if two lines match. It's exactly the matching of script lines
+that is searched for, not identical tests.
 
-Ещё Polygon не принимает строки, где параметры генератора содержат кавычки
-или `>`: строка — `<генератор> <параметры> [| <генератор> ...] > <тест>`,
-и `>` в ней ровно один — перенаправление в тест (`find_invalid_lines`).
-Исправить это механически нельзя: значение с пробелом (`-p="1 2"`) должно
-стать одним словом, а это меняет и разбор параметров в генераторе.
+Polygon also doesn't accept lines where the generator's parameters contain quotes
+or `>`: a line is `<generator> <parameters> [| <generator> ...] > <test>`,
+and there's exactly one `>` in it — the redirection to the test (`find_invalid_lines`).
+This can't be fixed mechanically: a value with a space (`-p="1 2"`) has to
+become one word, and that changes the parsing of parameters in the generator too.
 
-Скрипт раскрывается настоящим FreeMarker (`FreemarkerRender.java`, запуск
-`java` без сборки; jar скачивается с Maven Central в кэш при первом запуске,
-см. `freemarker_jar`), а не собственным интерпретатором: любое расхождение в
-семантике давало бы ложные срабатывания или пропуски.
+The script is expanded with real FreeMarker (`FreemarkerRender.java`, run with
+`java` without building; the jar is downloaded from Maven Central into a cache on the first run,
+see `freemarker_jar`), not with our own interpreter: any discrepancy in
+semantics would give false positives or misses.
 
-Чтобы для каждой строки результата знать, какая строка скрипта её
-напечатала, скрипт перед раскрытием размечается (`instrument_script`): в
-конец каждой строки скрипта, печатающей текст, дописывается маркер с её
-номером и значениями переменных охватывающих `<#list ... as x>`. Маркеры
-дописываются в конец тех же строк, поэтому номера строк в ошибках
-FreeMarker остаются номерами исходного файла. После раскрытия маркеры
-отрезаются (`parse_rendered`), строки сравниваются без пробелов по краям,
-с пробелами внутри, схлопнутыми до одного, — пустые строки Polygon
-выкидывает сам.
+To know for each line of the result which script line
+printed it, the script is marked up before expanding (`instrument_script`): at
+the end of each script line that prints text, a marker with its
+number and the values of the variables of the enclosing `<#list ... as x>` is appended. The markers
+are appended at the end of the same lines, so the line numbers in
+FreeMarker errors stay the line numbers of the source file. After expanding, the markers
+are cut off (`parse_rendered`), the lines are compared without spaces at the ends,
+with the spaces inside collapsed to one — Polygon drops empty lines
+itself.
 
-Разметка — построчный разбор директив, а не полный парсер FreeMarker:
-строка, где цикл открывается и закрывается в ней же, получает только номер
-без значений переменной цикла; тела `<#function>` пропускаются (функции
-ничего не печатают), в теле `<#macro>` переменные внешних циклов не видны.
+The markup is a line-by-line parse of directives, not a full FreeMarker parser:
+a line where a loop opens and closes within it gets only the number
+without the values of the loop variable; the bodies of `<#function>` are skipped (functions
+print nothing), in the body of a `<#macro>` the variables of outer loops aren't visible.
 """
 
 from __future__ import annotations
@@ -51,22 +51,22 @@ _FREEMARKER_URL = (
     "https://repo1.maven.org/maven2/org/freemarker/freemarker/"
     f"{FREEMARKER_VERSION}/freemarker-{FREEMARKER_VERSION}.jar"
 )
-# Путь к уже скачанному jar — вместо кэша (например, без доступа к сети).
+# The path to an already downloaded jar — instead of the cache (e.g. without network access).
 FREEMARKER_JAR_ENV = "ORCHESTRATOR_FREEMARKER_JAR"
-# Непустое значение выключает проверку перед загрузкой в `upload_test_script`
-# (на случай, если проверка ошиблась, а скрипт нужно загрузить).
+# A non-empty value turns off the check before uploading in `upload_test_script`
+# (in case the check is wrong and the script has to be uploaded).
 SKIP_CHECK_ENV = "ORCHESTRATOR_SKIP_SCRIPT_CHECK"
 
 _RENDERER = Path(__file__).with_name("FreemarkerRender.java")
 _RENDER_TIMEOUT_SECONDS = 60.0
 
-# Маркер строки скрипта: \x1e<номер строки>\x1f<значение>\x1f<значение>...\x1e.
+# A script line marker: \x1e<line number>\x1f<value>\x1f<value>...\x1e.
 _MARK = "\x1e"
 _SEP = "\x1f"
 _VALUE_FUNCTION = "__dupcheck_value"
-# Функция, превращающая значение переменной цикла в текст маркера. Функции
-# FreeMarker видны во всём шаблоне, поэтому она дописывается в конец
-# скрипта — номера строк не сдвигаются.
+# A function that turns a loop variable's value into the marker text. FreeMarker
+# functions are visible in the whole template, so it's appended at the end of the
+# script — the line numbers don't shift.
 _VALUE_FUNCTION_SOURCE = (
     f"<#function {_VALUE_FUNCTION} v>"
     "<#if v?is_number || v?is_boolean><#return v?c>"
@@ -80,25 +80,25 @@ _BLOCK_RE = re.compile(r"<(/?)#(list|items|function|macro)\b")
 
 
 class ScriptCheckUnavailable(Exception):
-    """Проверку нельзя выполнить: нет `java` или не удалось получить jar FreeMarker."""
+    """The check can't be run: there's no `java` or the FreeMarker jar couldn't be obtained."""
 
 
 class ScriptRenderError(Exception):
-    """FreeMarker не смог раскрыть скрипт (синтаксис, неизвестная переменная…)."""
+    """FreeMarker couldn't expand the script (syntax, an unknown variable…)."""
 
 
 @dataclass(frozen=True)
 class Loop:
-    """Цикл `<#list ... as x>`, охватывающий строку скрипта."""
+    """A `<#list ... as x>` loop enclosing a script line."""
 
-    line: int  # 1-based номер строки с открывающей директивой
-    header: str  # текст директивы, `<#list counts as c>`
+    line: int  # 1-based number of the line with the opening directive
+    header: str  # the directive text, `<#list counts as c>`
     variables: tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class SourceLine:
-    """Строка скрипта, печатающая текст, и охватывающие её циклы."""
+    """A script line that prints text, and the loops enclosing it."""
 
     line: int
     text: str
@@ -111,11 +111,11 @@ class SourceLine:
 
 @dataclass(frozen=True)
 class ScriptLine:
-    """Строка раскрытого скрипта. `source` — напечатавшая её строка скрипта
-    (`None`, если разметка её не опознала), `values` — значения переменных
-    `source.variables` в этой итерации."""
+    """A line of the expanded script. `source` — the script line that printed it
+    (`None` if the markup didn't recognize it), `values` — the values of the variables
+    `source.variables` in this iteration."""
 
-    index: int  # 1-based номер среди непустых строк результата
+    index: int  # 1-based number among the non-empty lines of the result
     text: str
     source: SourceLine | None = None
     values: tuple[str, ...] = ()
@@ -129,7 +129,7 @@ class DuplicateGroup:
 
 @dataclass(frozen=True)
 class InvalidLine:
-    """Строка раскрытого скрипта, которую Polygon не примет, и почему."""
+    """A line of the expanded script that Polygon won't accept, and why."""
 
     line: ScriptLine
     problems: tuple[str, ...]
@@ -142,11 +142,11 @@ class InstrumentedScript:
 
 
 def instrument_script(source: str) -> InstrumentedScript:
-    """Скрипт с маркерами в конце каждой строки, печатающей текст (см.
-    докстринг модуля), и описание этих строк по номерам."""
+    """The script with markers at the end of each line that prints text (see the
+    module docstring), and a description of these lines by number."""
     out_lines: list[str] = []
     sources: dict[int, SourceLine] = {}
-    # Стек открытых блоков: ("list"|"items", Loop | None) / ("function"|"macro", None).
+    # The stack of open blocks: ("list"|"items", Loop | None) / ("function"|"macro", None).
     stack: list[tuple[str, Loop | None]] = []
     scanner = _Scanner()
 
@@ -159,12 +159,12 @@ def instrument_script(source: str) -> InstrumentedScript:
                 _apply_tag(stack, text, number)
 
         kinds = [kind for kind, _ in stack]
-        # Маркер — только если строка кончается вне директивы/комментария/${}.
+        # A marker — only if the line ends outside a directive/comment/${}.
         if not prints_text or "function" in kinds or not scanner.in_text:
             out_lines.append(line)
             continue
 
-        # Внутри макроса переменные циклов вне его не видны.
+        # Inside a macro the variables of loops outside it aren't visible.
         scope = stack[_last_index(kinds, "macro") + 1 :]
         loops = tuple(loop for _, loop in scope if loop is not None)
         source_line = SourceLine(number, line.strip(), loops)
@@ -184,7 +184,7 @@ def _apply_tag(stack: list[tuple[str, Loop | None]], tag: str, number: int) -> N
         return
     closing, kind = match.group(1), match.group(2)
     if closing:
-        # Закрывается последний открытый блок того же вида.
+        # The last open block of the same kind is closed.
         position = _last_index([open_kind for open_kind, _ in stack], kind)
         if position >= 0:
             del stack[position:]
@@ -197,10 +197,10 @@ def _apply_tag(stack: list[tuple[str, Loop | None]], tag: str, number: int) -> N
 
 
 class _Scanner:
-    """Посимвольный разбор шаблона на текст, директивы (`<#...>`, `</#...>`,
-    `<@...>`) и интерполяции `${...}` (считаются текстом — они печатают)
-    с сохранением состояния между строками: директива, комментарий или
-    интерполяция могут занимать несколько строк."""
+    """A character-by-character parse of the template into text, directives (`<#...>`, `</#...>`,
+    `<@...>`) and `${...}` interpolations (counted as text — they print)
+    keeping the state between lines: a directive, a comment or an
+    interpolation can span several lines."""
 
     def __init__(self) -> None:
         self.mode = "text"  # text | tag | comment | interp
@@ -213,8 +213,8 @@ class _Scanner:
         return self.mode == "text"
 
     def feed(self, line: str) -> list[tuple[str, str]]:
-        """Части строки: ("text", ...) и ("tag", полный текст директивы —
-        выдаётся в строке, где директива закрылась)."""
+        """The parts of a line: ("text", ...) and ("tag", the full text of the directive —
+        yielded in the line where the directive closed)."""
         parts: list[tuple[str, str]] = []
         text = ""
         i = 0
@@ -278,12 +278,12 @@ def _last_index(items: list[str], value: str) -> int:
 
 
 def parse_rendered(rendered: str, sources: dict[int, SourceLine]) -> list[ScriptLine]:
-    """Непустые строки раскрытого размеченного скрипта: текст без маркеров и
-    строка скрипта, которая его напечатала (первый маркер в строке)."""
+    """The non-empty lines of the expanded marked-up script: the text without markers and
+    the script line that printed it (the first marker in the line)."""
     result: list[ScriptLine] = []
     for raw in rendered.replace("\r\n", "\n").split("\n"):
         parts = raw.split(_MARK)
-        # Нечётные части — содержимое маркеров, чётные — текст.
+        # Odd parts are the contents of markers, even ones are text.
         text = " ".join("".join(parts[0::2]).split())
         if not text:
             continue
@@ -297,7 +297,7 @@ def parse_rendered(rendered: str, sources: dict[int, SourceLine]) -> list[Script
 
 
 def find_duplicates(lines: list[ScriptLine]) -> list[DuplicateGroup]:
-    """Группы одинаковых строк — в порядке первого появления."""
+    """Groups of identical lines — in the order of first appearance."""
     groups: dict[str, DuplicateGroup] = {}
     for line in lines:
         groups.setdefault(line.text, DuplicateGroup(line.text)).occurrences.append(line)
@@ -305,7 +305,7 @@ def find_duplicates(lines: list[ScriptLine]) -> list[DuplicateGroup]:
 
 
 def find_invalid_lines(lines: list[ScriptLine]) -> list[InvalidLine]:
-    """Строки с кавычками или не ровно одним `>` (см. докстринг модуля)."""
+    """Lines with quotes or not exactly one `>` (see the module docstring)."""
     invalid: list[InvalidLine] = []
     for line in lines:
         problems: list[str] = []
@@ -323,8 +323,8 @@ def find_invalid_lines(lines: list[ScriptLine]) -> list[InvalidLine]:
 
 
 def expand_script(source: str, *, jar: Path | None = None) -> list[ScriptLine]:
-    """Раскрывает скрипт настоящим FreeMarker и возвращает его непустые строки
-    с привязкой к строкам скрипта."""
+    """Expands the script with real FreeMarker and returns its non-empty lines
+    bound to the script lines."""
     instrumented = instrument_script(source)
     rendered = render_freemarker(instrumented.source, jar=jar)
     return parse_rendered(rendered, instrumented.sources)
@@ -357,16 +357,16 @@ def render_freemarker(source: str, *, jar: Path | None = None) -> str:
 
 
 def _clean_markers(text: str) -> str:
-    """Убирает маркеры разметки из текста ошибки FreeMarker (он цитирует
-    фрагменты шаблона)."""
+    """Removes the markup markers from the text of a FreeMarker error (it quotes
+    fragments of the template)."""
     text = re.sub(_MARK + r"\d+[^" + _MARK + r"]*" + _MARK, "", text)
     return text.replace(_MARK, "").replace(_SEP, " ")
 
 
 def freemarker_jar(*, download: bool = True) -> Path:
-    """jar FreeMarker: из `ORCHESTRATOR_FREEMARKER_JAR` или из кэша
-    (`~/.cache/polygon-orchestrator/`), куда при отсутствии скачивается с Maven
-    Central с проверкой sha1."""
+    """The FreeMarker jar: from `ORCHESTRATOR_FREEMARKER_JAR` or from the cache
+    (`~/.cache/polygon-orchestrator/`), into which, if absent, it's downloaded from Maven
+    Central with a sha1 check."""
     override = os.environ.get(FREEMARKER_JAR_ENV)
     if override:
         path = Path(override)
@@ -395,9 +395,9 @@ def freemarker_jar(*, download: bool = True) -> Path:
 
 
 def format_duplicates(groups: list[DuplicateGroup], script_name: str) -> str:
-    """Отчёт: каждая повторяющаяся строка, сколько раз она встретилась и какая
-    строка скрипта (в каком цикле, при каких значениях переменных) её
-    напечатала."""
+    """The report: each repeated line, how many times it occurred and which
+    script line (in which loop, with which variable values)
+    printed it."""
     total = sum(len(group.occurrences) for group in groups)
     lines = [
         f"{script_name}: {len(groups)} line(s) repeated ({total} occurrences) — "
@@ -411,8 +411,8 @@ def format_duplicates(groups: list[DuplicateGroup], script_name: str) -> str:
 
 
 def format_invalid_lines(invalid: list[InvalidLine], script_name: str) -> str:
-    """Отчёт по строкам, которые Polygon не примет, — по строке скрипта,
-    напечатавшей их, с первым примером раскрытой строки."""
+    """The report on lines Polygon won't accept — by the script line that
+    printed them, with the first example of an expanded line."""
     groups: dict[int | str, list[InvalidLine]] = {}
     for item in invalid:
         key = item.line.source.line if item.line.source else item.line.text
@@ -453,9 +453,9 @@ def _describe(line: ScriptLine) -> str:
 @dataclass(frozen=True)
 class ScriptCheckResult:
     duplicates: list[DuplicateGroup]
-    report: str  # пусто, если проблем нет
+    report: str  # empty if there are no problems
     invalid: list[InvalidLine] = field(default_factory=list)
-    lines: list[ScriptLine] = field(default_factory=list)  # раскрытый скрипт
+    lines: list[ScriptLine] = field(default_factory=list)  # the expanded script
 
     @property
     def failed(self) -> bool:
@@ -463,8 +463,8 @@ class ScriptCheckResult:
 
 
 def check_script(source: str, script_name: str, *, jar: Path | None = None) -> ScriptCheckResult:
-    """Раскрывает скрипт и ищет одинаковые строки и строки, которые Polygon
-    не примет. Исключения — `ScriptCheckUnavailable` и `ScriptRenderError`."""
+    """Expands the script and looks for identical lines and lines Polygon
+    won't accept. Exceptions — `ScriptCheckUnavailable` and `ScriptRenderError`."""
     lines = expand_script(source, jar=jar)
     duplicates = find_duplicates(lines)
     invalid = find_invalid_lines(lines)

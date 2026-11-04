@@ -1,23 +1,23 @@
-"""Имена шагов обоих пайплайнов в порядке выполнения — отдельно от самих
-шагов и без единого тяжёлого импорта.
+"""The step names of both pipelines in execution order — separately from the
+steps themselves and without a single heavy import.
 
-CLI (`cli.py`) строит парсер (`choices` у `--step`) при каждом запуске, в
-том числе при каждом нажатии Tab в shell-автодополнении, и не должен ради
-списка имён тянуть сами шаги, а с ними — pydantic и requests. Соответствие
-имён реальным шагам (`pipeline._STEP_MODULES`, `polygon.pipeline._POLYGON_STEPS`)
-проверяется тестами.
+The CLI (`cli.py`) builds the parser (`choices` of `--step`) on every run,
+including on every Tab press in shell completion, and mustn't pull in the
+steps themselves, and with them pydantic and requests, for the sake of a list of names. That the
+names match the real steps (`pipeline._STEP_MODULES`, `polygon.pipeline._POLYGON_STEPS`)
+is checked by tests.
 """
 
 from __future__ import annotations
 
-# Порядок шагов фиксирован (CLAUDE.md, "Роль каждого генеративного шага"):
-# каждый следующий шаг может зависеть от артефактов предыдущих. `tests_plan`,
-# `generators_draft` и `test_script_draft` — подготовка тестов: план, затем
-# код по нему. `checker_draft` ни от чего не зависит (в отличие от соседей по
-# порядку), но держится рядом с ними — логически это тоже часть тестовой инфраструктуры
-# задачи, а не решений (CLAUDE.md, пункт 5). `interactor_draft` — туда же и по
-# той же причине (CLAUDE.md, пункт 6). `limits_from_constraints` — сразу
-# после `constraints_pick`, из TL/ML которого выводит `limits.yaml`.
+# The order of the steps is fixed (CLAUDE.md, "Role of each generative step"):
+# each next step may depend on the artifacts of the previous ones. `tests_plan`,
+# `generators_draft` and `test_script_draft` — test preparation: the plan, then
+# code from it. `checker_draft` depends on nothing (unlike its neighbors in the
+# order), but is kept next to them — logically it's also part of the problem's test infrastructure,
+# not of the solutions (CLAUDE.md, item 5). `interactor_draft` — there too and for
+# the same reason (CLAUDE.md, item 6). `limits_from_constraints` — right
+# after `constraints_pick`, from whose TL/ML it derives `limits.yaml`.
 STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
@@ -30,30 +30,30 @@ STEP_ORDER: list[str] = [
     "solutions_draft",
 ]
 
-# Шаги по отдельной команде, вне `STEP_ORDER`: `llm generate` их не запускает,
-# но `llm status|apply|accept` видят. Разбор пишется последним и по явной
-# просьбе автора (`llm tutorial`, CLAUDE.md, "Роль каждого генеративного
-# шага", пункт 7): иначе любая правка условия или решения при полном прогоне
-# тратила бы вызов сильной модели.
+# Steps by a separate command, outside `STEP_ORDER`: `llm generate` doesn't run them,
+# but `llm status|apply|accept` see them. The tutorial is written last and at the explicit
+# request of the author (`llm tutorial`, CLAUDE.md, "Role of each generative
+# step", item 7): otherwise any edit of the statement or a solution in a full run
+# would spend a call to the strong model.
 ON_DEMAND_STEPS: list[str] = ["tutorial_draft"]
 
 LLM_STEPS: list[str] = [*STEP_ORDER, *ON_DEMAND_STEPS]
 
-# Шаги из `STEP_ORDER` без вызова модели и без промптов: результат выводится
-# механически из файлов предыдущих шагов.
+# Steps from `STEP_ORDER` without a model call and without prompts: the result is derived
+# mechanically from the files of the previous steps.
 MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints"})
 
-# Список расширяется по мере добавления шагов — дописывать новые имена (как
-# правило, в конец) и добавлять запись в `polygon.pipeline._POLYGON_STEPS`;
-# больше ничего менять не нужно, если новый шаг — такой же `PolygonStep`,
-# запускаемый через `steps.base.run_step`. `upload_attachments` (спек,
-# `constraints.yaml`, черновик) идёт сразу после `create_problem`: спек —
-# основа задачи, и он должен оказаться на Polygon, даже если какой-то из
-# следующих шагов упадёт. `upload_interactor` — после
-# `set_constraints`: тот выставляет флаг интерактивности задачи.
-# `upload_test_script` — последним: сохранив скрипт, Polygon генерирует по
-# нему тесты, и шаг ждёт конца генерации, — остальное к этому времени уже
-# загружено и закоммичено.
+# The list is extended as steps are added — append new names (as
+# a rule, at the end) and add an entry to `polygon.pipeline._POLYGON_STEPS`;
+# nothing else needs changing if the new step is the same kind of `PolygonStep`,
+# run via `steps.base.run_step`. `upload_attachments` (spec,
+# `constraints.yaml`, draft) goes right after `create_problem`: the spec is the
+# basis of the problem, and it must end up on Polygon even if one of the
+# following steps fails. `upload_interactor` — after
+# `set_constraints`: that one sets the problem's interactivity flag.
+# `upload_test_script` — last: having saved the script, Polygon generates
+# tests from it, and the step waits for the generation to end — everything else is already
+# uploaded and committed by that time.
 POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
     "upload_attachments",

@@ -1,8 +1,8 @@
-"""Состояние привязки `problem_id` -> Polygon problemId.
+"""The state of the `problem_id` -> Polygon problemId binding.
 
-Хранится в `problems/<problem_id>/polygon_state.json` — на уровне
-`problems/<problem_id>/`, а не внутри `.cache/`: это не результат-кэш
-модельного шага, а факт состояния на стороне Polygon.
+Stored in `problems/<problem_id>/polygon_state.json` — at the level of
+`problems/<problem_id>/`, not inside `.cache/`: it isn't the result cache of a
+model step, but a fact about the state on the Polygon side.
 """
 
 from __future__ import annotations
@@ -15,28 +15,28 @@ from pathlib import Path
 
 from orchestrator.problem_paths import POLYGON_STATE_FILENAME, PROBLEMS_DIR
 
-# Поля старого формата, которые больше не используются и при чтении
-# отбрасываются: `steps` — запись "что шаг последним отправил" одним хешем
-# на шаг, до появления `revision`/`synced`.
+# Fields of the old format that are no longer used and are discarded on reading:
+# `steps` — a record of "what the step last sent" as one hash
+# per step, before `revision`/`synced` appeared.
 _LEGACY_FIELDS = ("steps",)
 
 
 @dataclass
 class PolygonState:
-    """Содержимое `problems/<problem_id>/polygon_state.json`."""
+    """The contents of `problems/<problem_id>/polygon_state.json`."""
 
     problem_id: str
     polygon_id: int
     created_at: str  # ISO8601 UTC
-    # База синхронизации — см. `orchestrator/polygon/sync.py`: ревизия на
-    # Polygon, с которой совпадали записи `synced` (`None` — неизвестна), и
-    # ключ элемента задачи -> sha256 его содержимого в этой ревизии.
+    # The sync base — see `orchestrator/polygon/sync.py`: the revision on
+    # Polygon that the `synced` records matched (`None` — unknown), and
+    # the key of a problem element -> the sha256 of its contents in this revision.
     revision: int | None = None
     synced: dict[str, str] = field(default_factory=dict)
-    # Ключ из `synced` -> отметка версии файла на Polygon, которой
-    # соответствует его хеш (`sync.file_stamp`: имя, время изменения,
-    # длина). Есть только у файлов и только парой с `synced` — см.
-    # `update_sync`; отметки без хеша не бывает.
+    # A key from `synced` -> the stamp of the version of the file on Polygon that
+    # its hash corresponds to (`sync.file_stamp`: the name, the modification time,
+    # the length). Only files have it and only paired with `synced` — see
+    # `update_sync`; there's no stamp without a hash.
     stamps: dict[str, str] = field(default_factory=dict)
 
 
@@ -47,12 +47,12 @@ def _state_file_path(problem_id: str, *, problems_dir: Path = PROBLEMS_DIR) -> P
 def load_polygon_state(
     problem_id: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> PolygonState | None:
-    """Читает состояние, если файл существует и является валидным PolygonState.
+    """Reads the state if the file exists and is a valid PolygonState.
 
-    Отсутствующий файл, битый JSON или не соответствующая формату структура
-    трактуются одинаково — как "состояния нет" (`None`), а не как ошибка.
-    Файл старого формата (с `steps`, без `revision`/`synced`) читается: база
-    синхронизации у него просто неизвестна.
+    A missing file, broken JSON or a structure not matching the format
+    are treated the same — as "no state" (`None`), not as an error.
+    A file of the old format (with `steps`, without `revision`/`synced`) is read: its sync
+    base is just unknown.
     """
     path = _state_file_path(problem_id, problems_dir=problems_dir)
     if not path.exists():
@@ -82,10 +82,10 @@ def load_polygon_state(
 def save_polygon_state(
     problem_id: str, state: PolygonState, *, problems_dir: Path = PROBLEMS_DIR
 ) -> None:
-    """Перезаписывает `problems/<problem_id>/polygon_state.json` атомарно:
-    через временный файл рядом и `os.replace` — прерванная запись не
-    оставляет обрезанный JSON (его `load_polygon_state` счёл бы
-    отсутствием привязки)."""
+    """Overwrites `problems/<problem_id>/polygon_state.json` atomically:
+    via a temporary file next to it and `os.replace` — an interrupted write doesn't
+    leave truncated JSON (`load_polygon_state` would consider it
+    the absence of a binding)."""
     path = _state_file_path(problem_id, problems_dir=problems_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     content = json.dumps(asdict(state), ensure_ascii=False, sort_keys=True, indent=2) + "\n"
@@ -108,20 +108,20 @@ def update_sync(
     replace: bool = False,
     problems_dir: Path = PROBLEMS_DIR,
 ) -> None:
-    """Обновляет базу синхронизации в `polygon_state.json`: ключи из `synced`
-    перезаписываются (`None` — ключ удаляется), `revision` заменяется.
-    `replace` — база целиком заменяется на `synced` (остальные ключи
-    удаляются).
+    """Updates the sync base in `polygon_state.json`: the keys from `synced`
+    are overwritten (`None` — the key is deleted), `revision` is replaced.
+    `replace` — the base is entirely replaced with `synced` (the other keys
+    are deleted).
 
-    Отметка (`stamps`) пишется только вместе с хешем того же ключа: у
-    каждого ключа из `synced` отметка заменяется на `stamps[key]`, а если
-    её там нет (или ключ удаляется) — удаляется. Так отметка и хеш всегда
-    описывают одну и ту же версию файла на Polygon, даже если запись
-    прервалась на полпути (pull упал на части файлов): загрузка без
-    отметки (push) убирает старую.
+    A stamp (`stamps`) is written only together with the hash of the same key: for
+    each key from `synced` the stamp is replaced with `stamps[key]`, and if
+    it isn't there (or the key is being deleted) — it's deleted. This way the stamp and the hash always
+    describe the same version of the file on Polygon, even if the write
+    was interrupted halfway (pull failed on some of the files): an upload without
+    a stamp (push) removes the old one.
 
-    Требует, чтобы состояние уже существовало (задача привязана шагом
-    `create_problem` или `polygon pull`) — иначе `ValueError`.
+    Requires the state to already exist (the problem is bound by the
+    `create_problem` step or `polygon pull`) — otherwise `ValueError`.
     """
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
@@ -147,10 +147,10 @@ def update_sync(
 def record_stamps(
     problem_id: str, stamps: dict[str, str], *, problems_dir: Path = PROBLEMS_DIR
 ) -> None:
-    """Записывает отметки `stamps` ключам, у которых уже есть хеш в базе
-    (остальные отбрасываются), не меняя ни хешей, ни ревизии. Вызывающий
-    отвечает за то, что отметки сняты с той же ревизии Polygon, что и
-    `revision` в базе (см. `pipeline._record_stamps`)."""
+    """Writes the `stamps` to keys that already have a hash in the base
+    (the rest are discarded), changing neither the hashes nor the revision. The caller
+    is responsible for the stamps being taken from the same Polygon revision as the
+    `revision` in the base (see `pipeline._record_stamps`)."""
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
         raise ValueError(f"'{problem_id}': polygon_state.json is missing or corrupted")

@@ -1,32 +1,32 @@
-"""Спек задачи по черновику автора — `orchestrator <задача> init --draft NAME`
-(CLAUDE.md, "Запуск").
+"""A problem's spec from the author's draft — `orchestrator <problem> init --draft NAME`
+(CLAUDE.md, "Running").
 
-Черновик (`orchestrator/drafts.py`) — описание задачи в свободной форме.
-Модель (`STEP_NAME` в `model_router.py`) переносит его в спек по формату
-`docs/SPEC_FORMAT.md`: то, что написал автор, сохраняет, а недостающее
-дозаполняет сама и может добавить свои идеи (решения, ошибки участников,
-тесты) — каждое такое значение помечено в спеке комментарием
-`# PROPOSED, REVIEW ME: ...` или `# SUGGESTION: ...` и заметкой в ответе
-(`prompts/spec_from_draft/system.md`). Основа спека — шаблон
-`templates/spec_template.yaml` или, с `--ref`, спек задачи-основы
-(`spec.prepare_spec_init`): тогда черновик описывает, чем новая задача
-отличается от неё.
+The draft (`orchestrator/drafts.py`) is a free-form description of the problem.
+The model (`STEP_NAME` in `model_router.py`) carries it into a spec in the
+`docs/SPEC_FORMAT.md` format: what the author wrote it keeps, and what's missing
+it fills in itself and may add its own ideas (solutions, contestant mistakes,
+tests) — each such value is marked in the spec with a
+`# PROPOSED, REVIEW ME: ...` or `# SUGGESTION: ...` comment and a note in the response
+(`prompts/spec_from_draft/system.md`). The spec's base is the
+`templates/spec_template.yaml` template or, with `--ref`, the base problem's spec
+(`spec.prepare_spec_init`): then the draft describes how the new problem
+differs from it.
 
-Это не генеративный шаг пайплайна: без кэша и `llm apply`. Ответ модели
-пишется в `spec.yaml` в любом случае, если в нём есть спек (даже не
-проходящий валидацию или при `status: uncertain` — это черновик, который
-автор всё равно дочитывает), чтобы вызов не пропадал. `problem_id` и
-референс на задачу-основу оркестратор ставит сам, поверх ответа модели.
-Копия черновика ложится рядом со спеком, в `authoring/` каталога задачи
+This isn't a generative pipeline step: no cache and no `llm apply`. The model's response
+is written to `spec.yaml` in any case if it contains a spec (even one not
+passing validation or with `status: uncertain` — it's a draft the
+author reads through anyway), so that the call isn't wasted. The `problem_id` and the
+reference to the base problem are set by the orchestrator itself, on top of the model's response.
+The draft copy goes next to the spec, into the problem directory's `authoring/`
 (`drafts.problem_draft_name`).
 
-Если спек у задачи уже есть, `init --draft` его дорабатывает, как
-`llm generate` — файлы шага (`prepare_spec_revision`): модель получает
-текущий спек (возможно, с ручными правками автора) и что изменилось в
-черновике — прошлая копия черновика в `authoring/` против нового — общим
-блоком `prompts/revise.md.j2`. Черновик не изменился — модель не
-вызывается (`draft_unchanged`). Прежние версии спека и копии черновика —
-в `.llm_backup/<время>/`.
+If the problem already has a spec, `init --draft` revises it, like
+`llm generate` revises a step's files (`prepare_spec_revision`): the model gets the
+current spec (possibly with the author's manual edits) and what changed in the
+draft — the previous draft copy in `authoring/` against the new one — via the shared
+block `prompts/revise.md.j2`. The draft didn't change — the model isn't
+called (`draft_unchanged`). Previous versions of the spec and the draft copy —
+in `.llm_backup/<time>/`.
 """
 
 from __future__ import annotations
@@ -74,25 +74,25 @@ from orchestrator.steps.base import (
 STEP_NAME = "spec_from_draft"
 SPEC_ARTIFACT = SPEC_FILENAME
 
-# Формат спека для модели — относительно каталога, в котором лежит
-# `templates/` (корень репозитория).
+# The spec format for the model — relative to the directory containing
+# `templates/` (the repository root).
 SPEC_FORMAT_DOC = Path("docs") / "SPEC_FORMAT.md"
 
 _VALID_STATUSES = {STATUS_CONFIRMED, STATUS_PROPOSED, STATUS_UNCERTAIN}
 
-# Под каким именем черновик — часть входа в блоке "что изменилось"
+# Under which name the draft is part of the input in the "what changed" block
 # (`prompts/revise.md.j2`).
 DRAFT_INPUT = "draft"
 
 
 @dataclass
 class SpecFromDraftResult:
-    """Итог `init --draft`. `path` — созданный или доработанный спек, `None`
-    — модель спека не вернула и ничего не записано. `unchanged` — при
-    доработке модель оставила спек как есть (`path` — он же, не
-    перезаписан). `validation_errors` — ошибки валидации спека
-    (`spec.load_spec`); пустой список — спек валиден. `backup_dir` —
-    `.llm_backup/<время>/` с прежними версиями спека и копии черновика."""
+    """The result of `init --draft`. `path` — the created or revised spec, `None`
+    — the model returned no spec and nothing was written. `unchanged` — during a
+    revision the model left the spec as is (`path` — the same one, not
+    overwritten). `validation_errors` — the spec's validation errors
+    (`spec.load_spec`); an empty list — the spec is valid. `backup_dir` —
+    `.llm_backup/<time>/` with the previous versions of the spec and the draft copy."""
 
     status: str
     notes: list[dict[str, Any]] = field(default_factory=list)
@@ -105,12 +105,12 @@ class SpecFromDraftResult:
 
 @dataclass
 class DraftRevision:
-    """Доработка существующего спека по изменённому черновику.
+    """Revising an existing spec by a changed draft.
 
-    `previous_draft` — текст прошлой копии черновика из `authoring/`, по
-    которому писался спек; `None` — копии нет (или их несколько), что
-    изменилось — неизвестно. `previous_copies` — эти копии: при записи
-    заменяются копией нового черновика (расширение может быть другим)."""
+    `previous_draft` — the text of the previous draft copy from `authoring/` from
+    which the spec was written; `None` — there's no copy (or there are several), what
+    changed is unknown. `previous_copies` — these copies: on writing they
+    are replaced with a copy of the new draft (the extension may differ)."""
 
     previous_draft: str | None
     previous_copies: list[Path] = field(default_factory=list)
@@ -119,9 +119,9 @@ class DraftRevision:
 def prepare_spec_revision(
     problem_path: str, *, problems_dir: Path
 ) -> tuple[SpecInit, DraftRevision]:
-    """Основа доработки спека задачи `problems_dir/<problem_path>/`: текущий
-    спек (`SpecInit.base_text`, без задачи-основы — референсы уже в нём) и
-    прошлая копия черновика. Спека нет — `SpecInitError`."""
+    """The base for revising the spec of the problem `problems_dir/<problem_path>/`: the current
+    spec (`SpecInit.base_text`, without a base problem — the references are already in it) and
+    the previous draft copy. No spec — `SpecInitError`."""
     path = spec_path(problem_path, problems_dir=problems_dir)
     try:
         current = path.read_text(encoding="utf-8")
@@ -137,7 +137,7 @@ def prepare_spec_revision(
 
 
 def draft_unchanged(revision: DraftRevision, draft_path: Path) -> bool:
-    """Черновик совпадает с прошлой копией, по которой писался спек."""
+    """The draft matches the previous copy from which the spec was written."""
     return revision.previous_draft == Path(draft_path).read_text(encoding="utf-8")
 
 
@@ -147,10 +147,10 @@ def context_documents(
     examples_dir: Path = EXAMPLES_DIR,
     skip_reference: str | None = None,
 ) -> dict[str, str]:
-    """Документы для модели: формат спека (`SPEC_FORMAT_DOC`), шаблон
-    (`SPEC_TEMPLATE`) и заполненные спеки учебных задач — образцы того, как
-    выглядит готовый спек. Спек задачи-основы `skip_reference` уже есть в
-    user-промпте и второй раз не прикладывается."""
+    """Documents for the model: the spec format (`SPEC_FORMAT_DOC`), the template
+    (`SPEC_TEMPLATE`) and the filled-in specs of the sample problems — samples of what
+    a finished spec looks like. The spec of the base problem `skip_reference` is already in the
+    user prompt and isn't attached a second time."""
     templates_dir = Path(templates_dir)
     documents = {
         SPEC_FORMAT_DOC.as_posix(): (templates_dir.parent / SPEC_FORMAT_DOC).read_text(
@@ -171,9 +171,9 @@ def _note(field_name: str, kind: str, explanation: str) -> dict[str, Any]:
 
 
 def _finalize_spec_text(init: SpecInit, text: str) -> tuple[str, list[dict[str, Any]]]:
-    """`problem_id` и референс на задачу-основу — поверх ответа модели: их
-    ставит оркестратор, а не модель. Не получилось (например, ответ — не
-    YAML) — текст как есть и заметка."""
+    """The `problem_id` and the reference to the base problem — on top of the model's response: they're
+    set by the orchestrator, not the model. If it didn't work (e.g. the response isn't
+    YAML) — the text as is and a note."""
     notes: list[dict[str, Any]] = []
     try:
         text = set_problem_id(text, init.problem_id)
@@ -198,10 +198,10 @@ def generate_spec_from_draft(
     templates_dir: Path = TEMPLATES_DIR,
     examples_dir: Path = EXAMPLES_DIR,
 ) -> SpecFromDraftResult:
-    """Создаёт спек `init.path` по черновику `draft_path` (см. докстринг
-    модуля). `init` — уже проверенное место и основа спека
-    (`spec.prepare_spec_init`), `draft_path` — непустой черновик
-    (`drafts.find_draft`). С `revision` — дорабатывает существующий спек
+    """Creates the spec `init.path` from the draft `draft_path` (see the module
+    docstring). `init` — the already checked location and base of the spec
+    (`spec.prepare_spec_init`), `draft_path` — a non-empty draft
+    (`drafts.find_draft`). With `revision` — revises the existing spec
     `init.path` (`prepare_spec_revision`)."""
     draft_text = Path(draft_path).read_text(encoding="utf-8")
 

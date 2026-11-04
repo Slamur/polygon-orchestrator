@@ -1,11 +1,11 @@
-"""Реализация `orchestrator.llm_client.LLMClient` поверх Anthropic API.
+"""An implementation of `orchestrator.llm_client.LLMClient` on top of the Anthropic API.
 
-Всё специфичное для Anthropic (конкретные ID моделей, механизм
-принудированного structured-вывода через tool use, retry/backoff под их
-коды ошибок, чтение `ANTHROPIC_API_KEY`) живёт только здесь — не в
-`orchestrator/model_router.py`, который остаётся вендоронезависимым и знает
-только про условные классы моделей ("strong-model"/"medium-model"/
-"fast-model") и `effort`.
+Everything Anthropic-specific (concrete model IDs, the mechanism of
+forced structured output through tool use, retry/backoff for their
+error codes, reading `ANTHROPIC_API_KEY`) lives only here — not in
+`orchestrator/model_router.py`, which stays vendor-independent and knows
+only about the nominal model classes ("strong-model"/"medium-model"/
+"fast-model") and `effort`.
 """
 
 from __future__ import annotations
@@ -27,27 +27,27 @@ from orchestrator.model_contracts import (
 
 logger = logging.getLogger(__name__)
 
-# Условный класс модели -> конкретный ID модели Anthropic API.
+# A nominal model class -> a concrete Anthropic API model ID.
 MODEL_CLASS_TO_ID: dict[str, str] = {
     "strong-model": "claude-opus-5",
     "medium-model": "claude-sonnet-5",
     "fast-model": "claude-haiku-4-5-20251001",
 }
 
-# Thinking-токены на Opus 5 при high/xhigh effort считаются как
-# output-токены и входят в max_tokens — лимит должен оставлять им место.
+# Thinking tokens on Opus 5 with high/xhigh effort count as
+# output tokens and are part of max_tokens — the limit must leave room for them.
 _MAX_TOKENS = 16000
 
-# Retry только на транзиентные ошибки (5xx/overloaded, сетевые
-# таймауты/обрывы соединения) — 4xx (в т.ч. 429) не транзиентны, это ошибка
-# самого запроса, повторять его бессмысленно.
+# Retry only on transient errors (5xx/overloaded, network
+# timeouts/connection drops) — 4xx (incl. 429) aren't transient, it's an error
+# of the request itself, repeating it is pointless.
 _MAX_ATTEMPTS = 3
 _RETRY_BASE_DELAY_SECONDS = 1.0
 
-# Единственный tool, через который модель обязана вернуть ответ — так
-# ответ невозможно получить свободным текстом (усечённым/невалидным JSON),
-# см. CLAUDE.md, "Правило эскалации при неуверенности" и
-# docs/PROMPTS.md (контракт status/artifacts/notes).
+# The only tool through which the model must return the response — so the
+# response can't be obtained as free text (truncated/invalid JSON),
+# see CLAUDE.md, "Escalation rule on uncertainty" and
+# docs/PROMPTS.md (the status/artifacts/notes contract).
 _RESPONSE_TOOL_NAME = "submit_step_result"
 
 _RESPONSE_TOOL: dict[str, Any] = {
@@ -62,7 +62,7 @@ _RESPONSE_TOOL: dict[str, Any] = {
 
 
 class AnthropicClient:
-    """`LLMClient` поверх Anthropic API (см. `orchestrator/llm_client.py`)."""
+    """`LLMClient` on top of the Anthropic API (see `orchestrator/llm_client.py`)."""
 
     def __init__(self) -> None:
         self._sdk_client: anthropic.Anthropic | None = None
@@ -125,13 +125,13 @@ class AnthropicClient:
         return _parse_model_response(model_class, response)
 
     def _get_sdk_client(self) -> anthropic.Anthropic:
-        """Возвращает (и лениво создаёт) клиент Anthropic API.
+        """Returns (and lazily creates) the Anthropic API client.
 
-        Ключ читается из `ANTHROPIC_API_KEY` (см. `.env.example`). Если ключа
-        нет — падаем сразу с понятной ошибкой, а не молчаливым фейлом где-то
-        внутри SDK. `max_retries=0` на клиенте: retry с backoff реализован в
-        `generate` явно, чтобы им можно было управлять и покрыть тестами без
-        обращения к реальному API.
+        The key is read from `ANTHROPIC_API_KEY` (see `.env.example`). If there's no
+        key — fail right away with a clear error, not a silent failure somewhere
+        inside the SDK. `max_retries=0` on the client: retry with backoff is implemented in
+        `generate` explicitly, so that it can be controlled and covered by tests without
+        calling the real API.
         """
         if self._sdk_client is None:
             if not self._env_loaded:
@@ -149,13 +149,13 @@ class AnthropicClient:
 
 
 def _is_retryable(exc: Exception) -> bool:
-    """Транзиентная ли ошибка: 5xx/overloaded_error или сетевой обрыв/таймаут.
+    """Whether the error is transient: 5xx/overloaded_error or a network drop/timeout.
 
-    4xx (в т.ч. 429) — ошибка самого запроса, не транзиентная, retry на них
-    не делаем (см. CLAUDE.md-задачу и `shared/error-codes.md`).
+    4xx (incl. 429) is an error of the request itself, not transient, we don't retry
+    on them (see the CLAUDE.md task and `shared/error-codes.md`).
     """
     if isinstance(exc, anthropic.APIConnectionError):
-        # включает anthropic.APITimeoutError
+        # includes anthropic.APITimeoutError
         return True
     if isinstance(exc, anthropic.APIStatusError):
         return exc.status_code >= 500
@@ -163,7 +163,7 @@ def _is_retryable(exc: Exception) -> bool:
 
 
 def _log_usage(model_class: str, model_id: str, response: anthropic.types.Message) -> None:
-    """Логирует usage — единственный способ реально видеть стоимость шага."""
+    """Logs usage — the only way to actually see the cost of a step."""
     usage = response.usage
     logger.info(
         "AnthropicClient.generate(model_class=%r): model=%s input_tokens=%s "
@@ -180,11 +180,11 @@ def _log_usage(model_class: str, model_id: str, response: anthropic.types.Messag
 
 
 def _parse_model_response(model_class: str, response: anthropic.types.Message) -> ModelResponse:
-    """Разбирает `ModelResponse` из `input` tool_use-блока `_RESPONSE_TOOL_NAME`.
+    """Parses `ModelResponse` from the `input` of the `_RESPONSE_TOOL_NAME` tool_use block.
 
-    Не парсим свободный текст: `tool_choice` принудительно указывает именно
-    на этот tool, а `strict: True` гарантирует, что `input` уже провалидирован
-    по схеме — так модель не может вернуть невалидный/усечённый JSON.
+    We don't parse free text: `tool_choice` forcibly points exactly
+    to this tool, and `strict: True` guarantees that `input` is already validated
+    against the schema — so the model can't return invalid/truncated JSON.
     """
     tool_use_blocks = [
         block

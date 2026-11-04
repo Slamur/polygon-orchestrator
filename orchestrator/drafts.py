@@ -1,20 +1,20 @@
-"""Черновики задач для `orchestrator <задача> init --draft NAME`.
+"""Problem drafts for `orchestrator <problem> init --draft NAME`.
 
-Черновик — текстовый файл в свободной форме (любое расширение), в котором
-автор описывает задачу: сюжет, формат, идеи решения и тестов — сколько
-есть. Черновики лежат в `drafts/` (рядом с `problems/` и `examples/`), на
-любой глубине: подкаталоги только группируют черновики
-(`drafts/icpc/my-idea.md`); скрытые файлы и каталоги — не черновики. Как и
-`problems/`, каталог в `.gitignore` — в черновике та же суть задачи, что и
-в спеке (CLAUDE.md, "Конфиденциальность problems/").
+A draft is a free-form text file (any extension) in which
+the author describes the problem: the plot, the format, the solution and test ideas — as many as
+there are. Drafts lie in `drafts/` (next to `problems/` and `examples/`), at
+any depth: subdirectories only group drafts
+(`drafts/icpc/my-idea.md`); hidden files and directories aren't drafts. Like
+`problems/`, the directory is in `.gitignore` — a draft has the same problem essence as
+the spec (CLAUDE.md, "Confidentiality of problems/").
 
-`--draft` принимает путь файла относительно `drafts/` целиком
-(`icpc/my-idea.md`) или без расширения (`icpc/my-idea`); имя без
-подкаталогов (`my-idea.md`, `my-idea`) ищется и во всех подкаталогах.
-Путь, совпавший с файлом целиком, выбирается сразу; иначе имя, под которое
-подходят несколько файлов, — ошибка, а не первый попавшийся.
+`--draft` accepts the file path relative to `drafts/` in full
+(`icpc/my-idea.md`) or without the extension (`icpc/my-idea`); a name without
+subdirectories (`my-idea.md`, `my-idea`) is also searched for in all subdirectories.
+A path that matched a file in full is chosen right away; otherwise a name that
+fits several files is an error, not the first one found.
 
-Модуль без тяжёлых импортов: им пользуется Tab-дополнение в `cli.py`.
+A module without heavy imports: Tab completion in `cli.py` uses it.
 """
 
 from __future__ import annotations
@@ -25,19 +25,19 @@ from orchestrator.problem_paths import DRAFT_STEM
 
 DRAFTS_DIR = Path("drafts")
 
-# Под каким именем (без расширения) копия черновика ложится в каталог
-# задачи: `<каталог задачи>/authoring/draft<расширение черновика>`.
+# Under which name (without the extension) the draft copy goes into the problem
+# directory: `<problem directory>/authoring/draft<draft extension>`.
 PROBLEM_DRAFT_STEM = DRAFT_STEM
 
 
 class DraftError(ValueError):
-    """Черновик не найден или имя неоднозначно."""
+    """The draft isn't found or the name is ambiguous."""
 
 
 def draft_names(drafts_dir: Path) -> list[str]:
-    """Пути файлов черновиков относительно `drafts_dir` (через `/`, на любой
-    глубине; скрытые файлы и каталоги, например `.gitkeep`, — не черновики),
-    отсортированы. Нет каталога — пустой список."""
+    """The paths of draft files relative to `drafts_dir` (joined with `/`, at any
+    depth; hidden files and directories, e.g. `.gitkeep`, aren't drafts),
+    sorted. No directory — an empty list."""
     drafts_dir = Path(drafts_dir)
     if not drafts_dir.is_dir():
         return []
@@ -50,9 +50,9 @@ def draft_names(drafts_dir: Path) -> list[str]:
 
 
 def _matches(rel: str, name: str) -> bool:
-    """Подходит ли черновик `rel` (путь из `draft_names`) под `name` из
-    `--draft`: путь с расширением или без, а имя без подкаталогов — и
-    в любом подкаталоге."""
+    """Whether the draft `rel` (a path from `draft_names`) fits `name` from
+    `--draft`: a path with or without the extension, and a name without subdirectories — also
+    in any subdirectory."""
     path = PurePosixPath(rel)
     candidates = {rel, path.with_suffix("").as_posix()}
     if "/" not in name:
@@ -61,8 +61,8 @@ def _matches(rel: str, name: str) -> bool:
 
 
 def find_draft(drafts_dir: Path, name: str) -> Path:
-    """Файл черновика по имени с расширением или без (см. докстринг модуля);
-    пустой или не текстовый черновик — тоже `DraftError`."""
+    """The draft file by a name with or without the extension (see the module docstring);
+    an empty or non-text draft is a `DraftError` too."""
     drafts_dir = Path(drafts_dir)
     names = draft_names(drafts_dir)
     name = name.replace("\\", "/").strip("/")
@@ -86,5 +86,5 @@ def find_draft(drafts_dir: Path, name: str) -> Path:
 
 
 def problem_draft_name(draft_path: Path) -> str:
-    """Имя копии черновика в каталоге задачи (`PROBLEM_DRAFT_STEM`)."""
+    """The name of the draft copy in the problem directory (`PROBLEM_DRAFT_STEM`)."""
     return PROBLEM_DRAFT_STEM + Path(draft_path).suffix

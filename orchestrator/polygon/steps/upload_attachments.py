@@ -1,26 +1,26 @@
-"""Polygon-шаг — загрузка файлов задачи, которые нужны только оркестратору и
-автору, в Polygon как aux-файлов (`problem.saveFile`, `type=aux` — раздел
-"Attachments" на странице Files) — файлы `authoring/` каталога задачи, на
-Polygon — по имени файла, без каталога:
+"""A Polygon step — uploading the problem's files needed only by the orchestrator and the
+author to Polygon as aux files (`problem.saveFile`, `type=aux` — the
+"Attachments" section on the Files page) — the `authoring/` files of the problem directory, on
+Polygon — by file name, without the directory:
 
-- `spec.yaml` — спек задачи, вход генеративных шагов (обязателен);
-- `constraints.yaml` — результат `constraints_pick` целиком (диапазоны,
-  группы, секция `validator`), как его записал шаг; актуальные TL/ML
-  задачи переносит `set_constraints` из `limits.yaml`. Файл, который прежние
-  версии `polygon pull` собирали из одних TL/ML (`PULLED_CONSTRAINTS_HEADER`),
-  — не результат `constraints_pick` и не загружается;
-- `tests_plan.yaml` — план тестов (шаг `tests_plan`, возможно с правками
-  автора), по которому написаны генераторы и test-script;
-- `draft<расширение>` — копия черновика автора, по которому
-  `init --draft` написал спек.
+- `spec.yaml` — the problem's spec, the input of the generative steps (mandatory);
+- `constraints.yaml` — the whole `constraints_pick` result (ranges,
+  groups, the `validator` section), as the step wrote it; the problem's actual TL/ML
+  are transferred by `set_constraints` from `limits.yaml`. A file that previous
+  versions of `polygon pull` assembled from only TL/ML (`PULLED_CONSTRAINTS_HEADER`)
+  isn't the result of `constraints_pick` and isn't uploaded;
+- `tests_plan.yaml` — the test plan (the `tests_plan` step, possibly with the author's
+  edits) from which the generators and the test-script were written;
+- `draft<extension>` — a copy of the author's draft from which
+  `init --draft` wrote the spec.
 
-Всё это хранится на Polygon, чтобы `polygon pull` мог восстановить задачу
-целиком. Файлы загружаются как есть, побайтно (`ctx.spec` — уже разобранный
-спек — не используется: комментарии и форматирование автора должны
-сохраниться). Генеративного шага-зависимости нет — только `create_problem`.
-Файл, удалённый локально, на Polygon остаётся — шаг его не удаляет.
+All of this is stored on Polygon so that `polygon pull` can restore the problem
+in full. The files are uploaded as is, byte by byte (`ctx.spec` — the already parsed
+spec — isn't used: the author's comments and formatting must
+be preserved). There's no generative step dependency — only `create_problem`.
+A file deleted locally stays on Polygon — the step doesn't delete it.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -57,10 +57,10 @@ STEP_NAME = "upload_attachments"
 
 
 def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
-    """[(имя, содержимое), ...]: спек, `constraints.yaml` (если он есть и это
-    результат `constraints_pick`), `tests_plan.yaml` (если есть), копии
-    черновика по алфавиту, драфт разбора (если есть). Имя — и имя
-    aux-файла на Polygon, и ключ базы синхронизации. Нет спека —
+    """[(name, contents), ...]: the spec, `constraints.yaml` (if it exists and is the
+    result of `constraints_pick`), `tests_plan.yaml` (if it exists), the
+    draft copies alphabetically, the tutorial draft (if it exists). The name is both the name of the
+    aux file on Polygon and the sync base key. No spec —
     `PolygonStepError`."""
     directory = authoring_dir(Path(problems_dir) / problem_id)
     spec_path = directory / SPEC_KEY

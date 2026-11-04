@@ -1,13 +1,13 @@
-"""Шаг 3, первая часть — план тестов: какие генераторы нужны задаче и какие тесты из них
-собирает test-script, CLAUDE.md, "Роль каждого генеративного шага", пункт 3.
+"""Step 3, the first part — the test plan: which generators the problem needs and which tests
+the test-script assembles from them, CLAUDE.md, "Role of each generative step", item 3.
 
-Содержательная часть подготовки тестов — реализация заказанного автором и
-дизайн adversarial-тестов под `known_wrong_approaches` — делается здесь, в
-небольшом по объёму ответе: `authoring/tests_plan.yaml` по формату
-`templates/tests_plan_format.yaml`. Код по плану пишут следующие шаги —
-`generators_draft` (генераторы) и `test_script_draft` (скрипт); спека они
-не видят, поэтому план самодостаточен. Разбор плана (`parse_tests_plan`) —
-общий для всех трёх шагов.
+The substantive part of test preparation — implementing what the author ordered and
+designing adversarial tests for `known_wrong_approaches` — is done here, in a
+small response: `authoring/tests_plan.yaml` in the
+`templates/tests_plan_format.yaml` format. The code from the plan is written by the next steps —
+`generators_draft` (generators) and `test_script_draft` (the script); they don't see
+the spec, so the plan is self-contained. Parsing the plan (`parse_tests_plan`) is
+shared by all three steps.
 """
 
 from __future__ import annotations
@@ -45,33 +45,33 @@ from orchestrator.steps.constraints_pick import set_spec_problem_id
 STEP_NAME = "tests_plan"
 TESTS_PLAN_ARTIFACT = TESTS_PLAN_FILENAME
 
-# Optional[list[...]]-поля секции generation, по которым user.md.j2 делает
-# {% for %} без проверки на null (см. base.with_default_lists).
+# Optional[list[...]] fields of the generation section over which user.md.j2 does
+# {% for %} without a null check (see base.with_default_lists).
 _LIST_FIELDS = ["generator_ideas", "specific_test_ideas"]
 _SOLUTIONS_LIST_FIELDS = ["known_wrong_approaches"]
 
-# Пункты спека, которые план обязан покрыть тестами (`tests[].covers`).
+# The spec items the plan must cover with tests (`tests[].covers`).
 COVERED_LISTS = ("specific_test_ideas", "known_wrong_approaches")
 _COVERS_RE = re.compile(r"^(specific_test_ideas|known_wrong_approaches)\[(\d+)\]$")
 
 GENERATOR_NAME_RE = re.compile(r"^(?:gen|upd)_[A-Za-z0-9_]+$")
 PARAM_TYPES = ("int", "ll", "bool", "string")
 PLAN_STATUSES = ("confirmed", "proposed", "suggestion")
-# Параметр в команде плана: `-name=value` или флаг `--name`.
+# A parameter in a plan command: `-name=value` or a flag `--name`.
 _COMMAND_PARAM_RE = re.compile(r"^--?([A-Za-z_][A-Za-z0-9_]*)(?:=\S*)?$")
 
 
 class TestsPlanError(ValueError):
-    """`tests_plan.yaml` не разбирается или нарушает формат."""
+    """`tests_plan.yaml` doesn't parse or violates the format."""
 
-    __test__ = False  # не тест-класс pytest, хотя имя начинается с Test
+    __test__ = False  # not a pytest test class, even though the name starts with Test
 
 
 def parse_tests_plan(text: str) -> dict[str, Any]:
-    """Разбирает и проверяет `tests_plan.yaml` (`templates/tests_plan_format.yaml`):
-    генераторы с уникальными именами `gen_*`/`upd_*` и параметрами известных
-    типов, тесты с командами, в которых только генераторы плана и только их
-    параметры. Возвращает документ как есть; ошибка — `TestsPlanError`."""
+    """Parses and checks `tests_plan.yaml` (`templates/tests_plan_format.yaml`):
+    generators with unique `gen_*`/`upd_*` names and parameters of known
+    types, tests with commands containing only the plan's generators and only their
+    parameters. Returns the document as is; an error — `TestsPlanError`."""
     try:
         plan = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -185,16 +185,16 @@ def plan_generators(plan: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def dump_plan_part(value: Any) -> str:
-    """Часть плана текстом YAML — для промптов и входа хеша следующих шагов."""
+    """A part of the plan as YAML text — for the prompts and the hash input of the next steps."""
     return yaml.safe_dump(value, allow_unicode=True, sort_keys=False, width=100)
 
 
 def uncovered_notes(plan: dict[str, Any], spec: ProblemSpec) -> list[dict[str, Any]]:
-    """Заметки `uncovered`: пункты `specific_test_ideas` и
-    `known_wrong_approaches` спека, на которые не ссылается ни один тест плана
-    (`tests[].covers`), и ссылки на несуществующие пункты, — механическая
-    сверка, которую автору иначе пришлось бы делать глазами; а также
-    генераторы, которых не вызывает ни один тест."""
+    """`uncovered` notes: the spec's `specific_test_ideas` and
+    `known_wrong_approaches` items that no test of the plan refers to
+    (`tests[].covers`), and references to non-existent items — a mechanical
+    reconciliation the author would otherwise have to do by eye; and also
+    generators no test calls."""
     sizes = {
         "specific_test_ideas": len(spec.generation.specific_test_ideas or []),
         "known_wrong_approaches": len(
@@ -249,9 +249,9 @@ def _note(field: str, explanation: str) -> dict[str, Any]:
 def load_tests_plan(
     step_name: str, problem_id: str, upstream_artifacts: dict[str, Any] | None
 ) -> dict[str, Any]:
-    """План из `upstream_artifacts` шага, который строит по нему код. Нет
-    плана или он не разбирается — `ValueError`: сначала `tests_plan` (или
-    правка `tests_plan.yaml` руками)."""
+    """The plan from the `upstream_artifacts` of a step that builds code from it. No
+    plan or it doesn't parse — `ValueError`: first `tests_plan` (or
+    editing `tests_plan.yaml` by hand)."""
     if not upstream_artifacts or TESTS_PLAN_ARTIFACT not in upstream_artifacts:
         raise ValueError(
             f"Step '{step_name}' for '{problem_id}': upstream_artifacts has no "
@@ -267,12 +267,12 @@ def load_tests_plan(
 
 
 def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
-    """Из секции `solutions` — то, что нужно для дизайна тестов:
-    `known_wrong_approaches` — источник adversarial-тестов, `algorithm_hint`
-    — идея авторского решения, по которой модель может предложить свои тесты
-    (`kind: suggestion`). Секция `solutions` опциональна: без неё — пустой
-    список и `None`, шаг всё равно запускается. Остальные поля секции не
-    берутся: правка, например, `languages` не должна инвалидировать план.
+    """From the `solutions` section — what's needed for test design:
+    `known_wrong_approaches` — the source of adversarial tests, `algorithm_hint`
+    — the idea of the author solution, from which the model may propose its own tests
+    (`kind: suggestion`). The `solutions` section is optional: without it — an empty
+    list and `None`, the step runs anyway. The other fields of the section aren't
+    taken: an edit of, e.g., `languages` mustn't invalidate the plan.
     """
     if spec.solutions is None:
         return {"algorithm_hint": None, "known_wrong_approaches": []}
@@ -287,11 +287,11 @@ def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
 
 
 def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
-    """Секции спека для рендера промпта И для входа хеша кэша — единая точка
-    сборки (CLAUDE.md, "Кэширование по хешу спека"): секция `generation`,
-    `solutions.known_wrong_approaches` и `algorithm_hint`, формат ввода из
-    `statement_draft` (`base.statement_io_section`) и легенда — без сути
-    задачи модель не может предложить свои тесты под вероятные ошибки.
+    """The spec sections for rendering the prompt AND for the cache hash input — a single
+    assembly point (CLAUDE.md, "Caching by spec hash"): the `generation` section,
+    `solutions.known_wrong_approaches` and `algorithm_hint`, the input format from
+    `statement_draft` (`base.statement_io_section`) and the legend — without the problem's essence
+    the model can't propose its own tests for likely mistakes.
     """
     statement = statement_io_section(spec, include_output_and_legend=False)
     statement["legend_sketch"] = spec.statement_draft.legend_sketch
@@ -309,9 +309,9 @@ def compute_input_hash(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
-    """Хеш входа шага без вызова модели (CLAUDE.md, "Кэширование по хешу
-    спека"): секции спека (`_build_context_sections`) и `constraints.yaml`
-    без TL/ML — подгонка TL не меняет план тестов."""
+    """The step's input hash without calling the model (CLAUDE.md, "Caching by spec
+    hash"): the spec sections (`_build_context_sections`) and `constraints.yaml`
+    without TL/ML — tuning the TL doesn't change the test plan."""
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
 
@@ -320,8 +320,8 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
-    общий источник для `compute_input_hash` и хешей по частям."""
+    """What goes into the step's input hash: `(spec section, upstream artifacts)` —
+    the shared source for `compute_input_hash` and the per-part hashes."""
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     return _build_context_sections(spec), {
         CONSTRAINTS_ARTIFACT: constraints_without_limits(constraints_yaml)
@@ -331,8 +331,8 @@ def hash_inputs(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Образцы — файлы, которые этому шагу дают референсы спека (общие
-    `references` и `generation.references`, `orchestrator/references.py`)."""
+    """Samples — the files the spec's references give this step (the shared
+    `references` and `generation.references`, `orchestrator/references.py`)."""
     return reference_documents(STEP_NAME, spec)
 
 
@@ -345,7 +345,7 @@ def primary_artifact_path(
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага для режима доработки: `tests_plan.yaml`."""
+    """The step's current files for revision mode: `tests_plan.yaml`."""
     return existing_artifacts(
         {TESTS_PLAN_ARTIFACT: primary_artifact_path(problem_id, spec, problems_dir=problems_dir)}
     )
@@ -354,8 +354,8 @@ def current_artifacts(
 def _postprocess(
     spec: ProblemSpec,
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
-    """`problem_id` в плане — из спека (`set_spec_problem_id`), и заметки о
-    том, что план не покрывает (`uncovered_notes`)."""
+    """The `problem_id` in the plan — from the spec (`set_spec_problem_id`), and notes about
+    what the plan doesn't cover (`uncovered_notes`)."""
     set_problem_id = set_spec_problem_id(spec.problem_id, TESTS_PLAN_ARTIFACT)
 
     def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
@@ -379,15 +379,15 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `tests_plan` для `problem_id`.
+    """Runs the `tests_plan` step for `problem_id`.
 
-    Вход: секция `generation` (идеи генераторов, конкретные тесты, стиль
-    скрипта), `solutions.known_wrong_approaches`/`algorithm_hint`, формат
-    ввода и легенда из `statement_draft`, `constraints.yaml` без TL/ML —
-    единственный источник диапазонов и групп. Выход —
-    `authoring/tests_plan.yaml`; план, который не разбирается
-    (`parse_tests_plan`), не записывается: ответ уходит в конфликты и
-    остаётся для `llm apply`.
+    Input: the `generation` section (generator ideas, concrete tests, the script
+    style), `solutions.known_wrong_approaches`/`algorithm_hint`, the input
+    format and the legend from `statement_draft`, `constraints.yaml` without TL/ML —
+    the only source of ranges and groups. Output —
+    `authoring/tests_plan.yaml`; a plan that doesn't parse
+    (`parse_tests_plan`) isn't written: the response goes to conflicts and
+    stays for `llm apply`.
     """
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     context = {

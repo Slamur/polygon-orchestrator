@@ -1,19 +1,19 @@
-"""Шаг 7 (по команде) — разбор задачи по драфту автора, CLAUDE.md, "Роль
-каждого генеративного шага", пункт 7.
+"""Step 7 (on command) — the problem's tutorial from the author's draft, CLAUDE.md, "Role
+of each generative step", item 7.
 
-Запускается только `orchestrator <задача> llm tutorial` (`step_order.ON_DEMAND_STEPS`).
-Вход читается из файлов задачи, а не из спека: драфт `authoring/draft-tutorial.md`,
-условие на языке генерации `statement/<код>/*.tex` и решения, которые автор указал в `--ref`. Спек даёт
-только примеры: остальное (`algorithm_hint`, `known_wrong_approaches`) модель не
-получает, чтобы ей не из чего было дописывать своё.
+Run only by `orchestrator <problem> llm tutorial` (`step_order.ON_DEMAND_STEPS`).
+The input is read from the problem's files, not from the spec: the draft `authoring/draft-tutorial.md`,
+the statement in the generation language `statement/<code>/*.tex` and the solutions the author gave in `--ref`. The spec gives
+only the examples: the rest (`algorithm_hint`, `known_wrong_approaches`) the model doesn't
+get, so that it has nothing to add its own from.
 
-Список `--ref` — параметр команды, а `llm status|apply|accept` и следующий запуск
-без `--ref` должны считать тот же хеш входа, поэтому список запоминается: он
-восстанавливается из частей входа прошлого прогона (`remembered_refs`).
+The `--ref` list is a command parameter, while `llm status|apply|accept` and the next run
+without `--ref` must compute the same input hash, so the list is remembered: it's
+restored from the input parts of the previous run (`remembered_refs`).
 
-Файлы входа передаются в `upstream_artifacts` одним ключом `INPUTS_KEY`, его
-заполняет `pipeline.py` (`read_inputs`): единый интерфейс шагов не знает
-каталога задачи при подсчёте хеша.
+The input files are passed in `upstream_artifacts` under one key `INPUTS_KEY`, which
+`pipeline.py` fills in (`read_inputs`): the steps' shared interface doesn't know the
+problem directory when computing the hash.
 """
 
 from __future__ import annotations
@@ -49,12 +49,12 @@ from orchestrator.steps.statement_draft import STATEMENT_SUBDIR, language_dir
 
 STEP_NAME = "tutorial_draft"
 
-# Ключ файлов входа в `upstream_artifacts`: путь относительно каталога задачи
-# -> содержимое (`read_inputs`).
+# The key of the input files in `upstream_artifacts`: the path relative to the problem directory
+# -> contents (`read_inputs`).
 INPUTS_KEY = "tutorial_inputs"
 
 _DRAFT_KEY = f"{AUTHORING_DIRNAME}/{TUTORIAL_DRAFT_FILENAME}"
-# Как части `upstream_artifacts` называются в `CacheEntry.input_values`
+# How the parts of `upstream_artifacts` are named in `CacheEntry.input_values`
 # (`cache.compute_input_values`).
 _INPUT_VALUE_SOLUTION_PREFIX = f"upstream: {SOLUTIONS_SUBDIR}/"
 
@@ -64,7 +64,7 @@ def draft_path(problem_id: str, *, problems_dir: Path = PROBLEMS_DIR) -> Path:
 
 
 def _solution_name(ref: str) -> str:
-    """Имя файла решения по значению `--ref`: `ok.cpp` или `solutions/ok.cpp`."""
+    """The solution's file name by the value of `--ref`: `ok.cpp` or `solutions/ok.cpp`."""
     path = PurePosixPath(ref)
     parts = path.parts[1:] if path.parts[:1] == (SOLUTIONS_SUBDIR,) else path.parts
     if len(parts) != 1 or parts[0] == "..":
@@ -82,11 +82,11 @@ def read_inputs(
     language: str = DEFAULT_LANGUAGE,
     problems_dir: Path = PROBLEMS_DIR,
 ) -> dict[str, str]:
-    """Файлы входа шага (см. докстринг модуля): путь относительно каталога
-    задачи -> содержимое; файлы условия — под путём без каталога языка
-    (`statement/legend.tex`), как до языков, чтобы перенос раскладки не менял
-    хеш входа. Нет или пуст драфт, нет условия на языке `language`, нет
-    решения из `refs` — `ValueError`: без них вызывать модель незачем."""
+    """The step's input files (see the module docstring): the path relative to the problem
+    directory -> contents; the statement files — under a path without the language directory
+    (`statement/legend.tex`), as before languages, so that the layout migration doesn't change
+    the input hash. The draft is missing or empty, there's no statement in the `language` language, a
+    solution from `refs` is missing — `ValueError`: without them there's no point in calling the model."""
     problem_dir = Path(problems_dir) / problem_id
     path = draft_path(problem_id, problems_dir=problems_dir)
     if not path.is_file():
@@ -124,7 +124,7 @@ def read_inputs(
 
 
 def remembered_refs(input_values: dict[str, Any] | None) -> list[str]:
-    """Решения прошлого прогона — по частям его входа (`CacheEntry.input_values`)."""
+    """The previous run's solutions — by the parts of its input (`CacheEntry.input_values`)."""
     return sorted(
         name[len(_INPUT_VALUE_SOLUTION_PREFIX) :]
         for name in input_values or {}
@@ -133,7 +133,7 @@ def remembered_refs(input_values: dict[str, Any] | None) -> list[str]:
 
 
 def solution_names(inputs: dict[str, str]) -> list[str]:
-    """Имена решений среди файлов входа (`read_inputs`)."""
+    """The names of the solutions among the input files (`read_inputs`)."""
     prefix = f"{SOLUTIONS_SUBDIR}/"
     return [name[len(prefix) :] for name in inputs if name.startswith(prefix)]
 
@@ -162,8 +162,8 @@ def compute_input_hash(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
-    """Хеш входа шага без вызова модели, см. `constraints_pick.compute_input_hash`
-    и CLAUDE.md, "Кэширование по хешу спека"."""
+    """The step's input hash without calling the model, see `constraints_pick.compute_input_hash`
+    and CLAUDE.md, "Caching by spec hash"."""
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
 
@@ -172,10 +172,10 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
-    общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_values`), чтобы они не разошлись. Каждый файл входа
-    — отдельная часть: режим доработки показывает модели его "было → стало"."""
+    """What goes into the step's input hash: `(spec section, upstream artifacts)` —
+    the shared source for `compute_input_hash` and the per-part hashes
+    (`cache.compute_input_values`), so that they don't diverge. Each input file
+    is a separate part: revision mode shows the model its "before → after"."""
     return _section_data(spec), _require_inputs(problem_id, upstream_artifacts)
 
 
@@ -188,10 +188,10 @@ def primary_artifact_path(
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
-    модель) -> путь — для режима доработки (`base.StepRevision`). Разбор,
-    написанный автором или скачанный `polygon pull`, — такой же текущий файл:
-    модель его дорабатывает, а не пишет заново."""
+    """The step's current files on disk: artifact name (as the
+    model would return it) -> path — for revision mode (`base.StepRevision`). A tutorial
+    written by the author or downloaded by `polygon pull` is the same kind of current file:
+    the model revises it rather than writing it anew."""
     return existing_artifacts(
         {TUTORIAL_FILENAME: primary_artifact_path(problem_id, spec, problems_dir=problems_dir)}
     )
@@ -200,8 +200,8 @@ def current_artifacts(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Референсов спека у шага нет: решения из `--ref` — часть входа, а не
-    образцы. Единая сигнатура со всеми шагами нужна `pipeline.py`."""
+    """The step has no spec references: the solutions from `--ref` are part of the input, not
+    samples. The single signature with all steps is needed by `pipeline.py`."""
     return None
 
 
@@ -216,8 +216,8 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `tutorial_draft` для `problem_id`: пишет
-    `problems/<problem_id>/statement/tutorial.tex` (см. докстринг модуля)."""
+    """Runs the `tutorial_draft` step for `problem_id`: writes
+    `problems/<problem_id>/statement/tutorial.tex` (see the module docstring)."""
     inputs = _require_inputs(problem_id, upstream_artifacts)
 
     def files_under(subdir: str) -> list[dict[str, str]]:
@@ -234,7 +234,7 @@ def run_step(
         "statement_files": files_under(STATEMENT_SUBDIR),
         "solutions": files_under(SOLUTIONS_SUBDIR),
         **_section_data(spec),
-        # После `_section_data`: в промпт — название языка, а не имя Polygon.
+        # After `_section_data`: the prompt gets the language's name, not the Polygon name.
         "language": language_name(spec.language),
     }
 

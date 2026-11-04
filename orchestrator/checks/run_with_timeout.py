@@ -1,9 +1,9 @@
-"""Timeout-обёртка вокруг запуска сгенерированного бинаря.
+"""A timeout wrapper around running a generated binary.
 
-Как и compile_check, это минимальная страховка вместо полноценного судящего
-контура (см. CLAUDE.md, раздел "Скоуп (текущий)"): просто факт "уложился по
-времени или нет" и прошедшее (wall-clock) время. Различение TLE/MLE и прочий
-анализ вердикта — вне скоупа.
+Like compile_check, this is a minimal safety net instead of a full judging
+loop (see CLAUDE.md, the "Scope (current)" section): just the fact "fit in
+time or not" and the elapsed (wall-clock) time. Distinguishing TLE/MLE and other
+verdict analysis is out of scope.
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ class RunResult:
 
 
 def _raise_stack_limit() -> None:
-    """Мягкий лимит стека — до жёсткого: на Polygon стек большой, и глубокая
-    рекурсия в C++ не должна падать только из-за дефолтных 8 МБ."""
+    """The soft stack limit — up to the hard one: on Polygon the stack is large, and deep
+    recursion in C++ mustn't fail just because of the default 8 MB."""
     _, hard = resource.getrlimit(resource.RLIMIT_STACK)
     resource.setrlimit(resource.RLIMIT_STACK, (hard, hard))
 
@@ -39,8 +39,8 @@ def run_with_timeout(
     *,
     unlimited_stack: bool = False,
 ) -> RunResult:
-    """Запускает `binary` с `args`, убивая процесс по `timeout_seconds`.
-    `unlimited_stack` — поднять лимит стека процесса до жёсткого."""
+    """Runs `binary` with `args`, killing the process after `timeout_seconds`.
+    `unlimited_stack` — raise the process's stack limit to the hard one."""
 
     started = time.monotonic()
     try:

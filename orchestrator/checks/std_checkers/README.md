@@ -1,27 +1,27 @@
-# Стандартные чекеры testlib
+# Standard testlib checkers
 
-Исходники стандартных чекеров, которые Polygon предлагает как `std::<имя>.cpp`
-(`ncmp`, `wcmp`, `rcmp6`, `yesno`, …). Ими `orchestrator <задача> local run`
-проверяет вывод решений на примерах, когда в спеке `checker.custom_needed: false`
-и задан `checker.standard` (`orchestrator/checks/solutions_run.py`).
+Sources of the standard checkers that Polygon offers as `std::<name>.cpp`
+(`ncmp`, `wcmp`, `rcmp6`, `yesno`, …). With them `orchestrator <problem> local run`
+checks the solutions' output on the examples when the spec has `checker.custom_needed: false`
+and `checker.standard` is set (`orchestrator/checks/solutions_run.py`).
 
-- Источник: <https://github.com/MikeMirzayanov/testlib>, каталог `checkers/`.
-- Коммит: `3bf5ba5aca6007bf8dcde6d00949ec3116ee3cc7` (2026-10-26).
-- Лицензия: MIT, текст лежит рядом, в `LICENSE`.
-- Файлы скопированы без изменений. Собираются с `templates/testlib.h`
-  (`#include "testlib.h"` находится через `-I templates`).
+- Source: <https://github.com/MikeMirzayanov/testlib>, the `checkers/` directory.
+- Commit: `3bf5ba5aca6007bf8dcde6d00949ec3116ee3cc7` (2026-10-26).
+- License: MIT, the text is next to it, in `LICENSE`.
+- The files are copied without changes. They are built with `templates/testlib.h`
+  (`#include "testlib.h"` is found via `-I templates`).
 
-Версия на Polygon может немного отличаться от этого коммита. Логика сравнения
-у стандартных чекеров годами не меняется, но текст сообщений может быть другим.
+The version on Polygon may differ slightly from this commit. The comparison logic
+of the standard checkers hasn't changed for years, but the message text may be different.
 
-## Как обновить
+## How to update
 
 ```bash
-SHA=<коммит testlib>
+SHA=<testlib commit>
 for f in orchestrator/checks/std_checkers/*.cpp; do
   curl -sfL "https://raw.githubusercontent.com/MikeMirzayanov/testlib/$SHA/checkers/$(basename "$f")" -o "$f"
 done
 ```
 
-Новый чекер из того же каталога добавляется тем же `curl`, под своим именем.
-После обновления поменять коммит выше и прогнать `pytest`.
+A new checker from the same directory is added with the same `curl`, under its own name.
+After updating, change the commit above and run `pytest`.
