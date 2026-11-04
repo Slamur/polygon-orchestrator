@@ -143,6 +143,8 @@ class StepOutcome:
     artifact_paths: dict[str, Path] = field(default_factory=dict)
     created: list[Path] = field(default_factory=list)
     compile_errors: dict[str, str] = field(default_factory=dict)
+    # Written source files with non-ASCII characters (artifact name -> message).
+    charset_errors: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -512,6 +514,7 @@ def _run_step_into(
                 for filename, compiled in step_result.compile_results.items()
                 if not compiled.success
             },
+            charset_errors=step_result.charset_errors,
         )
     )
     if conflicts_dir is not None:

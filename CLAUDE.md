@@ -71,6 +71,10 @@ Out of scope (deliberately, to be added separately later):
 The minimal safety net instead of a judging loop at this stage:
 - **compile-check** after each generated C++ file
   (validator/checker/generator/solution) — compiles or not, without running;
+- **non-ASCII check** of each generated source file (C++, Java, Python,
+  test-script) — lines with non-ASCII characters are reported next to the
+  compile-check errors (`orchestrator/checks/source_charset.py`): some
+  compilers, Polygon's among them, fail on them; the file is still written;
 - **solutions on examples** (`local run`) — running the validator and solutions
   only on the statement examples, checking that the verdict is compatible with the
   solution's name;

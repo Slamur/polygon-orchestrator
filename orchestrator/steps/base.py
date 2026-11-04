@@ -76,6 +76,7 @@ from orchestrator.cache import (
     save_pending_response,
 )
 from orchestrator.checks.compile_check import CompileResult, compile_check
+from orchestrator.checks.source_charset import charset_error
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
@@ -327,6 +328,9 @@ class StepResult:
     created: list[Path] = field(default_factory=list)
     notes: list[dict[str, Any]] = field(default_factory=list)
     compile_results: dict[str, CompileResult] = field(default_factory=dict)
+    # Written source files with non-ASCII characters (artifact name -> message),
+    # see `orchestrator/checks/source_charset.py`.
+    charset_errors: dict[str, str] = field(default_factory=dict)
     # Режим доработки: файлы, помеченные `.removed` (путь пометки, причина),
     # и переименования (старый путь, новый путь, причина).
     revised: bool = False
@@ -1309,6 +1313,11 @@ def run_generative_step(
         for filename, path in to_compile.items()
         if path.suffix == ".cpp"
     }
+    charset_errors = {
+        filename: error
+        for filename, path in to_compile.items()
+        if (error := charset_error(path)) is not None
+    }
 
     cache_entry.timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     save_cache_entry(problem_id, step_name, cache_entry, problems_dir=problems_dir)
@@ -1325,6 +1334,7 @@ def run_generative_step(
         created=created,
         notes=notes,
         compile_results=compile_results,
+        charset_errors=charset_errors,
         revised=revision is not None,
         removed=marks,
         renamed=renamed,

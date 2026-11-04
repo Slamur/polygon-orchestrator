@@ -429,6 +429,38 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
         result.compile_results["gen_ok.cpp"].binary_path.unlink(missing_ok=True)
 
 
+def test_run_generative_step_reports_non_ascii_sources(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    problems_dir = tmp_path / "problems"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+
+    response = ModelResponse(
+        status="confirmed",
+        artifacts={
+            "ok.py": "# решение\nprint(1)\n",
+            "test_script": "gen 1 > $\n",
+            "legend.tex": "Легенда.\n",
+        },
+        notes=[],
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_generative_step(
+            step_name="statement_draft",
+            problem_id="p1",
+            context={},
+            input_hash="h",
+            resolve_artifact_path=lambda name: problems_dir / "p1" / name,
+            prompts_dir=prompts_dir,
+            problems_dir=problems_dir,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert set(result.charset_errors) == {"ok.py"}
+    assert "line 1: # решение" in result.charset_errors["ok.py"]
+    # the file is written as the model returned it
+    assert (problems_dir / "p1" / "ok.py").read_text(encoding="utf-8").startswith("# решение")
+
+
 def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
     prompts_dir = tmp_path / "prompts"
     problems_dir = tmp_path / "problems"
