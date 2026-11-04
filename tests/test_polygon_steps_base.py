@@ -29,8 +29,8 @@ def spec():
 
 @pytest.fixture
 def no_default_client(monkeypatch):
-    """Любая попытка создать PolygonClient по умолчанию — ошибка теста."""
-    factory = MagicMock(side_effect=AssertionError("PolygonClient() не должен создаваться"))
+    """Any attempt to create a PolygonClient by default is a test error."""
+    factory = MagicMock(side_effect=AssertionError("PolygonClient() must not be created"))
     monkeypatch.setattr(base, "PolygonClient", factory)
     return factory
 

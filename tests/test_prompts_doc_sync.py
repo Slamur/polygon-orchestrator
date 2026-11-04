@@ -1,6 +1,6 @@
-"""`docs/PROMPTS.md` дублирует тексты `prompts/<step>/{system.md,user.md.j2}`
-для чтения подряд. Исполняются файлы, а не документ, поэтому без проверки
-копии незаметно расходятся с оригиналом — этот тест ловит расхождение.
+"""`docs/PROMPTS.md` duplicates the texts of `prompts/<step>/{system.md,user.md.j2}`
+for reading them in a row. The files are executed, not the document, so without a check
+the copies silently diverge from the original — this test catches the divergence.
 """
 
 import re
@@ -17,10 +17,10 @@ PROMPT_FILES = ["system.md", "user.md.j2"]
 
 
 def _doc_blocks() -> dict[tuple[str, str], str]:
-    """(шаг, имя файла) -> содержимое блока кода из `docs/PROMPTS.md`."""
+    """(step, file name) -> the contents of the code block from `docs/PROMPTS.md`."""
     blocks: dict[tuple[str, str], str] = {}
-    # Делим по заголовкам шагов, а не по любому `## `: строки с `## ` есть и
-    # внутри самих user.md.j2.
+    # We split by the step headings, not by any `## `: there are lines with `## `
+    # inside the user.md.j2 files themselves too.
     headings = r"## (?:Шаг \d+|Спек по черновику)"
     for section in re.split(rf"(?m)^(?={headings})", PROMPTS_DOC.read_text(encoding="utf-8")):
         heading = re.match(headings + r"[^\n]*?`(\w+)`", section)

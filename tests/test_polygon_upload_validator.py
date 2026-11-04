@@ -121,7 +121,7 @@ def test_incremental_run_skips_unchanged_validator(problems_dir, spec):
 
 
 def test_other_assigned_validator_is_reuploaded_and_set(problems_dir, spec):
-    # после pull назначенным может быть файл с другим именем
+    # after pull a file with another name may be the assigned one
     link(problems_dir)
     _write_validator(problems_dir)
     _run(spec, problems_dir, MagicMock())

@@ -1,14 +1,14 @@
-"""Кэш `compile_check` для тестов: одни и те же исходники с `testlib.h`
-(стандартный чекер, валидатор примера) собираются в десятках тестов по
-3–7 секунд каждый. Кэш живёт в `.pytest_cache` между запусками pytest (в CI —
-между прогонами через actions/cache); записи, которые долго не читались,
-удаляет `prune`.
+"""The `compile_check` cache for tests: the same sources with `testlib.h`
+(a standard checker, an example's validator) are built in dozens of tests,
+3–7 seconds each. The cache lives in `.pytest_cache` between pytest runs (in CI —
+between runs via actions/cache); entries that haven't been read for a long time
+are deleted by `prune`.
 
-Ключ (`source_key`) — вывод препроцессора (`g++ -E -P`) вместе с флагами
-сборки и версией g++: в нём содержимое всех включённых заголовков, но нет
-путей, поэтому одинаковый исходник в разных `tmp_path` собирается один раз.
-Неудачная сборка не кэшируется (stderr содержит путь исходника). Каждый вызов
-получает свою копию бинаря — вызывающий код его переносит или удаляет."""
+The key (`source_key`) is the preprocessor output (`g++ -E -P`) together with the build
+flags and the g++ version: it has the contents of all included headers, but no
+paths, so an identical source in different `tmp_path`s is built once.
+A failed build isn't cached (stderr contains the source's path). Each call
+gets its own copy of the binary — the calling code moves or deletes it."""
 
 from __future__ import annotations
 
@@ -37,8 +37,8 @@ def _compiler_version() -> bytes:
 
 
 def source_key(path: Path, include_dirs: Sequence[Path]) -> str | None:
-    """Ключ сборки `path` с этими `include_dirs`; None, если препроцессор не
-    отработал — такой исходник не кэшируется."""
+    """The build key of `path` with these `include_dirs`; None if the preprocessor
+    failed — such a source isn't cached."""
     try:
         result = subprocess.run(
             [
@@ -73,8 +73,8 @@ def caching_compile_check(
             return real(path, include_dirs, **kwargs)
         cached = cache_dir / f"{key}.bin"
         if not cached.is_file():
-            # Под pytest-xdist тот же исходник (стандартный чекер) нужен сразу
-            # нескольким процессам: собирает первый, остальные ждут его бинарь.
+            # Under pytest-xdist the same source (a standard checker) is needed by
+            # several processes at once: the first one builds it, the rest wait for its binary.
             with _locked(cache_dir / f"{key}.lock"):
                 if not cached.is_file():
                     return _compile_into(real, cached, path, include_dirs, **kwargs)
@@ -93,8 +93,8 @@ def _compile_into(
     result = real(path, include_dirs, **kwargs)
     if not result.success or result.binary_path is None:
         return result
-    # Через временный файл: параллельный процесс pytest не должен
-    # увидеть недописанный бинарь.
+    # Via a temporary file: a parallel pytest process mustn't
+    # see a partially written binary.
     fd, partial = tempfile.mkstemp(dir=cached.parent, suffix=".partial")
     os.close(fd)
     shutil.copy2(result.binary_path, partial)
@@ -104,7 +104,7 @@ def _compile_into(
 
 @contextmanager
 def _locked(lock_path: Path) -> Iterator[None]:
-    """Межпроцессная блокировка на время сборки; без fcntl (Windows) — без неё."""
+    """An interprocess lock for the duration of the build; without fcntl (Windows) — without it."""
     if fcntl is None:
         yield
         return
@@ -117,8 +117,8 @@ def _locked(lock_path: Path) -> Iterator[None]:
 
 
 def prune(cache_dir: Path, max_age_days: float) -> None:
-    """Удаляет из `cache_dir` записи, которые не читались и не писались
-    `max_age_days` дней: исходники меняются, и старые бинари иначе копятся."""
+    """Deletes from `cache_dir` the entries that weren't read or written for
+    `max_age_days` days: sources change, and old binaries would pile up otherwise."""
     deadline = time.time() - max_age_days * 24 * 3600
     for entry in cache_dir.iterdir():
         try:

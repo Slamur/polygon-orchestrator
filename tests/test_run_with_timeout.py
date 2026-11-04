@@ -8,7 +8,7 @@ from orchestrator.checks.run_with_timeout import RunResult, run_with_timeout
 SLEEP_BINARY = shutil.which("sleep")
 
 
-@pytest.mark.skipif(SLEEP_BINARY is None, reason="системная утилита sleep не найдена")
+@pytest.mark.skipif(SLEEP_BINARY is None, reason="the sleep system utility is not found")
 def test_run_with_timeout_kills_long_running_process():
     result = run_with_timeout(Path(SLEEP_BINARY), ["2"], timeout_seconds=0.2, stdin_data=None)
 

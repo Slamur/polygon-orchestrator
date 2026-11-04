@@ -152,18 +152,18 @@ def test_generate_forces_tool_choice_on_response_tool():
 
 
 def _assert_strict_schema_compatible(schema: dict, *, path: str = "$") -> None:
-    """Рекурсивно проверяет ограничения Anthropic strict tool use.
+    """Recursively checks the constraints of Anthropic strict tool use.
 
-    Реальный API 400-ит на `tools.0.custom`, если у object-схемы
-    `additionalProperties` — не буквально `False` (например, схема для
-    значений, как раньше было у `artifacts`) — с моком это не ловится,
-    только с реальным вызовом (см. `test_generate_hits_real_api`). Эта
-    проверка ловит ту же ошибку в unit-тестах, без похода в сеть.
+    The real API returns 400 on `tools.0.custom` if an object schema's
+    `additionalProperties` isn't literally `False` (e.g. a schema for
+    values, as `artifacts` used to have) — a mock doesn't catch this,
+    only a real call does (see `test_generate_hits_real_api`). This
+    check catches the same error in unit tests, without going to the network.
     """
     if schema.get("type") == "object":
         assert schema.get("additionalProperties") is False, (
-            f"{path}: object-схема должна иметь additionalProperties: False "
-            "для strict tool use (Anthropic API отклоняет схему-значение)"
+            f"{path}: an object schema must have additionalProperties: False "
+            "for strict tool use (the Anthropic API rejects a value schema)"
         )
         for name, subschema in schema.get("properties", {}).items():
             _assert_strict_schema_compatible(subschema, path=f"{path}.{name}")
@@ -297,10 +297,10 @@ def test_generate_does_not_retry_on_rate_limit_429(_no_sleep):
 
 @pytest.mark.integration
 def test_generate_hits_real_api():
-    """Реальный вызов Anthropic API — по умолчанию не запускается.
+    """A real call to the Anthropic API — not run by default.
 
-    Прогонять руками (`pytest -m integration`) перед первым реальным
-    прогоном на задаче, с валидным ANTHROPIC_API_KEY в окружении/.env.
+    Run by hand (`pytest -m integration`) before the first real
+    run on a problem, with a valid ANTHROPIC_API_KEY in the environment/.env.
     """
     client = AnthropicClient()
     try:
@@ -308,26 +308,26 @@ def test_generate_hits_real_api():
             model_class="medium-model",
             effort="medium",
             system_prompt=(
-                "Ты тестовый ассистент. Верни status: confirmed, один артефакт "
-                "'ping.txt' с содержимым 'pong', notes: []."
+                "You are a test assistant. Return status: confirmed, one artifact "
+                "'ping.txt' with the contents 'pong', notes: []."
             ),
-            user_prompt="Подтверди, что вызов API работает.",
+            user_prompt="Confirm that the API call works.",
         )
     except anthropic.APIStatusError as exc:
-        # Голый re-raise здесь тонет в трейсбеке retry-цикла SDK
-        # (_base_client.py) и на терминале выглядит "обрезанным" — вместо
-        # этого явно достаём тело ответа API (в нём — конкретная причина
-        # 400, например какое поле схемы не понравилось), без ретрейса SDK.
+        # A bare re-raise here drowns in the traceback of the SDK's retry loop
+        # (_base_client.py) and looks "truncated" in the terminal — instead
+        # we explicitly take the API response body (it has the concrete reason for the
+        # 400, e.g. which schema field it didn't like), without the SDK's retrace.
         error_body = exc.body if isinstance(exc.body, dict) else {}
         error_details = error_body.get("error", {}) if isinstance(error_body, dict) else {}
         pytest.fail(
-            f"Anthropic API вернул {exc.status_code}: "
+            f"Anthropic API returned {exc.status_code}: "
             f"type={error_details.get('type')!r} "
             f"message={error_details.get('message')!r} "
             f"request_id={exc.request_id!r}",
             pytrace=False,
         )
     except anthropic.APIConnectionError as exc:
-        pytest.fail(f"Anthropic API недоступен: {exc.message}", pytrace=False)
+        pytest.fail(f"Anthropic API unavailable: {exc.message}", pytrace=False)
 
     assert result.status in {"confirmed", "proposed", "uncertain"}

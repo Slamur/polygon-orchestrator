@@ -1,5 +1,5 @@
-"""Шаг `tutorial_draft`: вход из файлов задачи, запоминание `--ref`, команда
-`llm tutorial` и то, что `llm generate` этот шаг не запускает."""
+"""The `tutorial_draft` step: the input from the problem's files, remembering `--ref`, the
+`llm tutorial` command and the fact that `llm generate` doesn't run this step."""
 
 from pathlib import Path
 from unittest.mock import patch
@@ -29,7 +29,7 @@ def _write(path: Path, content: str) -> Path:
 
 @pytest.fixture
 def problem_dir(problems_dir):
-    """Задача `p1` с драфтом, условием и двумя решениями."""
+    """The problem `p1` with a draft, a statement and two solutions."""
     directory = problems_dir / "p1"
     spec = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     _write(
@@ -56,7 +56,7 @@ def _run(problems_dir, **kwargs):
 
 
 def _generate(problems_dir, *, response=_RESPONSE, **kwargs):
-    """Прогон шага с моком модели; (результат, вызовы модели)."""
+    """A run of the step with a mocked model; (result, model calls)."""
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = _run(problems_dir, **kwargs)
     return result, mock_call
@@ -253,7 +253,7 @@ def test_changed_unrelated_solution_keeps_the_cache(problems_dir, problem_dir):
     "path, part",
     [
         ("authoring/draft-tutorial.md", "authoring/draft-tutorial.md"),
-        # Часть входа — без каталога языка: перенос раскладки хеш не меняет.
+        # An input part — without the language directory: the layout migration doesn't change the hash.
         ("statement/ru/legend.tex", "statement/legend.tex"),
     ],
 )
@@ -296,7 +296,7 @@ def test_status_with_draft_is_not_run(problems_dir, problem_dir):
 
 
 def test_apply_uses_the_refs_of_the_saved_response(problems_dir, problem_dir):
-    # Ответ без `tutorial.tex` не применяется, но сохраняется — со своим входом.
+    # A response without `tutorial.tex` isn't applied, but is saved — with its input.
     bad = ModelResponse(status="confirmed", artifacts={"other.tex": "x"}, notes=[])
     with patch("orchestrator.model_router.call_model", return_value=bad):
         _run(problems_dir, tutorial_refs=["ok.cpp"])

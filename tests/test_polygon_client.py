@@ -9,7 +9,7 @@ from orchestrator.polygon.signing import generate_signature
 
 @pytest.fixture(autouse=True)
 def _no_dotenv(monkeypatch):
-    # Тесты не должны зависеть от реального .env в корне репозитория.
+    # Tests mustn't depend on the real .env at the repository root.
     monkeypatch.setattr(polygon_client, "load_dotenv", lambda: None)
 
 
@@ -59,13 +59,13 @@ def test_call_signs_request_and_returns_result(credentials, monkeypatch):
     assert result == {"id": 5}
     args, kwargs = post.call_args
     assert args == ("https://polygon.codeforces.com/api/problem.info",)
-    # Все параметры — поля multipart-формы без имени файла.
+    # All parameters are multipart form fields without a file name.
     sent = {name: value for name, (filename, value) in kwargs["files"].items()}
     assert all(filename is None for filename, _ in kwargs["files"].values())
     assert sent["problemId"] == "5"
     assert sent["apiKey"] == "test-key"
     assert sent["time"].isdigit()
-    # apiSig = rand (6 символов) + sha512 hex (128 символов)
+    # apiSig = rand (6 characters) + sha512 hex (128 characters)
     assert len(sent["apiSig"]) == 6 + 128
 
 
@@ -93,8 +93,8 @@ def test_call_waits_default_timeout_unless_given(credentials, monkeypatch):
 
 
 def test_file_content_is_a_signed_param(credentials, monkeypatch):
-    # Polygon подписывает `file` наравне с остальными параметрами: контент
-    # должен уйти полем формы и войти в apiSig, а не отдельной частью вне подписи.
+    # Polygon signs `file` on a par with the other parameters: the content
+    # must go as a form field and be part of apiSig, not as a separate part outside the signature.
     post = MagicMock(return_value=_response({"status": "OK", "result": None}))
     monkeypatch.setattr(polygon_client.requests, "post", post)
     monkeypatch.setattr(polygon_client.time, "time", lambda: 1700000000)
@@ -152,7 +152,7 @@ def _raw_response(
 
 
 def test_call_raw_returns_body_as_is(credentials, monkeypatch):
-    # Скачиваемый файл сам может быть JSON — тело не разбирается.
+    # The downloaded file may itself be JSON — the body isn't parsed.
     content = b'{"status": "FAILED"}\r\n'
     post = MagicMock(return_value=_raw_response(content))
     monkeypatch.setattr(polygon_client.requests, "post", post)
@@ -188,7 +188,7 @@ def test_call_raw_non_200_without_json_raises_polygon_api_error(credentials, mon
 
 
 class FakeTime:
-    """Часы и `sleep` клиента: `sleep` только сдвигает время и запоминает паузу."""
+    """The client's clock and `sleep`: `sleep` only shifts the time and remembers the pause."""
 
     def __init__(self) -> None:
         self.now = 1000.0
@@ -234,7 +234,7 @@ def test_429_is_retried_with_exponential_backoff(credentials, monkeypatch):
     assert result == {"id": 5}
     assert post.call_count == 3
     assert fake.sleeps == [5, 10]
-    # каждая попытка подписана заново
+    # each attempt is signed anew
     sigs = {call.kwargs["files"]["apiSig"][1] for call in post.call_args_list}
     assert len(sigs) == 3
 
@@ -260,7 +260,7 @@ def test_429_slows_down_following_requests(credentials, monkeypatch):
     client.call("problem.info", {})
     client.call("problem.info", {})
 
-    # интервал удвоился: 0.5 -> 1.0
+    # the interval doubled: 0.5 -> 1.0
     assert fake.sleeps == [pytest.approx(1.0), pytest.approx(1.0)]
 
 

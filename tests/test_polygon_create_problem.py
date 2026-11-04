@@ -51,7 +51,7 @@ def test_creates_new_problem_when_nothing_exists(tmp_path, spec):
     state = load_polygon_state(PROBLEM_ID, problems_dir=tmp_path)
     assert state is not None
     assert (state.problem_id, state.polygon_id) == (PROBLEM_ID, 555)
-    # новая задача пуста — база известна, push не требует pull
+    # a new problem is empty — the base is known, push doesn't require pull
     assert state.revision == 1
     assert state.created_at
 
@@ -86,7 +86,7 @@ def test_reuses_existing_polygon_problem_found_by_name(tmp_path, spec):
     state = load_polygon_state(PROBLEM_ID, problems_dir=tmp_path)
     assert state is not None
     assert state.polygon_id == 123
-    # что в найденной задаче, неизвестно — push потребует pull
+    # what's in the found problem is unknown — push will require pull
     assert state.revision is None
 
 

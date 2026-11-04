@@ -50,10 +50,10 @@ _RESPONSES = {
     ),
 }
 
-# Опциональные шаги, которые спек-фикстура не заказывает: стандартный чекер
-# (checker.custom_needed: false) и обычная, не интерактивная задача.
+# Optional steps the spec fixture doesn't order: a standard checker
+# (checker.custom_needed: false) and a normal, non-interactive problem.
 _SKIPPED_STEPS = {"checker_draft", "interactor_draft"}
-# Шаги без вызова модели.
+# Steps without a model call.
 _MECHANICAL_STEPS = {"limits_from_constraints"}
 
 
@@ -63,7 +63,7 @@ def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
 
 @pytest.fixture
 def spec_file(tmp_path):
-    """Спек задачи `p1` в её каталоге: `<tmp>/problems/p1/spec.yaml`."""
+    """The spec of the problem `p1` in its directory: `<tmp>/problems/p1/spec.yaml`."""
     path = tmp_path / "problems" / "p1" / "authoring" / "spec.yaml"
     path.parent.mkdir(parents=True)
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
@@ -83,9 +83,9 @@ def _run(problems_dir, **kwargs):
 
 
 def test_first_run_calls_model_for_every_step_in_order(spec_file, tmp_path):
-    # Спек-фикстура заказывает стандартный чекер (checker.custom_needed:
-    # false), поэтому checker_draft пропускается — он не менее часть
-    # STEP_ORDER, но не вызывает модель.
+    # The spec fixture orders a standard checker (checker.custom_needed:
+    # false), so checker_draft is skipped — it's no less part of
+    # STEP_ORDER, but doesn't call the model.
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
         result = _run(problems_dir)
@@ -99,8 +99,8 @@ def test_first_run_calls_model_for_every_step_in_order(spec_file, tmp_path):
     assert {s: statuses[s] for s in called_steps} == {s: "confirmed" for s in called_steps}
     model_steps = [s for s in called_steps if s not in _MECHANICAL_STEPS]
     assert mock_call.call_count == len(model_steps)
-    # порядок вызовов совпадает с STEP_ORDER (за вычетом пропущенных и
-    # механических шагов)
+    # the order of calls matches STEP_ORDER (minus the skipped and
+    # mechanical steps)
     assert [c.args[0] for c in mock_call.call_args_list] == model_steps
 
 
@@ -114,8 +114,8 @@ def test_second_run_is_all_cache_hits_and_does_not_call_model(spec_file, tmp_pat
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
-    # checker_draft остаётся skipped_optional на каждом прогоне, а не
-    # cache_hit — он вообще не участвует в кэше при custom_needed=false.
+    # checker_draft stays skipped_optional on every run, not
+    # cache_hit — it doesn't take part in the cache at all with custom_needed=false.
     assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
     cached_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: statuses[s] for s in cached_steps} == {
@@ -134,8 +134,8 @@ def test_force_recalls_model_even_when_cached(spec_file, tmp_path):
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
-    # --force не отменяет "шаг вообще не применим для этой задачи" —
-    # checker_draft всё равно skipped_optional при custom_needed=false.
+    # --force doesn't cancel "the step isn't applicable to this problem at all" —
+    # checker_draft is still skipped_optional with custom_needed=false.
     assert statuses["checker_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
     forced_steps = [s for s in pipeline.STEP_ORDER if s not in _SKIPPED_STEPS]
     assert {s: statuses[s] for s in forced_steps} == {s: "confirmed" for s in forced_steps}
@@ -167,7 +167,7 @@ def test_uncertain_step_stops_pipeline_before_later_steps(spec_file, tmp_path):
     assert result.outcomes[0].step_name == "statement_draft"
     assert result.outcomes[0].status == pipeline.OUTCOME_UNCERTAIN
     assert result.outcomes[0].notes == uncertain_response.notes
-    # кроме самого спека в каталоге задачи на диск ничего не записано
+    # nothing except the spec itself is written to disk in the problem directory
     assert set(problems_dir.rglob("*")) == {spec_file.parent.parent, spec_file.parent, spec_file}
 
 
@@ -205,7 +205,7 @@ def test_solutions_draft_skipped_when_spec_has_no_solutions_section(spec_file, t
     problems_dir = tmp_path / "problems"
     content = (spec_file).read_text(encoding="utf-8")
     lines = content.splitlines(keepends=True)
-    # вырезаем секцию solutions целиком (от "solutions:" до "checker:")
+    # cut out the whole solutions section (from "solutions:" to "checker:")
     start = next(i for i, line in enumerate(lines) if line.startswith("solutions:"))
     end = next(i for i, line in enumerate(lines) if line.startswith("checker:"))
     (spec_file).write_text("".join(lines[:start] + lines[end:]), encoding="utf-8")
@@ -220,8 +220,8 @@ def test_solutions_draft_skipped_when_spec_has_no_solutions_section(spec_file, t
 
 
 def test_checker_draft_skipped_when_custom_needed_is_false(spec_file, tmp_path):
-    # Фикстура valid-spec.yaml заказывает стандартный чекер (ncmp) —
-    # checker.custom_needed: false, черновик не заказан.
+    # The valid-spec.yaml fixture orders a standard checker (ncmp) —
+    # checker.custom_needed: false, no draft ordered.
     problems_dir = tmp_path / "problems"
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
@@ -426,18 +426,18 @@ def test_compute_step_statuses_stale_after_spec_edit(spec_file, tmp_path):
     )
     by_name = {s.step_name: s for s in statuses}
     assert by_name["statement_draft"].state == pipeline.STATUS_STALE
-    # шаги 2-4 не зависят от statement_draft — их кэш не тронут
+    # steps 2-4 don't depend on statement_draft — their cache isn't touched
     assert by_name["constraints_pick"].state == pipeline.STATUS_CACHE_HIT
 
 
 def test_compute_step_statuses_uncertain_entry_never_reported_as_cache_hit():
-    # run_generative_step (см. orchestrator/steps/base.py) сознательно не
-    # пишет CacheEntry при status: uncertain — "not run" в compute_step_statuses
-    # для этого случая корректен (см. test_uncertain_step_stops_pipeline_...
-    # выше: следующий запуск всё равно позовёт модель заново). Эта проверка —
-    # что status.py-логика вообще не выдаёт "cache hit" для status=uncertain,
-    # даже если бы такая запись когда-нибудь появилась на диске (cache.py,
-    # is_cache_valid, уже это гарантирует и покрыт тестами там).
+    # run_generative_step (see orchestrator/steps/base.py) deliberately doesn't
+    # write a CacheEntry with status: uncertain — "not run" in compute_step_statuses
+    # is correct for this case (see test_uncertain_step_stops_pipeline_...
+    # above: the next run calls the model again anyway). This check is
+    # that the status logic doesn't give "cache hit" for status=uncertain at all,
+    # even if such an entry ever appeared on disk (cache.py,
+    # is_cache_valid, already guarantees this and is covered by tests there).
     from orchestrator.cache import UNCERTAIN_STATUS, CacheEntry, is_cache_valid
 
     entry = CacheEntry("h", "p", "model", UNCERTAIN_STATUS, "2026-01-01T00:00:00Z")
@@ -445,12 +445,12 @@ def test_compute_step_statuses_uncertain_entry_never_reported_as_cache_hit():
 
 
 def test_compute_step_statuses_not_run_after_uncertain_run(spec_file, tmp_path):
-    # run_generative_step не пишет CacheEntry при status: uncertain (см.
-    # test_run_generative_step_uncertain_raises_and_writes_nothing в
-    # tests/test_steps_base.py) — поэтому status для такого шага "not run",
-    # а не "uncertain": кэша просто нет, и следующий запуск снова позовёт
-    # модель, что и требуется (CLAUDE.md, "провал по недостатку данных
-    # должен всплывать при каждом запуске").
+    # run_generative_step doesn't write a CacheEntry with status: uncertain (see
+    # test_run_generative_step_uncertain_raises_and_writes_nothing in
+    # tests/test_steps_base.py) — so the status for such a step is "not run",
+    # not "uncertain": there's simply no cache, and the next run calls the
+    # model again, which is what's required (CLAUDE.md, "a failure due to missing data
+    # must surface on every run").
     problems_dir = tmp_path / "problems"
     uncertain_response = ModelResponse(
         status="uncertain",
@@ -482,7 +482,7 @@ def test_compute_step_statuses_reports_spec_error(spec_file, tmp_path):
 
 
 def _break_reference(spec_file):
-    # Общий референс — его получает каждый шаг, начиная с первого.
+    # A shared reference — every step gets it, starting from the first.
     path = spec_file
     content = path.read_text(encoding="utf-8")
     content = content.replace(
@@ -519,7 +519,7 @@ def test_compute_step_statuses_blocked_by_missing_reference(spec_file, tmp_path)
     assert "no-such-task" in by_step["statement_draft"].detail
 
 
-# --- что именно изменилось, смена модели, llm accept ---------------------
+# --- what exactly changed, a model change, llm accept ---------------------
 
 
 def _statuses(problems_dir, prompts_dir=PROMPTS_DIR):
@@ -725,12 +725,12 @@ def test_accept_refuses_uncertain_step(spec_file, tmp_path):
     )
 
 
-# --- Неприменённый ответ модели и `llm apply` ---
+# --- An unapplied model response and `llm apply` ---
 
 
 def _failing_statement_check(expected):
-    """Проверка набора файлов условия, которая отвергает любой ответ, — как
-    ошибка в коде оркестратора, которую потом исправят."""
+    """A check of the statement's file set that rejects any response — like
+    a bug in the orchestrator's code that will be fixed later."""
 
     def validate(artifacts):
         raise ValueError("the set of files does not match")
@@ -783,7 +783,7 @@ def test_rejected_response_stops_pipeline_with_conflict_and_is_saved(spec_file, 
 
 
 def _resolve_statement_conflict(problems_dir, conflicts_dir):
-    """Автор разбирает конфликт: берёт версию модели и удаляет каталог."""
+    """The author resolves a conflict: takes the model's version and deletes the directory."""
     import shutil
 
     shutil.copytree(conflicts_dir / "statement", problems_dir / "p1" / "statement")
@@ -820,7 +820,7 @@ def test_accept_after_resolving_conflicts_makes_step_a_cache_hit(spec_file, tmp_
     assert "conflicts resolved" in accepted.detail
     status = _statuses(problems_dir)["statement_draft"]
     assert (status.state, status.detail) == (pipeline.STATUS_CACHE_HIT, "")
-    # Принятый шаг больше не предлагает применить сохранённый ответ.
+    # An accepted step no longer offers to apply the saved response.
     assert not (problems_dir / "p1" / ".cache" / "statement_draft.response.json").exists()
 
 

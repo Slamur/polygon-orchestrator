@@ -80,7 +80,7 @@ def test_writes_generators_of_the_plan(spec, tmp_path):
     user_prompt = mock_call.call_args.args[2]
     assert "### gen_rand.cpp" in user_prompt
     assert "Случайный массив длины n." in user_prompt
-    # Тесты плана генераторам не нужны.
+    # The generators don't need the plan's tests.
     assert "Случайные максимальные тесты" not in user_prompt
 
 

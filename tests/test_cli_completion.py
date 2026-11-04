@@ -1,5 +1,5 @@
-"""Tab-дополнение адреса задачи и условие, на котором оно держится: модуль
-`cli` не тянет пайплайны при импорте (см. докстринг `orchestrator/cli.py`)."""
+"""Tab completion of the problem address and the condition it relies on: the
+`cli` module doesn't pull in the pipelines on import (see the docstring of `orchestrator/cli.py`)."""
 
 import os
 import subprocess
@@ -64,8 +64,8 @@ def test_draft_completer_lists_draft_files(base):
 
 
 def _complete(line: str) -> list[str]:
-    """Запускает CLI так же, как это делает shell при нажатии Tab (протокол
-    argcomplete: строка в `COMP_LINE`, кандидаты — в файловый дескриптор 8)."""
+    """Runs the CLI the same way the shell does on a Tab press (the
+    argcomplete protocol: the line in `COMP_LINE`, the candidates — to file descriptor 8)."""
     env = {
         **os.environ,
         "_ARGCOMPLETE": "1",

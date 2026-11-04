@@ -208,8 +208,8 @@ def test_update_sync_writes_stamps_only_together_with_hashes(tmp_path: Path):
 
     update_sync(
         "example-problem",
-        # a — загружен без отметки (push), b — удалён, c — получает отметку,
-        # d — без хеша: его отметка не пишется
+        # a — uploaded without a stamp (push), b — deleted, c — gets a stamp,
+        # d — without a hash: its stamp isn't written
         synced={"a": "1new", "b": None, "c": "3"},
         stamps={"c": "s3", "d": "s4"},
         revision=4,

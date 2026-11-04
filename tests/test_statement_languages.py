@@ -36,7 +36,7 @@ def test_codes_and_polygon_names():
     assert polygon_language("ru") == "russian"
     assert polygon_language("en") == "english"
     assert language_code("kazakh") == "kk"
-    # Язык без кода в таблице — каталог с именем Polygon.
+    # A language without a code in the table — a directory with the Polygon name.
     assert polygon_language("latvian") == "latvian"
     assert language_code("latvian") == "latvian"
 
@@ -53,7 +53,7 @@ def test_migration_moves_statement_into_main_language(tmp_path):
     assert (statement_dir / "ru" / "legend.tex").read_text() == "legend.tex"
     assert (statement_dir / "examples" / "example_1.txt").is_file()
     assert statement_languages(statement_dir) == ["ru"]
-    # Второй раз переносить нечего.
+    # The second time there's nothing to move.
     assert migrate_statement_languages(problem_dir) is None
 
 

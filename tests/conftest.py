@@ -10,13 +10,13 @@ def pytest_addoption(parser):
     parser.addoption(
         "--fast",
         action="store_true",
-        help="не запускать тесты с маркером slow (сборка и запуск C++/Java)",
+        help="skip the tests marked slow (building and running C++/Java)",
     )
 
 
 def pytest_collection_modifyitems(config, items):
-    """`--fast` отбирает тесты сам, а не через `-m "not slow"`: свой `-m`
-    заменил бы `-m 'not integration'` из addopts и включил integration-тесты."""
+    """`--fast` selects the tests itself, not via `-m "not slow"`: its own `-m`
+    would replace `-m 'not integration'` from addopts and enable the integration tests."""
     if not config.getoption("--fast"):
         return
     slow = [item for item in items if item.get_closest_marker("slow")]
@@ -27,20 +27,20 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture(autouse=True)
 def _skip_test_script_check(monkeypatch):
-    """Проверка test-script'а перед загрузкой (`upload_test_script`) запускает
-    java и может скачивать FreeMarker — в тестах выключена; тесты самой
-    проверки включают её обратно (`monkeypatch.delenv`)."""
+    """The test-script check before uploading (`upload_test_script`) runs
+    java and may download FreeMarker — it's off in tests; the tests of the check
+    itself turn it back on (`monkeypatch.delenv`)."""
     monkeypatch.setenv(SKIP_CHECK_ENV, "1")
 
 
-# Сколько дней хранить в кэше сборку, которую ни один тест не запрашивал.
+# How many days to keep a build in the cache that no test requested.
 _COMPILE_CACHE_MAX_AGE_DAYS = 14
 
 
 @pytest.fixture(scope="session")
 def _compile_cache_dir(pytestconfig, tmp_path_factory):
-    """Каталог кэша сборок: в `.pytest_cache` (без cacheprovider — временный,
-    на сессию)."""
+    """The build cache directory: in `.pytest_cache` (without cacheprovider — temporary,
+    per session)."""
     cache = getattr(pytestconfig, "cache", None)
     if cache is None:
         yield tmp_path_factory.mktemp("compile-cache")
@@ -52,11 +52,11 @@ def _compile_cache_dir(pytestconfig, tmp_path_factory):
 
 @pytest.fixture(autouse=True)
 def _cached_compile_check(monkeypatch, _compile_cache_dir):
-    """Сборки кода оркестратора (шаги, `local run`, `local check --full`)
-    кэшируются между запусками, см. `compile_cache.py`. Тесты, которые сами
-    импортируют `compile_check`, компилируют честно; образцы из `examples/`
-    помечают удачные сборки в `.pytest_cache` по тому же ключу и между
-    запусками пересобирают только изменившееся."""
+    """Builds of the orchestrator's code (steps, `local run`, `local check --full`)
+    are cached between runs, see `compile_cache.py`. Tests that import
+    `compile_check` themselves compile honestly; the samples from `examples/`
+    mark successful builds in `.pytest_cache` by the same key and between
+    runs rebuild only what changed."""
     cached = caching_compile_check(compile_check.compile_check, _compile_cache_dir)
     for module in (base, local_tests, solutions_run):
         monkeypatch.setattr(module, "compile_check", cached)

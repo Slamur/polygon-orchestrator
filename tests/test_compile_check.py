@@ -4,7 +4,7 @@ import pytest
 
 from orchestrator.checks.compile_check import CompileResult, compile_check
 
-# Тесты модуля собирают и запускают C++/Java, см. маркер slow в pyproject.toml.
+# The module's tests build and run C++/Java, see the slow marker in pyproject.toml.
 pytestmark = pytest.mark.slow
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "cpp"
@@ -31,7 +31,7 @@ def test_compile_check_broken_cpp_fails():
 
 
 def test_compile_check_searches_include_dirs_in_order(tmp_path):
-    # problem_lib.h задачи должен находиться раньше шаблонного
+    # the problem's problem_lib.h must be found before the template's
     problem_dir = tmp_path / "problem"
     problem_dir.mkdir()
     (problem_dir / "problem_lib.h").write_text(

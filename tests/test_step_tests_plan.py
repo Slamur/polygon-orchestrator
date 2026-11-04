@@ -158,7 +158,7 @@ def test_confirmed_writes_plan_to_authoring_with_problem_id_from_spec(spec, tmp_
 
     user_prompt = mock_call.call_args.args[2]
     assert "n_max: 100000" in user_prompt
-    # TL/ML плану не нужны.
+    # The plan doesn't need TL/ML.
     assert "time_limit_seconds" not in user_prompt
     assert "- [0] N = 1 (минимальный случай)" in user_prompt
     assert "- [0] O(N^2) без кучи — TLE на больших N" in user_prompt

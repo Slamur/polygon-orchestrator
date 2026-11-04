@@ -54,7 +54,7 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
 
 
 def test_groups_style_rejected_before_network(problems_dir, groups_spec):
-    # всё остальное на месте — отказ только из-за groups
+    # everything else is in place — the refusal is only because of groups
     link(problems_dir)
     _write_script(problems_dir, name="test_script_groups")
     client = MagicMock()
@@ -102,7 +102,7 @@ def test_uploads_script_via_save_script(problems_dir, spec):
 
 
 class FakeTime:
-    """`time` шага: `sleep` только сдвигает часы и запоминает паузу."""
+    """The step's `time`: `sleep` only shifts the clock and remembers the pause."""
 
     def __init__(self) -> None:
         self.now = 0.0
@@ -126,7 +126,7 @@ def fake_time(monkeypatch):
 
 @pytest.fixture
 def expanded(monkeypatch):
-    """Скрипт раскрывается локально (`conftest` выключает проверку)."""
+    """The script is expanded locally (`conftest` turns the check off)."""
     monkeypatch.delenv(SKIP_CHECK_ENV)
     lines = [ScriptLine(i, text) for i, text in enumerate(SCRIPT.splitlines(), start=1)]
     monkeypatch.setattr(
@@ -146,8 +146,8 @@ GENERATED = _tests("gen_random 1 10", "gen_random 2 100")
 
 
 def _polygon(*tests_responses, save_times_out: bool = False) -> MagicMock:
-    """Клиент: `problem.saveScript` (или его таймаут), затем `problem.tests`
-    отвечает по очереди `tests_responses` (исключение — бросает его)."""
+    """The client: `problem.saveScript` (or its timeout), then `problem.tests`
+    answers with `tests_responses` in turn (an exception — raises it)."""
     responses = iter(tests_responses)
 
     def call(method, params, **kwargs):
@@ -211,7 +211,7 @@ def test_gives_up_when_tests_never_match(problems_dir, spec, expanded, fake_time
 
 
 def test_timeout_without_expanded_script_is_an_error(problems_dir, spec):
-    # conftest выключает проверку — скрипт не раскрыт, ждать нечего
+    # conftest turns the check off — the script isn't expanded, there's nothing to wait for
     link(problems_dir)
     _write_script(problems_dir)
     client = _polygon(save_times_out=True)
@@ -260,7 +260,7 @@ def test_status_done_then_stale_after_script_change(problems_dir, spec):
 
 
 def test_blank_lines_do_not_change_script_hash(problems_dir, spec):
-    # Polygon выкидывает пустые строки при сохранении скрипта.
+    # Polygon drops empty lines when saving a script.
     link(problems_dir)
     path = _write_script(problems_dir, "gen_random 1 10 > $\n\n  \ngen_random 2 100 > $  \n\n")
     _run(spec, problems_dir, MagicMock())

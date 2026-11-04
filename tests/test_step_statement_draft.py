@@ -27,7 +27,7 @@ def spec():
 
 
 def _model_artifacts() -> dict[str, str]:
-    """Файлы, которые возвращает модель (input примеров пишет оркестратор)."""
+    """The files the model returns (the examples' input is written by the orchestrator)."""
     return {
         "legend.tex": "legend",
         "input_format.tex": "input",
@@ -41,7 +41,7 @@ def _example_names(n_examples: int) -> set[str]:
 
 
 def _all_files(n_examples: int) -> dict[str, str]:
-    """Итоговый набор файлов шага: файлы модели + input примеров."""
+    """The step's final set of files: the model's files + the examples' input."""
     return {**_model_artifacts(), **{name: "x\n" for name in _example_names(n_examples)}}
 
 
@@ -75,22 +75,22 @@ def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
 
     assert result.status == "confirmed"
     statement_dir = tmp_path / "valid-spec" / "statement"
-    # tex-файлы — в каталог языка генерации, examples/... — в общий statement/examples/
+    # tex files — into the generation language's directory, examples/... — into the shared statement/examples/
     assert result.artifact_paths == {
         **{name: statement_dir / "ru" / name for name in artifacts},
         **{name: statement_dir / name for name in _example_names(2)},
     }
     assert (statement_dir / "ru" / "legend.tex").read_text(encoding="utf-8") == "legend"
-    # input примеров — копия из спека, его пишет оркестратор, а не модель
+    # the examples' input is a copy from the spec, the orchestrator writes it, not the model
     assert (statement_dir / "examples" / "example_1.txt").read_text(encoding="utf-8") == "1\n"
     assert (statement_dir / "examples" / "example_2.txt").read_text(encoding="utf-8") == "2\n"
     assert not (tmp_path / "valid-spec" / "statement.tex").exists()
 
-    # user.md.j2 реально отрендерился из секции statement_draft спека
+    # user.md.j2 was actually rendered from the spec's statement_draft section
     user_prompt = mock_call.call_args.args[2]
     assert "Есть граф городов и дорог" in user_prompt
     assert "1-indexed" in user_prompt
-    # и явно перечисляет ожидаемые от модели имена файлов — без input примеров
+    # and explicitly lists the file names expected from the model — without the examples' input
     expected_list = user_prompt.split("Ожидаемые файлы в artifacts:")[1].split("Задача:")[0]
     for name in ["legend.tex", "input_format.tex", "output_format.tex", "notes.tex"]:
         assert f"- {name}" in expected_list
@@ -101,7 +101,7 @@ def test_mismatched_artifacts_are_not_applied_at_all(spec, tmp_path):
     artifacts = _model_artifacts()
     del artifacts["notes.tex"]
     response = ModelResponse(status="confirmed", artifacts=artifacts, notes=[])
-    # и дозапрос не вернул недостающий файл
+    # and the re-request didn't return the missing file
     retry = ModelResponse(status="confirmed", artifacts={}, notes=[])
     with patch("orchestrator.model_router.call_model", side_effect=[response, retry]):
         result = run_step(
@@ -119,7 +119,7 @@ def test_mismatched_artifacts_are_not_applied_at_all(spec, tmp_path):
     assert "missing files: ['notes.tex']" in result.not_applied_reason
     assert all(reason == "the response is not applied as a whole" for _, reason in result.conflicts)
     assert (result.conflicts_dir / "statement" / "ru" / "legend.tex").is_file()
-    # Не применено ничего — ответ остаётся для `llm apply`.
+    # Nothing was applied — the response stays for `llm apply`.
     assert (problem_dir / ".cache" / "statement_draft.response.json").is_file()
 
 
@@ -373,8 +373,8 @@ def test_plain_problem_prompt_has_no_protocol(spec, tmp_path):
 
 
 def test_plain_problem_hash_input_has_no_interaction_field(spec):
-    # Поле, которого нет у обычной задачи, не должно менять её хеш входа:
-    # иначе его появление инвалидировало бы кэш условия всех задач.
+    # A field a normal problem doesn't have mustn't change its input hash:
+    # otherwise its appearance would have invalidated the statement cache of all problems.
     from orchestrator.steps.statement_draft import hash_inputs
 
     section, _ = hash_inputs("valid-spec", spec)
@@ -421,7 +421,7 @@ def test_missing_files_are_asked_for_once_and_applied(interactive_spec, tmp_path
     statement_dir = tmp_path / "interactive-spec" / "statement"
     for name, content in dialogues.items():
         assert (statement_dir / name).read_text(encoding="utf-8") == content
-    # из дозапроса берутся только недостающие файлы
+    # only the missing files are taken from the re-request
     assert (statement_dir / "ru" / "legend.tex").read_text(encoding="utf-8") == "legend"
     kinds = [note["kind"] for note in result.notes]
     assert "proposed" in kinds and "retried" in kinds and "ignored" in kinds
@@ -491,13 +491,13 @@ def test_example_inputs_no_longer_in_the_spec_are_marked_removed(spec, tmp_path)
         "example_2.txt.removed",
         "example_3.txt.removed",
     ]
-    # прежняя версия перезаписанного input — в бэкапе
+    # the previous version of the overwritten input — in the backup
     assert (result.backup_dir / "statement" / "examples" / "example_1.txt").is_file()
 
 
 def test_default_language_is_not_in_hash_input(spec):
-    # Как и с `interaction_sketch`: появление поля не меняет хеш задач на
-    # языке по умолчанию.
+    # As with `interaction_sketch`: the field's appearance doesn't change the hash of problems in
+    # the default language.
     from orchestrator.steps.statement_draft import hash_inputs
 
     section, _ = hash_inputs("valid-spec", spec)

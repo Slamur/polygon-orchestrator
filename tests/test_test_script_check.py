@@ -55,13 +55,13 @@ def _jar_or_skip() -> Path:
     if shutil.which("java") is None:
         pytest.skip("java not found")
     try:
-        # без скачивания: тесты не ходят в сеть
+        # without downloading: tests don't go to the network
         return check.freemarker_jar(download=False)
     except ScriptCheckUnavailable as exc:
         pytest.skip(str(exc))
 
 
-# --- разметка ---------------------------------------------------------------
+# --- the markup -------------------------------------------------------------
 
 
 def test_marks_only_lines_printing_text():
@@ -74,7 +74,7 @@ def test_marker_keeps_line_count_and_line_contents():
     instrumented = instrument_script(source).source.split("\n")
     original = source.split("\n")
     assert all(new.startswith(old) for old, new in zip(original, instrumented, strict=False))
-    assert len(instrumented) == len(original) + 1  # функция значения — в конце
+    assert len(instrumented) == len(original) + 1  # the value function — at the end
 
 
 def test_records_enclosing_loops_and_variables():
@@ -97,13 +97,13 @@ def test_records_enclosing_loops_and_variables():
 
 def test_no_marker_inside_multiline_directive_comment_or_function():
     source = (
-        "<#assign xs = [1,\n"  # 1: директива не закрыта
-        '   "a > b", 2]/>\n'  # 2: `>` внутри строки директиву не закрывает
+        "<#assign xs = [1,\n"  # 1: the directive isn't closed
+        '   "a > b", 2]/>\n'  # 2: `>` inside a string doesn't close the directive
         "<#-- comment\n"  # 3
-        "  gen > $\n"  # 4: внутри комментария
+        "  gen > $\n"  # 4: inside a comment
         "-->\n"  # 5
         "<#function f x>\n"  # 6
-        "  text ${x}\n"  # 7: функции ничего не печатают
+        "  text ${x}\n"  # 7: functions print nothing
         "  <#return x/>\n"
         "</#function>\n"
         "gen ${f(1)} > $\n"  # 10
@@ -116,7 +116,7 @@ def test_loop_variables_are_not_visible_inside_macro():
     assert instrument_script(source).sources[3].variables == ()
 
 
-# --- разбор результата ------------------------------------------------------
+# --- parsing the result -----------------------------------------------------
 
 
 def test_parse_rendered_strips_markers_and_normalizes_whitespace():
@@ -180,7 +180,7 @@ def test_invalid_lines_report_groups_by_source_line():
     assert '2 line(s), e.g. #1 "gen -p="1 2" > $"' in report
 
 
-# --- раскрытие настоящим FreeMarker ----------------------------------------
+# --- expanding with real FreeMarker ----------------------------------------
 
 
 @pytest.mark.slow
@@ -237,7 +237,7 @@ def test_freemarker_jar_from_env(monkeypatch, tmp_path):
         check.freemarker_jar()
 
 
-# --- проверка перед загрузкой в Polygon -------------------------------------
+# --- the check before uploading to Polygon -------------------------------------
 
 
 @pytest.fixture

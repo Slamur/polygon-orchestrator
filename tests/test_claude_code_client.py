@@ -17,9 +17,9 @@ _PAYLOAD = {
 
 
 class _FakeRun:
-    """Подменяет `subprocess.run`: запоминает вызов (и содержимое файла
-    system-промпта, пока временный каталог ещё существует) и возвращает
-    заданный результат — реальный `claude` не запускается."""
+    """Replaces `subprocess.run`: remembers the call (and the contents of the
+    system prompt file, while the temporary directory still exists) and returns
+    the given result — the real `claude` isn't run."""
 
     def __init__(self, *, stdout="", stderr="", returncode=0, raises=None):
         self.stdout = stdout

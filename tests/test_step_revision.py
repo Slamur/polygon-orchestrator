@@ -1,6 +1,6 @@
-"""Режим доработки генеративного шага (`orchestrator/steps/base.py`,
-`StepRevision`): модель получает текущие файлы шага и изменения входа, а
-ответ раскладывается на изменённые / `unchanged` / `removed` / `renamed`."""
+"""The revision mode of a generative step (`orchestrator/steps/base.py`,
+`StepRevision`): the model gets the step's current files and the input changes, and the
+response is split into changed / `unchanged` / `removed` / `renamed`."""
 
 import shutil
 from pathlib import Path
@@ -88,7 +88,7 @@ def _response(**kwargs) -> ModelResponse:
     return ModelResponse(status="confirmed", **kwargs)
 
 
-# --- промпт -----------------------------------------------------------------
+# --- the prompt -------------------------------------------------------------
 
 
 def test_revision_prompt_contains_current_files_and_input_changes(problem_dir, prompts_dir):
@@ -136,7 +136,7 @@ def test_fresh_run_does_not_render_revision_prompt(problem_dir, prompts_dir):
     assert mock_call.call_args.args[2] == "context: p1"
 
 
-# --- применение ответа --------------------------------------------------------
+# --- applying the response ----------------------------------------------------
 
 
 def test_revision_applies_modified_unchanged_removed_renamed_and_new(problem_dir, prompts_dir):
@@ -187,7 +187,7 @@ def test_revision_applies_modified_unchanged_removed_renamed_and_new(problem_dir
         ("ok_py_alt.py", "ok_py_other.py"),
     ]
 
-    # Прежние версии изменённых и переименованных файлов — в бэкапе.
+    # Previous versions of changed and renamed files — in the backup.
     assert result.backup_dir is not None
     assert result.backup_dir.parent == problem_dir / LLM_BACKUP_DIRNAME
     backup = result.backup_dir / "solutions"
@@ -281,7 +281,7 @@ def test_validate_artifacts_gets_final_set_of_files(problem_dir, prompts_dir):
     assert seen == {"a.py": "a", "e.py": "c", "d.py": "d"}
 
 
-# --- конфликты в ответе --------------------------------------------------------
+# --- conflicts in the response ------------------------------------------------
 
 
 def _solution_files(problem_dir: Path) -> dict[str, str]:
@@ -292,7 +292,7 @@ def _solution_files(problem_dir: Path) -> dict[str, str]:
 
 
 def _conflict_files(result) -> dict[str, str]:
-    """Отложенные версии модели (без отчёта) — путь в каталоге конфликтов -> содержимое."""
+    """The model's versions set aside (without the report) — the path in the conflicts directory -> contents."""
     assert result.conflicts_dir is not None
     return {
         path.relative_to(result.conflicts_dir).as_posix(): path.read_text(encoding="utf-8")
@@ -364,7 +364,7 @@ def test_file_in_several_places_is_a_conflict_and_the_rest_is_applied(problem_di
     entry = load_cache_entry("p1", "solutions_draft", problems_dir=problem_dir.parent)
     assert entry.conflicts == result.conflicts_dir.relative_to(problem_dir).as_posix()
     assert entry.conflicts.startswith(LLM_CONFLICTS_DIRNAME + "/solutions_draft-")
-    # Ответ применён частично — сохранённый ответ больше не нужен.
+    # The response was applied partially — the saved response is no longer needed.
     assert load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is None
 
 
@@ -385,7 +385,7 @@ def test_rename_to_taken_name_is_a_conflict(problem_dir, prompts_dir):
     assert _solution_files(problem_dir) == {"a.py": "a", "b.py": "b"}
     reasons = dict(result.conflicts)
     assert "the new name is already taken — 'b.py' is not renamed" in reasons["a.py"]
-    # Новая версия под занятым именем отложена, а не записана поверх a.py.
+    # The new version under an occupied name is set aside, not written over a.py.
     assert _conflict_files(result) == {"solutions/a.py": "new b"}
 
 
@@ -442,13 +442,13 @@ def test_step_applied_only_as_a_whole_applies_nothing_on_conflict(problem_dir, p
         "Nothing of the response is applied: the files of this step are applied only all together"
         in report
     )
-    # Не применено ничего — ответ остаётся для `llm apply`.
+    # Nothing was applied — the response stays for `llm apply`.
     assert (
         load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is not None
     )
 
 
-# --- кэш ---------------------------------------------------------------------
+# --- the cache ---------------------------------------------------------------
 
 
 def test_input_values_are_saved_in_cache(problem_dir, prompts_dir):
@@ -476,7 +476,7 @@ def test_changed_input_values():
     assert changed_input_values(None, new) is None
 
 
-# --- пайплайн ----------------------------------------------------------------
+# --- the pipeline ------------------------------------------------------------
 
 
 _PIPELINE_RESPONSES = {
@@ -564,8 +564,8 @@ def test_pipeline_revises_stale_step_with_spec_diff(spec_file, tmp_path):
     result, mock_call = _run_pipeline(problems_dir, responses)
 
     assert result.ok
-    # Легенда — вход statement_draft, tests_plan и solutions_draft; план не
-    # изменился, поэтому generators_draft и test_script_draft — из кэша.
+    # The legend is the input of statement_draft, tests_plan and solutions_draft; the plan didn't
+    # change, so generators_draft and test_script_draft come from the cache.
     assert [c.args[0] for c in mock_call.call_args_list] == [
         "statement_draft",
         "tests_plan",
@@ -625,7 +625,7 @@ def test_solutions_dir_with_only_removed_marks_is_missing_artifact(spec_file, tm
     assert {s.step_name: s.state for s in statuses}["solutions_draft"] == pipeline.STATUS_STALE
 
 
-# --- текущие файлы шагов ------------------------------------------------------
+# --- the steps' current files -------------------------------------------------
 
 
 def _spec():
@@ -651,7 +651,7 @@ def test_statement_current_artifacts_skip_name_and_example_inputs(tmp_path):
 
     current = statement_draft.current_artifacts("p1", _spec(), problems_dir=tmp_path)
 
-    # Input примеров пишет оркестратор из спека — модели они не показываются.
+    # The examples' input is written by the orchestrator from the spec — the model isn't shown them.
     assert list(current) == ["legend.tex", "notes.tex"]
 
 

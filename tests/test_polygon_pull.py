@@ -45,7 +45,7 @@ from orchestrator.steps.base import template_problem_lib_path
 
 
 class FakePolygon:
-    """Задача на Polygon в памяти: отвечает на те методы, которые вызывает `pull`."""
+    """A problem on Polygon in memory: answers the methods `pull` calls."""
 
     def __init__(self) -> None:
         self.problems = [
@@ -81,8 +81,8 @@ class FakePolygon:
             {"index": 3, "manual": False, "useInStatements": False},
         ]
         self.test_inputs = {2: b"3 4\n"}
-        # Время изменения файлов и решений в листингах (по умолчанию 100);
-        # `None` — Polygon его не отдаёт.
+        # The modification time of files and solutions in the listings (100 by default);
+        # `None` — Polygon doesn't return it.
         self.mtimes: dict[str, int | None] = {}
         self.failing: set[str] = set()
         self.calls: list[tuple[str, dict]] = []
@@ -92,7 +92,7 @@ class FakePolygon:
         if method_name in self.failing:
             raise PolygonApiError(method_name, "boom")
         if method_name == "problems.list":
-            # Как и реальный фильтр `name` (не проверен) — возможно, неточный.
+            # Like the real `name` filter (not verified) — possibly inexact.
             return [
                 p
                 for p in self.problems
@@ -148,7 +148,7 @@ class FakePolygon:
         return [name for name, _ in self.calls]
 
     def downloads(self) -> list[str]:
-        """Скачанные файлы с отметками: source/resource/aux-файлы и решения."""
+        """The downloaded files with stamps: source/resource/aux files and solutions."""
         return [
             params["name"]
             for name, params in self.calls
@@ -190,11 +190,11 @@ def test_pull_into_missing_directory_downloads_everything(problems_dir, polygon)
     assert (problem_dir / "statement" / "ru" / "legend.tex").read_text() == "L"
     assert (problem_dir / "statement" / "ru" / "input_format.tex").read_text() == "I"
     assert (problem_dir / "statement" / "ru" / "output_format.tex").read_text() == "O"
-    # Пустой раздел выгружается пустым файлом — upload_statement требует все 4.
+    # An empty section is downloaded as an empty file — upload_statement requires all 4.
     assert (problem_dir / "statement" / "ru" / "notes.tex").read_text() == ""
     assert (problem_dir / "statement" / "ru" / "name.txt").read_text() == "Polygon Name\n"
     assert (problem_dir / "statement" / "examples" / "example_1.txt").read_text() == "1 2\n"
-    # Сгенерированный тест: input берётся через problem.testInput.
+    # A generated test: the input is taken via problem.testInput.
     assert (problem_dir / "statement" / "examples" / "example_2.txt").read_bytes() == b"3 4\n"
     assert not (problem_dir / "statement" / "examples" / "example_3.txt").exists()
     assert (problem_dir / "validator.cpp").read_bytes() == b"// validator\n"
@@ -236,7 +236,7 @@ def test_pull_records_revision_and_baseline(problems_dir, polygon):
 
 def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
-    # upload_test_script отклоняет groups — нужен flat
+    # upload_test_script rejects groups — flat is needed
     spec_path = tmp_path / "valid-spec.yaml"
     spec_path.write_text(
         (FIXTURES_DIR / "valid-spec.yaml")
@@ -261,7 +261,7 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, proble
         upload_attachments.STEP,
     ):
         assert uploaded(step) == {}, step.name
-    # на Polygon валидатор назначен под другим именем — push загрузит validator.cpp
+    # on Polygon the validator is assigned under another name — push uploads validator.cpp
     assert set(uploaded(upload_validator.STEP)) == {"validator", "validator.cpp"}
 
 
@@ -282,7 +282,7 @@ def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(problems_dir, pol
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
     assert _statuses(result)["statement/ru/name.txt"] == ITEM_OVERWRITTEN
 
-    # title.ru спека ("Кратчайшие пути") больше не источник названия
+    # the spec's title.ru is no longer the source of the name
     spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
     uploaded = run_step(
         upload_statement.STEP,
@@ -298,7 +298,7 @@ def test_name_renamed_on_polygon_is_not_pushed_back_after_pull(problems_dir, pol
 def test_script_without_blank_lines_on_polygon_is_same_and_not_pushed_again(
     tmp_path, problems_dir, polygon
 ):
-    # Polygon выкидывает пустые строки из сохранённого скрипта.
+    # Polygon drops empty lines from a saved script.
     problem_dir = problems_dir / PROBLEM_ID
     local = "gen_rand 1 > $\n\n\ngen_rand 2 > $\n"
     _write(problem_dir, "test_script", local)
@@ -362,7 +362,7 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     statuses = _statuses(result)
-    # Базы нет — кто менял, неизвестно.
+    # There's no base — who changed it is unknown.
     assert statuses["statement/ru/legend.tex"] == ITEM_DIFFERS
     assert statuses["statement/ru/input_format.tex"] == ITEM_DOWNLOADED
     assert statuses["statement/examples/example_1.txt"] == ITEM_SAME
@@ -373,11 +373,11 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
     assert (problem_dir / "validator.cpp").read_text() == "local validator"
     assert not (problem_dir / "test_script").exists()
     synced = _synced(problems_dir)
-    # В базе — версия с Polygon: push сравнит с ней локальную и загрузит.
+    # The base has the version from Polygon: push compares the local one with it and uploads.
     assert synced["statement/ru/legend.tex"] == pull_module.digest("L")
     assert synced["validator.cpp"] == pull_module.digest(b"// validator\n")
     assert synced["test_script"] == pull_module.digest(normalize_script(polygon.script))
-    # Назначение валидатора не подтверждено — push назначит заново.
+    # The validator assignment isn't confirmed — push assigns it again.
     assert "validator" not in synced
     for key in ("statement/ru/input_format.tex", "statement/examples/example_1.txt"):
         assert key in synced, key
@@ -604,7 +604,7 @@ def test_attachments_are_downloaded(problems_dir, polygon):
     assert (problem_dir / "authoring" / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
     assert (problem_dir / "authoring" / "draft.md").read_text() == "idea\n"
     assert (problem_dir / "authoring" / "tests_plan.yaml").read_text() == "generators: []\n"
-    # Чужие aux-файлы pull не трогает.
+    # Pull doesn't touch other aux files.
     assert not (problem_dir / "other.txt").exists()
     statuses = [(item.name, item.status) for item in result.items]
     assert ("authoring/constraints.yaml", ITEM_DOWNLOADED) in statuses
@@ -617,7 +617,7 @@ def test_attachments_are_downloaded(problems_dir, polygon):
 
 
 def test_attached_constraints_replace_legacy_pulled_limits_only_file(problems_dir, polygon):
-    # Такой файл писали прежние версии pull.
+    # Previous versions of pull wrote such a file.
     stub = PULLED_CONSTRAINTS_HEADER + "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n"
     path = _write(problems_dir / PROBLEM_ID, "authoring/constraints.yaml", stub)
     polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_PICK.encode()
@@ -638,8 +638,8 @@ def test_legacy_pulled_limits_only_file_is_not_reported_for_push(problems_dir, p
 
 
 def test_limits_changed_on_polygon_do_not_change_attached_constraints(problems_dir, polygon):
-    # constraints.yaml в Attachments — с TL/ML, которые выбрал constraints_pick,
-    # а TL поменяли на Polygon: он сверяется только с Attachments.
+    # constraints.yaml in Attachments has the TL/ML chosen by constraints_pick,
+    # while the TL was changed on Polygon: it's compared only with Attachments.
     polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_PICK.encode()
     polygon.info = {"timeLimit": 3000, "memoryLimit": 256}
 
@@ -720,7 +720,7 @@ def test_existing_link_is_reused_without_search_and_baseline_is_replaced(problem
     state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert state.created_at == "2026-09-19T12:00:00+00:00"
     assert state.revision == 5
-    # чужие ключи pull не трогает — он переписывает только то, что сравнил
+    # pull doesn't touch other keys — it rewrites only what it compared
     assert state.synced["stale/key"] == "abc"
 
 
@@ -928,10 +928,10 @@ def test_cli_pull_needs_no_spec_and_logs_to_polygon_log(
 
     out = capsys.readouterr().out
     assert exit_code == 0
-    assert "  validator.cpp..." in out  # прогресс по частям
+    assert "  validator.cpp..." in out  # progress by parts
     pulled = out.split("=== pulled ===\n")[1].split("\n\n")[0].splitlines()
     assert "validator.cpp" in pulled and "statement/ru/legend.tex" in pulled
-    # Совпадающее с Polygon и отсутствующее с обеих сторон не печатается.
+    # What matches Polygon and what's absent on both sides isn't printed.
     assert "up to date" not in out and "absent" not in out
     assert (
         f"found Polygon problem named {PROBLEM_ID!r} (id={POLYGON_ID}), linked, revision 5" in out
@@ -952,7 +952,7 @@ def test_cli_pull_unresolved_problem_exits_with_error(problems_dir, polygon, cap
     assert exit_code == 1
     err = capsys.readouterr().err
     assert "no Polygon problem named" in err
-    # собственная ошибка печатается целиком, без ссылки на лог
+    # an own error is printed in full, without a reference to the log
     assert err.strip().endswith("is available to this API key")
 
 
@@ -979,9 +979,9 @@ def test_cli_pull_overwrite_reports_backup_dir(problems_dir, polygon, capsys, mo
 
 def test_cli_pull_groups_files_to_push_and_conflicts(problems_dir, polygon, capsys, monkeypatch):
     problem_dir = problems_dir / PROBLEM_ID
-    _write(problem_dir, "statement/ru/legend.tex", "local legend")  # базы нет — differs
+    _write(problem_dir, "statement/ru/legend.tex", "local legend")  # no base — differs
     _write(problem_dir, "generators/gen_local.cpp", "// local\n")  # local only
-    _write(problem_dir, "checker.cpp", "// local checker\n")  # local only, при custom_needed
+    _write(problem_dir, "checker.cpp", "// local checker\n")  # local only, with custom_needed
     _write(problem_dir, "limits.yaml", "time_limit_seconds: 1\nmemory_limit_mb: 256\n")
     monkeypatch.setattr(pull_module, "PolygonClient", lambda: polygon)
 
@@ -1004,7 +1004,7 @@ def test_cli_pull_groups_files_to_push_and_conflicts(problems_dir, polygon, caps
     assert "--overwrite" in conflicts[2]
 
 
-# --- Инкрементальный pull: отметки версий файлов на Polygon ---
+# --- Incremental pull: file version stamps on Polygon ---
 
 _STAMPED_KEYS = {
     "problem_lib.h",
@@ -1020,14 +1020,14 @@ def _state(problems_dir: Path) -> PolygonState:
 
 
 def _assert_stamps_paired(problems_dir: Path) -> None:
-    """Инвариант базы: отметки бывают только у ключей с хешем."""
+    """The base invariant: only keys with a hash have stamps."""
     state = _state(problems_dir)
     assert set(state.stamps) <= set(state.synced)
 
 
 def _bump_revision(polygon: FakePolygon) -> None:
-    """Кто-то закоммитил на Polygon: короткий путь по ревизии не работает,
-    решают отметки."""
+    """Someone committed on Polygon: the shortcut by revision doesn't work,
+    the stamps decide."""
     polygon.problems[0]["revision"] += 1
 
 
@@ -1087,7 +1087,7 @@ def test_locally_changed_file_unchanged_on_polygon_is_kept_without_download(prob
     assert polygon.downloads() == []
     assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_KEPT
     state = _state(problems_dir)
-    # В базе по-прежнему версия с Polygon — push загрузит локальную.
+    # The base still has the version from Polygon — push uploads the local one.
     assert state.synced["generators/gen_rand.cpp"] == pull_module.digest(b"// gen\n")
     assert "generators/gen_rand.cpp" in state.stamps
 
@@ -1120,13 +1120,13 @@ def test_file_changed_on_both_sides_is_a_conflict_replaced_only_with_overwrite(
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_CONFLICT
     assert gen.read_text() == "// local edit\n"
-    # В базе — версия с Polygon: push загрузит локальную поверх неё.
+    # The base has the version from Polygon: push uploads the local one over it.
     assert _synced(problems_dir)["generators/gen_rand.cpp"] == pull_module.digest(
         b"// polygon edit\n"
     )
 
-    # База теперь — версия с Polygon, так что для следующего pull правка
-    # только локальная; конфликт решает --overwrite до этого pull.
+    # The base is now the version from Polygon, so for the next pull the edit is
+    # only local; the conflict is resolved by --overwrite before this pull.
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
     assert _statuses(result)["generators/gen_rand.cpp"] == ITEM_KEPT
 
@@ -1147,8 +1147,8 @@ def test_overwrite_replaces_file_changed_on_both_sides(problems_dir, polygon):
 
 
 def test_polygon_and_local_changes_to_different_files_are_both_kept(problems_dir, polygon):
-    # Условие поправили на Polygon, test-script — локально: pull берёт
-    # условие с Polygon, а push после него загружает только test-script.
+    # The statement was fixed on Polygon, the test-script — locally: pull takes
+    # the statement from Polygon, and push after it uploads only the test-script.
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     _bump_revision(polygon)
     polygon.statements["russian"]["legend"] = "L, edited on Polygon"
@@ -1180,8 +1180,8 @@ def test_missing_local_file_is_downloaded_even_if_unchanged_on_polygon(problems_
 
 
 def test_unchanged_revision_skips_downloads_for_state_without_stamps(problems_dir, polygon):
-    # Задача синхронизирована до появления отметок: ревизия та же — на
-    # Polygon ничего не коммитили, хеши базы верны и без отметок.
+    # The problem was synced before stamps appeared: the revision is the same — nothing
+    # was committed on Polygon, the base's hashes are correct even without stamps.
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     state = _state(problems_dir)
     save_polygon_state(PROBLEM_ID, replace(state, stamps={}), problems_dir=problems_dir)
@@ -1221,7 +1221,7 @@ def test_files_without_modification_time_are_always_downloaded(problems_dir, pol
 
 
 class _FailingDownload(FakePolygon):
-    """Polygon, у которого падает скачивание отдельных файлов по имени."""
+    """A Polygon on which downloading individual files by name fails."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -1251,7 +1251,7 @@ def test_failed_download_drops_hash_and_stamp_and_is_retried(problems_dir):
     polygon.calls.clear()
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    # Ревизия базы неизвестна, решают отметки: скачивается только упавшее.
+    # The base's revision is unknown, the stamps decide: only what failed is downloaded.
     assert result.ok
     assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
     assert _state(problems_dir).revision == 5
@@ -1267,14 +1267,14 @@ def test_failed_listing_keeps_previous_pairs_valid(problems_dir, polygon):
 
     assert not result.ok
     after = _state(problems_dir)
-    # Часть "solutions" не сверялась — её пара хеш+отметка от прошлого pull.
+    # The "solutions" part wasn't compared — its hash+stamp pair is from the previous pull.
     key = "solutions/ok_cpp_main_author.cpp"
     assert after.synced[key] == before.synced[key]
     assert after.stamps[key] == before.stamps[key]
     assert after.revision == 5
     _assert_stamps_paired(problems_dir)
 
-    # Решение поменяли на Polygon, пока листинг падал, — отметка не совпадёт.
+    # A solution was changed on Polygon while the listing was failing — the stamp won't match.
     polygon.failing = set()
     polygon.solutions["ok_cpp_main_author.cpp"] = ("MA", b"// changed\n")
     polygon.mtimes["ok_cpp_main_author.cpp"] = 300
@@ -1302,12 +1302,12 @@ def test_pull_interactive_problem(problems_dir, polygon):
     examples_dir = problem_dir / "statement" / "examples"
     assert result.ok
     assert (problem_dir / "interactor.cpp").read_bytes() == b"// interactor\n"
-    # Интерактор — не генератор, даже с нестандартным именем.
+    # The interactor isn't a generator, even with a non-standard name.
     assert [p.name for p in (problem_dir / "generators").iterdir()] == ["gen_rand.cpp"]
     assert (problem_dir / "statement" / "ru" / "interaction.tex").read_text() == "Protocol"
     assert (examples_dir / "example_1.input_for_statement.txt").read_text() == "10\n\n<\n"
     assert (examples_dir / "example_1.output_for_statement.txt").read_text() == "\n? 5\n\n"
-    # У второго примера диалога нет — и файлов нет, и в отчёте он не упомянут.
+    # The second example has no dialogue — there are no files, and the report doesn't mention it.
     assert not (examples_dir / "example_2.input_for_statement.txt").exists()
     statuses = _statuses(result)
     assert "statement/examples/example_2.input_for_statement.txt" not in statuses
@@ -1324,14 +1324,14 @@ def test_pull_plain_problem_statement_output_and_verify_flag(problems_dir, polyg
     examples_dir = problems_dir / PROBLEM_ID / "statement" / "examples"
     assert result.ok
     assert (examples_dir / "example_1.output_for_statement.txt").read_text() == "42\n"
-    # Задано только одно поле — второго файла нет.
+    # Only one field is set — there's no second file.
     assert not (examples_dir / "example_1.input_for_statement.txt").exists()
     assert (examples_dir / "example_1.verify_for_statement.txt").read_text() == "true\n"
     assert not (examples_dir / "example_2.verify_for_statement.txt").exists()
     statuses = _statuses(result)
     assert "statement/examples/example_2.verify_for_statement.txt" not in statuses
 
-    # Флаг выключили на Polygon — локальный файл остаётся и виден как local only.
+    # The flag was turned off on Polygon — the local file stays and shows as local only.
     polygon.tests[0]["verifyInputOutputForStatements"] = False
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
@@ -1352,7 +1352,7 @@ def test_pull_downloads_tutorial_and_push_sees_no_changes(problems_dir, polygon)
     assert _statuses(result)["statement/ru/tutorial.tex"] == ITEM_DOWNLOADED
     assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
-    # Правка на Polygon при неизменном локальном файле — fast-forward с бэкапом.
+    # An edit on Polygon with an unchanged local file — a fast-forward with a backup.
     polygon.statements["russian"]["tutorial"] = "New tutorial\n"
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
@@ -1360,7 +1360,7 @@ def test_pull_downloads_tutorial_and_push_sees_no_changes(problems_dir, polygon)
     assert path.read_text() == "New tutorial\n"
     assert (result.backup_dir / "statement" / "ru" / "tutorial.tex").read_text() == "Tutorial\n"
 
-    # Правка обеих сторон — конфликт, локальная версия остаётся.
+    # An edit on both sides — a conflict, the local version stays.
     path.write_text("Local tutorial\n")
     polygon.statements["russian"]["tutorial"] = "Newer tutorial\n"
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
@@ -1404,10 +1404,10 @@ def test_pull_plain_problem_reports_local_interactor(problems_dir, polygon):
 
 
 def test_push_after_pull_of_interactive_problem_uploads_nothing(problems_dir, polygon):
-    # Хеши pull и push для одинакового содержимого совпадают — push после
-    # pull ничего не загружает (спек — интерактивный, как задача на Polygon).
-    # Интерактор с другим именем push перезагрузил бы под `interactor.cpp`,
-    # как и чекер, — здесь он уже под этим именем.
+    # The pull and push hashes for identical contents match — push after
+    # pull uploads nothing (the spec is interactive, like the problem on Polygon).
+    # Push would re-upload an interactor with another name under `interactor.cpp`,
+    # like the checker — here it's already under this name.
     _make_interactive(polygon)
     polygon.interactor = "interactor.cpp"
     polygon.source_files["interactor.cpp"] = polygon.source_files.pop("inter.cpp")
@@ -1443,7 +1443,7 @@ def test_cli_pull_prints_warnings_as_a_group_after_progress(
     assert out.index("  solutions...") < out.index("=== warnings ===")
 
 
-# --- языки условия ----------------------------------------------------------
+# --- statement languages -----------------------------------------------------
 
 
 def test_pull_puts_every_language_into_its_directory(problems_dir, polygon):
@@ -1471,7 +1471,7 @@ def test_pull_puts_every_language_into_its_directory(problems_dir, polygon):
     assert (statement_dir / "en" / "notes.tex").read_text() == ""
     assert (statement_dir / "en" / "tutorial.tex").read_text() == "ET\n"
     assert (statement_dir / "en" / "name.txt").read_text() == "English Name\n"
-    # Язык без кода — каталог с именем Polygon.
+    # A language without a code — a directory with the Polygon name.
     assert (statement_dir / "latvian" / "legend.tex").read_text() == "LL"
     assert (statement_dir / "ru" / "legend.tex").read_text() == "L"
     assert sorted(path.name for path in statement_dir.iterdir()) == [
@@ -1493,6 +1493,6 @@ def test_local_language_missing_on_polygon_is_local_only(problems_dir, polygon):
 
     statuses = _statuses(result)
     assert statuses["statement/en/legend.tex"] == ITEM_LOCAL_ONLY
-    # Файлов, которых нет ни там, ни там, отчёт не упоминает.
+    # The report doesn't mention files that exist neither here nor there.
     assert "statement/en/notes.tex" not in statuses
     assert (problems_dir / PROBLEM_ID / "statement/en/legend.tex").read_text() == "local"

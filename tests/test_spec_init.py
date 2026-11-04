@@ -27,7 +27,7 @@ def _model_keys(model: type[BaseModel]) -> set[str]:
 
 
 def _nested_model(model: type[BaseModel], field_name: str) -> type[BaseModel] | None:
-    """Модель секции/элемента списка для поля, если оно составное."""
+    """The model of a section/list item for a field, if it's composite."""
     annotation = model.model_fields[field_name].annotation
     candidates = [annotation, *getattr(annotation, "__args__", ())]
     for candidate in list(candidates):
@@ -54,8 +54,8 @@ def _assert_keys_match(data: dict, model: type[BaseModel], path: str) -> None:
 
 
 def test_template_lists_every_spec_field():
-    """Шаблон черновика перечисляет все поля спека — правка формата
-    (`ProblemSpec`) без правки шаблона ловится здесь."""
+    """The draft template lists all spec fields — an edit of the format
+    (`ProblemSpec`) without editing the template is caught here."""
     data = yaml.safe_load((TEMPLATES_DIR / SPEC_TEMPLATE).read_text(encoding="utf-8"))
     _assert_keys_match(data, ProblemSpec, "<root>")
 
@@ -70,8 +70,8 @@ def test_create_spec_draft_fills_problem_id_and_keeps_comments(tmp_path):
 
 
 def test_draft_fails_validation_on_empty_required_fields(tmp_path):
-    """Черновик — не готовый спек: пустые обязательные поля не проходят
-    валидацию, а не молча уходят в шаги."""
+    """A draft isn't a finished spec: empty mandatory fields fail
+    validation rather than silently going to the steps."""
     spec_path = create_spec_draft("my-task", problems_dir=tmp_path, templates_dir=TEMPLATES_DIR)
 
     with pytest.raises(SpecValidationError) as exc_info:

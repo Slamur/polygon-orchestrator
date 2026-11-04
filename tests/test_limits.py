@@ -7,7 +7,7 @@ from orchestrator.limits import LimitsError, parse_limits, render_limits
     "text, expected",
     [
         ("time_limit_seconds: 2\nmemory_limit_mb: 256\n", (2000, 256)),
-        # 2.01 * 1000 == 2009.9999999999998 — int() дал бы 2009
+        # 2.01 * 1000 == 2009.9999999999998 — int() would give 2009
         ("limits:\n  time_limit_seconds: 2.01\n  memory_limit_mb: 64\n", (2010, 64)),
         (
             "time_limit_seconds: 2\nmemory_limit_mb: 256\n"

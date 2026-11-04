@@ -26,9 +26,9 @@ def spec():
 
 @pytest.fixture
 def spec_custom(spec):
-    # Фикстура valid-spec.yaml по умолчанию заказывает стандартный чекер
-    # (checker.custom_needed: false) — для тестов этого шага нужен спек,
-    # где custom_needed: true.
+    # The valid-spec.yaml fixture orders a standard checker by default
+    # (checker.custom_needed: false) — the tests of this step need a spec
+    # with custom_needed: true.
     return spec.model_copy(
         update={
             "checker": spec.checker.model_copy(

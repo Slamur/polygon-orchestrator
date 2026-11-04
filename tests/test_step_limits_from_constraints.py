@@ -73,7 +73,7 @@ def test_edited_limits_survive_when_constraints_limits_unchanged(problems_dir):
     _write_constraints(problems_dir, 1)
     _run(problems_dir)
     _limits_path(problems_dir).write_text("time_limit_seconds: 3\nmemory_limit_mb: 256\n")
-    # Правка constraints.yaml не в TL/ML — вход шага тот же.
+    # An edit of constraints.yaml outside the TL/ML — the step's input is the same.
     (problems_dir / "p1" / "authoring" / "constraints.yaml").write_text(
         "n_max: 200000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
     )

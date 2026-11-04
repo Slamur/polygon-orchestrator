@@ -114,7 +114,7 @@ def test_incremental_run_skips_unchanged_limits_and_sends_changed(tmp_path, spec
     _run(spec, tmp_path, MagicMock())
     client = MagicMock()
 
-    # те же значения в другом месте файла — отправлять нечего
+    # the same values elsewhere in the file — nothing to send
     _write_limits(tmp_path, "time_limit_seconds: 2\nmemory_limit_mb: 256\ngroups: []\n")
     assert (
         _run(spec, tmp_path, client, incremental=True) == "no changes since the last sync, skipped"
@@ -159,7 +159,7 @@ def test_status_done_after_run(tmp_path, spec):
 
 
 def test_status_done_when_limits_move_between_root_and_limits(tmp_path, spec):
-    # те же значения, другое расположение — отправили бы то же самое
+    # the same values, a different layout — we'd send the same thing
     link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
     _run(spec, tmp_path, MagicMock())
@@ -209,7 +209,7 @@ def test_interactive_spec_sets_interactive_flag(tmp_path, interactive_spec):
 
 
 def test_plain_spec_does_not_record_interactive_flag(tmp_path, spec):
-    # У обычных задач флага в базе нет — как у синхронизированных до его появления.
+    # Normal problems have no flag in the base — like those synced before it appeared.
     link(tmp_path)
     _write_limits(tmp_path, "limits:\n  time_limit_seconds: 2\n  memory_limit_mb: 256\n")
 
@@ -227,7 +227,7 @@ def test_switching_interactive_flag_reuploads_with_same_limits(tmp_path, spec, i
     _run(interactive_spec, tmp_path, client, incremental=True)
     assert client.call.call_args.args[1]["interactive"] == "true"
 
-    # И обратно: флаг теперь в базе, поэтому снятие тоже замечается.
+    # And back: the flag is in the base now, so removing it is noticed too.
     client = MagicMock()
     _run(spec, tmp_path, client, incremental=True)
     assert client.call.call_args.args[1]["interactive"] == "false"

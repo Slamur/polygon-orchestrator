@@ -1,4 +1,4 @@
-"""Адрес задачи, вывод `problem_id` из пути и поиск каталогов задач
+"""The problem address, deriving `problem_id` from the path and finding problem directories
 (`orchestrator/problem_paths.py`)."""
 
 from pathlib import Path
@@ -59,7 +59,7 @@ def test_parse_problem_address_rejects_bad_addresses(address, message):
 def test_problem_id_is_leaf_in_problems_and_joined_path_in_examples():
     assert problem_id_for(PROBLEMS_DIR, "contest/2026/round-1/my-task") == "my-task"
     assert problem_id_for(EXAMPLES_DIR, "array/prefix-sums") == "array--prefix-sums"
-    # задача прямо в корне — одинаково для обоих корней
+    # a problem right in the root — the same for both roots
     assert problem_id_for(PROBLEMS_DIR, "my-task") == "my-task"
     assert problem_id_for(EXAMPLES_DIR, "my-task") == "my-task"
 
@@ -73,9 +73,9 @@ def test_problem_address_includes_root(tmp_path):
 def test_problem_paths_stop_at_problem_dirs_and_skip_hidden(tmp_path):
     root = tmp_path / "problems"
     _touch(root / "a" / "spec.yaml")
-    _touch(root / "a" / "statement" / "spec.yaml")  # внутри задачи — не задача
+    _touch(root / "a" / "statement" / "spec.yaml")  # inside a problem — not a problem
     _touch(root / "g" / "b" / "polygon_state.json")
-    _touch(root / "g" / "c" / "notes.txt")  # без спека и состояния — не задача
+    _touch(root / "g" / "c" / "notes.txt")  # without a spec and a state — not a problem
     _touch(root / ".hidden" / "spec.yaml")
 
     assert problem_paths(root) == ["a", "g/b"]
