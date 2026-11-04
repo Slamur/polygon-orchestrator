@@ -1807,7 +1807,7 @@ a note in `notes`.
 
 ---
 
-## Spec critic — `spec_critic` (`init --draft`)
+## Spec critic — `spec_critic` (`init --draft`, `llm critic`)
 
 Not a pipeline step: after `spec_from_draft` writes or changes the spec,
 `init --draft` runs the critic (`orchestrator/spec_critic.py`,
@@ -1820,6 +1820,8 @@ specs from `examples/` and the rules of the steps that read the spec
 `critique.yaml` — findings that only remove, simplify or merge values; what to do
 with each is decided by the orchestrator by the marks, not by the critic.
 `previous_findings` — only in the second round (`--critic-rounds 2`).
+`llm critic` uses the same prompt over the spec as it is, in one round: its
+findings only go to the report.
 
 ### system.md
 

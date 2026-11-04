@@ -271,7 +271,8 @@ Then a second model — the critic — reads the spec without the draft and asks
 itself are applied right away (a suggested item is removed, the rest goes back to
 the model for one revision); its findings on what you wrote are only listed in the
 report, under "Your values — for your review". `--no-critic` skips it,
-`--critic-rounds 2` allows a second round.
+`--critic-rounds 2` allows a second round. For a spec you wrote by hand (or
+edited a lot since), `llm critic` runs the same critic as a report only.
 
 Without `--draft` an empty spec is created from the template (or a copy of the `--ref` spec),
 which is filled in by hand following [docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md).
@@ -366,6 +367,7 @@ plan) → `generators_draft` (generators from the plan) → `test_script_draft`
 | `llm generate --force` | Ignore the cache, revise the current files again | **yes** |
 | `llm generate --fresh` | From scratch, without showing the model the current files | **yes** |
 | `llm tutorial [--ref SOLUTION ...]` | `statement/<language>/tutorial.tex` from `authoring/draft-tutorial.md`: the model expands your thoughts and adds only what you explicitly ask for ("prove", "spell out"). `--ref` (can be repeated) — files from `solutions/` as context; the list is remembered, new `--ref`s replace it, `--no-ref` clears it. Has `--force` and `--fresh` | **yes** |
+| `llm critic` | The critic reviews the spec as it is: what to remove, simplify or merge — into `llm_reports/spec_critic.md`; the spec isn't changed, every finding is for you (values still marked `PROPOSED` / `SUGGESTION` are listed separately). No cache: every run calls the model | **yes** |
 | `llm apply [--step NAME]` | Apply a saved but unapplied model response (e.g. after a conflict or an error) | no |
 | `llm accept [--step NAME]` | Mark the current files of `stale` steps up to date (if the edit shouldn't change the result, or you've already fixed the files by hand); what exactly changed for each step — in `llm_reports/accept.md` | no |
 
