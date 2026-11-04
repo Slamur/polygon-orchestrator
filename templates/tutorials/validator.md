@@ -39,3 +39,10 @@
 - Для всех операций ввода данных необходимо указывать “имя переменной”.
 
 - setTestCase: указание номера теста для мультитестов.
+
+## Source file characters
+
+- The validator source contain only ASCII characters: comments, string literals and
+  messages (`ensuref`, `quitf` and the like) are written in English. Some
+  compilers, Polygon's among them, fail on non-ASCII characters in a source
+  file; the orchestrator reports every line with them as an error.

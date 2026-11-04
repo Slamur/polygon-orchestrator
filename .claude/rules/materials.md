@@ -24,7 +24,8 @@ paths:
 - `templates/problem_lib.h` and the files of the sample problems
   `examples/<problem path>/` (`validator.cpp`, `checker.cpp`,
   `generators/*.cpp`, `test_script`, `solutions/*`)
-  are the base to extend, not to reinvent. If a
+  are the base to extend, not to reinvent; their sources are ASCII-only, like
+  the generated ones (checked by `tests/test_source_charset.py`). If a
   generation step creates a new generator — it must `#include "problem_lib.h"` and
   follow the same naming conventions (`register...`, `opt<T>(...)`,
   the `gen_test` style from `generators/*.cpp`). Each problem has its own copy of

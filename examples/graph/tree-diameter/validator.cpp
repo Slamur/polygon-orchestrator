@@ -16,13 +16,13 @@ int main(int argc, char* argv[]) {
     inf.readEoln();
     inf.readEof();
 
-    // 1-индексация: p[i] — предок вершины i
+    // 1-indexing: p[i] is the parent of vertex i
     std::vector<int> p(n + 1, 0);
     for (int i = 1; i <= n; ++i) {
         p[i] = p1[i - 1];
     }
 
-    // ровно одно p_i равно 0 — ровно один корень
+    // exactly one p_i equals 0 - exactly one root
     int rootCount = 0;
     for (int i = 1; i <= n; ++i) {
         if (p[i] == 0) ++rootCount;
@@ -42,8 +42,8 @@ int main(int argc, char* argv[]) {
         );
     }
 
-    // массив предков задаёт дерево: из любой вершины по предкам доходим
-    // до корня, циклов нет
+    // the parent array defines a tree: from any vertex the parents lead
+    // to the root, there are no cycles
     const int UNVISITED = 0, IN_PATH = 1, DONE = 2;
     std::vector<int> state(n + 1, UNVISITED);
     std::vector<int> path;

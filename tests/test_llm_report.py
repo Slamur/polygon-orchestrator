@@ -134,6 +134,21 @@ def test_compile_errors_and_fences_longer_than_backticks_inside(tmp_path):
     assert "````text\nerror: ```bad```\n````" in report
 
 
+def test_charset_errors_section(tmp_path):
+    problem_dir = _problem(tmp_path)
+    outcome = StepOutcome(
+        "solutions_draft",
+        "confirmed",
+        ran=True,
+        charset_errors={"ok.cpp": "non-ASCII characters:\nline 1: // ответ"},
+    )
+
+    report = _report(problem_dir, outcome)
+
+    assert "## Non-ASCII characters in sources" in report
+    assert "```text\nnon-ASCII characters:\nline 1: // ответ\n```" in report
+
+
 def test_note_counts():
     notes = [_note("changed", "a", ""), _note("proposed", "b", ""), _note("changed", "c", "")]
     assert note_counts(notes) == "1 proposed, 2 changed"

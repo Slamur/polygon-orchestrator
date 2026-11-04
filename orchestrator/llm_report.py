@@ -81,6 +81,10 @@ def write_step_report(
         lines += ["## Compile errors", ""]
         for name, stderr in outcome.compile_errors.items():
             lines += [f"### `{name}`", "", *_fenced(stderr.strip(), "text"), ""]
+    if outcome.charset_errors:
+        lines += ["## Non-ASCII characters in sources", ""]
+        for name, message in outcome.charset_errors.items():
+            lines += [f"### `{name}`", "", *_fenced(message, "text"), ""]
 
     lines += _notes_sections(outcome.notes)
     lines += _files_section(problem_dir, outcome)

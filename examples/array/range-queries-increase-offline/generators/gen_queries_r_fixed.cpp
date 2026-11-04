@@ -1,7 +1,7 @@
 #include "problem_lib.h"
 
 // Not described directly in generator_ideas; added (status: proposed, see
-// response notes) to realize the specific_test_idea "много операций с
+// response notes) to realize the specific_test_idea "many operations with
 // R = N" and to target the known wrong approach that writes inc[R] -= D
 // instead of inc[R + 1] -= D: R is fixed for every operation, L is random.
 int main(int argc, char **argv) {

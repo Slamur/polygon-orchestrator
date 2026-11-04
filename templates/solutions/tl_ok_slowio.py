@@ -26,9 +26,9 @@ def solve():
 
     ans = get_ans()
     # Fixed small number of values (one number, a pair, three numbers):
-    # a plain print, e.g. print(a, b, c) — no join and no per-value prints.
+    # a plain print, e.g. print(a, b, c) - no join and no per-value prints.
     # Sequence whose length depends on the input (N elements, Q answers):
-    # slow output — a separate print call for every element, without join, e.g.
+    # slow output - a separate print call for every element, without join, e.g.
     #     for v in ans:
     #         print(v)  # or print(v, end=' ') for one line
     print(ans)

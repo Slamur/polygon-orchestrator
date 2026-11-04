@@ -30,7 +30,7 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   (`orchestrator/llm_report.py`) is the step's current state, not a history:
   it is rewritten only by a step that worked; it contains the model's notes by kind
   (`uncertain`, `proposed`, `suggestion`, `changed`), what wasn't applied, compile-check
-  errors, new/changed/renamed/marked `.removed`
+  errors, lines with non-ASCII characters in written source files, new/changed/renamed/marked `.removed`
   files, the `.llm_backup/` directory and diffs of files that existed and
   changed. Full notes are still written to
   `llm_generation.log` too (the run history). Likewise — `llm apply` and

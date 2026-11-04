@@ -286,6 +286,8 @@ def _print_pipeline_result(
         summary = [note_counts(outcome.notes)]
         if outcome.compile_errors:
             summary.append(f"{len(outcome.compile_errors)} compile error(s)")
+        if outcome.charset_errors:
+            summary.append(f"{len(outcome.charset_errors)} file(s) with non-ASCII characters")
         if outcome.removed or outcome.renamed:
             summary.append(f"{len(outcome.removed) + len(outcome.renamed)} removed/renamed")
         summary = [part for part in summary if part]
@@ -309,6 +311,8 @@ def _outcome_detail_lines(outcome) -> list[str]:
     lines = _note_lines(outcome.notes)
     for name, stderr in outcome.compile_errors.items():
         lines.append(f"      compile error: {name}: {stderr.strip()}")
+    for name, message in outcome.charset_errors.items():
+        lines.append(f"      {name}: {message}")
     for mark, reason in outcome.removed:
         lines.append(f"      removed (review and delete by hand): {mark} — {reason}")
     for old_path, new_path, reason in outcome.renamed:
