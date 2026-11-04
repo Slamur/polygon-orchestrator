@@ -194,6 +194,11 @@ def test_example_tests_plan_matches_spec_and_generators(example_dir):
     assert planned == actual
 
 
+# Таймаут сборки образца: пул собирает в фоне, пока остальные тесты тоже
+# компилируют, и на занятой машине 30 секунд по умолчанию не хватает.
+_EXAMPLE_COMPILE_TIMEOUT_SECONDS = 120.0
+
+
 def _compile(cpp_path: Path, cache_dir: Path | None) -> str | None:
     """stderr компилятора, если `cpp_path` не собрался, иначе None.
 
@@ -208,7 +213,7 @@ def _compile(cpp_path: Path, cache_dir: Path | None) -> str | None:
     marker = cache_dir / key if cache_dir and key else None
     if marker is not None and marker.exists():
         return None
-    result = compile_check(cpp_path, include_dirs)
+    result = compile_check(cpp_path, include_dirs, timeout_seconds=_EXAMPLE_COMPILE_TIMEOUT_SECONDS)
     if result.binary_path:
         result.binary_path.unlink(missing_ok=True)
     if not result.success:
@@ -224,8 +229,8 @@ def _example_compilations(request, pytestconfig):
 
     Тест на образец ждёт только свои файлы, но собираются они в общем пуле:
     с testlib.h каждый файл собирается несколько секунд, а у одного образца
-    файлов меньше, чем ядер. Не больше компиляций, чем ядер, иначе при
-    десятках файлов отдельные компиляции упираются в таймаут compile_check.
+    файлов меньше, чем ядер. Компиляций — не больше половины ядер: остальные
+    тесты в это время тоже собирают и запускают бинари.
     Кэш — в `.pytest_cache` (без cacheprovider — без кэша)."""
     cache = getattr(pytestconfig, "cache", None)
     cache_dir = cache.mkdir("example-compiles") if cache else None
@@ -236,7 +241,7 @@ def _example_compilations(request, pytestconfig):
             if getattr(item, "originalname", None) == test_example_cpp_files_compile.__name__
         }
     )
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as pool:
+    with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) // 2)) as pool:
         yield {
             path: pool.submit(_compile, path, cache_dir)
             for example_dir in selected
