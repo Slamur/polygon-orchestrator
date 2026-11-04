@@ -1,6 +1,8 @@
-"""Кэш `compile_check` на сессию тестов: одни и те же исходники с `testlib.h`
+"""Кэш `compile_check` для тестов: одни и те же исходники с `testlib.h`
 (стандартный чекер, валидатор примера) собираются в десятках тестов по
-3–7 секунд каждый.
+3–7 секунд каждый. Кэш живёт в `.pytest_cache` между запусками pytest (в CI —
+между прогонами через actions/cache); записи, которые долго не читались,
+удаляет `prune`.
 
 Ключ (`source_key`) — вывод препроцессора (`g++ -E -P`) вместе с флагами
 сборки и версией g++: в нём содержимое всех включённых заголовков, но нет
@@ -15,6 +17,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from collections.abc import Callable, Sequence
 from functools import cache
 from pathlib import Path
@@ -65,11 +68,29 @@ def caching_compile_check(
             result = real(path, include_dirs, **kwargs)
             if cached is None or not result.success or result.binary_path is None:
                 return result
-            shutil.copy2(result.binary_path, cached)
+            # Через временный файл: параллельный процесс pytest не должен
+            # увидеть недописанный бинарь.
+            fd, partial = tempfile.mkstemp(dir=cache_dir, suffix=".partial")
+            os.close(fd)
+            shutil.copy2(result.binary_path, partial)
+            os.replace(partial, cached)
             return result
+        os.utime(cached)
         fd, copy = tempfile.mkstemp(prefix=f"{Path(path).stem}_", suffix=".bin")
         os.close(fd)
         shutil.copy2(cached, copy)
         return CompileResult(success=True, stderr="", binary_path=Path(copy))
 
     return compile_check
+
+
+def prune(cache_dir: Path, max_age_days: float) -> None:
+    """Удаляет из `cache_dir` записи, которые не читались и не писались
+    `max_age_days` дней: исходники меняются, и старые бинари иначе копятся."""
+    deadline = time.time() - max_age_days * 24 * 3600
+    for entry in cache_dir.iterdir():
+        try:
+            if entry.stat().st_mtime < deadline:
+                entry.unlink()
+        except OSError:
+            pass
