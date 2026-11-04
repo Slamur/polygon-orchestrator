@@ -191,7 +191,9 @@ def _critique_section(critique: Any, *, review_only: bool = False) -> list[str]:
     from orchestrator.spec_critic import AUTHOR, FOR_REVIEW, MODEL
 
     rounds = f", {critique.rounds} round(s)" if critique.rounds > 1 else ""
-    lines = [f"## Critic: {len(critique.findings)} finding(s){rounds}", ""]
+    lenses = f" · lenses: {', '.join(critique.lenses)}" if critique.lenses else ""
+    failed = f" · failed: {', '.join(critique.failed_lenses)}" if critique.failed_lenses else ""
+    lines = [f"## Critic: {len(critique.findings)} finding(s){rounds}{lenses}{failed}", ""]
     if not critique.findings:
         return lines + ["No findings.", ""]
     if review_only:
@@ -211,13 +213,19 @@ def _critique_section(critique: Any, *, review_only: bool = False) -> list[str]:
     )
     listed = {id(f) for _, group in groups for f in group}
     other = [f for f in critique.findings if id(f) not in listed]
-    for title, group in (*groups, ("Other — nits, repeats, unresolved paths", other)):
+    for title, group in (
+        *groups,
+        ("Other — nits, repeats, unresolved paths, outside the lens", other),
+    ):
         if not group:
             continue
         lines += [f"### {title} ({len(group)})", ""]
         for finding in group:
             why = finding.why.replace("\n", "\n  ")
-            lines.append(f"- **{finding.field}** · {finding.severity} · {finding.action} — {why}")
+            lines.append(
+                f"- **{finding.field}** · {finding.lens} · {finding.severity} · "
+                f"{finding.action} — {why}"
+            )
             if finding.proposal:
                 proposal = finding.proposal.replace("\n", "\n  ")
                 lines.append(f"  Proposal: {proposal}")

@@ -10,22 +10,17 @@ You are given:
 - examples/<path>/spec.yaml — specs of sample problems: a calibration of the
   normal amount of detail. These are other problems: compare the manner, not
   the content.
-- templates/tutorials/*.md — the rules the later steps follow: what they need
-  from the spec.
+- templates/tutorials/*.md — the rules followed by the later steps that read
+  your fields: what they need from the spec.
+
+You review the spec through one lens, given in the user message: its question
+and its fields. Read the whole spec — the other fields are the context your
+fields are judged in — but write findings only about the fields of your lens;
+the other fields are reviewed by other reviewers.
 
 You see only the spec: you don't know who wrote which part or why, and you
-don't need to. Read it as a fresh reader and ask of every value: why is this
-here? can it be simpler? why so much?
-
-What to look for:
-- values that nothing in the spec needs: a test group, a generator, a test, a
-  wrong approach, a solution that doesn't check anything the others don't;
-- duplicates: two generators or tests that target the same thing, two wrong
-  approaches that fail on the same tests — propose merging;
-- wordy text: sketches and notes that say the same thing twice, retell the
-  format, explain the obvious — propose the shorter wording;
-- complexity without a reason: extra variables, extra limits, test groups
-  or a custom checker where a simpler setup does the same job.
+don't need to. Read it as a fresh reader and ask of every value of your lens:
+why is this here? can it be simpler? why so much?
 
 What not to do:
 - Don't propose additions. If something seems missing — that's not your job;
@@ -39,8 +34,8 @@ What not to do:
 
 Each finding:
 - `field` — the path to the spec field, as in `constraints.variables[0].max`,
-  `tests.groups[2]`, `solutions.known_wrong_approaches[1]`; the narrowest path
-  the finding is about;
+  `generation.generator_ideas[2]`, `solutions.known_wrong_approaches[1]`; the
+  narrowest path the finding is about, inside the fields of your lens;
 - `severity` — `must` (clearly unnecessary or harmful for the later steps),
   `should` (likely simpler without it), `nit` (a matter of taste);
 - `action` — `remove`, `simplify` (`proposal` — the replacement text or
