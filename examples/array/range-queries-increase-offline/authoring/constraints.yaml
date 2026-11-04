@@ -1,35 +1,35 @@
 problem_id: array--range-queries-increase-offline
 intended_complexity: "O(N + Q)"
 complexity_reasoning: |
-  Разностный массив: для каждой операции inc[L] += D, inc[R + 1] -= D
-  (массив inc размера N + 2), затем ответ — префиксные суммы inc.
-  Значения по модулю достигают Q * max|D| = 3 * 10^14 — нужен 64-битный тип.
+  A difference array: for each operation inc[L] += D, inc[R + 1] -= D
+  (the array inc of size N + 2), then the answer is the prefix sums of inc.
+  The absolute values reach Q * max|D| = 3 * 10^14 — a 64-bit type is needed.
 
 variables:
   - name: "N"
     min: 1
     max: 300000
-    description: "длина массива"
+    description: "the length of the array"
     status: confirmed
   - name: "Q"
     min: 1
     max: 300000
-    description: "количество операций"
+    description: "the number of operations"
     status: confirmed
   - name: "L_i"
     min: 1
     max: N
-    description: "левая граница отрезка i-й операции"
+    description: "the left bound of the i-th operation's segment"
     status: confirmed
   - name: "R_i"
     min: L_i
     max: N
-    description: "правая граница отрезка i-й операции"
+    description: "the right bound of the i-th operation's segment"
     status: confirmed
   - name: "D_i"
     min: -1000000000
     max: 1000000000
-    description: "прибавляемое число i-й операции"
+    description: "the number added by the i-th operation"
     status: confirmed
 
 limits:
@@ -37,17 +37,17 @@ limits:
   memory_limit_mb: 256
   status: confirmed
   rationale: |
-    Заданы автором явно (2.0 с — целое число секунд, 256 Мб). Согласованность
-    с O(N + Q): при N = Q = 3 * 10^5 это ~6 * 10^5 операций над разностным
-    массивом плюс чтение 9 * 10^5 чисел и вывод 3 * 10^5 — основная
-    стоимость именно во вводе-выводе, что с запасом укладывается в 2
-    секунды на C++/Java. По памяти: массив из N + 2 значений типа
-    long long — около 2.4 Мб, что помещается в 256 Мб. Наивное решение
-    за O(N * Q) (до 9 * 10^10 операций) в 2 секунды не укладывается с
-    большим запасом.
+    Set by the author explicitly (2.0 s — a whole number of seconds, 256 MB). Consistency
+    with O(N + Q): with N = Q = 3 * 10^5 it's ~6 * 10^5 operations on the difference
+    array plus reading 9 * 10^5 numbers and printing 3 * 10^5 — the main
+    cost is exactly in the input/output, which fits into 2
+    seconds in C++/Java with a margin. Memory: an array of N + 2 values of type
+    long long — about 2.4 MB, which fits into 256 MB. A naive solution
+    in O(N * Q) (up to 9 * 10^10 operations) doesn't fit into 2 seconds by a
+    large margin.
 
-# test_groups отсутствует: в спеке test_groups_needed: false и
-# test_groups_hint пуст — группы автору не нужны.
+# test_groups is absent: the spec has test_groups_needed: false and
+# test_groups_hint is empty — the author doesn't need groups.
 
 validator:
   constants:
@@ -72,9 +72,9 @@ validator:
       min: -1000000000
       max: 1000000000
   checks:
-    - "первая строка: N, один пробел, Q, конец строки"
-    - "вторая строка: L_1, ..., L_Q через один пробел, конец строки; каждое L_i читается в границах [1, N]"
-    - "третья строка: R_1, ..., R_Q через один пробел, конец строки; каждое R_i читается в границах [1, N]"
-    - "четвёртая строка: D_1, ..., D_Q через один пробел, конец строки; каждое D_i читается в границах [-10^9, 10^9]; тем самым проверяется |D_i| <= 10^9"
-    - "после четвёртой строки — конец файла"
-    - "после чтения всего входа: для каждого i проверяется L_i <= R_i; вместе с границами при чтении это даёт 1 <= L_i <= R_i <= N"
+    - "the first line: N, one space, Q, end of line"
+    - "the second line: L_1, ..., L_Q separated by one space, end of line; each L_i is read within [1, N]"
+    - "the third line: R_1, ..., R_Q separated by one space, end of line; each R_i is read within [1, N]"
+    - "the fourth line: D_1, ..., D_Q separated by one space, end of line; each D_i is read within [-10^9, 10^9]; this checks |D_i| <= 10^9"
+    - "after the fourth line — end of file"
+    - "after reading the whole input: for each i L_i <= R_i is checked; together with the bounds on reading this gives 1 <= L_i <= R_i <= N"

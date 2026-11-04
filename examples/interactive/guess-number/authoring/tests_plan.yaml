@@ -1,52 +1,52 @@
 problem_id: interactive--guess-number
 
-# Тест читает интерактор: N в первой строке, загаданное X во второй.
+# The interactor reads the test: N on the first line, the hidden X on the second.
 generators:
   - name: gen_fixed
     status: confirmed
     params:
       - name: n
         type: int
-        description: верхняя граница диапазона, 1 <= n <= 1000
+        description: the upper bound of the range, 1 <= n <= 1000
       - name: x
         type: int
-        description: загаданное число, 1 <= x <= n
+        description: the hidden number, 1 <= x <= n
     input: null
-    output: весь тест — N и X
+    output: the whole test — N and X
     algorithm: |
-      Печатает n и x как есть. Падает, если n вне [1, 1000] или x вне [1, n].
+      Prints n and x as is. Fails if n is outside [1, 1000] or x is outside [1, n].
 
   - name: gen_pow2_delta
     status: confirmed
     params:
       - name: p
         type: int
-        description: показатель степени двойки
+        description: the exponent of the power of two
       - name: delta
         type: int
-        description: сдвиг N от 2^p, из {-1, 0, 1}
+        description: the shift of N from 2^p, from {-1, 0, 1}
       - name: x
         type: int
-        description: загаданное число, 1 <= x <= N
+        description: the hidden number, 1 <= x <= N
     input: null
-    output: весь тест — N и X
+    output: the whole test — N and X
     algorithm: |
-      N = 2^p + delta (в 64-битном типе). Падает, если delta вне {-1, 0, 1},
-      N вне [1, 1000] или x вне [1, N].
+      N = 2^p + delta (in a 64-bit type). Fails if delta is outside {-1, 0, 1},
+      N is outside [1, 1000] or x is outside [1, N].
 
   - name: gen_rand
     status: confirmed
     params:
       - name: minN
         type: int
-        description: наименьшее N
+        description: the smallest N
       - name: maxN
         type: int
-        description: наибольшее N
+        description: the largest N
     input: null
-    output: весь тест — N и X
+    output: the whole test — N and X
     algorithm: |
-      N — случайное из [minN, maxN], X — случайное из [1, N]. Падает, если не
+      N is a random one from [minN, maxN], X is a random one from [1, N]. Fails unless
       1 <= minN <= maxN <= 1000.
 
   - name: gen_worst_x
@@ -54,41 +54,41 @@ generators:
     params:
       - name: n
         type: int
-        description: верхняя граница диапазона, 1 <= n <= 1000
+        description: the upper bound of the range, 1 <= n <= 1000
     input: null
-    output: весь тест — N и X
+    output: the whole test — N and X
     algorithm: |
-      Для каждого X из [1, n] симулируется стандартный бинпоиск (lo = 1,
-      hi = n, mid = (lo + hi) / 2, запрос mid, остановка при mid = X, иначе
-      lo = mid + 1 или hi = mid - 1) и считается число запросов; X —
-      случайное среди дающих наибольшее число запросов. Падает, если n вне
+      For each X from [1, n] the standard binary search is simulated (lo = 1,
+      hi = n, mid = (lo + hi) / 2, query mid, stop at mid = X, otherwise
+      lo = mid + 1 or hi = mid - 1) and the number of queries is counted; X is
+      a random one among those giving the largest number of queries. Fails if n is outside
       [1, 1000].
 
 constants:
   - name: minN
     value: "1"
-    description: N.min из constraints.yaml
+    description: N.min from constraints.yaml
   - name: maxN
     value: "1000"
-    description: N.max из constraints.yaml
+    description: N.max from constraints.yaml
   - name: minX
     value: "1"
-    description: X.min из constraints.yaml
+    description: X.min from constraints.yaml
   - name: maxExhaustiveN
     value: "8"
-    description: наибольшее N с полным перебором пар (N, X) из specific_test_ideas[4]
+    description: the largest N with a full enumeration of pairs (N, X) from specific_test_ideas[4]
   - name: maxXList
     value: "[1, 2, 500, 501, 512, 513, 999, 1000]"
-    description: загаданные числа при N = maxN из specific_test_ideas[3]
+    description: the hidden numbers with N = maxN from specific_test_ideas[3]
   - name: worstNs
     value: "[maxN, maxN - 1, 512, 513]"
-    description: N для худшего загаданного числа из specific_test_ideas[5]
+    description: N for the worst hidden number from specific_test_ideas[5]
   - name: randBands
     value: "[[minN, maxN], [minN, maxN / 2], [maxN / 2, maxN], [minN, 20], [maxN - 20, maxN]]"
-    description: различные диапазоны N для случайных тестов — чтобы строки скрипта не совпадали
+    description: different ranges of N for random tests — so that the script lines don't match
 
 tests:
-  - description: Все пары (N, X) для N от 1 до 8
+  - description: All pairs (N, X) for N from 1 to 8
     status: confirmed
     covers:
       - specific_test_ideas[2]
@@ -100,7 +100,7 @@ tests:
       - gen_fixed -n=n -x=x
     repeat: n = minN..maxExhaustiveN, x = minX..n
 
-  - description: N = 2^p + delta для всех p, при которых N в (maxExhaustiveN, maxN], X = 1 и X = N
+  - description: N = 2^p + delta for all p at which N is in (maxExhaustiveN, maxN], X = 1 and X = N
     status: confirmed
     covers:
       - specific_test_ideas[0]
@@ -110,20 +110,20 @@ tests:
       - gen_pow2_delta -p=p -delta=delta -x=minX
       - gen_pow2_delta -p=p -delta=delta -x=n
     repeat: |
-      p = 0..10, delta по [-1, 0, 1], n = 2^p + delta; только n в
-      (maxExhaustiveN, maxN] — меньшие n дали бы те же тесты, что и полный
-      перебор выше
+      p = 0..10, delta over [-1, 0, 1], n = 2^p + delta; only n in
+      (maxExhaustiveN, maxN] — smaller n would give the same tests as the full
+      enumeration above
 
-  - description: N = maxN с явно заданными граничными и произвольными X
+  - description: N = maxN with explicitly given boundary and arbitrary X
     status: confirmed
     covers:
       - specific_test_ideas[1]
       - specific_test_ideas[3]
     commands:
       - gen_fixed -n=maxN -x=x
-    repeat: x по maxXList
+    repeat: x over maxXList
 
-  - description: N у maxN с несколькими случайными X
+  - description: N near maxN with several random X
     status: proposed
     covers:
       - specific_test_ideas[3]
@@ -133,37 +133,37 @@ tests:
       - gen_rand -minN=maxN-49 -maxN=maxN
     repeat: null
     rationale: |
-      "Несколько случайных" X при N = 1000 — разные диапазоны N, чтобы
-      строки скрипта не совпадали (одинаковые строки дают одинаковые тесты).
+      "Several random" X with N = 1000 — different ranges of N, so that
+      the script lines don't match (identical lines give identical tests).
 
-  - description: Худшее X — ровно максимум запросов, ловит решения, которым нужен 11-й запрос
+  - description: The worst X — exactly the maximum of queries, catches solutions that need an 11th query
     status: confirmed
     covers:
       - specific_test_ideas[5]
       - known_wrong_approaches[0]
     commands:
       - gen_worst_x -n=n
-    repeat: n по worstNs
+    repeat: n over worstNs
 
-  - description: Случайные N во всём диапазоне со случайными X, несколько различных диапазонов
+  - description: Random N over the whole range with random X, several different ranges
     status: proposed
     covers:
       - specific_test_ideas[6]
     commands:
       - gen_rand -minN=band0 -maxN=band1
-    repeat: "[band0, band1] по randBands"
+    repeat: "[band0, band1] over randBands"
     rationale: |
-      Разные диапазоны вместо повторов одного вызова — одинаковые строки
-      скрипта дали бы одинаковые тесты.
+      Different ranges instead of repeating one call — identical script lines
+      would give identical tests.
 
-  - description: Граница чуть ниже порога N = 512
+  - description: The bound slightly below the threshold N = 512
     status: suggestion
     covers: []
     commands:
       - gen_worst_x -n=511
     repeat: null
     rationale: |
-      Тесты gen_worst_x выше проверяют N, где верному алгоритму нужно ровно
-      10 запросов; N = 511 — симметричный случай на шаг ниже порога (9
-      запросов): решение с ошибкой в расчёте бюджета запросов в другую
-      сторону прошло бы все тесты автора.
+      The gen_worst_x tests above check N where the correct algorithm needs exactly
+      10 queries; N = 511 is the symmetric case one step below the threshold (9
+      queries): a solution with a mistake in computing the query budget in the other
+      direction would pass all of the author's tests.

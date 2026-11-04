@@ -1,229 +1,229 @@
-# Черновик спека задачи. Создан командой `orchestrator <задача> init`
-# из templates/spec_template.yaml.
+# A problem spec draft. Created by the `orchestrator <problem> init` command
+# from templates/spec_template.yaml.
 #
-# Полный формат с примерами и пояснениями — docs/SPEC_FORMAT.md.
+# The full format with examples and explanations — docs/SPEC_FORMAT.md.
 
-problem_id: interactive--guess-number 
+problem_id: interactive--guess-number
 title:
   ru: "Угадай число"
-  en: "Guess the number"            
-references: []                      
+  en: "Guess the number"
+references: []
 
 # ---------------------------------------------------------------------------
-# 1. ЧЕРНОВИК УСЛОВИЯ — шаг statement_draft
+# 1. STATEMENT DRAFT — the statement_draft step
 # ---------------------------------------------------------------------------
 statement_draft:
   legend_sketch: |
-    Интерактивная задача.
+    An interactive problem.
 
-    Загадано целое число в промежутке [1; N] — необходимо его угадать.
+    An integer in the range [1; N] is hidden — it has to be guessed.
 
-    Программа может делать запрос "? X", где X — целое число из промежутка
-    [1; N]. На запрос можно получить один из трёх ответов:
-      - "<": загаданное число меньше X;
-      - ">": загаданное число больше X;
-      - "=": загаданное число равно X.
+    The program can make a query "? X", where X is an integer from the range
+    [1; N]. A query can get one of three answers:
+      - "<": the hidden number is less than X;
+      - ">": the hidden number is greater than X;
+      - "=": the hidden number is equal to X.
 
-    Программа может сделать не более 10 запросов.
+    The program can make at most 10 queries.
 
-    Если программа получает ответ "=", то она должна завершиться (тест
-    считается пройденным).
+    If the program gets the answer "=", it must terminate (the test
+    is considered passed).
 
-    Если программа делает больше 10 запросов — то она автоматически
-    получает вердикт "неправильный ответ".
+    If the program makes more than 10 queries — it automatically
+    gets the "wrong answer" verdict.
 
-    Если программа завершается, не получив ответ "=" - — то она автоматически
-    получает вердикт "неправильный ответ".
-  formal_input_sketch: |              
-    Файл теста (его читает интерактор, решение этих данных целиком не видит):
+    If the program terminates without having got the answer "=" — it automatically
+    gets the "wrong answer" verdict.
+  formal_input_sketch: |
+    The test file (the interactor reads it, the solution doesn't see this data in full):
 
-    В первой строке одно целое число N (1 <= N <= 1000) — верхняя граница диапазона.
-    Во второй строке одно целое число X — загаданное число, 1 <= X <= N.
-  formal_output_sketch: |             
-    Отдельного ответа в конце выводить не нужно: весь вывод решения — это
-    запросы вида "? X". Решение считается давшим верный ответ, если оно
-    получило ответ "=" (то есть назвало загаданное число), сделав при этом
-    не более 10 запросов.
-  indexing: "irrelevant"              
+    The first line has one integer N (1 <= N <= 1000) — the upper bound of the range.
+    The second line has one integer X — the hidden number, 1 <= X <= N.
+  formal_output_sketch: |
+    There's no need to print a separate answer at the end: the whole output of the solution is
+    queries of the form "? X". The solution is considered to have given a correct answer if it
+    got the answer "=" (that is, named the hidden number), having made
+    at most 10 queries.
+  indexing: "irrelevant"
   sample_examples:
-    - input: |                        
+    - input: |
         10
         7
-      output: |                      
+      output: |
         ? 5
         ? 8
         ? 6
         ? 7
       note_hint: |
-        Показать диалог целиком: на "? 5" интерактор отвечает ">"
-        (7 > 5), на "? 8" — "<", на "? 6" — ">", на "? 7" — "=", после
-        чего решение завершается. Подчеркнуть, что загаданное число 7
-        решению заранее не известно, оно видит только N = 10 и ответы на
-        свои запросы, и что сделано 4 запроса из разрешённых 10.
-    - input: |                        
+        Show the whole dialogue: to "? 5" the interactor answers ">"
+        (7 > 5), to "? 8" — "<", to "? 6" — ">", to "? 7" — "=", after
+        which the solution terminates. Stress that the hidden number 7
+        isn't known to the solution in advance, it sees only N = 10 and the answers to
+        its queries, and that 4 queries out of the allowed 10 were made.
+    - input: |
         1
         1
-      output: |                       
+      output: |
         ? 1
-      note_hint: "При N = 1 загадано единственное возможное число, но решение всё равно обязано задать запрос \"? 1\" и получить ответ \"=\""
+      note_hint: "With N = 1 the only possible number is hidden, but the solution still must ask the query \"? 1\" and get the answer \"=\""
   preserve_legend_verbatim: false
   interaction_sketch: |
-    В начале взаимодействия решение читает из стандартного ввода одно
-    целое число N — верхнюю границу диапазона.                       
+    At the start of the interaction the solution reads from standard input one
+    integer N — the upper bound of the range.
 
-    Далее решение задаёт запросы. Запрос — строка "? X", где X — целое
-    число из промежутка [1; N]. В ответ решение читает одну строку:
-      - "<" — загаданное число меньше X;
-      - ">" — загаданное число больше X;
-      - "=" — загаданное число равно X.
+    Then the solution asks queries. A query is a line "? X", where X is an integer
+    from the range [1; N]. In response the solution reads one line:
+      - "<" — the hidden number is less than X;
+      - ">" — the hidden number is greater than X;
+      - "=" — the hidden number is equal to X.
 
-    Разрешено не более 10 запросов. Если решение делает больше 10
-    запросов, оно получает вердикт "неправильный ответ".
+    At most 10 queries are allowed. If the solution makes more than 10
+    queries, it gets the "wrong answer" verdict.
 
-    Получив ответ "=", решение должно завершиться — тест считается
-    пройденным. Отдельного итогового вывода нет.
+    Having got the answer "=", the solution must terminate — the test is considered
+    passed. There's no separate final output.
 
-    Запрос, выходящий за [1; N] или не соответствующий формату, а также
-    завершение решения без полученного ответа "=" считаются неправильным
-    ответом.                                                          
+    A query outside [1; N] or not matching the format, as well as
+    the solution terminating without having got the answer "=", count as a wrong
+    answer.
 
-    После каждого запроса нужно сбрасывать буфер вывода: в C++ — endl
-    (iostream) или fflush(stdout) (stdio); в Java — System.out.println()
-    или flush() другого потока вывода; в Python — print(..., flush=True) и
-    чтение через input().          
+    After each query the output buffer must be flushed: in C++ — endl
+    (iostream) or fflush(stdout) (stdio); in Java — System.out.println()
+    or flush() of another output stream; in Python — print(..., flush=True) and
+    reading via input().
   references: []
 
 # ---------------------------------------------------------------------------
-# 2. ОГРАНИЧЕНИЯ — шаг constraints_pick (+ валидатор)
+# 2. LIMITS — the constraints_pick step (+ the validator)
 # ---------------------------------------------------------------------------
 constraints:
-  intended_complexity: "O(log N) запросов"   
-  complexity_reasoning: |                    
-    Бинарный поиск по диапазону: поддерживается отрезок [lo, hi]
-    кандидатов, запрашивается mid = (lo + hi) / 2; ответ "=" завершает
-    работу, "<" сужает отрезок до [lo, mid - 1], ">" — до [mid + 1, hi].
-    Каждый запрос уменьшает число кандидатов примерно вдвое, поэтому
-    хватает ceil(log2(N)) <= ceil(log2(1000)) = 10 запросов — ровно
-    авторский лимит. Лимит плотный: на худшем X при N = 1000 нужно ровно
-    10 запросов. Варианты бинпоиска с отдельным финальным запросом и с
-    hi = mid вместо hi = mid - 1 в него укладываются (перебор всех N и X).
-    Время работы решения вне взаимодействия — O(1) на запрос.
+  intended_complexity: "O(log N) queries"
+  complexity_reasoning: |
+    A binary search over the range: a segment [lo, hi] of candidates
+    is maintained, mid = (lo + hi) / 2 is queried; the answer "=" ends
+    the work, "<" narrows the segment to [lo, mid - 1], ">" — to [mid + 1, hi].
+    Each query halves the number of candidates approximately, so
+    ceil(log2(N)) <= ceil(log2(1000)) = 10 queries are enough — exactly
+    the author's limit. The limit is tight: on the worst X with N = 1000 exactly
+    10 queries are needed. Binary search variants with a separate final query and with
+    hi = mid instead of hi = mid - 1 fit into it (checked over all N and X).
+    The solution's running time outside the interaction — O(1) per query.
   variables:
     - name: "N"
       min: 1
       max: 1000
-      description: "верхняя граница диапазона: загаданное число лежит в [1; N]"
+      description: "the upper bound of the range: the hidden number lies in [1; N]"
     - name: "X"
       min: 1
       max: "N"
-      description: "загаданное число (скрытые данные теста)"  
+      description: "the hidden number (the test's hidden data)"
     - name: "Q"
       min: 0
       max: 10
-      description: "лимит запросов для решения"
+      description: "the query limit for the solution"
   special_guarantees:
-    - "лимит 10 запросов не зависит от N"
-    - "загаданное число X фиксировано до начала взаимодействия и не меняется (интерактор не адаптивный)"   
+    - "the limit of 10 queries doesn't depend on N"
+    - "the hidden number X is fixed before the interaction starts and doesn't change (the interactor isn't adaptive)"
   test_groups_hint: []
   test_groups_needed: false
-  time_limit_seconds: 1               
-  memory_limit_mb: 256   
+  time_limit_seconds: 1
+  memory_limit_mb: 256
   references: []
 
 # ---------------------------------------------------------------------------
-# 3. ГЕНЕРАТОРЫ И TEST-SCRIPT — шаги tests_plan, generators_draft, test_script_draft
+# 3. GENERATORS AND TEST-SCRIPT — the tests_plan, generators_draft, test_script_draft steps
 # ---------------------------------------------------------------------------
 generation:
   generator_ideas:
     - name: "gen_pow2_delta"
       params: ["p", "delta", "x"]
       purpose: |
-        N = 2^p + delta, delta из {-1, 0, 1}; загаданное число X задаётся
-        параметром x. Падает, если полученное N выходит за допустимый
-        диапазон или x не лежит в [1, N].                                                                   
+        N = 2^p + delta, delta from {-1, 0, 1}; the hidden number X is set by
+        the parameter x. Fails if the resulting N goes outside the allowed
+        range or x doesn't lie in [1, N].
     - name: "gen_rand"
       params: ["minN", "maxN"]
-      purpose: "случайное N из [minN, maxN] и случайное загаданное X из [1, N]"   
+      purpose: "a random N from [minN, maxN] and a random hidden X from [1, N]"
     - name: "gen_fixed"
       params: ["n", "x"]
-      purpose: "тест с явно заданными N и X — для перечисления конкретных краевых случаев" 
+      purpose: "a test with explicitly given N and X — for enumerating particular edge cases"
     - name: "gen_worst_x"
       params: ["n"]
       purpose: |
-        N задано, X выбирается как загаданное число, на котором
-        стандартный бинпоиск делает максимальное число запросов (симуляция
-        бинпоиска для всех X из [1, N] и выбор X с максимальной длиной
-        диалога).                                                        
+        N is given, X is chosen as the hidden number on which
+        the standard binary search makes the maximal number of queries (simulating
+        the binary search for all X from [1, N] and choosing the X with the longest
+        dialogue).
   specific_test_ideas:
-    - "N = степень двойки плюс delta (delta из {-1, 0, 1}) для всех p, при которых N попадает в [1, 1000]"
-    - "загадано X = 1 и X = N (для N = 1000 и для N — степеней двойки + delta)"
-    - "N = 1 (единственное возможное загаданное число)"
-    - "N = 1000 (максимум), загаданные числа 1, 2, 500, 501, 512, 513, 999, 1000 и несколько случайных"  
-    - "все пары (N, X) для N от 1 до 8 и всех X из [1, N]"        
-    - "худшее загаданное число для N = 1000 и для N = 1000 - 1, 512, 513 — диалог ровно из 10 запросов, ловит решения, которым нужен 11-й запрос" 
-    - "случайные N из [1, 1000] со случайными загаданными X"     
-  script_style: "flat"               
+    - "N = a power of two plus delta (delta from {-1, 0, 1}) for all p at which N gets into [1, 1000]"
+    - "the hidden X = 1 and X = N (for N = 1000 and for N — powers of two + delta)"
+    - "N = 1 (the only possible hidden number)"
+    - "N = 1000 (the maximum), the hidden numbers 1, 2, 500, 501, 512, 513, 999, 1000 and a few random ones"
+    - "all pairs (N, X) for N from 1 to 8 and all X from [1, N]"
+    - "the worst hidden number for N = 1000 and for N = 1000 - 1, 512, 513 — a dialogue of exactly 10 queries, catches solutions that need an 11th query"
+    - "random N from [1, 1000] with random hidden X"
+  script_style: "flat"
   references: []
 
 # ---------------------------------------------------------------------------
-# 4. ЧЕРНОВИКИ РЕШЕНИЙ — шаг solutions_draft
+# 4. SOLUTION DRAFTS — the solutions_draft step
 # ---------------------------------------------------------------------------
 solutions:
-  wanted_verdicts: ["ok", "wa", "il"]   
-  languages: ["cpp", "java", "py"]      
-  algorithm_hint: |                     
-    Прочитать N. Поддерживать отрезок кандидатов [lo, hi], изначально
-    [1, N]. Пока lo <= hi: спросить "? mid", где mid = (lo + hi) / 2;
-    при ответе "=" завершиться, при "<" положить hi = mid - 1, при ">" —
-    lo = mid + 1. После каждого запроса — сброс буфера вывода.
+  wanted_verdicts: ["ok", "wa", "il"]
+  languages: ["cpp", "java", "py"]
+  algorithm_hint: |
+    Read N. Maintain a segment of candidates [lo, hi], initially
+    [1, N]. While lo <= hi: ask "? mid", where mid = (lo + hi) / 2;
+    on the answer "=" terminate, on "<" set hi = mid - 1, on ">" —
+    lo = mid + 1. After each query — flush the output buffer.
   alternative_approaches:
-    - "рекурсивный бинпоиск по отрезку [lo, hi] вместо цикла"          
-    - "заранее построенное идеальное бинарное дерево поиска над [1, N] и спуск по нему в соответствии с ответами"   
-    - "бинпоиск, сужающий отрезок до единственного кандидата и только потом задающий финальный запрос: в лимит 10 запросов укладывается"
-    - "бинпоиск с hi = mid вместо hi = mid - 1 (вместе с lo = mid + 1): кандидат остаётся в отрезке, но в лимит 10 запросов укладывается"
+    - "a recursive binary search over the segment [lo, hi] instead of a loop"
+    - "a prebuilt perfect binary search tree over [1, N] and descending it according to the answers"
+    - "a binary search narrowing the segment to a single candidate and only then asking the final query: fits into the limit of 10 queries"
+    - "a binary search with hi = mid instead of hi = mid - 1 (together with lo = mid + 1): a candidate stays in the segment, but it fits into the limit of 10 queries"
   known_wrong_approaches:
-    - "wa: линейный перебор X = 1, 2, 3, ... — больше 10 запросов уже при N = 12"  
-    - "wa: перепутаны ответы \"<\" и \">\" (отрезок сужается в противоположную сторону)"   
-    - "wa: бинпоиск по отрезку [2, N - 1] (или [1, N - 1]) — не находит загаданные числа на краях диапазона"   
-    - "il (cpp/java/py): верный бинпоиск без сброса буфера вывода — интерактор не получает запрос, взаимодействие зависает (Idleness limit exceeded); в Python — print без flush=True и чтение через sys.stdin.readline()"
+    - "wa: a linear search X = 1, 2, 3, ... — more than 10 queries already with N = 12"
+    - "wa: the answers \"<\" and \">\" are swapped (the segment narrows in the opposite direction)"
+    - "wa: a binary search over the segment [2, N - 1] (or [1, N - 1]) — doesn't find hidden numbers at the edges of the range"
+    - "il (cpp/java/py): a correct binary search without flushing the output buffer — the interactor doesn't get the query, the interaction hangs (Idleness limit exceeded); in Python — print without flush=True and reading via sys.stdin.readline()"
   references: []
 
 # ---------------------------------------------------------------------------
-# 5. ЧЕКЕР — шаг checker_draft (только при custom_needed: true)
+# 5. CHECKER — the checker_draft step (only with custom_needed: true)
 # ---------------------------------------------------------------------------
 checker:
-  standard: "ncmp"                    
-  custom_needed: false                
+  standard: "ncmp"
+  custom_needed: false
   custom_comparison_notes: null
   references: []
 
 # ---------------------------------------------------------------------------
-# 6. ИНТЕРАКТОР — шаг interactor_draft (только для интерактивной задачи)
+# 6. INTERACTOR — the interactor_draft step (only for an interactive problem)
 # ---------------------------------------------------------------------------
 interactor:
-  behavior_notes: |                  
-    Интерактор читает из файла теста N и загаданное число X и выводит
-    решению N. Интерактор не адаптивный: X фиксировано файлом теста.
+  behavior_notes: |
+    The interactor reads N and the hidden number X from the test file and prints
+    N to the solution. The interactor isn't adaptive: X is fixed by the test file.
 
-    Далее читает запросы решения. Корректный запрос — символ "?" и целое
-    число X_q, причём 1 <= X_q <= N. На запрос интерактор отвечает:
-      - "<", если X < X_q;
-      - ">", если X > X_q;
-      - "=", если X = X_q.
+    Then it reads the solution's queries. A correct query is the character "?" and an integer
+    X_q, with 1 <= X_q <= N. To a query the interactor answers:
+      - "<" if X < X_q;
+      - ">" if X > X_q;
+      - "=" if X = X_q.
 
-    Счётчик запросов: если решение делает 11-й запрос — вердикт
-    "неправильный ответ" (_wa, "превышен лимит запросов: больше 10").
+    The query counter: if the solution makes an 11th query — the verdict
+    "wrong answer" (_wa, "query limit exceeded: more than 10").
 
-    Ответив "=", интерактор записывает в tout загаданное число X,
-    завершается с _ok (тест пройден) и дальнейшие запросы решения не
-    проверяет.
+    Having answered "=", the interactor writes the hidden number X to tout,
+    exits with _ok (the test is passed) and doesn't check the solution's further
+    queries.
 
-    Ошибки решения (все — _wa):
-      - некорректный формат запроса (нет "?", не целое число);
-      - X_q вне [1, N];
-      - больше 10 запросов;
-      - решение завершилось (конец потока), не получив ответ "=".
+    Solution errors (all — _wa):
+      - an invalid query format (no "?", not an integer);
+      - X_q outside [1, N];
+      - more than 10 queries;
+      - the solution terminated (end of stream) without having got the answer "=".
 
-    В tout интерактор пишет одно число — угаданное решением значение
-    (оно же X); чекер ncmp сравнивает его с tout эталонного прогона.
+    The interactor writes one number to tout — the value guessed by the solution
+    (which is X); the ncmp checker compares it with the tout of the reference run.
   references: []

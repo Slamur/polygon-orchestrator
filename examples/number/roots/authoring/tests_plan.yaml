@@ -1,97 +1,97 @@
 problem_id: number--roots
 
-# Тест — одно число N в единственной строке.
+# A test is one number N on a single line.
 generators:
   - name: gen_n_rand
     status: confirmed
     params:
       - name: minN
         type: ll
-        description: наименьшее N
+        description: the smallest N
       - name: maxN
         type: ll
-        description: наибольшее N
+        description: the largest N
     input: null
-    output: весь тест — N
+    output: the whole test — N
     algorithm: |
-      N — случайное из [minN, maxN].
+      N is a random one from [minN, maxN].
 
   - name: gen_n_power
     status: confirmed
     params:
       - name: k
         type: int
-        description: показатель степени
+        description: the exponent
       - name: maxN
         type: ll
-        description: наибольшее N
+        description: the largest N
       - name: minB
         type: ll
-        description: наименьшее основание
+        description: the smallest base
       - name: delta
         type: ll
-        description: сдвиг N от B^k
+        description: the shift of N from B^k
     input: null
-    output: весь тест — N
+    output: the whole test — N
     algorithm: |
-      maxB — наибольшее B, для которого B^k <= maxN - delta (бинпоиск по
-      ответу без переполнения 64-битного типа); B — случайное из [minB, maxB],
-      N = B^k + delta. Падает, если minB > maxB.
+      maxB is the largest B for which B^k <= maxN - delta (a binary search on the
+      answer without overflowing a 64-bit type); B is a random one from [minB, maxB],
+      N = B^k + delta. Fails if minB > maxB.
 
   - name: gen_n_pow_of_base
     status: confirmed
     params:
       - name: b
         type: ll
-        description: основание
+        description: the base
       - name: p
         type: int
-        description: показатель степени
+        description: the exponent
     input: null
-    output: весь тест — N
+    output: the whole test — N
     algorithm: |
-      N = b^p + delta, delta — случайное из {-1, 0, 1} (выбирает сам
-      генератор: так строки скрипта для разных delta не нужны). Падает, если
-      b^p не помещается в 64-битный знаковый тип. Диапазон N не проверяет —
-      скрипт вызывает генератор только для допустимых N.
+      N = b^p + delta, delta is a random one from {-1, 0, 1} (the generator chooses it
+      itself: this way script lines for different delta aren't needed). Fails if
+      b^p doesn't fit into a 64-bit signed type. Doesn't check the range of N —
+      the script calls the generator only for allowed N.
 
 constants:
   - name: minN
     value: "1"
-    description: N.min из constraints.yaml
+    description: N.min from constraints.yaml
   - name: maxNExp
     value: "18"
-    description: N.max = 10^maxNExp из constraints.yaml
+    description: N.max = 10^maxNExp from constraints.yaml
   - name: maxN
     value: 10^maxNExp
-    description: N.max из constraints.yaml
+    description: N.max from constraints.yaml
   - name: tinyMaxN
     value: "20"
-    description: все N подряд до этой границы
+    description: all N in a row up to this bound
   - name: smallMaxN
     value: "1000"
-    description: граница маленьких случайных тестов
+    description: the bound of small random tests
   - name: deltas
     value: "[-1, 0, 1]"
-    description: сдвиги от точной степени
+    description: the shifts from an exact power
   - name: pow2Exps
     value: "[6, 10, 20, 30, 31, 32, 48, 53, 54, 59]"
     description: |
-      степени двойки: 2^6 = 4^3 = 8^2, 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 —
-      границы int / unsigned int, 2^48 = 65536^3, 2^53 / 2^54 — граница
-      точности double, 2^59 — наибольшая степень 2 <= 10^18
+      powers of two: 2^6 = 4^3 = 8^2, 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 —
+      the int / unsigned int bounds, 2^48 = 65536^3, 2^53 / 2^54 — the double
+      precision bound, 2^59 — the largest power of 2 <= 10^18
   - name: pow10Exps
     value: "[2, 3, 6, 9, 12, 15, 16, 17]"
-    description: степени десятки — квадраты, кубы и ни то ни другое, все меньше maxN - 1
+    description: powers of ten — squares, cubes and neither, all less than maxN - 1
   - name: powerExps
     value: "[2, 3, 4, 5, 6, 12]"
-    description: показатели для случайных B^k + delta
+    description: the exponents for random B^k + delta
   - name: topExps
     value: "[2, 3, 6]"
-    description: показатели, для которых maxN — точная степень topB = 10^(maxNExp / k)
+    description: the exponents for which maxN is an exact power of topB = 10^(maxNExp / k)
 
 tests:
-  - description: Все N от 1 до 20
+  - description: All N from 1 to 20
     status: proposed
     covers:
       - specific_test_ideas[0]
@@ -99,10 +99,10 @@ tests:
       - gen_n_rand -minN=n -maxN=n
     repeat: n = minN..tinyMaxN
     rationale: |
-      Граница 20 вместо 30 из спека: N от 21 до 30 покрываются случайными
-      маленькими тестами и точными степенями ниже.
+      The bound is 20 instead of 30 from the spec: N from 21 to 30 are covered by random
+      small tests and the exact powers below.
 
-  - description: Случайные маленькие и средние N
+  - description: Random small and medium N
     status: proposed
     covers: []
     commands:
@@ -110,7 +110,7 @@ tests:
       - gen_n_rand -minN=smallMaxN -maxN=smallMaxN*smallMaxN
     repeat: null
 
-  - description: Степени двойки и десятки ± 1
+  - description: Powers of two and ten ± 1
     status: confirmed
     covers:
       - specific_test_ideas[6]
@@ -120,9 +120,9 @@ tests:
     commands:
       - gen_n_pow_of_base -b=2 -p=p
       - gen_n_pow_of_base -b=10 -p=q
-    repeat: первая команда — p по pow2Exps, затем вторая — q по pow10Exps
+    repeat: the first command — p over pow2Exps, then the second — q over pow10Exps
 
-  - description: Случайные B^k + delta до наибольшего допустимого B
+  - description: Random B^k + delta up to the largest allowed B
     status: confirmed
     covers:
       - specific_test_ideas[3]
@@ -134,9 +134,9 @@ tests:
       - known_wrong_approaches[6]
     commands:
       - gen_n_power -k=k -maxN=maxN -minB=minB -delta=delta
-    repeat: k по powerExps, delta по deltas; minB = max(1, 1 - delta) — при delta = -1 B >= 2, иначе N = 0
+    repeat: k over powerExps, delta over deltas; minB = max(1, 1 - delta) — with delta = -1 B >= 2, otherwise N = 0
 
-  - description: B^k + delta для наибольшего B (topB - 1)
+  - description: B^k + delta for the largest B (topB - 1)
     status: confirmed
     covers:
       - specific_test_ideas[3]
@@ -144,9 +144,9 @@ tests:
       - specific_test_ideas[5]
     commands:
       - gen_n_pow_of_base -b=b -p=k
-    repeat: k по topExps, b = 10^(maxNExp / k) - 1 — наибольшее B, для которого допустима любая delta
+    repeat: k over topExps, b = 10^(maxNExp / k) - 1 — the largest B for which any delta is allowed
 
-  - description: Максимальные тесты — N = 10^18 и N = 10^18 - 1
+  - description: Maximal tests — N = 10^18 and N = 10^18 - 1
     status: confirmed
     covers:
       - specific_test_ideas[1]
@@ -158,7 +158,7 @@ tests:
       - gen_n_rand -minN=maxN-1 -maxN=maxN-1
     repeat: null
 
-  - description: Случайные N во всём диапазоне
+  - description: Random N over the whole range
     status: confirmed
     covers:
       - specific_test_ideas[8]

@@ -6,33 +6,33 @@ generators:
     params:
       - name: n
         type: int
-        description: число вершин, n >= 2
+        description: the number of vertices, n >= 2
     input: null
-    output: весь тест — N в первой строке, массив предков p_1..p_N во второй
+    output: the whole test — N on the first line, the array of parents p_1..p_N on the second
     algorithm: |
-      Случайная перестановка вершин 1..n; первая вершина перестановки —
-      корень (предок 0), предок каждой следующей — равновероятная вершина
-      из уже размещённого префикса перестановки. Падает при n < 2.
+      A random permutation of the vertices 1..n; the first vertex of the permutation is
+      the root (parent 0), the parent of each next one is an equiprobable vertex
+      from the already placed prefix of the permutation. Fails with n < 2.
 
   - name: gen_palm
     status: confirmed
     params:
       - name: n
         type: int
-        description: число вершин, n >= 2
+        description: the number of vertices, n >= 2
       - name: h
         type: int
-        description: число вершин ствола, 1 <= h <= n
+        description: the number of trunk vertices, 1 <= h <= n
       - name: k
         type: int
-        description: длина листа, k >= 1
+        description: the length of a leaf, k >= 1
     input: null
-    output: весь тест — N и массив предков
+    output: the whole test — N and the array of parents
     algorithm: |
-      Ствол — цепочка вершин 1..h (вершина 1 — корень, предок v — v - 1),
-      вершина h — верхушка P. Оставшиеся вершины h+1..n — листья-цепочки по
-      k вершин (последняя может быть короче), каждая крепится к P. Вершины
-      нумеруются по порядку построения. Падает при n < 2, h вне [1, n],
+      The trunk is the chain of vertices 1..h (vertex 1 is the root, the parent of v is v - 1),
+      vertex h is the top P. The remaining vertices h+1..n are chain leaves of
+      k vertices (the last one may be shorter), each attached to P. The vertices
+      are numbered in the order of building. Fails with n < 2, h outside [1, n],
       k < 1.
 
   - name: gen_jungle
@@ -40,139 +40,139 @@ generators:
     params:
       - name: n
         type: int
-        description: число вершин, n >= 2
+        description: the number of vertices, n >= 2
       - name: h
         type: int
-        description: число вершин ствола каждой пальмы (с общим корнем), h >= 1
+        description: the number of trunk vertices of each palm (with the common root), h >= 1
       - name: k
         type: int
-        description: длина листа, k >= 1
+        description: the length of a leaf, k >= 1
       - name: palms
         type: int
-        description: число пальм у общего корня, palms >= 1
+        description: the number of palms at the common root, palms >= 1
     input: null
-    output: весь тест — N и массив предков
+    output: the whole test — N and the array of parents
     algorithm: |
-      Корень — вершина 1. От него palms стволов по h - 1 новых вершин;
-      конец j-го ствола — его верхушка. Оставшиеся вершины — листья-цепочки
-      по k вершин (последняя может быть короче), по очереди к верхушкам
-      пальм 1, 2, ..., palms, 1, ... Вершины нумеруются по порядку
-      построения. Падает, если 1 + palms * (h - 1) > n или параметры вне
-      допустимых.
+      The root is vertex 1. From it go palms trunks of h - 1 new vertices each;
+      the end of the j-th trunk is its top. The remaining vertices are chain leaves
+      of k vertices (the last one may be shorter), in turn to the tops of
+      palms 1, 2, ..., palms, 1, ... The vertices are numbered in the order of
+      building. Fails if 1 + palms * (h - 1) > n or the parameters are out of
+      the allowed range.
 
   - name: gen_tree_balanced
     status: confirmed
     params:
       - name: n
         type: int
-        description: число вершин, n >= 2
+        description: the number of vertices, n >= 2
       - name: k
         type: int
-        description: наибольшая глубина вершины, k >= 1
+        description: the largest depth of a vertex, k >= 1
     input: null
-    output: весь тест — N и массив предков
+    output: the whole test — N and the array of parents
     algorithm: |
-      Корень — вершина 1 (глубина 0). Вершины 2..n в случайном порядке
-      подвешиваются к равновероятной вершине среди тех, чья глубина меньше
-      k, — так все пути от корня до листьев не длиннее k. Падает при n < 2
-      или k < 1.
+      The root is vertex 1 (depth 0). The vertices 2..n in random order
+      are hung on an equiprobable vertex among those whose depth is less than
+      k — so all paths from the root to the leaves are no longer than k. Fails with n < 2
+      or k < 1.
 
   - name: upd_tree_shuffle
     status: confirmed
     params: []
-    input: готовый тест — N и массив предков
-    output: тот же тест с вершинами, перенумерованными случайной перестановкой
+    input: a ready test — N and the array of parents
+    output: the same test with the vertices renumbered by a random permutation
     algorithm: |
-      Случайная перестановка newLabel вершин 1..N; вершина v становится
-      newLabel[v], её предок — newLabel[p_v] (0 у корня остаётся 0).
+      A random permutation newLabel of the vertices 1..N; vertex v becomes
+      newLabel[v], its parent — newLabel[p_v] (0 of the root stays 0).
 
   - name: upd_attach_branch_reroot
     status: proposed
     params:
       - name: k
         type: int
-        description: число вершин отростка, k >= 1
-    input: готовый тест — N и массив предков (с корнем — вершиной с предком 0)
-    output: тест на N + k вершинах — N + k и массив предков
+        description: the number of the offshoot's vertices, k >= 1
+    input: a ready test — N and the array of parents (with a root — a vertex with parent 0)
+    output: a test on N + k vertices — N + k and the array of parents
     algorithm: |
-      К корню входного дерева цепляется случайное дерево из k новых вершин
-      N+1..N+k (новые вершины в случайном порядке, предок каждой —
-      равновероятная из уже размещённых, начиная с корня). Новый корень —
-      равновероятная вершина отростка; дерево перевешивается за него
-      итеративным BFS (глубина до N), массив предков строится заново.
-      Падает при k < 1 или если во входе нет корня.
+      A random tree of k new vertices N+1..N+k is attached to the root of the input tree
+      (the new vertices in random order, the parent of each is
+      an equiprobable one of those already placed, starting from the root). The new root is
+      an equiprobable vertex of the offshoot; the tree is re-hung on it with
+      an iterative BFS (depth up to N), the array of parents is built anew.
+      Fails with k < 1 or if the input has no root.
     rationale: |
-      Тест из specific_test_ideas[11] требует генератора, которого автор не
-      описывал: корень оказывается далеко от структурно интересной части
-      дерева.
+      The test from specific_test_ideas[11] requires a generator the author didn't
+      describe: the root ends up far from the structurally interesting part of
+      the tree.
 
 constants:
   - name: minN
     value: "2"
-    description: N.min из constraints.yaml
+    description: N.min from constraints.yaml
   - name: maxN
     value: 3 * 10^5
-    description: N.max из constraints.yaml
+    description: N.max from constraints.yaml
   - name: smallMaxN
     value: "10"
-    description: граница маленьких тестов
+    description: the bound of small tests
   - name: starH
     value: "1"
-    description: звезда — пальма со стволом из одного корня
+    description: a star — a palm with a trunk of only the root
   - name: starK
     value: "1"
-    description: звезда — листья из одной вершины
+    description: a star — leaves of one vertex
   - name: palmBaseH
     value: maxN / 2
-    description: базовая пальма из specific_test_ideas
+    description: the basic palm from specific_test_ideas
   - name: palmBaseK
     value: "1"
-    description: базовая пальма из specific_test_ideas
+    description: the basic palm from specific_test_ideas
   - name: palmLongLeavesH
     value: maxN / 2
-    description: пальма с длинными листьями
+    description: a palm with long leaves
   - name: palmLongLeavesK
     value: palmLongLeavesH
-    description: длина листа порядка ствола
+    description: a leaf length of the order of the trunk
   - name: jungleFewPalmsH
     value: maxN / 10
-    description: джунгли из двух пальм
+    description: a jungle of two palms
   - name: jungleFewPalmsK
     value: "1"
-    description: джунгли из двух пальм
+    description: a jungle of two palms
   - name: jungleFewPalmsCount
     value: "2"
-    description: джунгли из двух пальм
+    description: a jungle of two palms
   - name: jungleManyPalmsH
     value: "10"
-    description: джунгли из многих пальм
+    description: a jungle of many palms
   - name: jungleManyPalmsK
     value: "1"
-    description: джунгли из многих пальм
+    description: a jungle of many palms
   - name: jungleManyPalmsCounts
     value: "[10, 100, isqrt(maxN)]"
-    description: число пальм — 10, 100, sqrt(N) из specific_test_ideas
+    description: the number of palms — 10, 100, sqrt(N) from specific_test_ideas
   - name: balancedK
     value: log2ceil(maxN)
-    description: бинарно-подобное дерево, K = log N
+    description: a binary-like tree, K = log N
   - name: attachBranchK
     value: smallMaxN
-    description: размер отростка
+    description: the offshoot's size
   - name: attachJungleN
     value: maxN - attachBranchK
-    description: джунгли чуть меньше максимума, чтобы с отростком было не больше maxN
+    description: a jungle slightly less than the maximum, so that with the offshoot it's no more than maxN
   - name: attachJungleH
     value: attachJungleN / 10
-    description: джунгли под отросток
+    description: a jungle for the offshoot
   - name: attachJungleK
     value: "1"
-    description: джунгли под отросток
+    description: a jungle for the offshoot
   - name: attachJunglePalms
     value: jungleFewPalmsCount
-    description: джунгли под отросток
+    description: a jungle for the offshoot
 
 tests:
-  - description: Маленькие случайные деревья, N = minN..smallMaxN
+  - description: Small random trees, N = minN..smallMaxN
     status: confirmed
     covers:
       - specific_test_ideas[0]
@@ -183,7 +183,7 @@ tests:
       - gen_tree_rand -n=n
     repeat: n = minN..smallMaxN
 
-  - description: Бамбук при N = maxN — наибольшая глубина, ловит рекурсивный обход
+  - description: A bamboo with N = maxN — the largest depth, catches a recursive traversal
     status: confirmed
     covers:
       - specific_test_ideas[2]
@@ -194,7 +194,7 @@ tests:
       - gen_palm -n=maxN -h=maxN -k=1 | upd_tree_shuffle
     repeat: null
 
-  - description: Звезда при N = maxN — все вершины дети корня, диаметр 2
+  - description: A star with N = maxN — all vertices are children of the root, diameter 2
     status: confirmed
     covers:
       - specific_test_ideas[3]
@@ -204,7 +204,7 @@ tests:
       - gen_palm -n=maxN -h=starH -k=starK | upd_tree_shuffle
     repeat: null
 
-  - description: Базовая пальма при N = maxN, H = N / 2, K = 1
+  - description: The basic palm with N = maxN, H = N / 2, K = 1
     status: confirmed
     covers:
       - specific_test_ideas[4]
@@ -217,7 +217,7 @@ tests:
       - gen_palm -n=maxN -h=palmBaseH -k=palmBaseK | upd_tree_shuffle
     repeat: null
 
-  - description: Пальма с длинными листьями — диаметр не проходит через корень
+  - description: A palm with long leaves — the diameter doesn't go through the root
     status: confirmed
     covers:
       - specific_test_ideas[5]
@@ -229,7 +229,7 @@ tests:
       - gen_palm -n=maxN -h=palmLongLeavesH -k=palmLongLeavesK | upd_tree_shuffle
     repeat: null
 
-  - description: Джунгли из двух пальм у общего корня — диаметр проходит через корень
+  - description: A jungle of two palms at a common root — the diameter goes through the root
     status: confirmed
     covers:
       - specific_test_ideas[6]
@@ -240,7 +240,7 @@ tests:
       - gen_jungle -n=maxN -h=jungleFewPalmsH -k=jungleFewPalmsK -palms=jungleFewPalmsCount | upd_tree_shuffle
     repeat: null
 
-  - description: Джунгли из многих пальм (10, 100, sqrt(N)) у общего корня
+  - description: A jungle of many palms (10, 100, sqrt(N)) at a common root
     status: confirmed
     covers:
       - specific_test_ideas[7]
@@ -248,9 +248,9 @@ tests:
     commands:
       - gen_jungle -n=maxN -h=jungleManyPalmsH -k=jungleManyPalmsK -palms=palmsCount
       - gen_jungle -n=maxN -h=jungleManyPalmsH -k=jungleManyPalmsK -palms=palmsCount | upd_tree_shuffle
-    repeat: palmsCount по jungleManyPalmsCounts
+    repeat: palmsCount over jungleManyPalmsCounts
 
-  - description: Сбалансированное дерево при N = maxN, K = ceil(log2(N))
+  - description: A balanced tree with N = maxN, K = ceil(log2(N))
     status: confirmed
     covers:
       - specific_test_ideas[8]
@@ -260,7 +260,7 @@ tests:
       - gen_tree_balanced -n=maxN -k=balancedK | upd_tree_shuffle
     repeat: null
 
-  - description: Случайное дерево при N = maxN (уже со случайной нумерацией)
+  - description: A random tree with N = maxN (already with random numbering)
     status: confirmed
     covers:
       - specific_test_ideas[9]
@@ -271,7 +271,7 @@ tests:
       - gen_tree_rand -n=maxN
     repeat: null
 
-  - description: Джунгли с маленьким отростком у корня, новый корень — внутри отростка
+  - description: A jungle with a small offshoot at the root, the new root is inside the offshoot
     status: proposed
     covers:
       - specific_test_ideas[11]
@@ -279,5 +279,5 @@ tests:
       - gen_jungle -n=attachJungleN -h=attachJungleH -k=attachJungleK -palms=attachJunglePalms | upd_attach_branch_reroot -k=attachBranchK
     repeat: null
     rationale: |
-      N джунглей уменьшено на размер отростка, чтобы итоговый тест не
-      превышал maxN.
+      The jungle's N is reduced by the offshoot's size, so that the final test doesn't
+      exceed maxN.

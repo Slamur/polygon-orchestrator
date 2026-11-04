@@ -1,18 +1,18 @@
 problem_id: number--roots
 intended_complexity: "O(log N)"
 complexity_reasoning: |
-  Каждый корень ищется бинпоиском по ответу: для квадратного — на
-  [0, 10^9], для кубического — на [0, 10^6]; проверка mid^k <= N
-  выполняется без переполнения 64-битного типа (границы бинпоиска
-  выбраны так, что mid^k <= 10^18, либо сравнение делается через
-  деление). Альтернатива — вещественный корень (sqrtl/cbrtl) с
-  целочисленной корректировкой результата на +-1 в обе стороны.
+  Each root is found by a binary search on the answer: for the square one — on
+  [0, 10^9], for the cube one — on [0, 10^6]; the check mid^k <= N
+  is done without overflowing a 64-bit type (the binary search bounds
+  are chosen so that mid^k <= 10^18, or the comparison is done via
+  division). An alternative is a floating-point root (sqrtl/cbrtl) with
+  an integer correction of the result by +-1 in both directions.
 
 variables:
   - name: "N"
     min: 1
     max: 1000000000000000000
-    description: "число, из которого извлекаются корни"
+    description: "the number the roots are extracted from"
     status: confirmed
 
 limits:
@@ -20,18 +20,18 @@ limits:
   memory_limit_mb: 256
   status: confirmed
   rationale: |
-    Заданы автором явно (1 секунда, 256 Мб) и используются как есть.
-    Согласованность с O(log N): при N = 10^18 бинпоиск делает порядка
-    60 итераций (log2(10^9) ~ 30 на квадратный корень и log2(10^6) ~ 20
-    на кубический), то есть десятки операций — на много порядков меньше
-    бюджета 1 секунды даже на интерпретируемых языках. Памяти требуется
-    O(1) (несколько 64-битных переменных), 256 Мб с огромным запасом.
-    При этом наивный перебор корня до 10^9 (~10^9 итераций с
-    умножениями) в 1 секунду не укладывается, то есть лимит отсекает
-    неэффективные решения.
+    Set by the author explicitly (1 second, 256 MB) and are used as is.
+    Consistency with O(log N): with N = 10^18 the binary search makes of the order of
+    60 iterations (log2(10^9) ~ 30 for the square root and log2(10^6) ~ 20
+    for the cube one), that is, tens of operations — many orders of magnitude less than
+    the budget of 1 second even in interpreted languages. Memory required is
+    O(1) (a few 64-bit variables), 256 MB with a huge margin.
+    At the same time a naive search for the root up to 10^9 (~10^9 iterations with
+    multiplications) doesn't fit into 1 second, that is, the limit cuts off
+    inefficient solutions.
 
-# test_groups отсутствует: test_groups_hint в спеке пуст и
-# test_groups_needed: false — группы автору не нужны.
+# test_groups is absent: test_groups_hint in the spec is empty and
+# test_groups_needed: false — the author doesn't need groups.
 
 validator:
   constants:
@@ -40,5 +40,5 @@ validator:
       min: 1
       max: 1000000000000000000
   checks:
-    - "единственная строка: одно число N, конец строки"
-    - "после единственной строки — конец файла"
+    - "the only line: one number N, end of line"
+    - "after the only line — end of file"

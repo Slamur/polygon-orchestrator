@@ -1,28 +1,28 @@
-# Угадай число
+# Guess the number
 
-## Условие
+## Statement
 
-Интерактивная задача
+An interactive problem
 
-Загадано целое число в промежутке [1; N] - необходимо его угадать.
+An integer in the range [1; N] is hidden - it has to be guessed.
 
-Программа может делать запрос "? X", где X - целое число из промежутка [1; N].
+The program can make a query "? X", where X is an integer from the range [1; N].
 
-На запрос можно получить один из трёх ответов:
+A query can get one of three answers:
 
-- "<": загаданное число меньше X
-- ">": загаданное число больше X
-- "=": загаданное число равно X
+- "<": the hidden number is less than X
+- ">": the hidden number is greater than X
+- "=": the hidden number is equal to X
 
-Программа может сделать не более 10 запросов. 
+The program can make at most 10 queries. 
 
-Если программа получает ответ "=", то она должна завершиться (тест считается пройденным).
+If the program gets the answer "=", it must terminate (the test is considered passed).
 
-Если программа делает больше 10 запросов - то она автоматически получает вердикт "неправильный ответ"
+If the program makes more than 10 queries - it automatically gets the "wrong answer" verdict
 
-Ограничения: N in [1; 1e3]
+Limits: N in [1; 1e3]
 
-## Идеи генераторов
+## Generator ideas
 
-- N - степень двойки + delta, delta in [-1, 0, 1]
-- Загадано 1 или N
+- N - a power of two + delta, delta in [-1, 0, 1]
+- The hidden number is 1 or N
