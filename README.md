@@ -1,119 +1,119 @@
 # polygon-orchestrator
 
-Оркестратор подготовки олимпиадных задач для [Polygon](https://polygon.codeforces.com).
-По структурированному спеку задачи (`authoring/spec.yaml`) он прогоняет цепочку
-генеративных шагов — каждый шаг это вызов модели Claude плюс механическая
-проверка результата — и получает черновики артефактов задачи:
+An orchestrator for preparing competitive programming problems for [Polygon](https://polygon.codeforces.com).
+From a structured problem spec (`authoring/spec.yaml`) it runs a chain of
+generative steps — each step is a Claude model call plus a mechanical
+check of the result — and produces drafts of the problem's artifacts:
 
-- условие в LaTeX (`statement/<язык>/*.tex`) и примеры;
-- ограничения, TL/ML, тестовые группы и валидатор;
-- генераторы (C++/testlib) и FreeMarker test-script;
-- черновики решений (ok / wa / tl);
-- кастомный чекер и интерактор — если они нужны задаче.
+- the statement in LaTeX (`statement/<language>/*.tex`) and examples;
+- limits, TL/ML, test groups and the validator;
+- generators (C++/testlib) and a FreeMarker test-script;
+- solution drafts (ok / wa / tl);
+- a custom checker and interactor — if the problem needs them.
 
-Потом всё это загружается на Polygon через Polygon API (`polygon push`) или
-скачивается оттуда (`polygon pull`). Результат — **черновик**: автор
-проверяет и докручивает его руками.
+Then all of this is uploaded to Polygon through the Polygon API (`polygon push`) or
+downloaded from there (`polygon pull`). The result is a **draft**: the author
+reviews it and finishes it by hand.
 
-Подробные описания: [CLAUDE.md](CLAUDE.md) и [.claude/rules/](.claude/rules/) (архитектура
-и поведение команд),
-[docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md) (формат спека),
-[docs/SETUP.md](docs/SETUP.md) (детали настройки).
-
----
-
-## Содержание
-
-1. [Как запускать на Windows](#как-запускать-на-windows)
-2. [Установка (WSL2 + Ubuntu)](#установка-wsl2--ubuntu)
-3. [Первая задача: от черновика до Polygon](#первая-задача-от-черновика-до-polygon)
-4. [Справочник команд](#справочник-команд)
-5. [Что где лежит](#что-где-лежит)
-6. [Совместная работа над задачами](#совместная-работа-над-задачами)
-7. [Частые проблемы](#частые-проблемы)
+Detailed descriptions: [CLAUDE.md](CLAUDE.md) and [.claude/rules/](.claude/rules/) (architecture
+and command behavior),
+[docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md) (the spec format),
+[docs/SETUP.md](docs/SETUP.md) (setup details).
 
 ---
 
-## Как запускать на Windows
+## Contents
 
-Оркестратор разрабатывается и проверяется на Linux. На Windows рекомендуемый
-путь — **WSL2 с Ubuntu**: это обычный Linux внутри Windows, все инструкции
-ниже — для него.
+1. [Running on Windows](#running-on-windows)
+2. [Installation (WSL2 + Ubuntu)](#installation-wsl2--ubuntu)
+3. [First problem: from a draft to Polygon](#first-problem-from-a-draft-to-polygon)
+4. [Command reference](#command-reference)
+5. [What lies where](#what-lies-where)
+6. [Working on problems together](#working-on-problems-together)
+7. [Common problems](#common-problems)
 
-| Вариант | Плюсы | Минусы |
+---
+
+## Running on Windows
+
+The orchestrator is developed and tested on Linux. On Windows the recommended
+way is **WSL2 with Ubuntu**: it's ordinary Linux inside Windows, all the instructions
+below are for it.
+
+| Option | Pros | Cons |
 |---|---|---|
-| **WSL2 + Ubuntu** (рекомендуется) | Всё работает как у автора, без изменений кода; VS Code открывает проект через расширение WSL; Claude Code ставится прямо в WSL | Нужно один раз включить WSL |
-| Docker | Одинаковое окружение у всех | На Windows Docker Desktop всё равно работает поверх WSL2; логин Claude Code нужно пробрасывать в контейнер (`~/.claude`); Tab-дополнение и git-хуки неудобны; образа в репозитории пока нет |
-| Нативный Windows | Без WSL | Не проверялся: нужны `g++` (MSYS2), `bash` для git-хука и дополнения; запуск процессов с таймаутами и пути могут вести себя иначе |
+| **WSL2 + Ubuntu** (recommended) | Everything works as for the author, without code changes; VS Code opens the project through the WSL extension; Claude Code is installed right in WSL | WSL has to be enabled once |
+| Docker | The same environment for everyone | On Windows, Docker Desktop runs on top of WSL2 anyway; the Claude Code login has to be passed into the container (`~/.claude`); Tab completion and git hooks are inconvenient; there's no image in the repository yet |
+| Native Windows | No WSL | Not tested: needs `g++` (MSYS2), `bash` for the git hook and completion; running processes with timeouts and paths may behave differently |
 
 ---
 
-## Установка (WSL2 + Ubuntu)
+## Installation (WSL2 + Ubuntu)
 
-### 1. WSL и Ubuntu
+### 1. WSL and Ubuntu
 
-В PowerShell **от администратора**:
+In PowerShell **as administrator**:
 
 ```powershell
 wsl --install -d Ubuntu-24.04
 ```
 
-Перезагрузить компьютер, открыть «Ubuntu» из меню Пуск, задать имя
-пользователя и пароль. Дальше все команды — **в терминале Ubuntu**.
+Restart the computer, open "Ubuntu" from the Start menu, set a user name
+and password. From here on all commands are **in the Ubuntu terminal**.
 
-> Работайте в домашнем каталоге Linux (`~/...`), а не в `/mnt/c/...`:
-> файлы на диске Windows из WSL читаются в разы медленнее, плюс бывают
-> проблемы с правами и концами строк.
+> Work in the Linux home directory (`~/...`), not in `/mnt/c/...`:
+> files on the Windows disk are read from WSL many times slower, plus there are
+> problems with permissions and line endings.
 
-Если пользуетесь VS Code: поставьте в Windows расширение **WSL**
-(`ms-vscode-remote.remote-wsl`), тогда `code .` в терминале Ubuntu открывает
-проект в VS Code, а расширение Claude Code работает внутри WSL.
+If you use VS Code: install the **WSL** extension in Windows
+(`ms-vscode-remote.remote-wsl`), then `code .` in the Ubuntu terminal opens the
+project in VS Code, and the Claude Code extension works inside WSL.
 
-### 2. Системные пакеты
+### 2. System packages
 
 ```bash
 sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip g++ default-jdk-headless bash-completion curl
 ```
 
-Зачем что нужно:
+What each one is for:
 
-- `python3` (≥ 3.10) — сам оркестратор;
-- `g++` — compile-check сгенерированных C++-файлов (валидатор, генераторы,
-  решения, чекер);
-- `default-jdk-headless` (JDK 11+) — проверка test-script'а настоящим
-  FreeMarker в `local check` и перед `polygon push` (подробнее — в п. 5);
-- `bash-completion` — Tab-дополнение команд и адресов задач.
+- `python3` (≥ 3.10) — the orchestrator itself;
+- `g++` — compile-check of the generated C++ files (validator, generators,
+  solutions, checker);
+- `default-jdk-headless` (JDK 11+) — checking the test-script with real
+  FreeMarker in `local check` and before `polygon push` (more — in item 5);
+- `bash-completion` — Tab completion of commands and problem addresses.
 
-### 3. Claude Code CLI (подписка Pro/Max)
+### 3. Claude Code CLI (Pro/Max subscription)
 
-Оркестратор по умолчанию вызывает модели через Claude Code CLI (`claude -p`),
-поэтому расход идёт из лимитов вашей подписки, а не с API-баланса.
+By default the orchestrator calls models through the Claude Code CLI (`claude -p`),
+so the usage comes from your subscription limits, not the API balance.
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash
-# или: npm install -g @anthropic-ai/claude-code
+# or: npm install -g @anthropic-ai/claude-code
 ```
 
-Затем один раз залогиниться **подпиской** (не API-ключом):
+Then log in once **with the subscription** (not with an API key):
 
 ```bash
-claude          # откроется ссылка для входа в браузере
-# внутри Claude Code: /status — должен показать вашу подписку, /exit — выйти
+claude          # a login link opens in the browser
+# inside Claude Code: /status — should show your subscription, /exit — quit
 ```
 
-Проверить, что CLI в `PATH` и достаточно свежий:
+Check that the CLI is in `PATH` and recent enough:
 
 ```bash
 claude --version
 claude update
 ```
 
-Нужна версия с флагами `--system-prompt-file` и `--safe-mode`; со старой
-оркестратор упадёт с подсказкой обновиться. Если `claude` лежит не в
-`PATH` — укажите путь в `CLAUDE_CODE_BIN` в `.env`.
+A version with the `--system-prompt-file` and `--safe-mode` flags is needed; with an old one
+the orchestrator fails with a hint to update. If `claude` isn't in
+`PATH` — give its path in `CLAUDE_CODE_BIN` in `.env`.
 
-### 4. Репозиторий и Python-окружение
+### 4. The repository and the Python environment
 
 ```bash
 cd ~
@@ -125,105 +125,105 @@ source .venv/bin/activate
 pip install -e '.[dev]'
 ```
 
-После этого в активированном окружении доступна команда `orchestrator`.
-Окружение нужно активировать в каждом новом терминале
-(`source .venv/bin/activate`), либо добавить эту строку в `~/.bashrc`.
+After that the `orchestrator` command is available in the activated environment.
+The environment has to be activated in every new terminal
+(`source .venv/bin/activate`), or add that line to `~/.bashrc`.
 
-Проверка:
+Check:
 
 ```bash
 orchestrator --help
-pytest               # unit-тесты; к модели и Polygon не обращаются
-pytest --fast        # то же без тестов, которые собирают и запускают C++/Java (~в 5 раз быстрее)
-pytest -n auto --dist loadgroup  # параллельно (pytest-xdist), как в CI
-ruff check .         # линтер (настройки — в pyproject.toml); `--fix` чинит что может
-ruff format .        # форматирование кода
+pytest               # unit tests; they don't call the model or Polygon
+pytest --fast        # the same without the tests that build and run C++/Java (~5 times faster)
+pytest -n auto --dist loadgroup  # in parallel (pytest-xdist), as in CI
+ruff check .         # the linter (settings — in pyproject.toml); `--fix` fixes what it can
+ruff format .        # code formatting
 ```
 
-Все три (форматирование — в режиме `--check`, тесты — все, вместе со `slow`)
-запускаются в CI на каждый PR (`.github/workflows/ci.yml`).
+All three (formatting — in `--check` mode, tests — all of them, including `slow`)
+run in CI on every PR (`.github/workflows/ci.yml`).
 
-### 5. Java и FreeMarker (проверка test-script'а)
+### 5. Java and FreeMarker (checking the test-script)
 
-`local check` и `polygon push` (перед загрузкой test-script'а) раскрывают
-скрипт **настоящим FreeMarker** — тем же движком, что и Polygon, — и ищут
-одинаковые строки (с ними Polygon отказывается генерировать тесты) и строки,
-которые Polygon не примет (кавычки или лишний `>` в параметрах генератора). Для этого
-нужны Java и jar FreeMarker.
+`local check` and `polygon push` (before uploading the test-script) expand
+the script with **real FreeMarker** — the same engine Polygon uses — and look for
+identical lines (with them Polygon refuses to generate tests) and lines
+Polygon won't accept (quotes or an extra `>` in generator parameters). This
+needs Java and the FreeMarker jar.
 
-По раскрытому скрипту `polygon push` ещё и ждёт, пока Polygon сгенерирует
-тесты: test-script загружается последним шагом, и коммит делается только
-после того, как тесты на Polygon совпали со строками скрипта (до 30 минут).
-Без Java push полагается только на ответ Polygon на сохранение скрипта: не
-дождался его — шаг падает, и закоммитить нужно вручную на Polygon, а потом
-сделать `polygon pull`.
+From the expanded script `polygon push` also waits for Polygon to generate
+the tests: the test-script is uploaded at the last step, and the commit is made only
+after the tests on Polygon match the script lines (up to 30 minutes).
+Without Java, push relies only on Polygon's response to saving the script: if it
+didn't wait for it — the step fails, and you have to commit by hand on Polygon, and then
+run `polygon pull`.
 
-**Java** (JDK 11+; `.java`-файл запускается без сборки, поэтому нужен
-именно JDK, а не только JRE) ставится вместе с системными пакетами из п. 2
-(`default-jdk-headless`). Проверить:
+**Java** (JDK 11+; the `.java` file is run without building, so it has to be
+a JDK, not just a JRE) is installed together with the system packages from item 2
+(`default-jdk-headless`). Check:
 
 ```bash
-java -version        # должна быть 11 или новее
+java -version        # must be 11 or newer
 ```
 
-Если пакет не ставили — `sudo apt install -y default-jdk-headless` (подойдёт
-и любой другой JDK 11+, лишь бы `java` была в `PATH`).
+If you didn't install the package — `sudo apt install -y default-jdk-headless` (any
+other JDK 11+ works too, as long as `java` is in `PATH`).
 
-**FreeMarker** отдельно ставить не нужно: при первой проверке оркестратор
-сам скачивает `freemarker-2.3.33.jar` с Maven Central (с проверкой sha1) в
-`~/.cache/polygon-orchestrator/`. Чтобы скачать его сразу и убедиться, что
-всё работает:
+**FreeMarker** doesn't need to be installed separately: on the first check the orchestrator
+downloads `freemarker-2.3.33.jar` from Maven Central itself (with a sha1 check) into
+`~/.cache/polygon-orchestrator/`. To download it right away and make sure
+everything works:
 
 ```bash
 python -c "from orchestrator.checks.test_script_check import freemarker_jar; print(freemarker_jar())"
 ```
 
-Без доступа к Maven Central (прокси, офлайн) — скачайте jar вручную
+Without access to Maven Central (proxy, offline) — download the jar by hand
 (`https://repo1.maven.org/maven2/org/freemarker/freemarker/2.3.33/freemarker-2.3.33.jar`)
-и либо положите его в `~/.cache/polygon-orchestrator/freemarker-2.3.33.jar`,
-либо укажите путь в `.env`: `ORCHESTRATOR_FREEMARKER_JAR=/путь/к/freemarker-2.3.33.jar`.
+and either put it in `~/.cache/polygon-orchestrator/freemarker-2.3.33.jar`,
+or give its path in `.env`: `ORCHESTRATOR_FREEMARKER_JAR=/path/to/freemarker-2.3.33.jar`.
 
-Без Java или jar `local check` сообщает, что проверку выполнить нельзя, а
-`polygon push` загружает скрипт без проверки, с предупреждением.
+Without Java or the jar, `local check` reports that the check can't be run, and
+`polygon push` uploads the script without the check, with a warning.
 
-### 6. Git-хук (если будете присылать изменения в код)
+### 6. The git hook (if you will send code changes)
 
 ```bash
 git config core.hooksPath githooks
 ```
 
-Хук `pre-push` не даёт запушить ветку или коммит, в имени/сообщении которого
-есть `problem_id` вашей задачи из `problems/` или имя черновика из
-`drafts/` — репозиторий публичный, задачи нет. Подробнее — в
-[docs/SETUP.md](docs/SETUP.md) и в разделе «Конфиденциальность problems/»
+The `pre-push` hook won't let you push a branch or a commit whose name/message
+contains the `problem_id` of your problem from `problems/` or the name of a draft from
+`drafts/` — the repository is public, the problems aren't. More — in
+[docs/SETUP.md](docs/SETUP.md) and in the "Confidentiality of problems/" section of
 [CLAUDE.md](CLAUDE.md).
 
-### 7. Ключи Polygon и `.env`
+### 7. Polygon keys and `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-В Polygon: **Settings → API keys → Create** — получите `key` и `secret` и
-впишите их в `.env`:
+In Polygon: **Settings → API keys → Create** — get the `key` and `secret` and
+put them into `.env`:
 
 ```dotenv
 ORCHESTRATOR_LLM_BACKEND=claude-code
-POLYGON_API_KEY=ваш_key
-POLYGON_API_SECRET=ваш_secret
+POLYGON_API_KEY=your_key
+POLYGON_API_SECRET=your_secret
 POLYGON_API_BASE_URL=https://polygon.codeforces.com/api
 ```
 
-`.env` в `.gitignore` и никуда не коммитится. `ANTHROPIC_API_KEY` нужен
-только при `ORCHESTRATOR_LLM_BACKEND=anthropic-api` (те же модели через
-Anthropic API, деньги с API-баланса вместо подписки).
+`.env` is in `.gitignore` and isn't committed anywhere. `ANTHROPIC_API_KEY` is needed
+only with `ORCHESTRATOR_LLM_BACKEND=anthropic-api` (the same models through
+the Anthropic API, money from the API balance instead of the subscription).
 
-Задачи, созданные через `polygon push`, появятся в **вашем** аккаунте
-Polygon.
+Problems created through `polygon push` appear in **your** Polygon
+account.
 
-### 8. Tab-дополнение (по желанию)
+### 8. Tab completion (optional)
 
-Из активированного окружения, один раз:
+From the activated environment, once:
 
 ```bash
 mkdir -p ~/.local/share/bash-completion/completions
@@ -231,323 +231,323 @@ register-python-argcomplete orchestrator \
     > ~/.local/share/bash-completion/completions/orchestrator
 ```
 
-В новом терминале `orchestrator examples/<Tab>` дополняет адреса задач,
-`orchestrator <задача> polygon pu<Tab>` — команды. Дополнять нужно из корня
-репозитория.
+In a new terminal `orchestrator examples/<Tab>` completes problem addresses,
+`orchestrator <problem> polygon pu<Tab>` — commands. Complete from the repository
+root.
 
 ---
 
-## Первая задача: от черновика до Polygon
+## First problem: from a draft to Polygon
 
-> ⚠️ Команды `init --draft` и `llm generate` вызывают модель и тратят лимиты
-> подписки (общие с вашей обычной работой в Claude Code и claude.ai).
-> Повторный прогон без изменений модель **не** вызывает — результаты
-> кэшируются по хешу входа.
+> ⚠️ The `init --draft` and `llm generate` commands call the model and spend the
+> subscription limits (shared with your regular work in Claude Code and claude.ai).
+> A rerun without changes does **not** call the model — the results
+> are cached by the input hash.
 
-Все команды — из корня репозитория, с активированным `.venv`.
+All commands — from the repository root, with `.venv` activated.
 
-**1. Черновик.** Опишите задачу в свободной форме в файле `drafts/`, например
-`drafts/my-task.md` (можно и в подкаталоге, `drafts/icpc/my-task.md`): суть, ввод-вывод, ограничения, идея решения, типичные
-ошибки — что знаете. Чтобы понять, во что черновик превратится, посмотрите
-спеки учебных задач: `examples/*/*/authoring/spec.yaml`.
+**1. The draft.** Describe the problem in free form in a file in `drafts/`, e.g.
+`drafts/my-task.md` (a subdirectory works too, `drafts/icpc/my-task.md`): the gist, input/output, limits, the solution idea, typical
+mistakes — whatever you know. To understand what the draft will turn into, look at the
+specs of the sample problems: `examples/*/*/authoring/spec.yaml`.
 
-**2. Спек по черновику.**
+**2. The spec from the draft.**
 
 ```bash
 orchestrator problems/my-task init --draft my-task
-# с учебной задачей как образцом формата и файлов:
+# with a sample problem as a sample of the format and files:
 orchestrator problems/my-task init --draft my-task --ref examples/array/prefix-sums
 ```
 
-Модель пишет `problems/my-task/authoring/spec.yaml`. Всё, что она дописала
-сама, помечено `# PROPOSED, REVIEW ME: ...` или `# SUGGESTION: ...` —
-**прочитайте спек**, поправьте и удалите пометки. Отчёт — в
-`problems/my-task/llm_reports/spec_from_draft.md`. Поменяли черновик — та же
-команда доработает спек, а не напишет его заново: поправки в спеке
-останутся.
+The model writes `problems/my-task/authoring/spec.yaml`. Everything it added
+itself is marked `# PROPOSED, REVIEW ME: ...` or `# SUGGESTION: ...` —
+**read the spec**, fix it and remove the marks. The report — in
+`problems/my-task/llm_reports/spec_from_draft.md`. Changed the draft — the same
+command revises the spec rather than writing it anew: the edits in the spec
+stay.
 
-Без `--draft` создаётся пустой спек из шаблона (или копия спека `--ref`),
-который заполняется руками по [docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md).
+Without `--draft` an empty spec is created from the template (or a copy of the `--ref` spec),
+which is filled in by hand following [docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md).
 
-**3. Генерация.**
-
-```bash
-orchestrator problems/my-task llm status     # что будет запущено (бесплатно)
-orchestrator problems/my-task llm generate   # все шаги по порядку
-```
-
-После каждого шага смотрите его отчёт `problems/my-task/llm_reports/<шаг>.md`:
-там заметки модели (`uncertain` — чего не хватает в спеке, `proposed` —
-предположения, которые надо проверить, `suggestion` — идеи сверх спека),
-ошибки компиляции и диффы.
-
-Если шаг вернул `uncertain` — пайплайн останавливается: допишите в спек
-то, что просит модель, и запустите `llm generate` снова (готовые шаги
-пропустятся по кэшу). Поправили спек — перезапускаются только те шаги, на
-которые правка влияет; текущие файлы при этом не переписываются с нуля, а
-дорабатываются (в том числе с вашими ручными правками).
-
-**4. Проверка и загрузка на Polygon.**
+**3. Generation.**
 
 ```bash
-orchestrator problems/my-task local check    # оформление условия, дубли и кавычки в скрипте
-orchestrator problems/my-task local check --full  # ещё и сгенерировать тесты: валидатор, одинаковые тесты
-orchestrator problems/my-task local run      # валидатор и решения на примерах
-orchestrator problems/my-task local run --full  # ещё и на всех тестах по скрипту
-orchestrator problems/my-task local fix      # автоматически исправить то, что можно
-orchestrator problems/my-task polygon push   # создать задачу на Polygon и загрузить
+orchestrator problems/my-task llm status     # what will be run (free)
+orchestrator problems/my-task llm generate   # all steps in order
 ```
 
-Дальше — тесты, пакет и проверка решений в Polygon руками. Если правили
-задачу в Polygon — `polygon pull` перед следующим `push`.
+After each step look at its report `problems/my-task/llm_reports/<step>.md`:
+it has the model's notes (`uncertain` — what's missing in the spec, `proposed` —
+assumptions to check, `suggestion` — ideas beyond the spec),
+compilation errors and diffs.
+
+If a step returned `uncertain` — the pipeline stops: add to the spec
+what the model asks for, and run `llm generate` again (finished steps
+are skipped by the cache). Edited the spec — only the steps the edit affects
+are rerun; the current files aren't rewritten from scratch but
+revised (including with your manual edits).
+
+**4. Checking and uploading to Polygon.**
+
+```bash
+orchestrator problems/my-task local check    # statement formatting, duplicates and quotes in the script
+orchestrator problems/my-task local check --full  # also generate tests: validator, identical tests
+orchestrator problems/my-task local run      # validator and solutions on the examples
+orchestrator problems/my-task local run --full  # also on all tests from the script
+orchestrator problems/my-task local fix      # automatically fix what can be fixed
+orchestrator problems/my-task polygon push   # create the problem on Polygon and upload
+```
+
+Then — tests, the package and checking solutions in Polygon by hand. If you edited
+the problem in Polygon — `polygon pull` before the next `push`.
 
 ---
 
-## Справочник команд
+## Command reference
 
-Общий вид:
+General form:
 
 ```
-orchestrator [--base-dir DIR] <задача> <init|llm|local|polygon> [команда] [флаги]
+orchestrator [--base-dir DIR] <problem> <init|llm|local|polygon> [command] [flags]
 ```
 
-`<задача>` — путь каталога задачи **вместе с корнем**: `problems/<путь>`
-(ваши задачи, на любой глубине: `problems/contest-2026/round-1/my-task`) или
-`examples/<путь>` (учебные). `problem_id` (имя задачи на Polygon) выводится
-из пути: для `problems/` — имя последнего каталога (`my-task`), для
-`examples/` — путь через `--` (`array--prefix-sums`).
+`<problem>` — the path of the problem directory **together with the root**: `problems/<path>`
+(your problems, at any depth: `problems/contest-2026/round-1/my-task`) or
+`examples/<path>` (samples). `problem_id` (the problem's name on Polygon) is derived
+from the path: for `problems/` — the name of the last directory (`my-task`), for
+`examples/` — the path joined with `--` (`array--prefix-sums`).
 
-Вместо задачи можно указать **группу** — каталог выше задач или сам корень
-(`problems/contest-2026`, `examples`): команда выполнится для всех задач под
-ним по очереди. Каталог задаётся целиком, начало имени не подходит
-(`problems/cont` — не группа). Сначала печатается список найденных задач
-(`problem_id` и путь) и спрашивается подтверждение; без него работают только
-`llm status` и `polygon status`. Сбой одной задачи не останавливает остальные —
-в конце печатается, какие задачи не прошли. Не работает с `init` и `polygon
-pull --polygon-id`: они про одну задачу.
+Instead of a problem you can give a **group** — a directory above problems or the root itself
+(`problems/contest-2026`, `examples`): the command runs for all problems under
+it in turn. The directory is given in full, a name prefix doesn't work
+(`problems/cont` isn't a group). First the list of found problems is printed
+(`problem_id` and path) and a confirmation is asked; only
+`llm status` and `polygon status` work without it. A failure of one problem doesn't stop the rest —
+at the end it prints which problems didn't pass. Doesn't work with `init` and `polygon
+pull --polygon-id`: they are about one problem.
 
-`--base-dir` — каталог, в котором лежат `problems/` и `examples/` (по
-умолчанию текущий).
+`--base-dir` — the directory containing `problems/` and `examples/` (by
+default the current one).
 
-### `init` — создать задачу
+### `init` — create a problem
 
-| Команда | Что делает | Модель |
+| Command | What it does | Model |
 |---|---|---|
-| `init` | Каталог задачи + `authoring/spec.yaml` из шаблона с комментариями | нет |
-| `init --ref <задача>` | Спек — копия спека другой задачи; она же добавляется в `references` как образец для шагов | нет |
-| `init --draft NAME` | Спек пишет модель по черновику `drafts/NAME` (`NAME` — путь в `drafts/`, с расширением или без; имя без подкаталогов ищется и в них; с `--ref` — на его основе); копия черновика — в `authoring/` | **да** |
+| `init` | The problem directory + `authoring/spec.yaml` from the template with comments | no |
+| `init --ref <problem>` | The spec is a copy of another problem's spec; that problem is also added to `references` as a sample for the steps | no |
+| `init --draft NAME` | The spec is written by the model from the draft `drafts/NAME` (`NAME` — a path in `drafts/`, with or without the extension; a name without subdirectories is also searched for in them; with `--ref` — based on it); the draft copy — in `authoring/` | **yes** |
 
-| `init --draft NAME` (спек уже есть) | Модель дорабатывает текущий спек (ручные правки сохраняются) по тому, что изменилось в черновике с его копии в `authoring/`; черновик не менялся — модель не вызывается (`--force` — вызвать всё равно); прежние версии — в `.llm_backup/` | **да** |
+| `init --draft NAME` (the spec already exists) | The model revises the current spec (manual edits are kept) by what changed in the draft since its copy in `authoring/`; the draft didn't change — the model isn't called (`--force` — call it anyway); previous versions — in `.llm_backup/` | **yes** |
 
-Без `--draft` существующий `spec.yaml` не перезаписывается.
+Without `--draft`, an existing `spec.yaml` isn't overwritten.
 
-### `llm` — генеративные шаги
+### `llm` — generative steps
 
-Шаги по порядку: `statement_draft` → `constraints_pick` →
-`limits_from_constraints` (механический, без модели) → `tests_plan` (план
-тестов) → `generators_draft` (генераторы по плану) → `test_script_draft`
-(test-script по плану) → `checker_draft` (только при
-`checker.custom_needed: true`) → `interactor_draft` (только у интерактивных)
-→ `solutions_draft`. Отдельно, только по команде `llm tutorial`, —
-`tutorial_draft` (разбор по драфту).
+The steps in order: `statement_draft` → `constraints_pick` →
+`limits_from_constraints` (mechanical, without the model) → `tests_plan` (the test
+plan) → `generators_draft` (generators from the plan) → `test_script_draft`
+(the test-script from the plan) → `checker_draft` (only with
+`checker.custom_needed: true`) → `interactor_draft` (only for interactive problems)
+→ `solutions_draft`. Separately, only via the `llm tutorial` command, —
+`tutorial_draft` (the tutorial from a draft).
 
-| Команда | Что делает | Модель |
+| Command | What it does | Model |
 |---|---|---|
-| `llm status` | Таблица «шаг → cache hit / stale / not run / uncertain / conflict»; у `stale` — что именно изменилось | нет |
-| `llm generate` | Прогон всех шагов; валидные по кэшу пропускаются | **да** |
-| `llm generate --step NAME` | Только один шаг | **да** |
-| `llm generate --force` | Игнорировать кэш, доработать текущие файлы заново | **да** |
-| `llm generate --fresh` | С нуля, не показывая модели текущие файлы | **да** |
-| `llm tutorial [--ref SOLUTION ...]` | `statement/<язык>/tutorial.tex` по `authoring/draft-tutorial.md`: модель раскрывает ваши мысли и дописывает только то, о чём вы прямо просите («докажи», «распиши»). `--ref` (можно несколько) — файлы из `solutions/` как контекст; список запоминается, новые `--ref` заменяют его, `--no-ref` очищает. Есть `--force` и `--fresh` | **да** |
-| `llm apply [--step NAME]` | Применить сохранённый, но не применённый ответ модели (например, после конфликта или ошибки) | нет |
-| `llm accept [--step NAME]` | Пометить текущие файлы `stale`-шагов актуальными (если правка не должна менять результат, или вы уже поправили файлы руками); что именно изменилось у каждого шага — в `llm_reports/accept.md` | нет |
+| `llm status` | A "step → cache hit / stale / not run / uncertain / conflict" table; for `stale` — what exactly changed | no |
+| `llm generate` | A run of all steps; those valid by the cache are skipped | **yes** |
+| `llm generate --step NAME` | Only one step | **yes** |
+| `llm generate --force` | Ignore the cache, revise the current files again | **yes** |
+| `llm generate --fresh` | From scratch, without showing the model the current files | **yes** |
+| `llm tutorial [--ref SOLUTION ...]` | `statement/<language>/tutorial.tex` from `authoring/draft-tutorial.md`: the model expands your thoughts and adds only what you explicitly ask for ("prove", "spell out"). `--ref` (can be repeated) — files from `solutions/` as context; the list is remembered, new `--ref`s replace it, `--no-ref` clears it. Has `--force` and `--fresh` | **yes** |
+| `llm apply [--step NAME]` | Apply a saved but unapplied model response (e.g. after a conflict or an error) | no |
+| `llm accept [--step NAME]` | Mark the current files of `stale` steps up to date (if the edit shouldn't change the result, or you've already fixed the files by hand); what exactly changed for each step — in `llm_reports/accept.md` | no |
 
-Что важно знать:
+What's important to know:
 
-- **Кэш.** Шаг не вызывает модель, если не изменились его часть спека,
-  результаты предыдущих шагов, промпты, образцы и модель.
-- **Доработка.** Если файлы шага уже есть, модель получает их (с вашими
-  ручными правками) и «что изменилось во входе» и дорабатывает их.
-  Прежние версии — в `.llm_backup/<время>/`. Файлы, которые модель
-  предлагает удалить, становятся `<имя>.removed` — удаляете вы сами.
-- **Конфликты.** То, что нельзя применить, откладывается в
-  `.llm_conflicts/<шаг>-<время>/` с `CONFLICTS.md`. Разберите, удалите
-  каталог и сделайте `llm accept` (или `llm generate --force`).
-- **Лимит подписки исчерпан** — `llm generate` останавливается на текущем
-  шаге; после сброса лимита просто запустите снова.
+- **Cache.** A step doesn't call the model if its part of the spec,
+  the results of the previous steps, the prompts, the samples and the model didn't change.
+- **Revision.** If the step's files already exist, the model gets them (with your
+  manual edits) and "what changed in the input" and revises them.
+  Previous versions — in `.llm_backup/<time>/`. Files the model
+  proposes to delete become `<name>.removed` — you delete them yourself.
+- **Conflicts.** What can't be applied is set aside in
+  `.llm_conflicts/<step>-<time>/` with `CONFLICTS.md`. Sort it out, delete the
+  directory and run `llm accept` (or `llm generate --force`).
+- **Subscription limit exhausted** — `llm generate` stops at the current
+  step; after the limit resets just run it again.
 
-### `local` — проверки без модели и сети
+### `local` — checks without the model and the network
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `local check` | Проверка условия (Markdown-списки, кавычки не `<<…>>`), дублей строк и параметров с кавычками/`>` в раскрытом test-script'е (нужна `java`) |
-| `local check --full` | То же плюс локальная генерация тестов по скрипту: валидатор на каждом тесте и поиск одинаковых по содержимому (в том числе с примерами) |
-| `local run` | Собрать валидатор и решения и прогнать на примерах (дольше, чем `check`) |
-| `local run --full` | То же плюс все тесты по скрипту, с ответами от главного `ok`-решения: `wa`, `re`, `il` обязаны получить свой вердикт хотя бы раз |
-| `local clear` | Удалить локальные тесты и сборки генераторов (`.tests_cache/`); кэш шагов модели, состояние Polygon и бэкапы не трогает |
-| `local fix` | Исправить найденное `check`: списки → `itemize`/`enumerate`, кавычки → `<<…>>`; бэкап в `.fix_backup/` |
+| `local check` | Checks the statement (Markdown lists, quotes other than `<<…>>`), duplicate lines and parameters with quotes/`>` in the expanded test-script (needs `java`) |
+| `local check --full` | The same plus local generation of tests from the script: the validator on every test and a search for tests identical in content (including with the examples) |
+| `local run` | Build the validator and solutions and run them on the examples (longer than `check`) |
+| `local run --full` | The same plus all tests from the script, with answers from the main `ok` solution: `wa`, `re`, `il` must get their verdict at least once |
+| `local clear` | Delete local tests and generator builds (`.tests_cache/`); doesn't touch the model's step cache, the Polygon state and backups |
+| `local fix` | Fix what `check` found: lists → `itemize`/`enumerate`, quotes → `<<…>>`; a backup in `.fix_backup/` |
 
-`local check --full`: одинаковые тесты только показываются, с командами и строками
-скрипта, ошибкой не считаются. Тесты и сборки генераторов лежат в `.tests_cache/`, их
-можно удалять; номер, файл и команда каждого теста — в `.tests_cache/manifest.txt`.
-Заново генерируются только новые строки скрипта и тесты изменившихся генераторов.
-Тесты сгенерированы другим компилятором, чем на Polygon, поэтому в редких случаях
-(`long`, `std::shuffle`, порядок `unordered_*`) могут отличаться от тестов Polygon.
+`local check --full`: identical tests are only shown, with the commands and script
+lines, they aren't considered an error. Tests and generator builds lie in `.tests_cache/`, they
+can be deleted; the number, file and command of each test — in `.tests_cache/manifest.txt`.
+Only new script lines and tests of changed generators are generated again.
+The tests are generated by a different compiler than on Polygon, so in rare cases
+(`long`, `std::shuffle`, the order of `unordered_*`) they may differ from the Polygon tests.
 
-`local run --full`: `wa`, `re`, `il`, ни разу не получившие свой вердикт, — ошибка:
-тесты не ловят заявленную ошибку (или решение на самом деле верное). `tl` без
-TL — только предупреждение, потому что время локальное. Такие решения
-останавливаются на первом заявленном вердикте, `ok` и `tl_ok` идут до конца. На
-задаче с большим числом решений и большими тестами прогон может занять много минут.
+`local run --full`: `wa`, `re`, `il` that never got their verdict — an error:
+the tests don't catch the declared mistake (or the solution is actually correct). `tl` without
+TL — only a warning, because the time is local. Such solutions
+stop at the first declared verdict, `ok` and `tl_ok` go to the end. On a
+problem with many solutions and large tests the run may take many minutes.
 
-`local run`: каждое решение из `solutions/` собирается и
-запускается на `statement/examples/example_<N>.txt`, ответ проверяет чекер
-задачи (свой `checker.cpp` или стандартный из `checker.standard`), ответы —
-`output` примеров в спеке (если его нет — вывод главного `ok`-решения).
-Решение с вердиктом X в имени может получить на примере OK или X (`tl_ok` —
-OK или TL); всё остальное — ошибка. TL — из `limits.yaml`, время меряется
-локально и с Polygon может не совпадать; решение не с вердиктом `tl`, которое
-работало дольше половины TL, попадает в предупреждения. Для Java-решений нужен JDK
-(`default-jdk-headless`). У интерактивной задачи решение запускается вместе
-с `interactor.cpp`, чекер проверяет то, что интерактор записал в `tout`, а
-ответом служит `tout` главного `ok`-решения. Решение, которое не сбрасывает
-вывод и зависает в ожидании ответа, получает IL — допустимо только для `il`.
-Если у примера задан свой ввод/вывод для условия
-(`example_<N>.input_for_statement.txt` / `.output_for_statement.txt`, их
-скачивает `polygon pull`), он тоже проверяется: ввод — валидатором, вывод —
-чекером; у интерактивной задачи диалог из условия проигрывается с
-интерактором. Флаг Polygon «verify input/output for statements» хранится в
-`example_<N>.verify_for_statement.txt` (файл есть — флаг включён).
+`local run`: each solution from `solutions/` is built and
+run on `statement/examples/example_<N>.txt`, the answer is checked by the problem's
+checker (its own `checker.cpp` or the standard one from `checker.standard`), the answers —
+the `output` of the examples in the spec (if there isn't one — the output of the main `ok` solution).
+A solution with verdict X in its name may get OK or X on an example (`tl_ok` —
+OK or TL); anything else is an error. TL — from `limits.yaml`, the time is measured
+locally and may not match Polygon; a solution without the `tl` verdict that
+ran longer than half the TL goes into the warnings. Java solutions need a JDK
+(`default-jdk-headless`). For an interactive problem the solution runs together
+with `interactor.cpp`, the checker checks what the interactor wrote to `tout`, and
+the answer is the `tout` of the main `ok` solution. A solution that doesn't flush
+its output and hangs waiting for an answer gets IL — allowed only for `il`.
+If an example has its own input/output for the statement
+(`example_<N>.input_for_statement.txt` / `.output_for_statement.txt`, they are
+downloaded by `polygon pull`), it is checked too: the input — by the validator, the output — by the
+checker; for an interactive problem the dialogue from the statement is replayed with the
+interactor. Polygon's "verify input/output for statements" flag is stored in
+`example_<N>.verify_for_statement.txt` (the file exists — the flag is on).
 
-### `polygon` — синхронизация с Polygon
+### `polygon` — syncing with Polygon
 
-| Команда | Что делает | Сеть |
+| Command | What it does | Network |
 |---|---|---|
-| `polygon status` | Какие polygon-шаги сделаны / устарели — по локальным файлам | нет |
-| `polygon push` | Создать задачу (если нет) и загрузить только изменившееся с последней синхронизации; после каждого шага — коммит на Polygon | **да** |
-| `polygon push --step NAME` | Только один шаг (`create_problem`, `upload_statement`, `upload_solutions`, …) | **да** |
-| `polygon push --force` | Загрузить всё, даже если задачу меняли на Polygon (затирает те правки) | **да** |
-| `polygon push --no-commit` | Загрузить без коммитов (все шаги или один, с `--step`; можно несколько раз подряд): всё остаётся в рабочей копии на Polygon. Потом закоммитьте там одной пачкой и сделайте `polygon pull` | **да** |
-| `polygon pull` | Привязаться к существующей задаче на Polygon (по имени = `problem_id`), сравнить и скачать изменения; спек не нужен | **да**, только чтение |
-| `polygon pull --polygon-id N` | Уточнить задачу по числовому id, если с таким именем их несколько | **да** |
-| `polygon pull --overwrite` | Заменить и локальные файлы, которые менялись с обеих сторон; бэкап в `.pull_backup/` | **да** |
+| `polygon status` | Which polygon steps are done / outdated — by the local files | no |
+| `polygon push` | Create the problem (if there isn't one) and upload only what changed since the last sync; after each step — a commit on Polygon | **yes** |
+| `polygon push --step NAME` | Only one step (`create_problem`, `upload_statement`, `upload_solutions`, …) | **yes** |
+| `polygon push --force` | Upload everything, even if the problem was changed on Polygon (overwrites those edits) | **yes** |
+| `polygon push --no-commit` | Upload without commits (all steps or one, with `--step`; can be run several times in a row): everything stays in the working copy on Polygon. Then commit there in one batch and run `polygon pull` | **yes** |
+| `polygon pull` | Bind to an existing problem on Polygon (by name = `problem_id`), compare and download changes; no spec needed | **yes**, read-only |
+| `polygon pull --polygon-id N` | Pin the problem by its numeric id if there are several with that name | **yes** |
+| `polygon pull --overwrite` | Also replace local files that changed on both sides; a backup in `.pull_backup/` | **yes** |
 
-`push` останавливается, если задачу на Polygon меняли в обход оркестратора
-(или там есть незакоммиченные правки), и предлагает сначала сделать `pull`.
+`push` stops if the problem on Polygon was changed bypassing the orchestrator
+(or there are uncommitted edits there), and suggests running `pull` first.
 
-Разбор задачи — необязательный `statement/<язык>/tutorial.tex`: его пишете вы или
-модель по вашему драфту (`llm tutorial`). `polygon push` загружает его вместе с условием,
-`polygon pull` скачивает разбор, если он есть на Polygon. Удалили файл —
-следующий push очистит разбор на Polygon.
+The problem's tutorial is the optional `statement/<language>/tutorial.tex`: you write it or
+the model does from your draft (`llm tutorial`). `polygon push` uploads it together with the statement,
+`polygon pull` downloads the tutorial if it exists on Polygon. Deleted the file —
+the next push clears the tutorial on Polygon.
 
-Условие на нескольких языках. Условие каждого языка лежит в своём каталоге
-`statement/<код>/` (`statement/ru/`, `statement/en/`, `statement/kk/`; язык
-Polygon без кода в таблице `orchestrator/statement_languages.py` — каталог с
-его именем на Polygon): `legend.tex`, `input_format.tex`, `output_format.tex`,
-`notes.tex` (и `interaction.tex`, `tutorial.tex`) и `name.txt` с названием;
-примеры общие и лежат только в `statement/examples/`. Основной язык — поле
-`language` спека (`ru` по умолчанию или `en`): на нём пишет модель
-(`llm generate`, `llm tutorial`). Остальные языки пишете вы: `polygon push`
-загружает каждый язык отдельно, `polygon pull` раскладывает языки с Polygon по
-таким же каталогам. Удалили каталог — условие на этом языке на Polygon
-остаётся, его удаляйте там руками. Задачу, у которой условие лежит прямо в
-`statement/`, первая же команда к ней переносит в `statement/<основной язык>/`.
+A statement in several languages. The statement of each language lies in its own directory
+`statement/<code>/` (`statement/ru/`, `statement/en/`, `statement/kk/`; a Polygon
+language without a code in the `orchestrator/statement_languages.py` table — a directory with
+its Polygon name): `legend.tex`, `input_format.tex`, `output_format.tex`,
+`notes.tex` (and `interaction.tex`, `tutorial.tex`) and `name.txt` with the name;
+the examples are shared and lie only in `statement/examples/`. The main language is the spec's
+`language` field (`ru` by default, or `en`): the model writes in it
+(`llm generate`, `llm tutorial`). The other languages are written by you: `polygon push`
+uploads each language separately, `polygon pull` lays out the languages from Polygon into
+the same directories. Deleted a directory — the statement in that language stays on Polygon,
+delete it there by hand. A problem whose statement lies directly in
+`statement/` is moved into `statement/<main language>/` by the very first command on it.
 
-### Переменные окружения (`.env`)
+### Environment variables (`.env`)
 
-| Переменная | Значение |
+| Variable | Value |
 |---|---|
-| `ORCHESTRATOR_LLM_BACKEND` | `claude-code` (по умолчанию, подписка) или `anthropic-api` |
-| `CLAUDE_CODE_BIN` | путь к `claude`, если он не в `PATH` |
-| `ORCHESTRATOR_LLM_TIMEOUT` | предел одного вызова `claude -p` в секундах (по умолчанию 1800); не уложился — ошибка шага, на диск ничего не пишется |
-| `ANTHROPIC_API_KEY` | только для `anthropic-api` |
-| `POLYGON_API_KEY`, `POLYGON_API_SECRET` | ключи Polygon API |
+| `ORCHESTRATOR_LLM_BACKEND` | `claude-code` (default, subscription) or `anthropic-api` |
+| `CLAUDE_CODE_BIN` | the path to `claude` if it isn't in `PATH` |
+| `ORCHESTRATOR_LLM_TIMEOUT` | the limit of one `claude -p` call in seconds (1800 by default); didn't fit — a step error, nothing is written to disk |
+| `ANTHROPIC_API_KEY` | only for `anthropic-api` |
+| `POLYGON_API_KEY`, `POLYGON_API_SECRET` | Polygon API keys |
 | `POLYGON_API_BASE_URL` | `https://polygon.codeforces.com/api` |
-| `ORCHESTRATOR_FREEMARKER_JAR` | путь к jar FreeMarker, если нет сети (иначе скачивается сам в `~/.cache/polygon-orchestrator/`) |
-| `ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` | отключить проверку test-script'а перед `push` (и ожидание генерации тестов по нему) |
+| `ORCHESTRATOR_FREEMARKER_JAR` | the path to the FreeMarker jar if there's no network (otherwise it downloads itself into `~/.cache/polygon-orchestrator/`) |
+| `ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` | turn off the test-script check before `push` (and waiting for test generation from it) |
 
 ---
 
-## Что где лежит
+## What lies where
 
 ```
-drafts/                    черновики задач для init --draft (не в git)
-problems/<путь задачи>/    ваши задачи (не в git)
-  authoring/spec.yaml        спек — вход всех шагов
-  authoring/constraints.yaml ограничения, группы, что проверяет валидатор
-  authoring/tests_plan.yaml  план тестов: генераторы и тесты скрипта (можно править руками)
-  authoring/draft-tutorial.md драфт разбора в свободной форме для llm tutorial
-  statement/<код>/           условие (.tex) и разбор (необязательный tutorial.tex) на языке: ru/, en/, …
-  statement/examples/        примеры — общие для всех языков
-  limits.yaml                актуальные TL/ML (можно править руками)
+drafts/                    problem drafts for init --draft (not in git)
+problems/<problem path>/   your problems (not in git)
+  authoring/spec.yaml        the spec — the input of all steps
+  authoring/constraints.yaml limits, groups, what the validator checks
+  authoring/tests_plan.yaml  the test plan: generators and script tests (can be edited by hand)
+  authoring/draft-tutorial.md a free-form tutorial draft for llm tutorial
+  statement/<code>/          the statement (.tex) and tutorial (optional tutorial.tex) in a language: ru/, en/, …
+  statement/examples/        examples — shared by all languages
+  limits.yaml                the actual TL/ML (can be edited by hand)
   validator.cpp, checker.cpp, interactor.cpp
   generators/*.cpp, test_script, test_script_groups
   solutions/*
-  llm_reports/<шаг>.md       отчёт последнего прогона шага — читать в первую очередь
-  llm_reports/accept.md      что принял последний llm accept
-  llm_generation.log         полный лог llm-прогонов
-  polygon.log                полный лог push/pull
-  polygon_state.json         привязка к задаче на Polygon
-examples/<вид>/<суть>/     учебные задачи — образцы для --ref и references
-templates/                 общие шаблоны: problem_lib.h, testlib.h, правила (tutorials/*.md)
-prompts/                   промпты шагов
-orchestrator/              код
+  llm_reports/<step>.md      the report of the step's last run — read it first
+  llm_reports/accept.md      what the last llm accept accepted
+  llm_generation.log         the full log of llm runs
+  polygon.log                the full log of push/pull
+  polygon_state.json         the binding to the problem on Polygon
+examples/<kind>/<gist>/    sample problems — samples for --ref and references
+templates/                 shared templates: problem_lib.h, testlib.h, rules (tutorials/*.md)
+prompts/                   step prompts
+orchestrator/              code
 ```
 
-`problems/` и `drafts/` в `.gitignore` специально: репозиторий публичный, а
-задачи — нет, пока не прошёл контест.
+`problems/` and `drafts/` are in `.gitignore` on purpose: the repository is public, and
+the problems aren't, until the contest has taken place.
 
 ---
 
-## Совместная работа над задачами
+## Working on problems together
 
-Задачи не хранятся в git, поэтому обмениваться ими удобнее всего через
+Problems aren't stored in git, so the easiest way to exchange them is through
 Polygon:
 
-1. Владелец задачи даёт доступ на Polygon (**Manage access**, право
-   `WRITE`).
-2. Второй участник: `orchestrator problems/<путь>/<problem_id> polygon pull` —
-   задача найдётся по имени, скачаются её файлы, а из Attachments — спек,
-   `constraints.yaml`, план тестов и черновик.
-3. Дальше обычный цикл: правки → `llm generate` / руками → `polygon push`.
-   Если другой человек успел что-то запушить, `push` остановится и попросит
-   сначала `pull`.
+1. The problem's owner gives access on Polygon (**Manage access**, the
+   `WRITE` right).
+2. The second participant: `orchestrator problems/<path>/<problem_id> polygon pull` —
+   the problem is found by name, its files are downloaded, and from Attachments — the spec,
+   `constraints.yaml`, the test plan and the draft.
+3. Then the usual cycle: edits → `llm generate` / by hand → `polygon push`.
+   If another person managed to push something, `push` stops and asks to
+   `pull` first.
 
-Кэш шагов (`.cache/`) через Polygon не переносится: после `pull` шаги будут
-`not run`. Если файлы уже в порядке и перегенерировать их не нужно —
-`llm accept` вместо `llm generate`.
+The step cache (`.cache/`) isn't transferred through Polygon: after `pull` the steps are
+`not run`. If the files are already fine and don't need regenerating —
+`llm accept` instead of `llm generate`.
 
 ---
 
-## Частые проблемы
+## Common problems
 
-- **`orchestrator: command not found`** — не активировано окружение:
+- **`orchestrator: command not found`** — the environment isn't activated:
   `source .venv/bin/activate`.
-- **`claude` не найден / требует обновления** — `claude --version`,
-  `claude update`; или путь в `CLAUDE_CODE_BIN`. Плагин VS Code несёт свою
-  копию бинаря, но оркестратор использует ту, что в `PATH`.
-- **Модель тратит API-деньги вместо подписки** — проверьте
-  `ORCHESTRATOR_LLM_BACKEND=claude-code` и что `claude` залогинен подпиской
-  (`/status`). `ANTHROPIC_API_KEY` в `.env` при этом не мешает — оркестратор
-  его не передаёт в `claude`.
-- **`local check` пишет, что нет java** — `sudo apt install
+- **`claude` not found / requires an update** — `claude --version`,
+  `claude update`; or the path in `CLAUDE_CODE_BIN`. The VS Code plugin carries its own
+  copy of the binary, but the orchestrator uses the one in `PATH`.
+- **The model spends API money instead of the subscription** — check
+  `ORCHESTRATOR_LLM_BACKEND=claude-code` and that `claude` is logged in with the subscription
+  (`/status`). `ANTHROPIC_API_KEY` in `.env` doesn't get in the way — the orchestrator
+  doesn't pass it to `claude`.
+- **`local check` says there's no java** — `sudo apt install
   default-jdk-headless`.
-- **`local check` не может скачать jar FreeMarker** — нет доступа к Maven
-  Central; скачайте jar вручную и укажите `ORCHESTRATOR_FREEMARKER_JAR`
-  (см. п. 5 установки).
-- **Всё очень медленно в WSL** — проект лежит в `/mnt/c/...`; перенесите в
+- **`local check` can't download the FreeMarker jar** — no access to Maven
+  Central; download the jar by hand and set `ORCHESTRATOR_FREEMARKER_JAR`
+  (see installation item 5).
+- **Everything is very slow in WSL** — the project lies in `/mnt/c/...`; move it to
   `~/`.
-- **`push` отказывается: задача изменена на Polygon** — `polygon pull`,
-  разобрать конфликты, затем снова `push`. `--force` — только если точно
-  нужно затереть правки на Polygon.
-- **Шаг постоянно `uncertain`** — в спеке не хватает того, что модель не
-  имеет права придумывать сама (асимптотика, точность ответа, правило
-  сравнения в чекере…). Что именно — в `llm_reports/<шаг>.md`.
+- **`push` refuses: the problem was changed on Polygon** — `polygon pull`,
+  resolve the conflicts, then `push` again. `--force` — only if you really
+  need to overwrite the edits on Polygon.
+- **A step is constantly `uncertain`** — the spec lacks something the model has no
+  right to invent itself (asymptotics, answer precision, the comparison rule
+  in the checker…). What exactly — in `llm_reports/<step>.md`.
 
-### Если работаете в репозитории через Claude Code
+### If you work in the repository through Claude Code
 
-[CLAUDE.md](CLAUDE.md) подхватывается автоматически, правила по темам из
-[.claude/rules/](.claude/rules/) — когда работа касается их файлов. Claude Code в этом
-проекте пишет код оркестратора, а не содержимое задач, и **не запускает**
-`llm generate` / `init --draft` без явной команды — они тратят лимиты
-подписки.
+[CLAUDE.md](CLAUDE.md) is picked up automatically, the topic rules from
+[.claude/rules/](.claude/rules/) — when the work touches their files. Claude Code in this
+project writes the orchestrator's code, not problem content, and **doesn't run**
+`llm generate` / `init --draft` without an explicit command — they spend the subscription
+limits.
