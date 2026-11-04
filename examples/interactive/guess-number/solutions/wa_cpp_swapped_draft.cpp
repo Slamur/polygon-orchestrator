@@ -20,8 +20,8 @@ void solve() {
             if (answer == "=") {
                 return;
             }
-            // BUG: перепутаны ответы "<" и ">" — отрезок сужается в
-            // противоположную сторону
+            // BUG: the answers "<" and ">" are swapped - the range narrows in
+            // the opposite direction
             if (answer == "<") {
                 lo = mid + 1;
             } else {

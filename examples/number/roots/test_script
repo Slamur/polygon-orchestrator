@@ -45,7 +45,7 @@
 <#assign maxN = pow(10, maxNExp)/>
 
 <#assign desc = "Script functions"/>
-<#-- наибольшее p, для которого base^p <= limit -->
+<#-- the largest p for which base^p <= limit -->
 <#function max_exp base limit>
     <#list 1..64 as p>
         <#if pow(base, p) gt limit>
@@ -68,11 +68,11 @@ ${randGen} -minN=${minN} -maxN=${smallMaxN} > $
 ${randGen} -minN=${smallMaxN} -maxN=${smallMaxN * smallMaxN} > $
 
 <#assign desc = "Edge cases: powers of 2 and 10"/>
-<#-- b^p + случайная delta из -1..1 (выбирает генератор); степени выбраны так,
-     что все N > tinyMaxN и N < maxN - 1 (N = maxN - 1 и maxN = 10^18 — в максимальных тестах ниже):
-     2^6 = 4^3 = 8^2, 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 — границы int / unsigned int,
-     2^48 = 65536^3, 2^53 / 2^54 — граница точности double, 2^59 — наибольшая степень 2 <= 10^18;
-     10^6, 10^12 — квадрат и куб, 10^9, 10^15 — куб, 10^16 — квадрат больше 2^53, 10^17 — ни то, ни другое -->
+<#-- b^p + a random delta from -1..1 (chosen by the generator); the powers are chosen so
+     that all N > tinyMaxN and N < maxN - 1 (N = maxN - 1 and maxN = 10^18 are in the maximal tests below):
+     2^6 = 4^3 = 8^2, 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 - the int / unsigned int bounds,
+     2^48 = 65536^3, 2^53 / 2^54 - the double precision bound, 2^59 - the largest power of 2 <= 10^18;
+     10^6, 10^12 - a square and a cube, 10^9, 10^15 - a cube, 10^16 - a square above 2^53, 10^17 - neither -->
 <#list [6, 10, 20, 30, 31, 32, 48, 53, 54, 59] as p>
     ${baseGen} -b=2 -p=${p} > $
 </#list>
@@ -81,7 +81,7 @@ ${randGen} -minN=${smallMaxN} -maxN=${smallMaxN * smallMaxN} > $
 </#list>
 
 <#assign desc = "Edge cases: random B^k + delta"/>
-<#-- B случайно до наибольшего допустимого; при delta = -1 B >= 2, иначе N = 0 -->
+<#-- B is random up to the largest allowed; with delta = -1 B >= 2, otherwise N = 0 -->
 <#list [2, 3, 4, 5, 6, 12] as k>
     <#list deltas as delta>
         ${powerGen} -k=${k} -maxN=${maxN} -minB=${max(1, 1 - delta)} -delta=${delta} > $
@@ -89,16 +89,16 @@ ${randGen} -minN=${smallMaxN} -maxN=${smallMaxN * smallMaxN} > $
 </#list>
 
 <#assign desc = "Edge cases: B^k + delta for the largest B"/>
-<#-- maxN = 10^maxNExp — точная k-я степень topB = 10^(maxNExp / k) для k = 2, 3, 6
-     (10^9, 10^6, 10^3); topB^k + delta (N = maxN - 1 и maxN) — в максимальных тестах ниже,
-     здесь B = topB - 1: наибольшее B, для которого допустима любая delta из -1..1 (выбирает генератор) -->
+<#-- maxN = 10^maxNExp is the exact k-th power of topB = 10^(maxNExp / k) for k = 2, 3, 6
+     (10^9, 10^6, 10^3); topB^k + delta (N = maxN - 1 and maxN) are in the maximal tests below,
+     here B = topB - 1: the largest B for which any delta from -1..1 is allowed (chosen by the generator) -->
 <#list [2, 3, 6] as k>
     <#assign topB = pow(10, div(maxNExp, k))/>
     ${baseGen} -b=${topB - 1} -p=${k} > $
 </#list>
 
 <#assign desc = "Maximal tests"/>
-<#-- N = 10^18 (одновременно 10^6 в кубе и 10^9 в квадрате) и N = 10^18 - 1 -->
+<#-- N = 10^18 (both 10^6 cubed and 10^9 squared) and N = 10^18 - 1 -->
 ${randGen} -minN=${maxN} -maxN=${maxN} > $
 ${randGen} -minN=${maxN - 1} -maxN=${maxN - 1} > $
 

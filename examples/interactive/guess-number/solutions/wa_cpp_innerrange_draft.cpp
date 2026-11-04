@@ -12,8 +12,8 @@ void solve() {
     };
 
     auto guess = [&]() {
-        // BUG: бинпоиск по отрезку [2, N - 1] — числа 1 и N никогда
-        // не спрашиваются, поэтому крайние значения не находятся
+        // BUG: binary search over the range [2, N - 1] - the numbers 1 and N are never
+        // asked, so the extreme values aren't found
         int lo = 2;
         int hi = n - 1;
         while (lo <= hi) {

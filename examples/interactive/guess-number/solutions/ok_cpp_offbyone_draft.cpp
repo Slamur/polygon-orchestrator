@@ -21,8 +21,8 @@ void solve() {
                 return;
             }
             if (answer == "<") {
-                // hi = mid вместо hi = mid - 1: кандидат mid остаётся в отрезке,
-                // но в лимит 10 запросов это укладывается при всех N и X.
+                // hi = mid instead of hi = mid - 1: the candidate mid stays in the range,
+                // but this fits into the limit of 10 queries for all N and X.
                 hi = mid;
             } else {
                 lo = mid + 1;

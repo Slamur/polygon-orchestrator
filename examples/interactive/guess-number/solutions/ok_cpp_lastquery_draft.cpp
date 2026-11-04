@@ -26,8 +26,8 @@ void solve() {
                 lo = mid + 1;
             }
         }
-        // Цикл идёт, пока кандидатов больше одного, поэтому последний
-        // спрашивается отдельно: в лимит 10 запросов это укладывается.
+        // The loop runs while there is more than one candidate, so the last one
+        // is asked separately: this fits into the limit of 10 queries.
         ask(lo);
     };
 

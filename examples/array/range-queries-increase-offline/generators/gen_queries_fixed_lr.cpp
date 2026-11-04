@@ -1,7 +1,7 @@
 #include "problem_lib.h"
 
 // Not described directly in generator_ideas; added (status: proposed, see
-// response notes) to realize the specific_test_ideas "все операции на
+// response notes) to realize the specific_test_ideas "all operations on
 // [1, N]" / "[N, N]" / "[1, 1]": every one of Q operations uses exactly the
 // same fixed segment (l, r), only D is randomized per operation.
 int main(int argc, char **argv) {
