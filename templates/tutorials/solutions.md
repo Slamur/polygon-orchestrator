@@ -92,3 +92,10 @@
   - Всевозможные эвристики / отсечения.
 
 - При разных неверных вердиктах ставим Incorrect.
+
+## Source file characters
+
+- Solution sources in every language contain only ASCII characters: comments, string literals and
+  messages (`ensuref`, `quitf` and the like) are written in English. Some
+  compilers, Polygon's among them, fail on non-ASCII characters in a source
+  file; the orchestrator reports every line with them as an error.

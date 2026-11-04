@@ -53,3 +53,10 @@
 - quitif: аналогично quitf, только завершает при невыполнении условия в первом аргументе.
 
 - ans.quitf/quitif: преобразуют вердикты _wa / _pe в вердикт _fail “под капотом”.
+
+## Source file characters
+
+- The checker source contain only ASCII characters: comments, string literals and
+  messages (`ensuref`, `quitf` and the like) are written in English. Some
+  compilers, Polygon's among them, fail on non-ASCII characters in a source
+  file; the orchestrator reports every line with them as an error.

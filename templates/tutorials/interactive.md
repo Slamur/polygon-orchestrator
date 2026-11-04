@@ -148,3 +148,10 @@
   Если автор просит `noflush`-решение, которое по этим правилам сбросит
   буфер само (C++ с привязанным `cin`, Python с `input()`), — пиши его в
   `noflush`-варианте, описанном выше, и отметь это в заметках.
+
+## Source file characters
+
+- The interactor and solution sources contain only ASCII characters: comments, string literals and
+  messages (`ensuref`, `quitf` and the like) are written in English. Some
+  compilers, Polygon's among them, fail on non-ASCII characters in a source
+  file; the orchestrator reports every line with them as an error.
