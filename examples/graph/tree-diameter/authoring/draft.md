@@ -1,37 +1,37 @@
-# Диаметр дерева
+# Tree diameter
 
-## Условие
+## Statement
 
-Дано дерево из N вершин.
+Given a tree of N vertices.
 
-Необходимо найти любой диаметр дерева.
+Find any diameter of the tree.
 
-Ввод: 
+Input: 
 
 N
-массив предков (-1, если нет)
+the array of parents (-1 if there is none)
 
-Вывод: 
+Output: 
 
-D S E - диаметр, старт и конец диаметра
-Если несколько диаметров - вывести любой
+D S E - the diameter, the start and the end of the diameter
+If there are several diameters - print any
 
-## Идеи генераторов
+## Generator ideas
 
-- случайное дерево
-    - генерится перестановка
-    - у каждой вершины предок - рандом на префиксе
+- a random tree
+    - a permutation is generated
+    - each vertex's parent is random on the prefix
 
-- пальма
-    - "ствол" длины H
-        - обозначим корень за R и противоположный конец за P
-    - "лист" - цепочка длины K
-        - каждый лист крепится к P
-    - базовый пример пальмы: H = N / 2, K = 1
+- a palm
+    - a "trunk" of length H
+        - denote the root by R and the opposite end by P
+    - a "leaf" is a chain of length K
+        - each leaf is attached to P
+    - a basic palm example: H = N / 2, K = 1
 
-- джунгли
-    - несколько пальм, присоединенных к одному корню
-    - возможно имеет смысл сделать общий генератор, просто фиксировать количество пальм как параметр
+- a jungle
+    - several palms attached to one root
+    - maybe it makes sense to make a common generator, just fixing the number of palms as a parameter
 
-- сбалансированное дерево
-    - все пути от корня длины не более К
+- a balanced tree
+    - all paths from the root have length at most K

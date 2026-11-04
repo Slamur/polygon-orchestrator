@@ -1,180 +1,180 @@
 problem_id: array--range-queries-increase-offline
 
-# Все генераторы печатают тест одинаково: N и Q в первой строке, затем Q
-# левых границ, Q правых границ и Q чисел D (каждое — случайное из
-# [minD, maxD]) — по строке на каждый список.
+# All generators print the test the same way: N and Q on the first line, then Q
+# left bounds, Q right bounds and Q numbers D (each a random one from
+# [minD, maxD]) — a line per list.
 generators:
   - name: gen_queries_rand
     status: confirmed
     params:
       - name: n
         type: int
-        description: длина массива
+        description: the length of the array
       - name: q
         type: int
-        description: число операций
+        description: the number of operations
       - name: minD
         type: int
-        description: наименьшее D
+        description: the smallest D
       - name: maxD
         type: int
-        description: наибольшее D
+        description: the largest D
     input: null
-    output: весь тест
+    output: the whole test
     algorithm: |
-      Каждая операция — два случайных числа из [1, n], упорядоченные так,
-      что L <= R; D — случайное из [minD, maxD].
+      Each operation is two random numbers from [1, n], ordered so
+      that L <= R; D is a random one from [minD, maxD].
 
   - name: gen_queries_all_segments
     status: confirmed
     params:
       - name: n
         type: int
-        description: длина массива, n * (n + 1) / 2 не больше максимума Q
+        description: the length of the array, n * (n + 1) / 2 no more than the maximal Q
       - name: minD
         type: int
-        description: наименьшее D
+        description: the smallest D
       - name: maxD
         type: int
-        description: наибольшее D
+        description: the largest D
     input: null
-    output: весь тест, Q = n * (n + 1) / 2
+    output: the whole test, Q = n * (n + 1) / 2
     algorithm: |
-      Все отрезки [L, R], 1 <= L <= R <= n, по одному разу, перемешанные в
-      случайном порядке; D каждой операции — случайное из [minD, maxD].
+      All segments [L, R], 1 <= L <= R <= n, once each, shuffled into a
+      random order; D of each operation is a random one from [minD, maxD].
 
   - name: gen_queries_grid
     status: confirmed
     params:
       - name: n
         type: int
-        description: длина массива
+        description: the length of the array
       - name: q
         type: int
-        description: желаемое число операций; берётся K * K, K = floor(sqrt(q))
+        description: the desired number of operations; K * K is taken, K = floor(sqrt(q))
       - name: start
         type: int
-        description: наименьшая левая граница
+        description: the smallest left bound
       - name: end
         type: int
-        description: наибольшая правая граница
+        description: the largest right bound
       - name: minD
         type: int
-        description: наименьшее D
+        description: the smallest D
       - name: maxD
         type: int
-        description: наибольшее D
+        description: the largest D
     input: null
-    output: весь тест, Q = K * K
+    output: the whole test, Q = K * K
     algorithm: |
-      K = floor(sqrt(q)), K >= 1. Левые границы — start..start + K - 1,
-      правые — end - K + 1..end; операции — все K * K пар (L, R) в случайном
-      порядке, D — случайное из [minD, maxD]. Падает, если какая-то граница
-      вне [1, n] или наибольшая левая больше наименьшей правой.
+      K = floor(sqrt(q)), K >= 1. The left bounds — start..start + K - 1,
+      the right ones — end - K + 1..end; the operations — all K * K pairs (L, R) in random
+      order, D is a random one from [minD, maxD]. Fails if some bound is
+      outside [1, n] or the largest left one is greater than the smallest right one.
 
   - name: gen_queries_fixed_lr
     status: proposed
     params:
       - name: n
         type: int
-        description: длина массива
+        description: the length of the array
       - name: q
         type: int
-        description: число операций
+        description: the number of operations
       - name: l
         type: int
-        description: левая граница всех операций, 1 <= l <= n
+        description: the left bound of all operations, 1 <= l <= n
       - name: r
         type: int
-        description: правая граница всех операций, l <= r <= n
+        description: the right bound of all operations, l <= r <= n
       - name: minD
         type: int
-        description: наименьшее D
+        description: the smallest D
       - name: maxD
         type: int
-        description: наибольшее D
+        description: the largest D
     input: null
-    output: весь тест
+    output: the whole test
     algorithm: |
-      Все q операций — на отрезке [l, r], D каждой — случайное из
-      [minD, maxD]. Падает, если l или r вне допустимого.
+      All q operations are on the segment [l, r], D of each is a random one from
+      [minD, maxD]. Fails if l or r is out of the allowed range.
     rationale: |
-      specific_test_ideas[6] (все операции на одном отрезке) требует
-      генератора, которого автор не описывал.
+      specific_test_ideas[6] (all operations on one segment) requires a
+      generator the author didn't describe.
 
   - name: gen_queries_r_fixed
     status: proposed
     params:
       - name: n
         type: int
-        description: длина массива
+        description: the length of the array
       - name: q
         type: int
-        description: число операций
+        description: the number of operations
       - name: r
         type: int
-        description: правая граница всех операций, 1 <= r <= n
+        description: the right bound of all operations, 1 <= r <= n
       - name: minD
         type: int
-        description: наименьшее D
+        description: the smallest D
       - name: maxD
         type: int
-        description: наибольшее D
+        description: the largest D
     input: null
-    output: весь тест
+    output: the whole test
     algorithm: |
-      Каждая операция — [L, r] со случайным L из [1, r], D — случайное из
-      [minD, maxD]. Падает, если r вне [1, n].
+      Each operation is [L, r] with a random L from [1, r], D is a random one from
+      [minD, maxD]. Fails if r is outside [1, n].
     rationale: |
-      specific_test_ideas[7] и known_wrong_approaches[1]: много операций с
-      R = N ловят массив inc без ячейки R + 1.
+      specific_test_ideas[7] and known_wrong_approaches[1]: many operations with
+      R = N catch the array inc without the cell R + 1.
 
 constants:
   - name: minN
     value: "1"
-    description: N.min из constraints.yaml
+    description: N.min from constraints.yaml
   - name: maxN
     value: 3 * 10^5
-    description: N.max из constraints.yaml
+    description: N.max from constraints.yaml
   - name: minQ
     value: "1"
-    description: Q.min из constraints.yaml
+    description: Q.min from constraints.yaml
   - name: maxQ
     value: 3 * 10^5
-    description: Q.max из constraints.yaml
+    description: Q.max from constraints.yaml
   - name: minD
     value: -10^9
-    description: D.min из constraints.yaml
+    description: D.min from constraints.yaml
   - name: maxD
     value: 10^9
-    description: D.max из constraints.yaml
+    description: D.max from constraints.yaml
   - name: smallN
     value: "10"
-    description: маленький N — выбор модели
+    description: a small N — the model's choice
   - name: smallQ
     value: "10"
-    description: маленький Q — выбор модели
+    description: a small Q — the model's choice
   - name: smallD
     value: "1000"
-    description: маленький модуль D — выбор модели
+    description: a small absolute value of D — the model's choice
   - name: negSmallD
     value: -smallD
-    description: нижняя граница маленьких D
+    description: the lower bound of small D
   - name: midAllSegN
     value: "774"
-    description: наибольший N, при котором все подотрезки помещаются в maxQ (774 * 775 / 2 = 299925)
+    description: the largest N at which all subsegments fit into maxQ (774 * 775 / 2 = 299925)
   - name: midN
     value: maxN / 2
-    description: середина массива
+    description: the middle of the array
   - name: midStart
     value: maxN / 4
-    description: начало сетки внутри массива
+    description: the start of the grid inside the array
   - name: midEnd
     value: 3 * maxN / 4
-    description: конец сетки внутри массива
+    description: the end of the grid inside the array
 
 tests:
-  - description: Маленькие тесты разных размеров с маленькими D и с D во всём диапазоне
+  - description: Small tests of different sizes with small D and with D over the whole range
     status: confirmed
     covers:
       - specific_test_ideas[0]
@@ -183,7 +183,7 @@ tests:
       - gen_queries_rand -n=n -q=n -minD=minD -maxD=maxD
     repeat: n = minN..smallN
 
-  - description: Все подотрезки для каждого N от 1 до 10, маленькие D
+  - description: All subsegments for each N from 1 to 10, small D
     status: confirmed
     covers:
       - specific_test_ideas[1]
@@ -191,7 +191,7 @@ tests:
       - gen_queries_all_segments -n=n -minD=negSmallD -maxD=smallD
     repeat: n = minN..smallN
 
-  - description: Все подотрезки для N = 774 (Q близко к максимуму)
+  - description: All subsegments for N = 774 (Q close to the maximum)
     status: confirmed
     covers:
       - specific_test_ideas[2]
@@ -199,7 +199,7 @@ tests:
       - gen_queries_all_segments -n=midAllSegN -minD=minD -maxD=maxD
     repeat: null
 
-  - description: N = Q = max, сетка sqrt(Q) * sqrt(Q) со start = 1, end = N — все отрезки длинные
+  - description: N = Q = max, a sqrt(Q) * sqrt(Q) grid with start = 1, end = N — all segments are long
     status: confirmed
     covers:
       - specific_test_ideas[3]
@@ -208,7 +208,7 @@ tests:
       - gen_queries_grid -n=maxN -q=maxQ -start=minN -end=maxN -minD=minD -maxD=maxD
     repeat: null
 
-  - description: Та же сетка с D = maxD и с D = minD у всех операций — переполнение 32-битного типа
+  - description: The same grid with D = maxD and with D = minD for all operations — an overflow of a 32-bit type
     status: confirmed
     covers:
       - specific_test_ideas[4]
@@ -218,7 +218,7 @@ tests:
       - gen_queries_grid -n=maxN -q=maxQ -start=minN -end=maxN -minD=minD -maxD=minD
     repeat: null
 
-  - description: Сетка с другими start/end — обе границы в середине массива, start = end
+  - description: A grid with other start/end — both bounds in the middle of the array, start = end
     status: proposed
     covers:
       - specific_test_ideas[5]
@@ -227,11 +227,11 @@ tests:
       - gen_queries_grid -n=maxN -q=maxQ -start=midStart -end=midEnd -minD=minD -maxD=maxD
     repeat: null
     rationale: |
-      При start = end допустимо только Q = 1 — одна операция в точке;
-      вторая команда — нетривиальная сетка строго внутри массива при
+      With start = end only Q = 1 is allowed — one operation at a point;
+      the second command is a non-trivial grid strictly inside the array with
       Q = maxQ.
 
-  - description: Все операции на одном отрезке — весь массив, последняя ячейка, первая ячейка
+  - description: All operations on one segment — the whole array, the last cell, the first cell
     status: proposed
     covers:
       - specific_test_ideas[6]
@@ -241,10 +241,10 @@ tests:
       - gen_queries_fixed_lr -n=maxN -q=maxQ -l=minN -r=minN -minD=minD -maxD=maxD
     repeat: null
     rationale: |
-      Генератор gen_queries_fixed_lr — реализация пункта спека, которой у
-      автора не было.
+      The gen_queries_fixed_lr generator is an implementation of a spec item the
+      author didn't have.
 
-  - description: Много операций с R = N
+  - description: Many operations with R = N
     status: proposed
     covers:
       - specific_test_ideas[7]
@@ -253,9 +253,9 @@ tests:
       - gen_queries_r_fixed -n=maxN -q=maxQ -r=maxN -minD=minD -maxD=maxD
     repeat: null
     rationale: |
-      inc[R + 1] при R = N выходит за массив размера N + 1.
+      inc[R + 1] with R = N goes outside an array of size N + 1.
 
-  - description: Случайные операции при N = Q = max, D во всём диапазоне
+  - description: Random operations with N = Q = max, D over the whole range
     status: confirmed
     covers:
       - specific_test_ideas[8]
@@ -269,7 +269,7 @@ tests:
       - gen_queries_rand -n=maxN -q=maxQ -minD=minD -maxD=maxD
     repeat: null
 
-  - description: N = max и Q маленькое, N маленькое и Q = max
+  - description: N = max and a small Q, a small N and Q = max
     status: confirmed
     covers:
       - specific_test_ideas[9]

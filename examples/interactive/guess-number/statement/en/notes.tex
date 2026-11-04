@@ -1,0 +1,10 @@
+\textbf{Example 1.} The number $7$ is hidden (the program doesn't know it, it sees only $N = 10$).
+
+\begin{itemize}
+\item To the query ``? 5'' the interactor answers \texttt{>}, since $7 > 5$;
+\item to the query ``? 8'' the interactor answers \texttt{<}, since $7 < 8$;
+\item to the query ``? 6'' the interactor answers \texttt{>}, since $7 > 6$;
+\item to the query ``? 7'' the interactor answers \texttt{=}, and the program terminates. $4$ queries out of the allowed $10$ were made.
+\end{itemize}
+
+\textbf{Example 2.} With $N = 1$ the number $1$ is hidden. The program still has to make the query ``? 1'' and receive the answer \texttt{=}.

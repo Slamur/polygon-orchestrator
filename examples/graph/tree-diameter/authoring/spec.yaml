@@ -1,184 +1,184 @@
-problem_id: graph--tree-diameter 
+problem_id: graph--tree-diameter
 title:
   ru: "Диаметр дерева"
-  en: "Tree diameter"                
+  en: "Tree diameter"
 references: []
 
 # ---------------------------------------------------------------------------
-# 1. ЧЕРНОВИК УСЛОВИЯ — шаг statement_draft
+# 1. STATEMENT DRAFT — the statement_draft step
 # ---------------------------------------------------------------------------
 statement_draft:
   legend_sketch: |
-    Дано корневое дерево из N вершин. 
-    Диаметром дерева называется самый длинный простой путь между двумя вершинами (его длина — количество рёбер на пути). 
-    Необходимо найти любой диаметр дерева.
+    Given a rooted tree of N vertices.
+    A diameter of a tree is the longest simple path between two vertices (its length is the number of edges on the path).
+    Find any diameter of the tree.
   formal_input_sketch: |
-    В первой строке одно целое число N (2 <= N <= 3e5) — количество вершин дерева.
+    The first line has one integer N (2 <= N <= 3e5) — the number of vertices of the tree.
 
-    Во второй строке N целых чисел p_1, ..., p_N (0 <= p_i <= N) — массив предков:
-      - p_i — номер вершины-предка вершины i
-      - p_i = 0, если вершина i является корнем дерева.
+    The second line has N integers p_1, ..., p_N (0 <= p_i <= N) — the array of parents:
+      - p_i is the number of the parent vertex of vertex i
+      - p_i = 0 if vertex i is the root of the tree.
 
-    Гарантируется, что    
-      - ровно одно из чисел p_i равно 0;
-      - массив предков задаёт корректное дерево.
+    It's guaranteed that
+      - exactly one of the numbers p_i equals 0;
+      - the array of parents defines a correct tree.
   formal_output_sketch: |
-    Выведите три целых числа D, S, E (1 <= D, S, E <= N; S != E) — длина найденного диаметра (количество рёбер на пути), номер начальной и номер конечной вершины этого пути. 
-    Расстояние между S и E должно быть равно D, и D должно быть максимальным возможным расстоянием между двумя вершинами дерева.
-    Если диаметров несколько, можно вывести любой.
-  indexing: "1-indexed"              
+    Print three integers D, S, E (1 <= D, S, E <= N; S != E) — the length of the found diameter (the number of edges on the path), the number of the start vertex and the number of the end vertex of this path.
+    The distance between S and E must be equal to D, and D must be the maximal possible distance between two vertices of the tree.
+    If there are several diameters, any may be printed.
+  indexing: "1-indexed"
   sample_examples:
-    - input: |                       
+    - input: |
         5
         2 0 1 1 2
-      output: |                      
+      output: |
         3 5 4
       note_hint: |
-        Рассмотрим структуру заданного дерева:
-          - вершина 2 — корень,
-          - вершины 1 и 5 — её дети, 
-          - вершины 3 и 4 — дети вершины 1.
-        
-        В дереве есть два диаметра, каждый из которых содержит 3 ребра:
-          - 5 - 2 - 1 - 4 
-          - 5 - 2 - 1 - 3 
+        Consider the structure of the given tree:
+          - vertex 2 is the root,
+          - vertices 1 and 5 are its children,
+          - vertices 3 and 4 are the children of vertex 1.
 
-        Порядок вывода вершин не имеет значения, то есть любой из ответов "3 5 4", "3 4 5", "3 5 3", "3 3 5" является корректным.
+        The tree has two diameters, each of which contains 3 edges:
+          - 5 - 2 - 1 - 4
+          - 5 - 2 - 1 - 3
+
+        The order of printing the vertices doesn't matter, that is, any of the answers "3 5 4", "3 4 5", "3 5 3", "3 3 5" is correct.
   preserve_legend_verbatim: true
   references: []
 
 # ---------------------------------------------------------------------------
-# 2. ОГРАНИЧЕНИЯ — шаг constraints_pick (+ валидатор)
+# 2. LIMITS — the constraints_pick step (+ the validator)
 # ---------------------------------------------------------------------------
 constraints:
-  intended_complexity: "O(N)"        
-  complexity_reasoning: |            
-    По массиву предков за O(N) строится список смежности неориентированного
-    дерева. Затем два обхода (BFS или нерекурсивный DFS): первый из
-    произвольной вершины находит самую удалённую вершину S, второй из S
-    находит самую удалённую вершину E; расстояние от S до E и есть диаметр.
-    Каждый обход — O(N) рёбер и вершин, итого O(N) времени и памяти.
-    Глубина дерева может быть порядка N (бамбук, «ствол пальмы»), поэтому
-    обход должен быть итеративным либо требовать увеличенного стека.
+  intended_complexity: "O(N)"
+  complexity_reasoning: |
+    From the array of parents an adjacency list of the undirected
+    tree is built in O(N). Then two traversals (BFS or a non-recursive DFS): the first one from
+    an arbitrary vertex finds the farthest vertex S, the second one from S
+    finds the farthest vertex E; the distance from S to E is the diameter.
+    Each traversal is O(N) edges and vertices, in total O(N) time and memory.
+    The tree's depth may be of the order of N (a bamboo, the "palm trunk"), so
+    the traversal must be iterative or require an increased stack.
   variables:
     - name: "N"
       min: 2
-      max: 300000                    
-      description: "количество вершин дерева"
+      max: 300000
+      description: "the number of vertices of the tree"
     - name: "p_i"
       min: 0
       max: "N"
-      description: "предок вершины i, либо 0, если i — корень" 
+      description: "the parent of vertex i, or 0 if i is the root"
   special_guarantees:
-    - "ровно одно значение p_i равно 0 — у дерева ровно один корень"
-    - "p_i != i: вершина не является своим предком"                           
-    - "массив предков задаёт дерево: переходя по предкам из любой вершины, попадаем в корень, циклов нет"
-    - "не гарантируется p_i < i — предок может иметь больший номер, чем вершина"
+    - "exactly one value p_i equals 0 — the tree has exactly one root"
+    - "p_i != i: a vertex isn't its own parent"
+    - "the array of parents defines a tree: going by parents from any vertex, we reach the root, there are no cycles"
+    - "p_i < i isn't guaranteed — a parent may have a larger number than the vertex"
   test_groups_hint: []
   test_groups_needed: false
-  time_limit_seconds: 2    
+  time_limit_seconds: 2
   memory_limit_mb: 256
   references: []
 
 # ---------------------------------------------------------------------------
-# 3. ГЕНЕРАТОРЫ И TEST-SCRIPT — шаги tests_plan, generators_draft, test_script_draft
+# 3. GENERATORS AND TEST-SCRIPT — the tests_plan, generators_draft, test_script_draft steps
 # ---------------------------------------------------------------------------
 generation:
   generator_ideas:
     - name: "gen_tree_rand"
       params: ["n"]
       purpose: |
-        Случайное дерево: генерится перестановка вершин, у каждой вершины
-        предок — случайная вершина на префиксе перестановки (первая вершина
-        перестановки — корень, её предок 0).
+        A random tree: a permutation of the vertices is generated, each vertex's
+        parent is a random vertex on the prefix of the permutation (the first vertex
+        of the permutation is the root, its parent is 0).
     - name: "gen_palm"
       params: ["n", "h", "k"]
       purpose: |
-        «Пальма»: «ствол» — цепочка длины H, её начало — корень R,
-        противоположный конец — вершина P. «Листья» — цепочки длины K,
-        каждый лист крепится к P; листьями заполняются все оставшиеся
-        вершины. Базовый пример пальмы: H = N / 2, K = 1.
+        A "palm": the "trunk" is a chain of length H, its start is the root R,
+        the opposite end is the vertex P. The "leaves" are chains of length K,
+        each leaf is attached to P; all the remaining vertices are filled
+        with leaves. A basic palm example: H = N / 2, K = 1.
     - name: "gen_jungle"
       params: ["n", "h", "k", "palms"]
       purpose: |
-        «Джунгли»: несколько пальм, присоединённых к одному корню.
-        Количество пальм — параметр palms, так что при palms = 1 генератор
-        даёт обычную пальму (автор предполагал, что имеет смысл сделать
-        общий генератор пальмы и джунглей с количеством пальм как
-        параметром).
+        A "jungle": several palms attached to one root.
+        The number of palms is the palms parameter, so with palms = 1 the generator
+        gives an ordinary palm (the author assumed it makes sense to make a
+        common generator of a palm and a jungle with the number of palms as a
+        parameter).
     - name: "gen_tree_balanced"
       params: ["n", "k"]
       purpose: |
-        Сбалансированное дерево: все пути от корня до листьев имеют длину
-        не более K.
-    - name: "upd_tree_shuffle"    
+        A balanced tree: all paths from the root to the leaves have length
+        at most K.
+    - name: "upd_tree_shuffle"
       params: []
       purpose: |
-        Читает готовый тест и перенумеровывает вершины случайной
-        перестановкой, переписывая массив предков (корень перестаёт быть
-        вершиной 1, p_i перестаёт быть меньше i).
+        Reads a ready test and renumbers the vertices by a random
+        permutation, rewriting the array of parents (the root stops being
+        vertex 1, p_i stops being less than i).
   specific_test_ideas:
-    - "N = 2 (одно ребро)"                                          
-    - "все деревья небольшого размера: случайные деревья для каждого N от 1 до 10"  
-    - "бамбук (цепочка) при N = N_max — максимальная глубина, ловит рекурсивный обход"  
-    - "звезда: все вершины — дети корня (диаметр 2)"                 
-    - "базовая пальма при N = N_max: H = N / 2, K = 1"
-    - "пальма с длинными листьями: K порядка H, так что диаметр не проходит через корень"  
-    - "джунгли: 2 пальмы у общего корня (диаметр проходит через корень)"
-    - "джунгли: много пальм (10, 100, sqrt(N)) у общего корня"
-    - "сбалансированное дерево при N = N_max с малым K (например, бинарное, K = log N)"
-    - "случайные деревья при N = N_max"
-    - "все тесты (кроме явно упорядоченных) с перенумерацией вершин случайной перестановкой" 
-    - "берутся джунгли (N чуть меньше максимума), к корню (непошафленному) цепляется маленькое случайное дерево, корень выбирается где-то в этом отростке (потребуется доп. upd_ генератор)"
-  script_style: "flat"              
+    - "N = 2 (one edge)"
+    - "all trees of a small size: random trees for each N from 1 to 10"
+    - "a bamboo (a chain) with N = N_max — the maximal depth, catches a recursive traversal"
+    - "a star: all vertices are children of the root (diameter 2)"
+    - "a basic palm with N = N_max: H = N / 2, K = 1"
+    - "a palm with long leaves: K of the order of H, so the diameter doesn't go through the root"
+    - "a jungle: 2 palms at a common root (the diameter goes through the root)"
+    - "a jungle: many palms (10, 100, sqrt(N)) at a common root"
+    - "a balanced tree with N = N_max with a small K (e.g. a binary one, K = log N)"
+    - "random trees with N = N_max"
+    - "all tests (except explicitly ordered ones) with the vertices renumbered by a random permutation"
+    - "take a jungle (N slightly less than the maximum), attach a small random tree to the (unshuffled) root, choose the root somewhere in this offshoot (an extra upd_ generator is needed)"
+  script_style: "flat"
   references: []
 
 # ---------------------------------------------------------------------------
-# 4. ЧЕРНОВИКИ РЕШЕНИЙ — шаг solutions_draft
+# 4. SOLUTION DRAFTS — the solutions_draft step
 # ---------------------------------------------------------------------------
 solutions:
-  wanted_verdicts: ["ok", "wa", "tl", "tl_ok", "re"]   
-  languages: ["cpp", "java", "py"]                     
-  algorithm_hint: |                  
-    Построить по массиву предков список смежности неориентированного
-    дерева (ребро {i, p_i} для всех вершин, кроме корня). Запустить обход
-    (BFS) из произвольной вершины, например из вершины 1, и найти самую
-    удалённую от неё вершину S. Запустить обход из S, найти самую
-    удалённую вершину E и расстояние до неё D. Вывести D, S, E.
-    Обход обязательно итеративный (глубина дерева до N).
+  wanted_verdicts: ["ok", "wa", "tl", "tl_ok", "re"]
+  languages: ["cpp", "java", "py"]
+  algorithm_hint: |
+    Build from the array of parents an adjacency list of the undirected
+    tree (the edge {i, p_i} for all vertices except the root). Run a traversal
+    (BFS) from an arbitrary vertex, e.g. from vertex 1, and find the vertex S
+    farthest from it. Run a traversal from S, find the farthest
+    vertex E and the distance D to it. Print D, S, E.
+    The traversal must be iterative (the tree's depth is up to N).
   alternative_approaches:
-    - "динамика по дереву: для каждой вершины v считаем две наибольшие глубины поддеревьев её детей; диаметр — максимум их суммы по всем v, концы восстанавливаются спуском по сохранённым детям-максимумам (порядок обработки вершин — итеративный обход снизу вверх)"  
+    - "DP on the tree: for each vertex v compute the two largest subtree depths of its children; the diameter is the maximum of their sum over all v, the ends are restored by descending along the saved maximal children (the order of processing the vertices — an iterative bottom-up traversal)"
   known_wrong_approaches:
-    - "wa: ответ — наибольшая глубина от корня и соответствующая вершина (один обход из корня) — ломается на пальме с длинными листьями и на джунглях"       
-    - "wa: один обход из вершины 1 вместо корня, расстояние считается только до самой далёкой вершины от неё — ломается на случайных и несимметричных деревьях" 
-    - "wa: диаметр обязательно проходит через корень" 
-    - "wa: D выводится как количество вершин на пути (на единицу больше ответа), концы правильные"  
-    - "wa: длина диаметра найдена верно, но концы S и E выводятся от первого обхода (S — старт первого обхода), так что расстояние между ними меньше D" 
-    - "tl (cpp): BFS из каждой вершины — O(N^2)"
-    - "re (py): рекурсивный DFS — переполнение стека на бамбуке при N = N_max"
-    - "tl_ok (java): верный алгоритм с медленным (небуферизованным) вводом-выводом — на вход до 2*10^5 чисел" 
+    - "wa: the answer is the largest depth from the root and the corresponding vertex (one traversal from the root) — breaks on a palm with long leaves and on jungles"
+    - "wa: one traversal from vertex 1 instead of the root, the distance is computed only to the vertex farthest from it — breaks on random and asymmetric trees"
+    - "wa: the diameter necessarily goes through the root"
+    - "wa: D is printed as the number of vertices on the path (one more than the answer), the ends are correct"
+    - "wa: the diameter's length is found correctly, but the ends S and E are printed from the first traversal (S is the start of the first traversal), so the distance between them is less than D"
+    - "tl (cpp): BFS from each vertex — O(N^2)"
+    - "re (py): a recursive DFS — a stack overflow on a bamboo with N = N_max"
+    - "tl_ok (java): the correct algorithm with slow (unbuffered) input/output — up to 2*10^5 numbers on input"
   references: []
 
 # ---------------------------------------------------------------------------
-# 5. ЧЕКЕР — шаг checker_draft
+# 5. CHECKER — the checker_draft step
 # ---------------------------------------------------------------------------
 checker:
   standard: null
-  custom_needed: true                
-  custom_comparison_notes: |         
-    Вход: N и массив предков p_1, ..., p_N, задающий дерево (p_i = 0 для
-    корня). Чекер восстанавливает дерево по входу.
-    Ответ: три целых числа D, S, E в произвольном переносе строк —
-    длина диаметра (количество рёбер на пути), начало и конец пути.
-    Проверка ответа участника:
-      - 1 <= S <= N и 1 <= E <= N, иначе неверный ответ;
+  custom_needed: true
+  custom_comparison_notes: |
+    Input: N and the array of parents p_1, ..., p_N defining a tree (p_i = 0 for
+    the root). The checker restores the tree from the input.
+    Answer: three integers D, S, E with arbitrary line breaks —
+    the length of the diameter (the number of edges on the path), the start and the end of the path.
+    Checking the participant's answer:
+      - 1 <= S <= N and 1 <= E <= N, otherwise a wrong answer;
       - 0 <= D <= N - 1;
-      - расстояние между S и E в дереве (количество рёбер на простом пути)
-        должно быть в точности равно D, иначе неверный ответ.
-    Сравнение: больший D лучше. Ответ участника считается верным, если его
-    D равен D жюри (и согласован с парой (S, E), как выше). Если D
-    участника меньше D жюри — неверный ответ. Если D участника строго
-    больше D жюри (и при этом согласован с (S, E)) — это ошибка жюри, fail.
-    Конкретные S и E с ответом жюри не сравниваются: подходит любая пара
-    вершин на расстоянии D, в любом порядке.
+      - the distance between S and E in the tree (the number of edges on the simple path)
+        must be exactly equal to D, otherwise a wrong answer.
+    Comparison: a larger D is better. The participant's answer is considered correct if its
+    D equals the jury's D (and is consistent with the pair (S, E), as above). If the
+    participant's D is less than the jury's D — a wrong answer. If the participant's D is strictly
+    greater than the jury's D (and consistent with (S, E)) — it's a jury error, fail.
+    The concrete S and E aren't compared with the jury's answer: any pair of
+    vertices at distance D fits, in any order.
   references: []

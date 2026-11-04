@@ -1,0 +1,28 @@
+First read the number $N$.
+
+To make a query, print ``? x'' $(1 \le x \le N)$ and read the answer:
+
+\begin{itemize}
+\item \texttt{<} if the hidden number is less than $x$;
+\item \texttt{>} if the hidden number is greater than $x$;
+\item \texttt{=} if the hidden number is equal to $x$.
+\end{itemize}
+
+You may make at most $10$ queries. Having received the answer \texttt{=}, terminate the program: there is no need to print a separate final answer.
+
+Your program will get the ``Wrong answer'' verdict in case of:
+
+\begin{itemize}
+\item violating the output format;
+\item querying a number outside the range $[1; N]$;
+\item exceeding the number of available queries;
+\item terminating the program without having received the answer \texttt{=}.
+\end{itemize}
+
+\textbf{After each printed query be sure to flush the output buffer}, otherwise your program will get the ``Idleness Limit Exceeded'' verdict:
+
+\begin{itemize}
+\item C++: \texttt{std::endl} when printing via \texttt{iostream} (\texttt{cout << ... << endl}), \texttt{fflush(stdout)} after printing via \texttt{stdio} (\texttt{printf});
+\item Java: \texttt{System.out.println(...)}, and when printing via another stream (\texttt{PrintWriter}, \texttt{BufferedWriter}) --- its \texttt{flush()} after each line;
+\item Python: \texttt{print(..., flush=True)}, and read the interactor's answers via \texttt{input()}.
+\end{itemize}

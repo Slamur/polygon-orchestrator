@@ -1,31 +1,31 @@
 problem_id: interactive--guess-number
-intended_complexity: "O(log N) запросов"
+intended_complexity: "O(log N) queries"
 complexity_reasoning: |
-  Бинарный поиск по диапазону: поддерживается отрезок [lo, hi]
-  кандидатов, запрашивается mid = (lo + hi) / 2; ответ "=" завершает
-  работу, "<" сужает отрезок до [lo, mid - 1], ">" — до [mid + 1, hi].
-  Каждый запрос уменьшает число кандидатов примерно вдвое, поэтому
-  хватает ceil(log2(N)) <= ceil(log2(1000)) = 10 запросов — ровно
-  авторский лимит. Лимит плотный: на худшем X при N = 1000 нужно ровно
-  10 запросов. Варианты бинпоиска с отдельным финальным запросом и с
-  hi = mid вместо hi = mid - 1 в него укладываются (перебор всех N и X).
-  Время работы решения вне взаимодействия — O(1) на запрос.
+  A binary search over the range: a segment [lo, hi] of candidates
+  is maintained, mid = (lo + hi) / 2 is queried; the answer "=" ends
+  the work, "<" narrows the segment to [lo, mid - 1], ">" — to [mid + 1, hi].
+  Each query halves the number of candidates approximately, so
+  ceil(log2(N)) <= ceil(log2(1000)) = 10 queries are enough — exactly
+  the author's limit. The limit is tight: on the worst X with N = 1000 exactly
+  10 queries are needed. Binary search variants with a separate final query and with
+  hi = mid instead of hi = mid - 1 fit into it (checked over all N and X).
+  The solution's running time outside the interaction — O(1) per query.
 
 variables:
   - name: "N"
     min: 1
     max: 1000
-    description: "верхняя граница диапазона: загаданное число лежит в [1; N]"
+    description: "the upper bound of the range: the hidden number lies in [1; N]"
     status: confirmed
   - name: "X"
     min: 1
-    max: "N"              
-    description: "загаданное число (скрытые данные теста), 1 <= X <= N"
+    max: "N"
+    description: "the hidden number (the test's hidden data), 1 <= X <= N"
     status: confirmed
   - name: "Q"
     min: 0
     max: 10
-    description: "лимит запросов для решения; константа условия, во входном файле не присутствует"
+    description: "the query limit for the solution; a statement constant, not present in the input file"
     status: confirmed
 
 limits:
@@ -33,13 +33,13 @@ limits:
   memory_limit_mb: 256
   status: confirmed
   rationale: |
-    TL и ML заданы автором явно (1 секунда, 256 Мб) и используются как есть.
-    Согласованность: при N <= 1000 решение делает не более 10 запросов и
-    O(1) работы на запрос, то есть вычислений порядка десятков операций;
-    всё время уходит на обмен строками с интерактором, 1 секунда с большим
-    запасом покрывает это на C++/Java (эталон укладывается заведомо быстрее
-    0.5 * TL). Память: решению нужны лишь несколько переменных, 256 Мб
-    (минимально рекомендуемая кратность) берётся как значение автора.
+    TL and ML are set by the author explicitly (1 second, 256 MB) and are used as is.
+    Consistency: with N <= 1000 the solution makes at most 10 queries and
+    O(1) work per query, that is, computations of the order of tens of operations;
+    all the time goes to exchanging lines with the interactor, 1 second covers it with a large
+    margin in C++/Java (the reference fits certainly faster than
+    0.5 * TL). Memory: the solution needs only a few variables, 256 MB
+    (the minimal recommended multiple) is taken as the author's value.
 
 validator:
   constants:
@@ -54,10 +54,10 @@ validator:
     - name: "Q"
       cpp_type: int
       min: 0
-      max: 10              # константа условия; во входном файле токена Q нет, поэтому не читается
+      max: 10              # a statement constant; there's no Q token in the input file, so it isn't read
   checks:
-    - "первая строка: одно целое N, затем readEoln"
-    - "вторая строка: одно целое X, прочитанное как readInt(minX, N, \"X\") — тем самым проверяется гарантия 1 <= X <= N; затем readEoln"
-    - "после второй строки — readEof: лишних данных в конце файла нет"
-    - "гарантия 'лимит 10 запросов не зависит от N': Q — константа условия maxQ = 10, во входном файле не хранится, поэтому во входных данных проверять нечего (константа объявлена в валидаторе)"
-    - "гарантия 'X фиксировано и интерактор не адаптивный': обеспечивается форматом файла — в тесте ровно один токен X, записанный до начала взаимодействия, и после него readEof запрещает любые дополнительные (альтернативные) значения"
+    - "the first line: one integer N, then readEoln"
+    - "the second line: one integer X, read as readInt(minX, N, \"X\") — this checks the guarantee 1 <= X <= N; then readEoln"
+    - "after the second line — readEof: there's no extra data at the end of the file"
+    - "the guarantee 'the limit of 10 queries doesn't depend on N': Q is the statement constant maxQ = 10, it isn't stored in the input file, so there's nothing to check in the input data (the constant is declared in the validator)"
+    - "the guarantee 'X is fixed and the interactor isn't adaptive': ensured by the file format — the test has exactly one token X, written before the interaction starts, and readEof after it forbids any additional (alternative) values"

@@ -1,33 +1,33 @@
-# Образец результата шага constraints_pick для spec.yaml из этого каталога —
-# пара "спек -> ожидаемый constraints.yaml". По нему же написан
-# validator.cpp (секция validator ниже реализована в нём 1-в-1),
-# а test_script берёт из него значения ограничений.
+# A sample result of the constraints_pick step for the spec.yaml from this directory —
+# a "spec -> expected constraints.yaml" pair. validator.cpp is written
+# from it too (the validator section below is implemented in it 1-to-1),
+# and test_script takes the limit values from it.
 #
-# В учебном спеке все значения заданы автором, поэтому везде
-# status: confirmed. Значение, которое шаг предложил сам (например, max
-# переменной при max: null в спеке), помечается status: proposed с
-# обоснованием в rationale — и записью в notes ответа модели.
+# In the sample spec all values are set by the author, so everywhere
+# status: confirmed. A value the step proposed itself (e.g. the max
+# of a variable with max: null in the spec) is marked status: proposed with
+# a justification in rationale — and an entry in the model's response notes.
 problem_id: array--prefix-sums
 intended_complexity: "O(N)"
 complexity_reasoning: |
-  Один проход по массиву с накоплением префиксной суммы; ответ — первый
-  индекс, на котором сумма стала строго больше K.
+  One pass over the array accumulating the prefix sum; the answer is the first
+  index at which the sum became strictly greater than K.
 
 variables:
   - name: "N"
     min: 1
     max: 200000
-    description: "длина массива"
+    description: "the length of the array"
     status: confirmed
   - name: "K"
     min: 0
     max: 1000000000000000
-    description: "порог для суммы префикса"
+    description: "the threshold for the prefix sum"
     status: confirmed
   - name: "A_i"
     min: 0
     max: 1000000000
-    description: "элемент массива"
+    description: "an element of the array"
     status: confirmed
 
 limits:
@@ -35,13 +35,13 @@ limits:
   memory_limit_mb: 256
   status: confirmed
   rationale: |
-    Заданы автором явно. Согласованность с O(N): при N = 2 * 10^5 это
-    ~2 * 10^5 операций плюс чтение входа — на порядки меньше 1 секунды
-    даже на Python; решение за O(N^2) (~2 * 10^10 операций) в 1 секунду
-    не укладывается.
+    Set by the author explicitly. Consistency with O(N): with N = 2 * 10^5 it's
+    ~2 * 10^5 operations plus reading the input — orders of magnitude less than 1 second
+    even in Python; an O(N^2) solution (~2 * 10^10 operations) doesn't fit
+    into 1 second.
 
-# test_groups отсутствует: в спеке нет test_groups_hint и
-# test_groups_needed не задан — группы автору не нужны.
+# test_groups is absent: the spec has no test_groups_hint and
+# test_groups_needed isn't set — the author doesn't need groups.
 
 validator:
   constants:
@@ -58,6 +58,6 @@ validator:
       min: 0
       max: 1000000000
   checks:
-    - "первая строка: N, один пробел, K, конец строки"
-    - "вторая строка: N чисел A_i через один пробел, конец строки"
-    - "после второй строки — конец файла"
+    - "the first line: N, one space, K, end of line"
+    - "the second line: N numbers A_i separated by one space, end of line"
+    - "after the second line — end of file"

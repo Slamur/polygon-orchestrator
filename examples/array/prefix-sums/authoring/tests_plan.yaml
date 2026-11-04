@@ -6,123 +6,123 @@ generators:
     params:
       - name: n
         type: int
-        description: длина массива
+        description: the length of the array
       - name: minA
         type: int
-        description: наименьшее значение элемента
+        description: the smallest value of an element
       - name: maxA
         type: int
-        description: наибольшее значение элемента
+        description: the largest value of an element
     input: null
-    output: начало теста — N в первой строке, массив A во второй; K допишет следующий генератор цепочки
+    output: the beginning of the test — N on the first line, the array A on the second; the next generator of the chain appends K
     algorithm: |
-      Каждый элемент — независимое случайное число из [minA, maxA].
+      Each element is an independent random number from [minA, maxA].
 
   - name: gen_array_distinct
     status: confirmed
     params:
       - name: n
         type: int
-        description: длина массива
+        description: the length of the array
       - name: minA
         type: int
-        description: наименьшее значение элемента
+        description: the smallest value of an element
       - name: maxA
         type: int
-        description: наибольшее значение элемента, maxA - minA + 1 >= n
+        description: the largest value of an element, maxA - minA + 1 >= n
     input: null
-    output: начало теста — N в первой строке, массив A во второй
+    output: the beginning of the test — N on the first line, the array A on the second
     algorithm: |
-      n попарно различных случайных значений из [minA, maxA]
-      (rnd.distinct), перемешанных в случайном порядке.
+      n pairwise distinct random values from [minA, maxA]
+      (rnd.distinct), shuffled into a random order.
 
   - name: gen_k_rand
     status: confirmed
     params:
       - name: minK
         type: ll
-        description: наименьшее K
+        description: the smallest K
       - name: maxK
         type: ll
-        description: наибольшее K
-    input: N в первой строке и массив A во второй (от gen_array_*)
-    output: весь тест — N и K в первой строке, массив A во второй
+        description: the largest K
+    input: N on the first line and the array A on the second (from gen_array_*)
+    output: the whole test — N and K on the first line, the array A on the second
     algorithm: |
-      K — случайное число из [minK, maxK].
+      K is a random number from [minK, maxK].
 
   - name: gen_k_too_large
     status: confirmed
     params:
       - name: maxK
         type: ll
-        description: наибольшее K, не меньше суммы массива
-    input: N в первой строке и массив A во второй (от gen_array_*)
-    output: весь тест — N и K в первой строке, массив A во второй
+        description: the largest K, no less than the array's sum
+    input: N on the first line and the array A on the second (from gen_array_*)
+    output: the whole test — N and K on the first line, the array A on the second
     algorithm: |
-      K — случайное число из [сумма всего массива, maxK] (сумма — в 64-битном
-      типе), так что ни один префикс не больше K и ответ — NO.
+      K is a random number from [the sum of the whole array, maxK] (the sum — in a 64-bit
+      type), so that no prefix is greater than K and the answer is NO.
 
   - name: gen_k_eq_pref
     status: confirmed
     params:
       - name: minK
         type: ll
-        description: наименьшее K
+        description: the smallest K
       - name: maxK
         type: ll
-        description: наибольшее K
+        description: the largest K
       - name: delta
         type: int
-        description: сдвиг K от суммы префикса (обычно -1, 0, 1)
-    input: N в первой строке и массив A во второй (от gen_array_*)
-    output: весь тест — N и K в первой строке, массив A во второй
+        description: the shift of K from the prefix sum (usually -1, 0, 1)
+    input: N on the first line and the array A on the second (from gen_array_*)
+    output: the whole test — N and K on the first line, the array A on the second
     algorithm: |
-      Считаются суммы всех префиксов (включая пустой) в 64-битном типе; K —
-      случайная из них плюс delta, приведённая к [minK, maxK].
+      The sums of all prefixes (including the empty one) are computed in a 64-bit type; K is
+      a random one of them plus delta, brought within [minK, maxK].
 
   - name: upd_array_sort
     status: confirmed
     params:
       - name: desc
         type: bool
-        description: флаг сортировки по убыванию
-    input: готовый тест — N и K в первой строке, массив A во второй
-    output: тот же тест с отсортированным массивом
+        description: the flag of sorting in descending order
+    input: a ready test — N and K on the first line, the array A on the second
+    output: the same test with the sorted array
     algorithm: |
-      Массив сортируется по возрастанию, с флагом desc — по убыванию; N и K
-      не меняются.
+      The array is sorted in ascending order, with the desc flag — in descending order; N and K
+      don't change.
 
 constants:
   - name: minN
     value: "1"
-    description: N.min из constraints.yaml
+    description: N.min from constraints.yaml
   - name: maxN
     value: 2 * 10^5
-    description: N.max из constraints.yaml
+    description: N.max from constraints.yaml
   - name: minK
     value: "0"
-    description: K.min из constraints.yaml
+    description: K.min from constraints.yaml
   - name: maxK
     value: 10^15
-    description: K.max из constraints.yaml
+    description: K.max from constraints.yaml
   - name: minA
     value: "0"
-    description: A_i.min из constraints.yaml
+    description: A_i.min from constraints.yaml
   - name: maxA
     value: 10^9
-    description: A_i.max из constraints.yaml
+    description: A_i.max from constraints.yaml
   - name: smallN
     value: "10"
-    description: граница маленьких тестов
+    description: the bound of small tests
   - name: smallA
     value: 10^2
-    description: маленькие значения A_i
+    description: small values of A_i
   - name: smallK
     value: n * smallA
-    description: маленькое K для теста с n элементами — порядка суммы массива
+    description: a small K for a test with n elements — of the order of the array's sum
 
 tests:
-  - description: Все N от 1 до 10 с маленькими A_i и K
+  - description: All N from 1 to 10 with small A_i and K
     status: confirmed
     covers:
       - specific_test_ideas[0]
@@ -130,16 +130,16 @@ tests:
       - gen_array_rand -n=n -minA=minA -maxA=smallA | gen_k_rand -minK=minK -maxK=smallK
     repeat: n = minN..smallN
 
-  - description: Все N от 1 до 10 с полным диапазоном A_i и K
+  - description: All N from 1 to 10 with the full range of A_i and K
     status: proposed
     covers: []
     commands:
       - gen_array_rand -n=n -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK
     repeat: n = minN..smallN
     rationale: |
-      Маленькие N с большими значениями — переполнение без максимальных N.
+      Small N with large values — an overflow without maximal N.
 
-  - description: Максимальные N с попарно различными A_i, в случайном порядке и отсортированные
+  - description: Maximal N with pairwise distinct A_i, in random order and sorted
     status: proposed
     covers:
       - known_wrong_approaches[2]
@@ -150,9 +150,9 @@ tests:
       - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK | upd_array_sort --desc
     repeat: null
     rationale: |
-      Максимальный N ловит O(N^2) и медленный ввод-вывод.
+      The maximal N catches O(N^2) and slow input/output.
 
-  - description: N = maxN, A_i от startA до maxA (при startA = maxA все A_i = maxA) — случайное K, ответ NO, K около суммы префикса
+  - description: N = maxN, A_i from startA to maxA (with startA = maxA all A_i = maxA) — a random K, the answer NO, K near a prefix sum
     status: confirmed
     covers:
       - specific_test_ideas[1]
@@ -166,6 +166,6 @@ tests:
       - gen_array_rand -n=maxN -minA=startA -maxA=maxA | gen_k_too_large -maxK=maxK
       - gen_array_rand -n=maxN -minA=startA -maxA=maxA | gen_k_eq_pref -minK=minK -maxK=maxK -delta=delta
     repeat: |
-      startA по [minA, maxA]; для каждого — первая команда для startK по
-      [minK, maxK] (при startK = maxK — K = K_max), вторая один раз, третья
-      для delta = -1..1
+      startA over [minA, maxA]; for each — the first command for startK over
+      [minK, maxK] (with startK = maxK — K = K_max), the second once, the third
+      for delta = -1..1

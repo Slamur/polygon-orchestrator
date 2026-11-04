@@ -1,31 +1,31 @@
 problem_id: graph--tree-diameter
 intended_complexity: "O(N)"
 complexity_reasoning: |
-  По массиву предков за O(N) строится список смежности неориентированного
-  дерева. Затем два обхода (BFS или нерекурсивный DFS): первый из
-  произвольной вершины находит самую удалённую вершину S, второй из S
-  находит самую удалённую вершину E; расстояние от S до E и есть диаметр.
-  Каждый обход — O(N) рёбер и вершин, итого O(N) времени и памяти.
-  Глубина дерева может быть порядка N (бамбук, «ствол пальмы»), поэтому
-  обход должен быть итеративным либо требовать увеличенного стека.
+  From the array of parents an adjacency list of the undirected
+  tree is built in O(N). Then two traversals (BFS or a non-recursive DFS): the first one from
+  an arbitrary vertex finds the farthest vertex S, the second one from S
+  finds the farthest vertex E; the distance from S to E is the diameter.
+  Each traversal is O(N) edges and vertices, in total O(N) time and memory.
+  The tree's depth may be of the order of N (a bamboo, the "palm trunk"), so
+  the traversal must be iterative or require an increased stack.
 
 variables:
   - name: "N"
     min: 2
     max: 300000
-    description: "количество вершин дерева"
+    description: "the number of vertices of the tree"
     status: proposed
     rationale: |
-      max: 300000 взят из спека без изменений.
-      min: в constraints.variables спека указано min=1, но в «Формате
-      входных данных» условия написано 2 <= N <= 3e5. Валидатор обязан
-      проверять ровно те гарантии, которые видит участник, поэтому
-      зафиксировано min = 2. Если автор хочет разрешить N = 1 (дерево из
-      одной вершины, диаметр 0), нужно поправить условие и это значение.
+      max: 300000 is taken from the spec without changes.
+      min: the spec's constraints.variables has min=1, but the statement's "Input
+      format" says 2 <= N <= 3e5. The validator must
+      check exactly the guarantees the participant sees, so
+      min = 2 is fixed. If the author wants to allow N = 1 (a tree of
+      one vertex, diameter 0), the statement and this value need fixing.
   - name: "p_i"
     min: 0
     max: "N"
-    description: "предок вершины i, либо 0, если i — корень; фактическая верхняя граница каждого p_i равна N"
+    description: "the parent of vertex i, or 0 if i is the root; the actual upper bound of each p_i is N"
     status: confirmed
 
 limits:
@@ -33,14 +33,14 @@ limits:
   memory_limit_mb: 256
   status: confirmed
   rationale: |
-    TL и ML заданы автором явно (2.0 c и 256 Мб) и используются как есть.
-    Согласованность: при N = 3e5 эталонное решение O(N) выполняет порядка
-    1e6 элементарных операций (чтение массива предков, построение списков
-    смежности, два BFS), что на C++ укладывается в ~0.05 c, а на Java —
-    в ~0.3 c, то есть заметно меньше 0.5 * 2 c. Память: список смежности
-    (2 * (N - 1) чисел), массив предков и массив расстояний — порядка
-    десятка Мб при лимите 256 Мб. TL 2 c надёжно отсекает квадратичные
-    решения (3e5^2 = 9e10 операций).
+    TL and ML are set by the author explicitly (2.0 s and 256 MB) and are used as is.
+    Consistency: with N = 3e5 the reference O(N) solution performs of the order of
+    1e6 elementary operations (reading the array of parents, building the adjacency
+    lists, two BFS), which in C++ fits into ~0.05 s, and in Java —
+    into ~0.3 s, that is, noticeably less than 0.5 * 2 s. Memory: the adjacency list
+    (2 * (N - 1) numbers), the array of parents and the array of distances — of the order of
+    ten MB with a limit of 256 MB. A TL of 2 s reliably cuts off quadratic
+    solutions (3e5^2 = 9e10 operations).
 
 validator:
   constants:
@@ -53,9 +53,9 @@ validator:
       min: 0
       max: "N"
   checks:
-    - "Первая строка: одно число N, затем readEoln()."
-    - "Вторая строка: ровно N чисел p_1 ... p_N через один пробел (readInts), каждое в [0, N], затем readEoln() и readEof()."
-    - "Ровно одно значение p_i равно 0 — у дерева ровно один корень."
-    - "Для всех i: p_i != i — вершина не является своим предком."
-    - "Массив предков задаёт дерево: из любой вершины, идя по предкам, попадаем в корень; циклов нет (итеративная покраска вершин по пути до корня либо до уже обработанной вершины)."
-    - "Не требуется p_i < i: порядок номеров предков не проверяется (предок может иметь больший номер, чем вершина)."
+    - "The first line: one number N, then readEoln()."
+    - "The second line: exactly N numbers p_1 ... p_N separated by one space (readInts), each in [0, N], then readEoln() and readEof()."
+    - "Exactly one value p_i equals 0 — the tree has exactly one root."
+    - "For all i: p_i != i — a vertex isn't its own parent."
+    - "The array of parents defines a tree: from any vertex, going by parents, we reach the root; there are no cycles (iteratively coloring the vertices along the path to the root or to an already processed vertex)."
+    - "p_i < i isn't required: the order of the parents' numbers isn't checked (a parent may have a larger number than the vertex)."
