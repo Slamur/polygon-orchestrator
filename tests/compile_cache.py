@@ -1,8 +1,8 @@
 """The `compile_check` cache for tests: the same sources with `testlib.h`
 (a standard checker, an example's validator) are built in dozens of tests,
 3–7 seconds each. The cache lives in `.pytest_cache` between pytest runs (in CI —
-between runs via actions/cache); entries that haven't been read for a long time
-are deleted by `prune`.
+between runs via actions/cache, together with the FreeMarker jar); entries that
+haven't been read for a long time are deleted by `prune`.
 
 The key (`source_key`) is the preprocessor output (`g++ -E -P`) together with the build
 flags and the g++ version: it has the contents of all included headers, but no
