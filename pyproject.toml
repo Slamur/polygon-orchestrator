@@ -1,7 +1,7 @@
 [project]
 name = "polygon-orchestrator"
 version = "0.1.0"
-description = "Оркестратор генеративных шагов подготовки задачи для Polygon"
+description = "An orchestrator of generative steps for preparing a problem for Polygon"
 requires-python = ">=3.10"
 dependencies = [
     "argcomplete>=3,<4",
@@ -24,23 +24,23 @@ dev = [
 pythonpath = ["."]
 testpaths = ["tests"]
 markers = [
-    "integration: бьёт в реальный внешний API (Anthropic и/или Polygon; нужны ANTHROPIC_API_KEY и/или POLYGON_API_KEY/POLYGON_API_SECRET), не запускается по умолчанию",
-    "slow: собирает или запускает C++/Java (g++, java, FreeMarker); pytest --fast их пропускает (tests/conftest.py), в CI идут все",
+    "integration: hits a real external API (Anthropic and/or Polygon; needs ANTHROPIC_API_KEY and/or POLYGON_API_KEY/POLYGON_API_SECRET), not run by default",
+    "slow: builds or runs C++/Java (g++, java, FreeMarker); pytest --fast skips them (tests/conftest.py), CI runs all",
 ]
 addopts = "-m 'not integration'"
 
 [tool.ruff]
 target-version = "py310"
-# Ширина, на которой у кода, написанного до ruff format, меньше всего правок.
+# The width at which code written before ruff format needs the fewest edits.
 line-length = 100
-# examples/ и templates/ — материалы задач (образцы для модели, шаблоны автора),
-# а не код оркестратора; problems/ и drafts/ — задачи автора.
+# examples/ and templates/ are problem materials (samples for the model, the author's templates),
+# not orchestrator code; problems/ and drafts/ are the author's problems.
 extend-exclude = ["problems", "drafts", "outputs", "examples", "templates"]
 
 [tool.ruff.lint]
-# pycodestyle, pyflakes, isort, bugbear, pyupgrade. Длину строк не проверяем:
-# код переносит ruff format, а то, что он не переносит, — в основном русский
-# текст комментариев и строк сообщений.
+# pycodestyle, pyflakes, isort, bugbear, pyupgrade. Line length isn't checked:
+# ruff format wraps code, and what it doesn't wrap is mostly the text of
+# comments and message strings.
 select = ["E", "W", "F", "I", "B", "UP"]
 ignore = ["E501"]
 

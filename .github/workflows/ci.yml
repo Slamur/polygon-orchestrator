@@ -28,21 +28,21 @@ jobs:
           python-version: "3.10"
           cache: pip
           cache-dependency-path: pyproject.toml
-      # java — для FreeMarker и Java-решений, g++ уже есть в образе.
+      # java — for FreeMarker and Java solutions, g++ is already in the image.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
       - run: pip install -e ".[dev]"
-      # Кэш сборок тестов (tests/compile_cache.py) между прогонами: ключ записи —
-      # исходник после препроцессора и версия g++, так что старый кэш не
-      # мешает, а берётся самый свежий. Каталог d/ — только данные плагинов, без
+      # The test build cache (tests/compile_cache.py) between runs: an entry's key is
+      # the preprocessed source and the g++ version, so an old cache doesn't
+      # get in the way, and the freshest one is taken. The d/ directory — only plugin data, without
       # lastfailed.
       - uses: actions/cache@v4
         with:
           path: .pytest_cache/d
           key: pytest-compiles-${{ runner.os }}-${{ github.sha }}
           restore-keys: pytest-compiles-${{ runner.os }}-
-      # Integration-тесты выключены в pyproject.toml (addopts), ключей API здесь нет.
-      # loadgroup — сборки образцов на одном процессе, см. test_example_templates.py.
+      # Integration tests are off in pyproject.toml (addopts), there are no API keys here.
+      # loadgroup — builds of the samples in one process, see test_example_templates.py.
       - run: pytest -q -n auto --dist loadgroup
