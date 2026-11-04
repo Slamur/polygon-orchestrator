@@ -34,15 +34,24 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: pip install -e ".[dev]"
-      # The test build cache (tests/compile_cache.py) between runs: an entry's key is
-      # the preprocessed source and the g++ version, so an old cache doesn't
-      # get in the way, and the freshest one is taken. The d/ directory — only plugin data, without
-      # lastfailed.
+      # What the tests build or download, between runs, in one entry:
+      # - the test build cache (tests/compile_cache.py): an entry's key is the
+      #   preprocessed source and the g++ version, so an old cache doesn't get in the
+      #   way, and the freshest one is taken. The d/ directory — only plugin data,
+      #   without lastfailed;
+      # - the FreeMarker jar (`freemarker_jar`): the version is in the file name, so a
+      #   new version is just downloaded next to the old one.
       - uses: actions/cache@v4
         with:
-          path: .pytest_cache/d
-          key: pytest-compiles-${{ runner.os }}-${{ github.sha }}
-          restore-keys: pytest-compiles-${{ runner.os }}-
+          path: |
+            .pytest_cache/d
+            ~/.cache/polygon-orchestrator
+          key: test-deps-${{ runner.os }}-${{ github.sha }}
+          restore-keys: test-deps-${{ runner.os }}-
+      # The only network dependency of the tests — before them, so that Maven Central
+      # being unavailable fails this step, not a batch of tests; a no-op on a cache hit.
+      - name: Download FreeMarker
+        run: python -c "from orchestrator.checks.test_script_check import freemarker_jar; print(freemarker_jar())"
       # Integration tests are off in pyproject.toml (addopts), there are no API keys here.
       # loadgroup — builds of the samples in one process, see test_example_templates.py.
       - run: pytest -q -n auto --dist loadgroup
