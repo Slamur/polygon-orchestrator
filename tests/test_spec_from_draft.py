@@ -30,7 +30,7 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
-DRAFT_TEXT = "Синтетический черновик: дан массив, найти сумму.\n"
+DRAFT_TEXT = "A synthetic draft: given an array, find the sum.\n"
 
 
 @pytest.fixture
@@ -446,7 +446,7 @@ def test_cli_init_draft_unchanged_draft_does_not_call_the_model(
 
 
 def test_cli_init_draft_revises_spec_by_changed_draft(base_dir, written_spec, fake_model, capsys):
-    new_draft = DRAFT_TEXT + "Ещё: n до 10^5.\n"
+    new_draft = DRAFT_TEXT + "Also: n up to 10^5.\n"
     (base_dir / "drafts" / "my-idea.md").write_text(new_draft, encoding="utf-8")
     spec_before = (written_spec / SPEC_FILENAME).read_text(encoding="utf-8")
     revised = spec_before.replace("problem_id: my-task", "problem_id: anything") + "# new\n"
@@ -464,7 +464,7 @@ def test_cli_init_draft_revises_spec_by_changed_draft(base_dir, written_spec, fa
     # Revision mode: the whole current spec and the draft's "before → after".
     assert "Revision mode" in call["user"]
     assert "# author's edit" in call["user"]
-    assert "Ещё: n до 10^5." in call["user"]
+    assert "Also: n up to 10^5." in call["user"]
     assert "Before:" in call["user"] and DRAFT_TEXT.strip() in call["user"]
     assert "The base — the spec template" not in call["user"]
 

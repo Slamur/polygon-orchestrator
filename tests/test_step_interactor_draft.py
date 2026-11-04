@@ -62,11 +62,11 @@ def test_compute_input_hash_raises_for_non_interactive_problem(plain_spec):
     [
         lambda spec: spec.model_copy(
             update={
-                "interactor": spec.interactor.model_copy(update={"behavior_notes": "Адаптивный."})
+                "interactor": spec.interactor.model_copy(update={"behavior_notes": "Adaptive."})
             }
         ),
-        lambda spec: _with_statement(spec, interaction_sketch="Не больше 20 запросов."),
-        lambda spec: _with_statement(spec, formal_input_sketch="Тест: N, затем X."),
+        lambda spec: _with_statement(spec, interaction_sketch="At most 20 queries."),
+        lambda spec: _with_statement(spec, formal_input_sketch="Test: N, then X."),
     ],
     ids=["behavior_notes", "interaction_sketch", "formal_input_sketch"],
 )
@@ -78,7 +78,7 @@ def test_compute_input_hash_changes_with_its_inputs(spec, edit):
 
 def test_compute_input_hash_ignores_legend(spec):
     assert compute_input_hash("interactive-spec", spec) == compute_input_hash(
-        "interactive-spec", _with_statement(spec, legend_sketch="Другой сюжет.")
+        "interactive-spec", _with_statement(spec, legend_sketch="Another plot.")
     )
 
 
@@ -102,9 +102,9 @@ def test_confirmed_writes_interactor_cpp(spec, tmp_path):
     assert result.status == "confirmed"
     assert (tmp_path / "interactive-spec" / "interactor.cpp").exists()
     user_prompt = mock_call.call_args.args[2]
-    assert "Неадаптивный: X берётся из теста." in user_prompt
-    assert 'Запрос "? y"' in user_prompt
-    assert "Тест: два числа N и X" in user_prompt
+    assert "Non-adaptive: X is taken from the test." in user_prompt
+    assert 'Query "? y"' in user_prompt
+    assert "Test: two numbers N and X" in user_prompt
     assert "10 3" in user_prompt
 
 
@@ -115,7 +115,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
             {
                 "field": "interactor.behavior_notes",
                 "kind": "uncertain",
-                "explanation": "не сказано, что писать в tout",
+                "explanation": "it isn't said what to write to tout",
             }
         ],
     )

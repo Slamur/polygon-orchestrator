@@ -27,7 +27,7 @@ def _spec(*, custom_needed: bool, standard: str | None):
         update={
             "custom_needed": custom_needed,
             "standard": standard,
-            "custom_comparison_notes": "сравнение по правилу X" if custom_needed else None,
+            "custom_comparison_notes": "comparison by rule X" if custom_needed else None,
         }
     )
     return spec.model_copy(update={"checker": checker})

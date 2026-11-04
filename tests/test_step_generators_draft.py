@@ -79,9 +79,9 @@ def test_writes_generators_of_the_plan(spec, tmp_path):
     assert result.notes == []
     user_prompt = mock_call.call_args.args[2]
     assert "### gen_rand.cpp" in user_prompt
-    assert "Случайный массив длины n." in user_prompt
+    assert "A random array of length n." in user_prompt
     # The generators don't need the plan's tests.
-    assert "Случайные максимальные тесты" not in user_prompt
+    assert "Random maximal tests" not in user_prompt
 
 
 def test_missing_generator_is_asked_for_in_a_separate_call(spec, tmp_path):
@@ -120,9 +120,9 @@ def test_notes_generators_that_differ_from_the_plan(spec, tmp_path):
 
 def test_input_parts_are_per_generator_and_ignore_tests_of_the_plan(spec):
     plan = yaml.safe_load(PLAN_YAML)
-    plan["tests"][0]["description"] = "другое описание"
+    plan["tests"][0]["description"] = "another description"
     other_tests = yaml.safe_dump(plan, allow_unicode=True, sort_keys=False)
-    other_algorithm = _plan_with(algorithm="Другой алгоритм.\n")
+    other_algorithm = _plan_with(algorithm="Another algorithm.\n")
 
     base = compute_input_hash("valid-spec", spec, _upstream())
     assert compute_input_hash("valid-spec", spec, _upstream(other_tests)) == base

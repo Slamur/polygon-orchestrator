@@ -61,7 +61,7 @@ def test_writes_script_by_style_from_the_plan(spec, tmp_path):
     assert "n_max: 100000" in user_prompt
     assert "time_limit_seconds" not in user_prompt
     # The script doesn't need the generator's algorithm — only how to call it.
-    assert "Случайный массив длины n." not in user_prompt
+    assert "A random array of length n." not in user_prompt
 
 
 def test_response_without_the_script_is_incomplete(spec, tmp_path):
@@ -83,7 +83,7 @@ def test_response_without_the_script_is_incomplete(spec, tmp_path):
 
 def test_compute_input_hash_ignores_generator_algorithms(spec):
     plan = yaml.safe_load(PLAN_YAML)
-    plan["generators"][0]["algorithm"] = "Другой алгоритм.\n"
+    plan["generators"][0]["algorithm"] = "Another algorithm.\n"
     other_algorithm = yaml.safe_dump(plan, allow_unicode=True, sort_keys=False)
     plan["tests"][0]["commands"] = ["gen_rand -n=1"]
     other_tests = yaml.safe_dump(plan, allow_unicode=True, sort_keys=False)

@@ -224,7 +224,7 @@ def test_run_generative_step_proposed_also_writes_artifacts(tmp_path):
     response = ModelResponse(
         status="proposed",
         artifacts={"out.txt": "guessed"},
-        notes=[{"field": "n.max", "kind": "proposed", "explanation": "по порядку операций"}],
+        notes=[{"field": "n.max", "kind": "proposed", "explanation": "by the order of operations"}],
     )
     with patch("orchestrator.model_router.call_model", return_value=response):
         result = run_generative_step(
@@ -254,7 +254,7 @@ def test_run_generative_step_uncertain_raises_and_writes_nothing(tmp_path):
             {
                 "field": "constraints.intended_complexity",
                 "kind": "uncertain",
-                "explanation": "пусто",
+                "explanation": "empty",
             }
         ],
     )
@@ -313,7 +313,7 @@ def test_run_generative_step_validate_artifacts_mismatch_applies_nothing(tmp_pat
         assert [p.name for p in problems_dir.rglob("*") if p.is_file()] == [
             "statement_draft.response.json"
         ]
-        raise ValueError("набор файлов не совпадает")
+        raise ValueError("the set of files doesn't match")
 
     with patch("orchestrator.model_router.call_model", return_value=response):
         result = run_generative_step(
@@ -377,7 +377,7 @@ def test_run_generative_step_validate_artifacts_not_called_on_uncertain(tmp_path
     response = ModelResponse(status="uncertain", artifacts={}, notes=[])
 
     def validate(artifacts):
-        raise AssertionError("validate_artifacts не должен вызываться при uncertain")
+        raise AssertionError("validate_artifacts must not be called with uncertain")
 
     with patch("orchestrator.model_router.call_model", return_value=response):
         with pytest.raises(StepUncertainError):

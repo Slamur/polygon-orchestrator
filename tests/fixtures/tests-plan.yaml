@@ -1,5 +1,5 @@
-# Синтетический план тестов (формат — templates/tests_plan_format.yaml) для
-# фейковых ответов модели на шаг tests_plan.
+# A synthetic test plan (format — templates/tests_plan_format.yaml) for
+# fake model responses to the tests_plan step.
 problem_id: p1
 generators:
   - name: gen_rand
@@ -7,17 +7,17 @@ generators:
     params:
       - name: n
         type: int
-        description: число элементов
+        description: the number of elements
     input: null
-    output: весь тест
+    output: the whole test
     algorithm: |
-      Случайный массив длины n.
+      A random array of length n.
 constants:
   - name: maxN
     value: 10^5
-    description: n.max из constraints.yaml
+    description: n.max from constraints.yaml
 tests:
-  - description: Случайные максимальные тесты
+  - description: Random maximal tests
     status: confirmed
     covers: []
     commands:

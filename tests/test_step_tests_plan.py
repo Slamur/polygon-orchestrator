@@ -160,8 +160,8 @@ def test_confirmed_writes_plan_to_authoring_with_problem_id_from_spec(spec, tmp_
     assert "n_max: 100000" in user_prompt
     # The plan doesn't need TL/ML.
     assert "time_limit_seconds" not in user_prompt
-    assert "- [0] N = 1 (минимальный случай)" in user_prompt
-    assert "- [0] O(N^2) без кучи — TLE на больших N" in user_prompt
+    assert "- [0] N = 1 (the minimal case)" in user_prompt
+    assert "- [0] O(N^2) without a heap — TLE on large N" in user_prompt
     assert "tests_plan_format.yaml" in mock_call.call_args.kwargs["context_documents"]
 
 
@@ -216,10 +216,10 @@ def _hash(spec, upstream=UPSTREAM):
 @pytest.mark.parametrize(
     "section, update",
     [
-        ("solutions", {"known_wrong_approaches": ["другое"]}),
-        ("solutions", {"algorithm_hint": "другая идея"}),
+        ("solutions", {"known_wrong_approaches": ["another"]}),
+        ("solutions", {"algorithm_hint": "another idea"}),
         ("generation", {"specific_test_ideas": ["N = 2"]}),
-        ("statement_draft", {"formal_input_sketch": "другой формат"}),
+        ("statement_draft", {"formal_input_sketch": "another format"}),
     ],
 )
 def test_compute_input_hash_changes_with_inputs_of_the_plan(spec, section, update):

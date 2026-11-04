@@ -541,7 +541,9 @@ def _user_prompt(mock_call, step: str) -> str:
 
 def _edit_legend(spec_file: Path) -> None:
     text = spec_file.read_text(encoding="utf-8")
-    text = text.replace("Есть граф городов и дорог", "Есть граф городов и дорог (Edited.)")
+    text = text.replace(
+        "There's a graph of cities and roads", "There's a graph of cities and roads (Edited.)"
+    )
     spec_file.write_text(text, encoding="utf-8")
 
 

@@ -151,7 +151,7 @@ def test_uncertain_step_stops_pipeline_before_later_steps(spec_file, tmp_path):
             {
                 "field": "statement_draft.formal_output_sketch",
                 "kind": "uncertain",
-                "explanation": "нет точности",
+                "explanation": "no precision given",
             }
         ],
     )
@@ -238,7 +238,7 @@ def test_checker_draft_runs_when_custom_needed_is_true(spec_file, tmp_path):
     content = (spec_file).read_text(encoding="utf-8")
     content = content.replace("custom_needed: false", "custom_needed: true").replace(
         "custom_comparison_notes: null",
-        'custom_comparison_notes: "Сравнивать числа с точностью 1e-6"',
+        'custom_comparison_notes: "Compare numbers with precision 1e-6"',
     )
     (spec_file).write_text(content, encoding="utf-8")
 
@@ -266,9 +266,11 @@ def test_interactor_draft_runs_for_interactive_problem(spec_file, tmp_path):
     content = spec_file.read_text(encoding="utf-8")
     content = content.replace(
         '  indexing: "1-indexed"\n',
-        '  indexing: "1-indexed"\n  interaction_sketch: "Решение выводит запрос ? v."\n',
+        '  indexing: "1-indexed"\n  interaction_sketch: "The solution prints the query ? v."\n',
     )
-    content += 'interactor:\n  behavior_notes: "Неадаптивный, в tout — ответ решения."\n'
+    content += (
+        'interactor:\n  behavior_notes: "Non-adaptive, tout has the answer of the solution."\n'
+    )
     spec_file.write_text(content, encoding="utf-8")
     responses = {
         **_RESPONSES,
@@ -295,8 +297,8 @@ def test_interactor_draft_runs_for_interactive_problem(spec_file, tmp_path):
     assert (problems_dir / "p1" / "interactor.cpp").exists()
     assert (problems_dir / "p1" / "statement" / "ru" / "interaction.tex").exists()
     interactor_call = next(c for c in mock_call.call_args_list if c.args[0] == "interactor_draft")
-    assert "Решение выводит запрос ? v." in interactor_call.args[2]
-    assert "Неадаптивный, в tout — ответ решения." in interactor_call.args[2]
+    assert "The solution prints the query ? v." in interactor_call.args[2]
+    assert "Non-adaptive, tout has the answer of the solution." in interactor_call.args[2]
 
 
 def test_only_step_without_prior_constraints_yaml_reports_error_not_crash(spec_file, tmp_path):
@@ -417,7 +419,7 @@ def test_compute_step_statuses_stale_after_spec_edit(spec_file, tmp_path):
 
     content = (spec_file).read_text(encoding="utf-8")
     content = content.replace(
-        "Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)"
+        "There's a graph of cities and roads", "There's a graph of cities and roads (edited)"
     )
     (spec_file).write_text(content, encoding="utf-8")
 
@@ -459,7 +461,7 @@ def test_compute_step_statuses_not_run_after_uncertain_run(spec_file, tmp_path):
             {
                 "field": "statement_draft.formal_output_sketch",
                 "kind": "uncertain",
-                "explanation": "нет точности",
+                "explanation": "no precision given",
             }
         ],
     )
@@ -548,7 +550,7 @@ def _accept(problems_dir, **kwargs):
 def _edit_legend(spec_file):
     content = (spec_file).read_text(encoding="utf-8")
     content = content.replace(
-        "Есть граф городов и дорог", "Есть граф городов и дорог (отредактировано)"
+        "There's a graph of cities and roads", "There's a graph of cities and roads (edited)"
     )
     (spec_file).write_text(content, encoding="utf-8")
 

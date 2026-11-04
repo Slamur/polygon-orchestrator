@@ -88,7 +88,7 @@ def test_confirmed_writes_files_under_statement_subdir(spec, tmp_path):
 
     # user.md.j2 was actually rendered from the spec's statement_draft section
     user_prompt = mock_call.call_args.args[2]
-    assert "Есть граф городов и дорог" in user_prompt
+    assert "There's a graph of cities and roads" in user_prompt
     assert "1-indexed" in user_prompt
     # and explicitly lists the file names expected from the model — without the examples' input
     expected_list = user_prompt.split("Expected files in artifacts:")[1].split("The task:")[0]
@@ -163,7 +163,7 @@ def test_uncertain_raises_and_writes_nothing(spec, tmp_path):
             {
                 "field": "statement_draft.formal_output_sketch",
                 "kind": "uncertain",
-                "explanation": "нет точности",
+                "explanation": "no precision given",
             }
         ],
     )
@@ -315,7 +315,7 @@ def test_interactive_writes_protocol_and_dialogues(interactive_spec, tmp_path):
     assert (statement_dir / "examples" / "example_1.output_for_statement.txt").exists()
     user_prompt = mock_call.call_args.args[2]
     assert "## Interaction protocol" in user_prompt
-    assert 'Запрос "? y"' in user_prompt
+    assert 'Query "? y"' in user_prompt
     assert "- examples/example_1.input_for_statement.txt" in user_prompt
     documents = mock_call.call_args.kwargs.get("context_documents") or mock_call.call_args.args[3]
     assert "tutorials/interactive.md" in documents

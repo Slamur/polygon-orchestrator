@@ -84,8 +84,8 @@ def test_specific_test_ideas_loaded():
     spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
     assert spec.generation.specific_test_ideas == [
-        "N = 1 (минимальный случай)",
-        "N = N_max, значения максимальные",
+        "N = 1 (the minimal case)",
+        "N = N_max, maximal values",
     ]
 
 
@@ -93,8 +93,8 @@ def test_specific_test_ideas_absent_defaults_to_none(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(
         "  specific_test_ideas:\n"
-        '    - "N = 1 (минимальный случай)"\n'
-        '    - "N = N_max, значения максимальные"\n',
+        '    - "N = 1 (the minimal case)"\n'
+        '    - "N = N_max, maximal values"\n',
         "",
     )
     path = tmp_path / "valid-spec.yaml"
@@ -141,7 +141,7 @@ def test_indexing_irrelevant_is_accepted(tmp_path):
 
 def test_indexing_unknown_value_is_rejected(tmp_path):
     with pytest.raises(SpecValidationError, match="statement_draft.indexing"):
-        load_spec(_write_with_indexing(tmp_path, "не имеет значения"))
+        load_spec(_write_with_indexing(tmp_path, "does not matter"))
 
 
 def test_test_groups_needed_absent_defaults_to_false():
@@ -183,7 +183,7 @@ def test_generation_input_shape_is_forbidden(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(
         "generation:\n",
-        "generation:\n  input_shape: |\n    Первая строка: N K.\n",
+        "generation:\n  input_shape: |\n    The first line: N K.\n",
     )
     assert "input_shape" in text
     path = tmp_path / "valid-spec.yaml"
@@ -260,7 +260,7 @@ def test_interactive_spec_loads():
     spec = load_spec(FIXTURES_DIR / "interactive-spec.yaml")
 
     assert spec.interactive
-    assert "Неадаптивный" in spec.interactor.behavior_notes
+    assert "Non-adaptive" in spec.interactor.behavior_notes
     assert spec.statement_draft.has_interaction
 
 
@@ -310,7 +310,7 @@ def test_protocol_without_interactor_section_raises(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(
         '  indexing: "1-indexed"\n',
-        '  indexing: "1-indexed"\n  interaction_sketch: "запросы ? v"\n',
+        '  indexing: "1-indexed"\n  interaction_sketch: "queries ? v"\n',
     )
     path = tmp_path / "valid-spec.yaml"
     path.write_text(text, encoding="utf-8")
