@@ -48,6 +48,13 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   `--fresh` — from scratch. No draft — an error before calling the model; `--ref` with a problem
   group — an argument parsing error. Calls the model — the same restrictions on
   running without an explicit command as for `llm generate`.
+- `orchestrator <problem> llm critic` — the spec critic
+  (`.claude/rules/step-roles/8-spec_critic.md`, "`llm critic`") over the spec as it is:
+  one call, the findings — in `llm_reports/spec_critic.md`, the spec isn't changed.
+  No cache, no `--force`: every run calls the model — the same restrictions on
+  running without an explicit command as for `llm generate`. No spec or the spec
+  isn't valid YAML — an error before calling the model; a failed call or an invalid
+  critique — exit code 1.
 - `orchestrator <problem> llm status` — without model calls: prints
   a "step → cache hit / stale / not run" table, using the same hashes as
   `llm generate`. Useful to see before a real run what actually
@@ -84,7 +91,7 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
 
 ## Logs and reports in the problem directory
 
-`llm_generation.log` — the log of `llm generate` (and `init --draft`), appended to;
+`llm_generation.log` — the log of `llm generate` (and `init --draft`, `llm critic`), appended to;
 each run starts with `===== run started: orchestrator <command> =====`.
 `llm_reports/<step>.md` — the report of the step's last run (`spec_from_draft.md`
-from `init --draft`, `accept.md` from `llm accept`).
+from `init --draft`, `spec_critic.md` from `llm critic`, `accept.md` from `llm accept`).

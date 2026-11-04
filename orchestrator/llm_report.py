@@ -11,7 +11,7 @@ applied, compile errors, `proposed`), then the model's ideas
 (`suggestion`), what it changed, the step's files and the diffs of changed files
 against the previous versions from `.llm_backup/`. `init --draft` likewise writes
 `llm_reports/spec_from_draft.md` (with the critic's findings and what was done
-with them), `llm accept` — `llm_reports/accept.md` (what was accepted and what
+with them), `llm critic` — `llm_reports/spec_critic.md`, `llm accept` — `llm_reports/accept.md` (what was accepted and what
 changed in the input of each step).
 """
 
@@ -27,6 +27,7 @@ from orchestrator.steps.base import CONFLICTS_REPORT
 
 REPORTS_DIRNAME = "llm_reports"
 SPEC_FROM_DRAFT_REPORT = "spec_from_draft"
+SPEC_CRITIC_REPORT = "spec_critic"
 ACCEPT_REPORT = "accept"
 
 # The order and titles of the note groups; notes of other `kind`s — at the end, in
@@ -145,6 +146,22 @@ def write_spec_from_draft_report(
     return _write(report_path(problem_dir, SPEC_FROM_DRAFT_REPORT), lines)
 
 
+def write_spec_critic_report(
+    problem_dir: Path, outcome: Any, *, spec_path: Path, status_label: str, command_line: str
+) -> Path:
+    """Writes `llm_reports/spec_critic.md` from the `spec_critic.CritiqueOutcome` of
+    `llm critic`: the findings only, the spec isn't changed."""
+    problem_dir = Path(problem_dir)
+    lines = _header(SPEC_CRITIC_REPORT, status_label, command_line)
+    lines += [
+        f"**Spec:** {_link(problem_dir, spec_path)} — not changed, the findings are for you",
+        "",
+    ]
+    lines += _critique_section(outcome, review_only=True)
+    lines += _notes_sections(outcome.notes, title_prefix="Critic run — ")
+    return _write(report_path(problem_dir, SPEC_CRITIC_REPORT), lines)
+
+
 def write_accept_report(problem_dir: Path, statuses: list[Any], *, command_line: str) -> Path:
     """Writes `llm_reports/accept.md` from the `pipeline.StepStatus` of the steps that
     `llm accept` accepted or didn't accept: the full `detail` of each — the console
@@ -165,25 +182,32 @@ def _header(name: str, status_label: str, command_line: str) -> list[str]:
     return [f"# {name}: {status_label}", "", f"`orchestrator {command_line}` · {_stamp()}", ""]
 
 
-def _critique_section(critique: Any) -> list[str]:
+def _critique_section(critique: Any, *, review_only: bool = False) -> list[str]:
     """The critic's findings (`spec_critic.CritiqueOutcome`): first those on the
     author's values — what the author decides, then those on the model's values with
-    what was done with them, then the rest (nits, repeats, unresolved paths)."""
+    what was done with them, then the rest (nits, repeats, unresolved paths).
+    `review_only` (`llm critic`) — nothing was done with any finding: the model's
+    values are the ones still marked in the spec."""
     from orchestrator.spec_critic import AUTHOR, FOR_REVIEW, MODEL
 
     rounds = f", {critique.rounds} round(s)" if critique.rounds > 1 else ""
     lines = [f"## Critic: {len(critique.findings)} finding(s){rounds}", ""]
     if not critique.findings:
         return lines + ["No findings.", ""]
+    if review_only:
+        model_title = "Values still marked PROPOSED / SUGGESTION — for your review"
+        model_values = [f for f in critique.findings if f.owner == MODEL]
+    else:
+        model_title = "Proposed values — sent back to the model"
+        model_values = [
+            f for f in critique.findings if f.owner == MODEL and f.outcome != FOR_REVIEW
+        ]
     groups = (
         (
             "Your values — for your review",
             [f for f in critique.findings if f.owner == AUTHOR and f.outcome == FOR_REVIEW],
         ),
-        (
-            "Proposed values — sent back to the model",
-            [f for f in critique.findings if f.owner == MODEL and f.outcome != FOR_REVIEW],
-        ),
+        (model_title, model_values),
     )
     listed = {id(f) for _, group in groups for f in group}
     other = [f for f in critique.findings if id(f) not in listed]

@@ -19,7 +19,7 @@ paths:
 
 # Generative steps: revision, conflicts, cache, escalation
 
-The `llm generate|tutorial|status|apply|accept` commands — in `.claude/rules/llm-commands.md`.
+The `llm generate|tutorial|critic|status|apply|accept` commands — in `.claude/rules/llm-commands.md`.
 The role of each generative step — in `.claude/rules/step-roles/`, one file per
 item (`<N>-<step>.md`). Model routing by step — in
 `.claude/rules/models.md`.

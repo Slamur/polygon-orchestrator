@@ -1,4 +1,4 @@
-"""The critic of the spec of `init --draft` (`orchestrator/spec_critic.py`).
+"""The critic of the spec of `init --draft` and `llm critic` (`orchestrator/spec_critic.py`).
 The model is replaced (`model_router.call_model`) — there are no real calls."""
 
 from pathlib import Path
@@ -30,6 +30,7 @@ from orchestrator.spec_critic import (
     parse_critique,
     remap_path,
     remove_list_item,
+    review_spec,
     strip_review_marks,
 )
 
@@ -360,6 +361,33 @@ def test_one_round_by_default(tmp_path, fake_model):
     assert fake.steps() == ["spec_critic", "spec_from_draft"]
 
 
+def test_review_spec_only_classifies(tmp_path, fake_model):
+    fake = fake_model(
+        critiques=[
+            _critique(
+                _item("tests.groups[0]"),
+                _item("solutions.known_wrong_approaches[1]"),
+                _item("no.such.field"),
+            )
+        ]
+    )
+    (tmp_path / "examples").mkdir()
+    outcome = review_spec(
+        SPEC,
+        prompts_dir=PROMPTS_DIR,
+        templates_dir=TEMPLATES_DIR,
+        examples_dir=tmp_path / "examples",
+    )
+
+    assert fake.steps() == ["spec_critic"]
+    assert not outcome.changed
+    assert [(f.owner, f.outcome) for f in outcome.findings] == [
+        (AUTHOR, FOR_REVIEW),
+        (MODEL, FOR_REVIEW),
+        (None, UNRESOLVED),
+    ]
+
+
 # --- init --draft -----------------------------------------------------------
 
 
@@ -442,4 +470,71 @@ def test_cli_init_draft_failed_critic_keeps_the_spec(base_dir, monkeypatch, caps
 
     spec = base_dir / "problems" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME
     assert "SUGGESTION: a minimal test" in spec.read_text(encoding="utf-8")
+    assert "the critic call failed" in capsys.readouterr().out
+
+
+# --- llm critic -------------------------------------------------------------
+
+
+def _write_problem_spec(base_dir, text) -> Path:
+    spec = base_dir / "problems" / "my-task" / AUTHORING_DIRNAME / SPEC_FILENAME
+    spec.parent.mkdir(parents=True)
+    spec.write_text(text, encoding="utf-8")
+    return spec
+
+
+def _cli_critic(base_dir):
+    return cli.main(["--base-dir", str(base_dir), "problems/my-task", "llm", "critic"])
+
+
+def test_cli_llm_critic_writes_the_report_only(base_dir, monkeypatch, capsys):
+    text = _marked_valid_spec()
+    spec = _write_problem_spec(base_dir, text)
+    fake = _CliModel(
+        None,
+        _critique(
+            _item("generation.specific_test_ideas[0]"),
+            _item("statement_draft.legend_sketch", action="simplify", proposal="shorter"),
+        ),
+    )
+    monkeypatch.setattr(model_router, "call_model", fake)
+
+    assert _cli_critic(base_dir) == 0
+
+    assert fake.steps == ["spec_critic"]
+    assert spec.read_text(encoding="utf-8") == text
+    problem_dir = base_dir / "problems" / "my-task"
+    assert not (problem_dir / ".llm_backup").exists()
+    report = (problem_dir / "llm_reports" / "spec_critic.md").read_text(encoding="utf-8")
+    assert "## Critic: 2 finding(s)" in report
+    assert "### Your values — for your review (1)" in report
+    assert "### Values still marked PROPOSED / SUGGESTION — for your review (1)" in report
+    assert "→" not in report
+    assert "spec critic — 2 finding(s)" in capsys.readouterr().out
+
+
+def test_cli_llm_critic_invalid_critique_fails(base_dir, monkeypatch):
+    _write_problem_spec(base_dir, _marked_valid_spec())
+    critique = ModelResponse(status="proposed", artifacts={"critique.yaml": "not: [a list"})
+    monkeypatch.setattr(model_router, "call_model", _CliModel(None, critique))
+
+    assert _cli_critic(base_dir) == 1
+    report = base_dir / "problems" / "my-task" / "llm_reports" / "spec_critic.md"
+    assert "not valid YAML" in report.read_text(encoding="utf-8")
+
+
+def test_cli_llm_critic_without_spec_does_not_call_the_model(base_dir, monkeypatch, capsys):
+    fake = _CliModel(None, _critique())
+    monkeypatch.setattr(model_router, "call_model", fake)
+
+    assert _cli_critic(base_dir) == 1
+    assert fake.steps == []
+    assert "does not exist" in capsys.readouterr().err
+
+
+def test_cli_llm_critic_failed_call(base_dir, monkeypatch, capsys):
+    _write_problem_spec(base_dir, _marked_valid_spec())
+    monkeypatch.setattr(model_router, "call_model", _CliModel(None, LLMCallError("killed")))
+
+    assert _cli_critic(base_dir) == 1
     assert "the critic call failed" in capsys.readouterr().out

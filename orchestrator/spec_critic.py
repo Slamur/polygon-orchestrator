@@ -13,6 +13,9 @@ decided here, by the marks in the spec, not by the critic:
   change an unmarked value: if it does, it's rejected as a whole.
 
 At most `rounds` rounds; the second one only if the critic has new findings.
+
+`llm critic` reviews the spec as it is (`review_spec`): one call, every finding goes
+to the report only, the spec isn't changed.
 """
 
 from __future__ import annotations
@@ -534,6 +537,31 @@ def critique_spec(
         if number == rounds:
             break
     outcome.spec_text = text
+    return outcome
+
+
+def review_spec(
+    spec_text: str,
+    *,
+    prompts_dir: Path = PROMPTS_DIR,
+    templates_dir: Path = TEMPLATES_DIR,
+    examples_dir: Path = EXAMPLES_DIR,
+) -> CritiqueOutcome:
+    """`llm critic`: one critic call over `spec_text`, the findings classified by the
+    marks but not acted on — all of them are for the author's review. Nothing is
+    written to disk."""
+    items, notes = _call_critic(
+        spec_text,
+        [],
+        prompts_dir=prompts_dir,
+        templates_dir=templates_dir,
+        examples_dir=examples_dir,
+    )
+    outcome = CritiqueOutcome(before_text=spec_text, spec_text=spec_text, notes=notes, rounds=1)
+    for item in items:
+        finding = Finding(**item)
+        classify(finding, spec_text)
+        outcome.findings.append(finding)
     return outcome
 
 

@@ -34,7 +34,8 @@ In scope:
   everything the author wrote and fills in what is missing itself, marking it in
   the spec; a critic model then reviews the spec without the draft and proposes
   only removals and simplifications (`orchestrator/spec_critic.py`); the author
-  reviews the spec before the generative steps;
+  reviews the spec before the generative steps; `orchestrator <problem> llm critic`
+  runs the same critic over a spec as it is (e.g. written by hand), as a report only;
 - a LaTeX statement draft — in one language, the main one (the spec's `language`,
   `ru` by default, or `en`), in `statement/<code>/`; statements in other Polygon
   languages (their own `statement/<code>/`) are written by the author, the orchestrator only syncs them
@@ -304,15 +305,15 @@ next reply, rather than relying on them noticing it during the PR review.
 ## Manual runs with the real API — forbidden without an explicit command
 
 `orchestrator <problem> llm generate` (with `--step`, `--force` or without),
-`orchestrator <problem> llm tutorial` and `orchestrator <problem> init --draft` call the
-real model and cost something every time: through `AnthropicClient.generate` — money
+`orchestrator <problem> llm tutorial`, `orchestrator <problem> llm critic` and
+`orchestrator <problem> init --draft` call the real model and cost something every time: through `AnthropicClient.generate` — money
 from the API balance, through `ClaudeCodeClient.generate` (`claude -p`) — the author's
 subscription limits, shared with their interactive work. This is not "checking code"
 in the usual sense — here any check = spent tokens.
 
 STRICTLY FORBIDDEN for Claude Code on its own, without an explicit command from the user
 in the current message, to run:
-- `orchestrator <problem> llm generate ...`, `orchestrator <problem> llm tutorial ...` and `orchestrator <problem> init --draft ...` on any `problem_id` (real or synthetic);
+- `orchestrator <problem> llm generate ...`, `orchestrator <problem> llm tutorial ...`, `orchestrator <problem> llm critic` and `orchestrator <problem> init --draft ...` on any `problem_id` (real or synthetic);
 - any other code that instantiates `AnthropicClient` and actually
   reaches `client.messages.create` — including "quickly check with one
   step", "smoke test", "let's run it and see what comes back";

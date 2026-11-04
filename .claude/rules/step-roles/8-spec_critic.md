@@ -5,6 +5,7 @@ paths:
   - "prompts/spec_critic/**"
   - "prompts/spec_from_draft/**"
   - "tests/test_spec_critic.py"
+  - "orchestrator/llm_report.py"
 ---
 
 # Role of each generative step, item 8: `spec_critic`
@@ -108,6 +109,18 @@ the same restrictions on running without an explicit command as for
 `llm generate`. A failed critic call keeps the spec as the generator wrote it,
 the exit code is 1.
 
+## `llm critic`: report only
+
+`orchestrator <problem> llm critic` runs the critic over the spec as it is —
+written by hand, or edited since `init --draft` (`spec_critic.review_spec`). The
+input is the same (the spec with the marks stripped, the same documents), one
+round, and nothing is acted on: there is no draft to revise against, so every
+finding goes to `llm_reports/spec_critic.md` for the author. The findings are still
+classified by the marks — the report lists the author's values first, then the values
+still marked `PROPOSED` / `SUGGESTION`, then the unresolved paths. No cache: the
+author runs it when they want a review. A failed call or an invalid critique (notes
+of the run) — exit code 1.
+
 Model class: medium model, high effort — the judgment "is this needed" is
 not as costly to get wrong as `spec_from_draft` itself: every outcome goes
 through the generator or the author.
@@ -125,7 +138,5 @@ The outcome of a revised finding: `revised` — the value at its path changed,
 
 ## Later, not in the first version
 
-- the critic on an author-written spec without `--draft` (report only) — the
-  next PR;
 - narrow critics with one lens each (test excess, statement wordiness, limits)
   instead of one general critic, and critics for other steps' output.

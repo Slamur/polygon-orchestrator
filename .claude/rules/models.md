@@ -31,7 +31,7 @@ stronger model; mechanical/boilerplate steps — through a faster/cheaper one.
 | `interactor_draft`          | high — the whole protocol, a mistake breaks all tests | strong model |
 | `spec_from_draft` (`init --draft`) | high — the spec is the input of all steps | strong model |
 | `tutorial_draft` (`llm tutorial`) | high — proofs at the author's request | strong model |
-| `spec_critic` (`init --draft`) | medium — every finding goes through the generator or the author | medium model, high effort |
+| `spec_critic` (`init --draft`, `llm critic`) | medium — every finding goes through the generator or the author | medium model, high effort |
 
 `checker_draft` is formally mechanical when `custom_comparison_notes`
 is complete and unambiguous (translating a text description into code following the
