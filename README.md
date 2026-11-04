@@ -135,6 +135,7 @@ pip install -e '.[dev]'
 orchestrator --help
 pytest               # unit-тесты; к модели и Polygon не обращаются
 pytest --fast        # то же без тестов, которые собирают и запускают C++/Java (~в 5 раз быстрее)
+pytest -n auto --dist loadgroup  # параллельно (pytest-xdist), как в CI
 ruff check .         # линтер (настройки — в pyproject.toml); `--fix` чинит что может
 ruff format .        # форматирование кода
 ```
