@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import shutil
 from pathlib import Path
@@ -235,6 +236,28 @@ def test_freemarker_jar_from_env(monkeypatch, tmp_path):
     monkeypatch.setenv(check.FREEMARKER_JAR_ENV, str(tmp_path / "missing.jar"))
     with pytest.raises(ScriptCheckUnavailable):
         check.freemarker_jar()
+
+
+def test_freemarker_jar_download_does_not_touch_other_downloads(monkeypatch, tmp_path):
+    """Parallel processes download the jar at the same time: each writes its own
+    temporary file, so another's unfinished download doesn't get into the cache."""
+    content = b"jar bytes"
+    monkeypatch.delenv(check.FREEMARKER_JAR_ENV, raising=False)
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path))
+    monkeypatch.setattr(check, "_FREEMARKER_SHA1", hashlib.sha1(content).hexdigest())
+    response = MagicMock()
+    response.__enter__.return_value.read.return_value = content
+    monkeypatch.setattr(check.urllib.request, "urlopen", lambda *a, **k: response)
+    cache = tmp_path / "polygon-orchestrator"
+    cache.mkdir()
+    other = cache / f"freemarker-{check.FREEMARKER_VERSION}.jar.part"
+    other.write_bytes(b"half of another download")
+
+    jar = check.freemarker_jar()
+
+    assert jar.read_bytes() == content
+    assert other.read_bytes() == b"half of another download"
+    assert sorted(p.name for p in cache.iterdir()) == [jar.name, other.name]
 
 
 # --- the check before uploading to Polygon -------------------------------------

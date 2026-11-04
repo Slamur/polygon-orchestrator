@@ -388,9 +388,14 @@ def freemarker_jar(*, download: bool = True) -> Path:
     if hashlib.sha1(content).hexdigest() != _FREEMARKER_SHA1:
         raise ScriptCheckUnavailable(f"sha1 mismatch for {_FREEMARKER_URL}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".jar.part")
-    tmp.write_bytes(content)
-    tmp.replace(path)
+    # A temporary file of its own per process: parallel test workers download the jar
+    # at the same time, and with a shared name one of them could move a file another
+    # is still writing into the cache.
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent, prefix=path.name + ".", suffix=".part", delete=False
+    ) as tmp:
+        tmp.write(content)
+    Path(tmp.name).replace(path)
     return path
 
 
