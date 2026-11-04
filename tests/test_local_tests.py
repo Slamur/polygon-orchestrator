@@ -14,6 +14,9 @@ from orchestrator.checks.local_tests import (
 )
 from orchestrator.checks.test_script_check import ScriptCheckUnavailable, freemarker_jar
 
+# Тесты модуля собирают и запускают C++/Java, см. маркер slow в pyproject.toml.
+pytestmark = pytest.mark.slow
+
 PROBLEM_ID = "example-problem"
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 

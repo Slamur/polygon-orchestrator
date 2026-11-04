@@ -6,6 +6,25 @@ from orchestrator.checks.test_script_check import SKIP_CHECK_ENV
 from orchestrator.steps import base
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--fast",
+        action="store_true",
+        help="не запускать тесты с маркером slow (сборка и запуск C++/Java)",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    """`--fast` отбирает тесты сам, а не через `-m "not slow"`: свой `-m`
+    заменил бы `-m 'not integration'` из addopts и включил integration-тесты."""
+    if not config.getoption("--fast"):
+        return
+    slow = [item for item in items if item.get_closest_marker("slow")]
+    if slow:
+        config.hook.pytest_deselected(items=slow)
+        items[:] = [item for item in items if not item.get_closest_marker("slow")]
+
+
 @pytest.fixture(autouse=True)
 def _skip_test_script_check(monkeypatch):
     """Проверка test-script'а перед загрузкой (`upload_test_script`) запускает

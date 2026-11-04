@@ -393,6 +393,7 @@ def test_run_generative_step_validate_artifacts_not_called_on_uncertain(tmp_path
             )
 
 
+@pytest.mark.slow
 def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
     prompts_dir = tmp_path / "prompts"
     problems_dir = tmp_path / "problems"

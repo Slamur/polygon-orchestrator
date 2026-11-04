@@ -249,6 +249,7 @@ def _example_compilations(request, pytestconfig):
         }
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
 # Под pytest-xdist (`--dist loadgroup`) все образцы — на одном процессе: пул
 # `_example_compilations` собирает образцы всех тестов сессии, и на каждом

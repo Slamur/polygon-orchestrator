@@ -190,9 +190,12 @@ Claude Code — весь код оркестратора (парсер спек�
 3. **Коммиты** — в стиле Conventional Commits (`feat: ...`, `fix: ...`,
    `docs: ...`, `refactor: ...`, `chore: ...`), атомарные: один коммит —
    одно осмысленное изменение, а не "накопил всё и закоммитил одним куском".
-4. **Перед push** — `ruff format .`, затем `ruff check .` и `pytest`
-   должны проходить: CI (`.github/workflows/ci.yml`) проверяет все три на
-   каждый PR.
+4. **Перед push** — `ruff format .`, затем `ruff check .` и `pytest
+   --fast` должны проходить: CI (`.github/workflows/ci.yml`) проверяет
+   все три на каждый PR, тесты — полностью, вместе со `slow` (сборка и
+   запуск C++/Java). Если правка касается сборки или запуска
+   (`orchestrator/checks/`, compile-check шагов, `.cpp` в `examples/` и
+   `templates/`) — перед push и полный `pytest`.
 5. **По завершении работы над веткой** — запушить и открыть PR через `gh`:
    `gh pr create --fill` (или с явным summary через `--body`). Заголовок и
    описание PR должны отражать, что и зачем изменено, а не только "what" —
