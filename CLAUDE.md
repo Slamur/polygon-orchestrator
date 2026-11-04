@@ -32,8 +32,9 @@ In scope:
 - a spec draft from the author's free-form draft
   (`orchestrator <problem> init --draft`) — the model keeps
   everything the author wrote and fills in what is missing itself, marking it in
-  the spec; a critic model then reviews the spec without the draft and proposes
-  only removals and simplifications (`orchestrator/spec_critic.py`); the author
+  the spec; critic models then review the spec without the draft, one narrow
+  lens each (statement, limits, tests, solutions), and propose only removals and
+  simplifications (`orchestrator/spec_critic.py`); the author
   reviews the spec before the generative steps; `orchestrator <problem> llm critic`
   runs the same critic over a spec as it is (e.g. written by hand), as a report only;
 - a LaTeX statement draft — in one language, the main one (the spec's `language`,

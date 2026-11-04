@@ -267,12 +267,16 @@ command revises the spec rather than writing it anew: the edits in the spec
 stay.
 
 Then a second model — the critic — reads the spec without the draft and asks
-"why is this here? can it be simpler?". Its findings on what the model added
+"why is this here? can it be simpler?". It does that through four narrow lenses,
+one model call each: `statement` (wordy sketches), `limits` (extra variables and
+guarantees), `tests` (extra generators, test ideas, groups) and `solutions` (extra
+solutions, wrong approaches, a custom checker). `--critic-lens NAME` (repeatable)
+runs only the named ones. Its findings on what the model added
 itself are applied right away (a suggested item is removed, the rest goes back to
 the model for one revision); its findings on what you wrote are only listed in the
 report, under "Your values — for your review". `--no-critic` skips it,
 `--critic-rounds 2` allows a second round. For a spec you wrote by hand (or
-edited a lot since), `llm critic` runs the same critic as a report only.
+edited a lot since), `llm critic [--lens NAME]` runs the same critic as a report only.
 
 Without `--draft` an empty spec is created from the template (or a copy of the `--ref` spec),
 which is filled in by hand following [docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md).
@@ -345,7 +349,7 @@ default the current one).
 | `init --ref <problem>` | The spec is a copy of another problem's spec; that problem is also added to `references` as a sample for the steps | no |
 | `init --draft NAME` | The spec is written by the model from the draft `drafts/NAME` (`NAME` — a path in `drafts/`, with or without the extension; a name without subdirectories is also searched for in them; with `--ref` — based on it); the draft copy — in `authoring/` | **yes** |
 | `init --draft NAME` (the spec already exists) | The model revises the current spec (manual edits are kept) by what changed in the draft since its copy in `authoring/`; the draft didn't change — the model isn't called (`--force` — call it anyway); previous versions — in `.llm_backup/` | **yes** |
-| `init --draft ... --no-critic` / `--critic-rounds 2` | Without the critic over the written spec / with up to two rounds of critic + revision (one by default; the critic calls the model too) | **yes** |
+| `init --draft ... --no-critic` / `--critic-rounds 2` / `--critic-lens NAME` | Without the critic over the written spec / with up to two rounds of critic + revision (one by default; the critic calls the model too, once per lens) / only the named lenses (`statement`, `limits`, `tests`, `solutions`; repeatable; all by default) | **yes** |
 
 Without `--draft`, an existing `spec.yaml` isn't overwritten.
 
@@ -367,7 +371,7 @@ plan) → `generators_draft` (generators from the plan) → `test_script_draft`
 | `llm generate --force` | Ignore the cache, revise the current files again | **yes** |
 | `llm generate --fresh` | From scratch, without showing the model the current files | **yes** |
 | `llm tutorial [--ref SOLUTION ...]` | `statement/<language>/tutorial.tex` from `authoring/draft-tutorial.md`: the model expands your thoughts and adds only what you explicitly ask for ("prove", "spell out"). `--ref` (can be repeated) — files from `solutions/` as context; the list is remembered, new `--ref`s replace it, `--no-ref` clears it. Has `--force` and `--fresh` | **yes** |
-| `llm critic` | The critic reviews the spec as it is: what to remove, simplify or merge — into `llm_reports/spec_critic.md`; the spec isn't changed, every finding is for you (values still marked `PROPOSED` / `SUGGESTION` are listed separately). No cache: every run calls the model | **yes** |
+| `llm critic [--lens NAME ...]` | The critic reviews the spec as it is: what to remove, simplify or merge — into `llm_reports/spec_critic.md`; the spec isn't changed, every finding is for you (values still marked `PROPOSED` / `SUGGESTION` are listed separately). One model call per lens (`statement`, `limits`, `tests`, `solutions`; `--lens` — only the named ones). No cache: every run calls the model | **yes** |
 | `llm apply [--step NAME]` | Apply a saved but unapplied model response (e.g. after a conflict or an error) | no |
 | `llm accept [--step NAME]` | Mark the current files of `stale` steps up to date (if the edit shouldn't change the result, or you've already fixed the files by hand); what exactly changed for each step — in `llm_reports/accept.md` | no |
 
