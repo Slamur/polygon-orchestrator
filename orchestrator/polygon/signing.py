@@ -1,4 +1,4 @@
-"""Подпись запросов к Polygon API — чистая логика, без сети."""
+"""Signing requests to the Polygon API — pure logic, no network."""
 
 from __future__ import annotations
 
@@ -16,20 +16,20 @@ def generate_signature(
     api_secret: str,
     rand: str | None = None,
 ) -> str:
-    """Возвращает значение `apiSig` для запроса к методу `method_name`.
+    """Returns the `apiSig` value for a request to the method `method_name`.
 
-    `params` должен уже содержать `apiKey` и `time`, но не `apiSig` — это
-    ответственность вызывающего кода (`PolygonClient.call`). `rand` — 6
-    alphanumeric символов; если `None`, генерируется случайно (параметр
-    вынесен ради тестируемости: тест фиксирует `rand` и проверяет
-    детерминированный хеш).
+    `params` must already contain `apiKey` and `time`, but not `apiSig` — that's
+    the responsibility of the calling code (`PolygonClient.call`). `rand` — 6
+    alphanumeric characters; if `None`, it's generated randomly (the parameter
+    is exposed for testability: a test fixes `rand` and checks a
+    deterministic hash).
 
-    Подписываются сырые значения, без percent-encoding — так подпись
-    проверяет сервер Polygon. Содержимое файла (`file` в `problem.saveFile`
-    и т.п.) — обычный параметр и тоже входит в подпись. `str` кодируется в
-    UTF-8, `bytes` берутся как есть, строка для хеширования собирается в
-    байтах. Пары сортируются как `(name, value)`, так что повторяющиеся
-    имена упорядочиваются по значению.
+    Raw values are signed, without percent-encoding — that's how the Polygon server
+    checks the signature. File contents (`file` in `problem.saveFile`
+    etc.) are an ordinary parameter and are part of the signature too. `str` is encoded in
+    UTF-8, `bytes` are taken as is, the string to hash is assembled in
+    bytes. Pairs are sorted as `(name, value)`, so repeated
+    names are ordered by value.
     """
     if rand is None:
         rand = "".join(secrets.choice(_RAND_ALPHABET) for _ in range(_RAND_LENGTH))

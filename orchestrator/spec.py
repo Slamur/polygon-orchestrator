@@ -1,7 +1,7 @@
-"""Загрузка и валидация спека задачи (`problems/<путь задачи>/authoring/spec.yaml`) по формату из docs/SPEC_FORMAT.md.
+"""Loading and validating a problem's spec (`problems/<problem path>/authoring/spec.yaml`) by the format from docs/SPEC_FORMAT.md.
 
-Модуль только парсит и проверяет спек — никаких вызовов модели и никакой
-генерации артефактов здесь нет (см. CLAUDE.md).
+The module only parses and checks the spec — no model calls and no
+artifact generation here (see CLAUDE.md).
 """
 
 from __future__ import annotations
@@ -36,14 +36,14 @@ from orchestrator.problem_paths import (
 )
 from orchestrator.statement_languages import DEFAULT_LANGUAGE, GENERATION_LANGUAGES
 
-# `references` секций — какие образцы приложить к вызову (их содержимое входит
-# в `compute_prompt_hash`, см. orchestrator/references.py), а не содержание
-# задачи: из `model_dump` секций для промпта и `input_hash` поле исключается.
+# The sections' `references` — which samples to attach to the call (their contents are part
+# of `compute_prompt_hash`, see orchestrator/references.py), not problem
+# content: the field is excluded from the sections' `model_dump` for the prompt and `input_hash`.
 SPEC_REFERENCES_FIELD = {"references"}
 
-# Подсказки для конкретных полей — добавляются к сообщению об ошибке
-# валидации, чтобы явно указать, зачем поле нужно и где про это написано
-# (см. "Правило эскалации при неуверенности" в CLAUDE.md).
+# Hints for particular fields — added to the validation error message,
+# to state explicitly why the field is needed and where it's described
+# (see "Escalation rule on uncertainty" in CLAUDE.md).
 _FIELD_HINTS: dict[str, str] = {
     "constraints.intended_complexity": (
         "required for the constraints_pick step — the model must not infer "
@@ -68,7 +68,7 @@ def _non_blank(value: str, field_name: str) -> str:
 
 
 class SpecValidationError(Exception):
-    """Ошибка валидации спека с человекочитаемым списком проблем."""
+    """A spec validation error with a human-readable list of problems."""
 
     def __init__(self, path: Path, errors: list[str]):
         self.path = path
@@ -80,7 +80,7 @@ class SpecValidationError(Exception):
 
 
 class Title(BaseModel):
-    """Название задачи по языкам; обязательно — на основном языке условия
+    """The problem's title by language; mandatory — in the main statement language
     (`ProblemSpec._check_title`)."""
 
     model_config = ConfigDict(extra="forbid")
@@ -89,7 +89,7 @@ class Title(BaseModel):
     en: str | None = None
 
     def for_language(self, code: str) -> str | None:
-        """Название на языке с кодом `code` (`ru`); `None` — не задано."""
+        """The title in the language with code `code` (`ru`); `None` — not set."""
         value = getattr(self, code, None) if code in type(self).model_fields else None
         return value if value and value.strip() else None
 
@@ -117,8 +117,8 @@ class StatementDraft(BaseModel):
     sample_examples: list[SampleExample] = Field(min_length=1)
     known_ambiguities: list[str] | None = None
     preserve_legend_verbatim: bool = False
-    # Протокол взаимодействия — только у интерактивной задачи (есть секция
-    # `interactor`, см. `ProblemSpec._check_interactive`).
+    # The interaction protocol — only for an interactive problem (there's an
+    # `interactor` section, see `ProblemSpec._check_interactive`).
     interaction_sketch: str | None = None
     references: list[str] | None = None
 
@@ -174,9 +174,9 @@ class Constraints(BaseModel):
 
     @model_validator(mode="after")
     def _check_non_blank(self) -> Constraints:
-        # Это и есть жёсткая проверка из CLAUDE.md: без асимптотики и
-        # обоснования, данных автором явно, шаг constraints_pick не имеет
-        # права запускаться и должен падать с понятной ошибкой.
+        # This is the hard check from CLAUDE.md: without the asymptotics and the
+        # justification explicitly given by the author, the constraints_pick step has no
+        # right to run and must fail with a clear error.
         _non_blank(self.intended_complexity, "constraints.intended_complexity")
         _non_blank(self.complexity_reasoning, "constraints.complexity_reasoning")
         return self
@@ -205,17 +205,17 @@ class Generation(BaseModel):
     references: list[str] | None = None
 
 
-# `tl_ok` — "TL или OK": пограничное по времени решение или решение без
-# ускорения ввода-вывода (`templates/tutorials/solutions.md`); `il` —
-# Idleness limit exceeded в интерактивной задаче (решение без сброса буфера,
+# `tl_ok` — "TL or OK": a solution borderline in time or a solution without
+# input/output speedup (`templates/tutorials/solutions.md`); `il` —
+# Idleness limit exceeded in an interactive problem (a solution without flushing the buffer,
 # `templates/tutorials/interactive.md`).
 _ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il"}
 
 
 def split_solution_stem(stem: str) -> list[str]:
-    """Токены имени решения `<verdict>_<language>_<description>_<author>`
-    (`stem` — без расширения). Вердикт сам может содержать `_` (`tl_ok`) —
-    такой склеивается обратно в один первый токен."""
+    """The tokens of a solution name `<verdict>_<language>_<description>_<author>`
+    (`stem` — without the extension). The verdict itself may contain `_` (`tl_ok`) —
+    such a one is glued back into one first token."""
     parts = stem.split("_")
     if len(parts) >= 2 and f"{parts[0]}_{parts[1]}".lower() in _ALLOWED_VERDICTS:
         return [f"{parts[0]}_{parts[1]}", *parts[2:]]
@@ -265,7 +265,7 @@ class Checker(BaseModel):
 
 
 class Interactor(BaseModel):
-    """Секция интерактивной задачи: есть секция — задача интерактивная."""
+    """The interactive problem section: the section is present — the problem is interactive."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -282,9 +282,9 @@ class ProblemSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     problem_id: str
-    # Основной язык условия (код): на нём пишут шаги модели, его условие — в
-    # `statement/<код>/` (см. `orchestrator/statement_languages.py`). Объявлен
-    # до `title`: его проверка (`_check_title`) читает язык.
+    # The main statement language (code): the model's steps write in it, its statement is in
+    # `statement/<code>/` (see `orchestrator/statement_languages.py`). Declared
+    # before `title`: its check (`_check_title`) reads the language.
     language: Literal[tuple(GENERATION_LANGUAGES)] = DEFAULT_LANGUAGE  # type: ignore[valid-type]
     title: Title
     references: list[str] | None = None
@@ -311,8 +311,8 @@ class ProblemSpec(BaseModel):
     @field_validator("title")
     @classmethod
     def _check_title(cls, title: Title, info: ValidationInfo) -> Title:
-        # Полевой, а не на всю модель: ошибка видна вместе с остальными. Язык
-        # с ошибкой (его нет в `info.data`) проверяется сам по себе.
+        # A field validator, not one for the whole model: the error is shown together with the rest. A language
+        # with an error (it isn't in `info.data`) is checked on its own.
         language = info.data.get("language")
         if language is not None:
             _non_blank(getattr(title, language) or "", f"title.{language}")
@@ -320,8 +320,8 @@ class ProblemSpec(BaseModel):
 
     @model_validator(mode="after")
     def _check_interactive(self) -> ProblemSpec:
-        # Протокол взаимодействия — часть условия, поведение интерактора —
-        # вход шага interactor_draft: одно без другого смысла не имеет.
+        # The interaction protocol is part of the statement, the interactor's behavior is the
+        # input of the interactor_draft step: one makes no sense without the other.
         has_protocol = self.statement_draft.has_interaction
         if self.interactive and not has_protocol:
             raise ValueError(
@@ -351,16 +351,16 @@ def _format_pydantic_errors(exc: ValidationError) -> list[str]:
 
 
 def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
-    """Загружает и валидирует спек задачи.
+    """Loads and validates a problem's spec.
 
-    Кидает SpecValidationError с человекочитаемым списком проблем вместо
-    трудночитаемого traceback pydantic — вызывающий код (пайплайн, CLI)
-    должен показать эти ошибки автору спека и остановиться, а не гадать.
+    Raises SpecValidationError with a human-readable list of problems instead of
+    a hard-to-read pydantic traceback — the calling code (the pipeline, the CLI)
+    must show these errors to the spec's author and stop, not guess.
 
-    `problem_id` спека должен совпадать с `expected_id` — по умолчанию это
-    имя файла без `.yaml`; спек задачи лежит в её каталоге
-    (`<каталог задачи>/spec.yaml`, см. `load_problem_spec`), и `problem_id`
-    сверяется с именем каталога.
+    The spec's `problem_id` must match `expected_id` — by default it's
+    the file name without `.yaml`; a problem's spec lies in its directory
+    (`<problem directory>/spec.yaml`, see `load_problem_spec`), and `problem_id`
+    is compared with the directory name.
     """
     path = Path(path)
     if not path.exists():
@@ -398,38 +398,38 @@ def load_spec(path: Path, *, expected_id: str | None = None) -> ProblemSpec:
     return spec
 
 
-# Спек задачи — `SPEC_FILENAME` в `authoring/` её каталога
-# (`problems/<путь задачи>/authoring/spec.yaml`, как у учебных задач
-# `examples/<путь задачи>/authoring/spec.yaml`), см.
+# A problem's spec — `SPEC_FILENAME` in its directory's `authoring/`
+# (`problems/<problem path>/authoring/spec.yaml`, as for the sample problems
+# `examples/<problem path>/authoring/spec.yaml`), see
 # `orchestrator/problem_paths.py`.
 
-# Шаблон черновика спека для `orchestrator <задача> init` (путь
-# относительно templates_dir). Шагам не прикладывается.
+# The spec draft template for `orchestrator <problem> init` (a path
+# relative to templates_dir). Not attached to the steps.
 SPEC_TEMPLATE = "spec_template.yaml"
 
-# Строка `problem_id` верхнего уровня: значение (в кавычках или без) с
-# пробелами вокруг него — до комментария или конца строки.
+# The top-level `problem_id` line: the value (quoted or not) with
+# spaces around it — up to a comment or the end of the line.
 _PROBLEM_ID_LINE = re.compile(
     r"""^problem_id:(?P<value>[ \t]*(?:"[^"\n]*"|'[^'\n]*'|[^#\n]*?)[ \t]*)(?=#|$)""",
     re.MULTILINE,
 )
-# Строка `references` верхнего уровня; `rest` — значение и комментарий.
+# The top-level `references` line; `rest` — the value and the comment.
 _REFERENCES_LINE = re.compile(r"^references:(?P<rest>[^\n]*)$", re.MULTILINE)
-# Первая секция спека: перед ней (и перед её заголовком-комментарием)
-# вставляется `references`, если в спеке его нет.
+# The spec's first section: `references` is inserted before it (and before its header comment)
+# if the spec doesn't have it.
 _FIRST_SECTION_LINE = re.compile(r"^statement_draft:", re.MULTILINE)
 
 
 class SpecInitError(Exception):
-    """Черновик спека не создан: неверный `problem_id`, спек уже есть и т.п."""
+    """The spec draft wasn't created: a wrong `problem_id`, the spec already exists, etc."""
 
 
 def set_problem_id(text: str, problem_id: str) -> str:
-    """Текст спека с `problem_id` верхнего уровня, заменённым на `problem_id`.
+    """The spec text with the top-level `problem_id` replaced with `problem_id`.
 
-    Правится строка текста, а не YAML через `yaml.dump`: так в спеке
-    остаются комментарии. Колонка комментария после значения сохраняется,
-    если `problem_id` в неё помещается. Нет такой строки — `SpecInitError`.
+    A text line is edited, not the YAML via `yaml.dump`: this way the spec
+    keeps its comments. The column of the comment after the value is kept
+    if `problem_id` fits into it. No such line — `SpecInitError`.
     """
 
     def substitute(match: re.Match) -> str:
@@ -456,14 +456,14 @@ def _is_comment_or_blank(line: str) -> bool:
 
 
 def add_reference(text: str, reference: str) -> str:
-    """Текст спека с `reference` в общих `references` (в корне спека), если
-    его там ещё нет, — тоже правкой строк, с сохранением комментариев.
+    """The spec text with `reference` in the shared `references` (at the spec root), if
+    it isn't there yet — also by editing lines, keeping the comments.
 
-    Понимает список в одну строку (`references: []`, `["a"]`), блочный
-    список (`references:` и элементы `- ...` под ним), `null` и отсутствие
-    поля (тогда `references` вставляется перед секцией `statement_draft`
-    и её заголовком-комментарием). Результат перепроверяется разбором YAML;
-    не получилось — `SpecInitError`.
+    Understands a one-line list (`references: []`, `["a"]`), a block
+    list (`references:` and `- ...` items under it), `null` and the absence of
+    the field (then `references` is inserted before the `statement_draft` section
+    and its header comment). The result is rechecked by parsing the YAML;
+    if it didn't work — `SpecInitError`.
     """
     data = _yaml_mapping(text)
     if data is None:
@@ -493,8 +493,8 @@ def add_reference(text: str, reference: str) -> str:
             flow = ", ".join(json.dumps(item, ensure_ascii=False) for item in items)
             lines[line_index] = f"references: [{flow}]{comment}\n"
         elif not value:
-            # Блочный список: новый элемент — после последнего элемента
-            # (с его отступом) или сразу под `references:`.
+            # A block list: the new item goes after the last item
+            # (with its indentation) or right under `references:`.
             insert_at, indent = line_index + 1, "  "
             for index in range(line_index + 1, len(lines)):
                 line = lines[index]
@@ -518,13 +518,13 @@ def add_reference(text: str, reference: str) -> str:
 
 @dataclass
 class SpecInit:
-    """Что создаёт `init` — проверено до записи и до вызова модели
+    """What `init` creates — checked before writing and before calling the model
     (`prepare_spec_init`).
 
-    `base_text` — основа спека с уже подставленным `problem_id`: шаблон
-    `SPEC_TEMPLATE` или спек задачи-основы `reference` (она уже добавлена в
-    `references`). `reference` — адрес задачи-основы (`problems/<путь>`,
-    `examples/<путь>`); `None` — основа — шаблон.
+    `base_text` — the spec's base with `problem_id` already substituted: the
+    `SPEC_TEMPLATE` template or the spec of the base problem `reference` (which is already added to
+    `references`). `reference` — the base problem's address (`problems/<path>`,
+    `examples/<path>`); `None` — the base is the template.
     """
 
     problem_id: str
@@ -534,7 +534,7 @@ class SpecInit:
 
 
 def _reference_spec_text(reference: str, *, base_dir: Path) -> tuple[str, str]:
-    """(адрес, текст спека) задачи-основы `reference`, адрес — как в CLI."""
+    """(address, spec text) of the base problem `reference`, the address — as in the CLI."""
     try:
         root, reference_path = parse_problem_address(reference)
     except ProblemPathError as exc:
@@ -555,20 +555,20 @@ def prepare_spec_init(
     templates_dir: Path,
     reference: str | None = None,
 ) -> SpecInit:
-    """Проверяет, что в `problems_dir/<problem_path>/` можно создать спек, и
-    собирает его основу (`SpecInit`); ничего не пишет.
+    """Checks that a spec can be created in `problems_dir/<problem_path>/`, and
+    assembles its base (`SpecInit`); writes nothing.
 
-    `problem_id` выводится из пути (`problem_id_for`: в `problems/` — имя
-    каталога задачи, в `examples/` — путь через `--`). Существующий
-    `spec.yaml` не перезаписывается. Каталог задачи может уже существовать
-    (например, после `polygon pull`). Задача не может лежать внутри другой
-    задачи или содержать задачи, а её `problem_id` не должен быть занят
-    задачей в другом каталоге (`check_new_problem_location`).
+    `problem_id` is derived from the path (`problem_id_for`: in `problems/` — the name of
+    the problem directory, in `examples/` — the path joined with `--`). An existing
+    `spec.yaml` isn't overwritten. The problem directory may already exist
+    (e.g. after `polygon pull`). A problem can't lie inside another
+    problem or contain problems, and its `problem_id` must not be taken by
+    a problem in another directory (`check_new_problem_location`).
 
-    `reference` — адрес задачи-основы (как в CLI; корни `problems/` и
-    `examples/` — соседи `problems_dir`): основа — её спек как есть, с
-    комментариями, а сама она добавляется в общие `references`, чтобы её
-    файлы стали образцами для шагов. Без `reference` основа — `SPEC_TEMPLATE`.
+    `reference` — the base problem's address (as in the CLI; the roots `problems/` and
+    `examples/` are neighbors of `problems_dir`): the base is its spec as is, with
+    comments, and the problem itself is added to the shared `references`, so that its
+    files become samples for the steps. Without `reference` the base is `SPEC_TEMPLATE`.
     """
     problem_id = problem_id_for(problems_dir, problem_path)
     if not PROBLEM_ID_PATTERN.match(problem_id):
@@ -605,7 +605,7 @@ def prepare_spec_init(
 
 
 def write_spec(init: SpecInit, text: str) -> Path:
-    """Пишет спек в `init.path`, создавая каталог задачи; возвращает путь."""
+    """Writes the spec to `init.path`, creating the problem directory; returns the path."""
     init.path.parent.mkdir(parents=True, exist_ok=True)
     init.path.write_text(text, encoding="utf-8")
     return init.path
@@ -618,12 +618,12 @@ def create_spec_draft(
     templates_dir: Path,
     reference: str | None = None,
 ) -> Path:
-    """Создаёт каталог задачи `problems_dir/<problem_path>/` (если его нет) и
-    кладёт в него спек без вызова модели: шаблон `SPEC_TEMPLATE` с
-    подставленным `problem_id` (остальные поля пустые — их заполняет автор)
-    или, с `reference`, копию спека задачи-основы с новым `problem_id` и
-    ею самой в `references`. Проверки — как у `prepare_spec_init`.
-    Возвращает путь к созданному файлу.
+    """Creates the problem directory `problems_dir/<problem_path>/` (if it doesn't exist) and
+    puts the spec into it without calling the model: the `SPEC_TEMPLATE` template with
+    `problem_id` substituted (the other fields are empty — the author fills them in)
+    or, with `reference`, a copy of the base problem's spec with the new `problem_id` and
+    the base problem itself in `references`. The checks — as in `prepare_spec_init`.
+    Returns the path to the created file.
     """
     init = prepare_spec_init(
         problem_path, problems_dir=problems_dir, templates_dir=templates_dir, reference=reference
@@ -631,15 +631,15 @@ def create_spec_draft(
     return write_spec(init, init.base_text)
 
 
-# Пометки, которыми `init --draft` отмечает в спеке значения не из черновика
-# автора (`prompts/spec_from_draft/system.md`), — YAML-комментарии.
+# The marks with which `init --draft` marks values in the spec that aren't from the author's
+# draft (`prompts/spec_from_draft/system.md`) — YAML comments.
 _REVIEW_MARK = re.compile(r"#\s*(?:PROPOSED, REVIEW ME|SUGGESTION)\b")
 
 
 def spec_review_marks(path: Path) -> list[tuple[int, str]]:
-    """Непроверенные пометки `init --draft` в спеке: (номер строки, строка).
-    Шаги считают спек решениями автора, поэтому `llm generate` и
-    `llm status` о них предупреждают. Нет файла — пустой список."""
+    """Unreviewed marks of `init --draft` in the spec: (line number, line).
+    The steps treat the spec as the author's decisions, so `llm generate` and
+    `llm status` warn about them. No file — an empty list."""
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
     except OSError:
@@ -652,8 +652,8 @@ def spec_review_marks(path: Path) -> list[tuple[int, str]]:
 
 
 def spec_validation_errors(path: Path, *, expected_id: str) -> list[str]:
-    """Ошибки валидации спека (`load_spec`); пустой список — спек валиден.
-    Для `init`: созданный спек — черновик и может быть ещё не заполнен."""
+    """The spec's validation errors (`load_spec`); an empty list — the spec is valid.
+    For `init`: the created spec is a draft and may not be filled in yet."""
     try:
         load_spec(path, expected_id=expected_id)
     except SpecValidationError as exc:
@@ -662,14 +662,14 @@ def spec_validation_errors(path: Path, *, expected_id: str) -> list[str]:
 
 
 def spec_path(problem_path: str, *, problems_dir: Path) -> Path:
-    """Путь к спеку задачи: `problems_dir/<problem_path>/authoring/spec.yaml`."""
+    """The path to the problem's spec: `problems_dir/<problem_path>/authoring/spec.yaml`."""
     return authoring_path(Path(problems_dir) / problem_path, SPEC_FILENAME)
 
 
 def load_problem_spec(problem_path: str, *, problems_dir: Path) -> ProblemSpec:
-    """Загружает спек задачи из её каталога (`spec_path`); `problem_id` в
-    спеке должен совпадать с выведенным из пути каталога (`problem_id_for`).
-    Ошибки — как у `load_spec`."""
+    """Loads the problem's spec from its directory (`spec_path`); the `problem_id` in
+    the spec must match the one derived from the directory path (`problem_id_for`).
+    Errors — as in `load_spec`."""
     return load_spec(
         spec_path(problem_path, problems_dir=problems_dir),
         expected_id=problem_id_for(problems_dir, problem_path),

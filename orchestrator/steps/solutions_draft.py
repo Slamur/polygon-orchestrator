@@ -1,5 +1,5 @@
-"""Шаг 4 — черновики авторских решений (ok/wa/tl), CLAUDE.md, "Роль каждого
-генеративного шага", пункт 4.
+"""Step 4 — drafts of the author solutions (ok/wa/tl), CLAUDE.md, "Role of each
+generative step", item 4.
 """
 
 from __future__ import annotations
@@ -31,21 +31,21 @@ from orchestrator.steps.base import (
 
 STEP_NAME = "solutions_draft"
 
-# Optional[list[...]]-поля секции solutions, по которым user.md.j2 делает
-# {% for %} без проверки на null (см. base.with_default_lists).
+# Optional[list[...]] fields of the solutions section over which user.md.j2 does
+# {% for %} without a null check (see base.with_default_lists).
 _LIST_FIELDS = ["alternative_approaches", "known_wrong_approaches"]
 
-# Каталог решений внутри каталога-референса, см. `extra_context_documents`.
+# The solutions directory inside a directory reference, see `extra_context_documents`.
 SOLUTIONS_SUBDIR = "solutions"
 
-# Скелеты решений в `templates/` — `<verdict>_<description>.<language>`
-# (`ok.cpp`, `tl_ok_slowio.java`): ввод-вывод и структура решения без
-# алгоритма; язык скелета — его расширение (как и в именах решений, совпадает
-# с языком), см. `extra_context_documents`.
+# Solution skeletons in `templates/` — `<verdict>_<description>.<language>`
+# (`ok.cpp`, `tl_ok_slowio.java`): input/output and the solution structure without
+# an algorithm; the skeleton's language is its extension (as in solution names, it matches
+# the language), see `extra_context_documents`.
 SOLUTION_TEMPLATES_SUBDIR = "solutions"
 
-# `solutions.languages` — свободные строки; приводим распространённые
-# варианты записи к тому, как язык назван в именах файлов шаблонов.
+# `solutions.languages` are free strings; we map common
+# spellings to how the language is named in the template file names.
 _LANGUAGE_ALIASES = {"c++": "cpp", "python": "py", "python3": "py"}
 
 
@@ -59,13 +59,13 @@ def _require_solutions_section(problem_id: str, spec: ProblemSpec) -> None:
 
 
 def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
-    """Секции спека для рендера промпта И для входа хеша кэша — единая точка
-    сборки, чтобы они не разошлись (CLAUDE.md, "Кэширование по хешу спека"):
-    секция `solutions`, `constraints.intended_complexity` и условие из
-    `statement_draft` целиком в части ввода-вывода (`formal_input_sketch`,
-    `formal_output_sketch`, `indexing`, примеры с ответами, легенда —
-    `base.statement_io_section`). Без последнего модели неоткуда взять
-    формат ввода-вывода своей задачи, кроме формата учебной из
+    """The spec sections for rendering the prompt AND for the cache hash input — a single
+    assembly point, so that they don't diverge (CLAUDE.md, "Caching by spec hash"):
+    the `solutions` section, `constraints.intended_complexity` and the statement from
+    `statement_draft` entirely in its input/output part (`formal_input_sketch`,
+    `formal_output_sketch`, `indexing`, examples with answers, the legend —
+    `base.statement_io_section`). Without the last one the model has nowhere to get
+    its problem's input/output format from, except the format of the sample problem from
     `spec.yaml`.
     """
     return {
@@ -82,10 +82,10 @@ def compute_input_hash(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
-    """Хеш входа шага без вызова модели, см. `statement_draft.compute_input_hash`
-    и CLAUDE.md, "Кэширование по хешу спека". Как и `run_step`, требует
-    секцию `solutions` в спеке и `upstream_artifacts["constraints.yaml"]`.
-    Вход — `_build_context_sections` + содержимое `constraints.yaml` без
+    """The step's input hash without calling the model, see `statement_draft.compute_input_hash`
+    and CLAUDE.md, "Caching by spec hash". Like `run_step`, it requires
+    the `solutions` section in the spec and `upstream_artifacts["constraints.yaml"]`.
+    The input — `_build_context_sections` + the contents of `constraints.yaml` without
     TL/ML (`base.constraints_without_limits`).
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
@@ -96,9 +96,9 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
-    общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_values`), чтобы они не разошлись."""
+    """What goes into the step's input hash: `(spec section, upstream artifacts)` —
+    the shared source for `compute_input_hash` and the per-part hashes
+    (`cache.compute_input_values`), so that they don't diverge."""
     _require_solutions_section(problem_id, spec)
     constraints_yaml = constraints_without_limits(
         require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
@@ -109,10 +109,10 @@ def hash_inputs(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """Каталог с черновиками решений — точный список файлов модель выбирает
-    сама (зависит от `solutions.wanted_verdicts`), поэтому в отличие от
-    остальных шагов здесь нет фиксированного имени файла: `pipeline.py`
-    считает кэш валидным, только если каталог существует и не пуст.
+    """The directory with the solution drafts — the model chooses the exact list of files
+    itself (it depends on `solutions.wanted_verdicts`), so unlike
+    the other steps there's no fixed file name here: `pipeline.py`
+    considers the cache valid only if the directory exists and isn't empty.
     """
     return Path(problems_dir) / problem_id / "solutions"
 
@@ -120,33 +120,33 @@ def primary_artifact_path(
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
-    модель) -> путь — для режима доработки (`base.StepRevision`). Все файлы
-    `solutions/`, кроме помеченных как удалённые."""
+    """The step's current files on disk: artifact name (as the
+    model would return it) -> path — for revision mode (`base.StepRevision`). All files of
+    `solutions/`, except those marked as removed."""
     return directory_artifacts(Path(problems_dir) / problem_id / SOLUTIONS_SUBDIR)
 
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Образцы для конкретного вызова — файлы, которые этому шагу дают
-    референсы спека (общие `references` и `solutions.references`, см.
-    `orchestrator/references.py`). Из `solutions/` каталога-референса берутся
-    только решения на языках, заказанных в `solutions.languages`, — образец
-    структуры решения и ввода/вывода для каждого языка (см.
-    `prompts/solutions_draft/system.md`). Язык решения — второй компонент
-    имени файла по схеме `<verdict>_<language>_...` (`ok_cpp_prefs_draft.cpp`
-    -> `cpp`); решения на незаказанных языках не прикладываются, чтобы не
-    тянуть в контекст чужой стиль ввода/вывода.
+    """Samples for a particular call — the files the spec's references
+    give this step (the shared `references` and `solutions.references`, see
+    `orchestrator/references.py`). From the `solutions/` of a directory reference only
+    the solutions in the languages ordered in `solutions.languages` are taken — a sample of
+    the solution structure and input/output for each language (see
+    `prompts/solutions_draft/system.md`). A solution's language is the second component
+    of the file name by the `<verdict>_<language>_...` scheme (`ok_cpp_prefs_draft.cpp`
+    -> `cpp`); solutions in languages not ordered aren't attached, so as not to
+    pull someone else's input/output style into the context.
 
-    Заказанному языку, для которого референсы не дали ни одного
-    `ok`-решения, вместо образца прикладываются все скелеты решений этого
-    языка из `templates/solutions/*.<language>` (если они есть): то, как
-    автор хочет видеть ввод-вывод на этом языке, задаётся и без
-    референсов. Скелеты — перед файлами референсов. Интерактивной задаче
-    первыми прикладываются правила `INTERACTIVE_TUTORIAL` (как у
-    `statement_draft`). Если секции `solutions` нет — `None`: шаг
-    всё равно не запускается.
+    For an ordered language for which the references gave no
+    `ok` solution, all solution skeletons of this
+    language from `templates/solutions/*.<language>` (if any) are attached instead of a sample: the way
+    the author wants to see input/output in this language is set even without
+    references. The skeletons go before the reference files. For an interactive problem
+    the `INTERACTIVE_TUTORIAL` rules are attached first (as for
+    `statement_draft`). If there's no `solutions` section — `None`: the step
+    doesn't run anyway.
     """
     if spec.solutions is None:
         return None
@@ -176,9 +176,9 @@ def extra_context_documents(
 
 
 def _solution_parts(path: Path) -> tuple[str | None, str | None]:
-    """(вердикт, язык) по имени решения `<verdict>_<language>_...`
-    (`tl_ok_java_slowio_draft.java` -> `("tl_ok", "java")`); `None` там, где
-    имя схеме не следует."""
+    """(verdict, language) by a solution's name `<verdict>_<language>_...`
+    (`tl_ok_java_slowio_draft.java` -> `("tl_ok", "java")`); `None` where
+    the name doesn't follow the scheme."""
     parts = split_solution_stem(path.stem)
     return (parts[0] if parts else None), (parts[1] if len(parts) >= 2 else None)
 
@@ -194,35 +194,35 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `solutions_draft` для `problem_id`.
+    """Runs the `solutions_draft` step for `problem_id`.
 
-    Вход: секция `solutions` спека (`algorithm_hint`, `wanted_verdicts`,
-    `languages`, `alternative_approaches`, `known_wrong_approaches`) плюс зафиксированная асимптотика
-    из `constraints.intended_complexity` — она уже провалидирована как
-    непустая (`orchestrator.spec.Constraints`) и не пересчитывается заново,
-    только передаётся в промпт как заданный факт. Плюс условие из
-    `statement_draft` в части ввода-вывода (формат ввода и вывода,
-    индексация, примеры с ответами, легенда — см. `_build_context_sections`)
-    и полный текст апстрим-артефакта `constraints_pick`
-    (`upstream_artifacts["constraints.yaml"]`: диапазоны переменных, группы,
-    гарантии валидатора; без TL/ML — `base.constraints_without_limits`) — без них модель
-    вынуждена угадывать формат ввода-вывода и типы величин.
+    Input: the spec's `solutions` section (`algorithm_hint`, `wanted_verdicts`,
+    `languages`, `alternative_approaches`, `known_wrong_approaches`) plus the fixed asymptotics
+    from `constraints.intended_complexity` — it's already validated as
+    non-empty (`orchestrator.spec.Constraints`) and isn't recomputed,
+    only passed to the prompt as a given fact. Plus the statement from
+    `statement_draft` in its input/output part (input and output format,
+    indexing, examples with answers, the legend — see `_build_context_sections`)
+    and the full text of the `constraints_pick` upstream artifact
+    (`upstream_artifacts["constraints.yaml"]`: variable ranges, groups,
+    the validator's guarantees; without TL/ML — `base.constraints_without_limits`) — without them the model
+    is forced to guess the input/output format and the types of the values.
 
-    Требует, чтобы в спеке была включена опциональная секция `solutions`
-    (`spec.solutions is not None`) — без неё черновики решений не
-    заказывались автором, и шаг не имеет смысла запускать.
+    Requires the optional `solutions` section to be on in the spec
+    (`spec.solutions is not None`) — without it the author didn't order
+    solution drafts, and running the step makes no sense.
 
-    Модель обязана взять алгоритм ТОЛЬКО из `solutions.algorithm_hint` (и
-    `solutions.alternative_approaches` для дополнительных `ok`-решений) и не
-    имеет права изобретать другой алгоритм или менять заявленную
-    асимптотику (CLAUDE.md, "Роль каждого генеративного шага", п.4: "черновики
-    решений с заявленными вердиктами... это не финальные решения", и
-    `docs/PROMPTS.md`, правило 1 для `solutions_draft`: "не изобретай другой
-    алгоритм"). Если `algorithm_hint` пуст или слишком расплывчат — `status:
-    uncertain`, и вызов завершится `StepUncertainError` без записи файлов, а
-    не попыткой домыслить алгоритм по легенде/условию.
+    The model must take the algorithm ONLY from `solutions.algorithm_hint` (and
+    `solutions.alternative_approaches` for additional `ok` solutions) and has no
+    right to invent another algorithm or change the declared
+    asymptotics (CLAUDE.md, "Role of each generative step", item 4: "solution
+    drafts with declared verdicts... these aren't final solutions", and
+    `docs/PROMPTS.md`, rule 1 for `solutions_draft`: "don't invent another
+    algorithm"). If `algorithm_hint` is empty or too vague — `status:
+    uncertain`, and the call ends with `StepUncertainError` without writing files, rather
+    than an attempt to make up the algorithm from the legend/statement.
 
-    При успехе пишет файлы решений в `problems/<problem_id>/solutions/`.
+    On success it writes the solution files to `problems/<problem_id>/solutions/`.
     """
     _require_solutions_section(problem_id, spec)
     constraints_yaml = constraints_without_limits(
@@ -259,7 +259,7 @@ def run_step(
         saved_response=saved_response,
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
-        # Файлы независимы: генераторы/скрипт и решения применяются по одному.
+        # The files are independent: generators/the script and solutions are applied one by one.
         partial_apply=True,
         prompts_dir=prompts_dir,
         problems_dir=problems_dir,

@@ -1,9 +1,9 @@
-"""Интеграция с Polygon API (https://polygon.codeforces.com/api).
+"""Integration with the Polygon API (https://polygon.codeforces.com/api).
 
-Всё, что специфично для Polygon (подпись запросов, HTTP-клиент, чтение
-`POLYGON_API_KEY`/`POLYGON_API_SECRET`, состояние привязки `problem_id` ->
-Polygon problemId), живёт только здесь — не в общей логике оркестратора.
+Everything Polygon-specific (request signing, the HTTP client, reading
+`POLYGON_API_KEY`/`POLYGON_API_SECRET`, the state of the `problem_id` ->
+Polygon problemId binding) lives only here — not in the orchestrator's shared logic.
 
-Ничего отсюда не импортируется на верхнем уровне пакета: модуль, который не
-работает с Polygon, не тянет зависимость `requests`.
+Nothing from here is imported at the package's top level: a module that doesn't
+work with Polygon doesn't pull in the `requests` dependency.
 """

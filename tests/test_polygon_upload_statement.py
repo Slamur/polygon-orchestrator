@@ -202,7 +202,7 @@ def test_incremental_run_uploads_only_changed_parts(problems_dir, spec):
     _run(spec, problems_dir, client, incremental=True)
     [statement_call] = client.call.call_args_list
     assert statement_call.args[0] == "problem.saveStatement"
-    # saveStatement принимает разделы только вместе — уходят все четыре
+    # saveStatement accepts the sections only together — all four go
     assert {"legend", "input", "output", "notes"} <= set(statement_call.args[1])
 
 
@@ -423,7 +423,7 @@ def test_force_without_tutorial_file_does_not_clear_it(problems_dir, spec):
     (_lang_dir(problems_dir) / "tutorial.tex").unlink()
     client = MagicMock()
 
-    # Без `incremental` база неизвестна, как у `push --force`.
+    # Without `incremental` the base is unknown, as with `push --force`.
     _run(spec, problems_dir, client)
 
     [statement] = _calls(client, "problem.saveStatement")
@@ -488,7 +488,7 @@ def test_plain_problem_sends_no_interaction(problems_dir, spec):
     assert "testInputForStatements" not in test
 
 
-# --- языки условия ----------------------------------------------------------
+# --- statement languages -----------------------------------------------------
 
 
 def _write_language(problems_dir: Path, code: str, *, name: str | None = "Title") -> Path:
@@ -527,9 +527,9 @@ def test_every_language_is_saved_with_its_polygon_name(problems_dir, spec):
     assert english["lang"] == "english"
     assert english["name"] == "English name"
     assert english["legend"] == "en legend.tex\n"
-    # Язык без кода — каталог с именем Polygon.
+    # A language without a code — a directory with the Polygon name.
     assert latvian["lang"] == "latvian"
-    # Примеры общие — по одному разу.
+    # The examples are shared — once each.
     assert [c.args[0] for c in client.call.call_args_list].count("problem.saveTest") == 1
     assert "saved english statement" in message
     synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced

@@ -28,7 +28,7 @@ def spec():
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
-# Путь от корня репозитория — так референс записывается в спеке.
+# A path from the repository root — that's how a reference is written in the spec.
 EXAMPLE_REF = "examples/array/prefix-sums"
 EXAMPLE_DIR = REPO_ROOT / EXAMPLE_REF
 
@@ -88,10 +88,10 @@ def test_extra_context_documents_accepts_language_aliases(spec, tmp_path):
 def test_extra_context_documents_without_matching_solutions(spec, tmp_path):
     reference_dir = _write_reference(tmp_path)
 
-    # Шаговый референс, не давший шагу ни одного файла, — ошибка спека.
+    # A per-step reference that gave the step no files is a spec error.
     with pytest.raises(SpecReferenceError, match="solutions.references"):
         extra_context_documents(_with_solutions(spec, ["kotlin"], [str(reference_dir)]))
-    # Общий референс без подходящих файлов для этого шага просто пропускается.
+    # A shared reference without suitable files for this step is simply skipped.
     common_only = _with_solutions(spec, ["kotlin"], None).model_copy(
         update={"references": [str(reference_dir)]}
     )
@@ -105,7 +105,7 @@ def test_extra_context_documents_without_references_attaches_language_templates(
         _with_solutions(spec, ["Python", "cpp", "kotlin"], None), templates_dir=TEMPLATES_DIR
     )
 
-    # Скелета для kotlin нет — язык просто остаётся без него.
+    # There's no skeleton for kotlin — the language just stays without one.
     assert documents == [
         str(SOLUTION_TEMPLATES / "ok.cpp"),
         str(SOLUTION_TEMPLATES / "ok.py"),
@@ -136,7 +136,7 @@ def test_extra_context_documents_attaches_template_for_language_without_ok_refer
         _with_solutions(spec, ["cpp", "java"], [str(reference_dir)]), templates_dir=TEMPLATES_DIR
     )
 
-    # У java есть ok-образец — скелеты не нужны; у cpp только wa — нужны.
+    # java has an ok sample — no skeletons needed; cpp has only wa — they're needed.
     assert documents == [
         str(SOLUTION_TEMPLATES / "ok.cpp"),
         str(reference_dir / "solutions" / "ok_java_a_draft.java"),
@@ -203,7 +203,7 @@ def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_
         if compiled.binary_path:
             compiled.binary_path.unlink(missing_ok=True)
 
-    # Фикстура заказывает только cpp — решения на других языках не прикладываются.
+    # The fixture orders only cpp — solutions in other languages aren't attached.
     context_documents = mock_call.call_args.kwargs["context_documents"]
     attached = [
         d for d in context_documents if d.startswith("examples/array/prefix-sums/solutions/")
@@ -510,7 +510,7 @@ def test_interactive_problem_gets_protocol_and_rules():
     assert documents[0] == str(TEMPLATES_DIR / "tutorials" / "interactive.md")
     section = statement_io_section(spec, include_output_and_legend=True)
     assert section["interaction_sketch"] == spec.statement_draft.interaction_sketch
-    # Валидатору и генераторам протокол не нужен: они работают с тестом.
+    # The validator and generators don't need the protocol: they work with the test.
     assert "interaction_sketch" not in statement_io_section(spec, include_output_and_legend=False)
 
 

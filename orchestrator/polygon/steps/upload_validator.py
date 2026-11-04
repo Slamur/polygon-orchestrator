@@ -1,15 +1,15 @@
-"""Polygon-шаг 4 — загрузка `problems/<problem_id>/validator.cpp` (результат
-генеративного шага `constraints_pick`) в Polygon как source-файла
-(`problem.saveFile`, `type=source`) и назначение его валидатором задачи
+"""Polygon step 4 — uploading `problems/<problem_id>/validator.cpp` (the result of the
+`constraints_pick` generative step) to Polygon as a source file
+(`problem.saveFile`, `type=source`) and assigning it as the problem's validator
 (`problem.setValidator`).
 
-`sourceType` в `problem.saveFile` не передаётся — по описанию метода он
-опционален, и предполагается, что Polygon определит язык по расширению
-`.cpp`. После первого реального вызова стоит проверить во вкладке Files
-UI Polygon, что у файла выставлен компилятор C++; если нет — передавать
-`sourceType` явно (значение взять из выпадающего списка в UI).
+`sourceType` isn't passed in `problem.saveFile` — by the method's description it's
+optional, and it's assumed that Polygon determines the language by the
+`.cpp` extension. After the first real call it's worth checking in the Files tab of the
+Polygon UI that the file has a C++ compiler set; if not — pass
+`sourceType` explicitly (take the value from the dropdown in the UI).
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -37,11 +37,11 @@ _VALIDATOR_FILENAME = "validator.cpp"
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Загружает `validator.cpp` и назначает его валидатором (`ctx.spec` не
-    используется), если файл или назначенный валидатор отличаются от базы
-    синхронизации. Отличие любого из двух — оба вызова: после `polygon pull`
-    назначенным может оказаться файл с другим именем, и на Polygon может не
-    быть `validator.cpp` вовсе."""
+    """Uploads `validator.cpp` and assigns it as the validator (`ctx.spec` isn't
+    used) if the file or the assigned validator differ from the sync
+    base. A difference in either of the two means both calls: after `polygon pull`
+    a file with another name may turn out to be assigned, and Polygon may not
+    have `validator.cpp` at all."""
     polygon_id = require_polygon_state(ctx).polygon_id
     content = _read_validator(ctx.problem_id, ctx.problems_dir)
     items = _items(content)
@@ -67,7 +67,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации (`sync_status`)."""
+    """By the sync base (`sync_status`)."""
     return sync_status(
         problem_id,
         problems_dir,

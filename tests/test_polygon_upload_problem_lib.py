@@ -139,7 +139,7 @@ def test_status_not_run_then_done_then_stale(problems_dir, templates_dir, spec):
     _run(spec, problems_dir, templates_dir, MagicMock())
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
-    # шаблон после копирования не влияет
+    # the template after copying has no effect
     (templates_dir / "problem_lib.h").write_bytes(b"// new template\n")
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
@@ -147,7 +147,7 @@ def test_status_not_run_then_done_then_stale(problems_dir, templates_dir, spec):
     copy.write_bytes(LIB_CONTENT + b"// changed\n")
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
 
-    # копии нет — сравнивается шаблон, который push скопирует
+    # no copy — the template push will copy is compared
     copy.unlink()
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
     (templates_dir / "problem_lib.h").write_bytes(LIB_CONTENT)

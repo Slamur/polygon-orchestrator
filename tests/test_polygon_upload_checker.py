@@ -54,10 +54,10 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
 @pytest.mark.parametrize(
     "spec",
     [
-        # custom: checker.cpp на месте — упасть должно именно на состоянии
+        # custom: checker.cpp is in place — it must fail exactly on the state
         _spec(custom_needed=True, standard=None),
         _spec(custom_needed=False, standard="ncmp"),
-        # standard=None: состояние проверяется раньше дыры в спеке
+        # standard=None: the state is checked before the hole in the spec
         _spec(custom_needed=False, standard=None),
     ],
     ids=["custom", "standard", "standard-missing"],
@@ -113,7 +113,7 @@ def test_custom_uploads_then_sets_checker(problems_dir, custom_spec):
 )
 def test_standard_only_sets_checker_without_upload(problems_dir, standard, expected):
     link(problems_dir)
-    # даже если checker.cpp лежит на диске — при custom_needed=false не загружается
+    # even if checker.cpp lies on disk — with custom_needed=false it isn't uploaded
     _write_checker(problems_dir)
     client = MagicMock()
 

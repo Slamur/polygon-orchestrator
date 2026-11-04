@@ -23,7 +23,7 @@ def spec():
 
 
 def _write_spec(problems_dir: Path) -> bytes:
-    # Как есть, с комментариями: загружается файл, а не разобранный спек.
+    # As is, with comments: the file is uploaded, not the parsed spec.
     content = b"# author's comment\n" + (FIXTURES_DIR / "valid-spec.yaml").read_bytes()
     path = problems_dir / PROBLEM_ID / "authoring" / "spec.yaml"
     path.parent.mkdir(parents=True, exist_ok=True)

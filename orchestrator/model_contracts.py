@@ -1,13 +1,13 @@
-"""Вендоронезависимый контракт ответа генеративного шага.
+"""The vendor-independent contract of a generative step's response.
 
-`ModelResponse` — единственное, что должно быть общим между
-`orchestrator/model_router.py` и любой реализацией `LLMClient`
-(`orchestrator/llm_client.py`): сам JSON-контракт status/artifacts/notes
-описан в `docs/PROMPTS.md` и не зависит от того, какой именно вендор
-(Anthropic API, локальная модель, что угодно ещё) его наполняет. Вынесено в
-отдельный модуль, чтобы не создавать цикл импортов между `model_router.py`
-(которому нужен тип `LLMClient`) и `llm_client.py`/конкретными клиентами
-(которым нужен тип `ModelResponse`).
+`ModelResponse` is the only thing that must be shared between
+`orchestrator/model_router.py` and any `LLMClient` implementation
+(`orchestrator/llm_client.py`): the status/artifacts/notes JSON contract itself is
+described in `docs/PROMPTS.md` and doesn't depend on which vendor exactly
+(the Anthropic API, a local model, anything else) fills it. Moved into
+a separate module so as not to create an import cycle between `model_router.py`
+(which needs the `LLMClient` type) and `llm_client.py`/the concrete clients
+(which need the `ModelResponse` type).
 """
 
 from __future__ import annotations
@@ -18,19 +18,19 @@ from typing import Any
 
 @dataclass
 class ModelResponse:
-    """Разобранный ответ модели по JSON-контракту из `docs/PROMPTS.md`.
+    """The model's parsed response by the JSON contract from `docs/PROMPTS.md`.
 
     `status` — "confirmed" | "proposed" | "uncertain".
-    `artifacts` — словарь "имя файла" -> "содержимое" (может быть пустым или
-    частичным при `status == "uncertain"`).
-    `notes` — список заметок вида {"field", "kind", "explanation"}, где
+    `artifacts` — a "file name" -> "contents" dict (may be empty or
+    partial when `status == "uncertain"`).
+    `notes` — a list of notes of the form {"field", "kind", "explanation"}, where
     `kind` — "proposed" | "uncertain" | "changed" | "suggestion".
 
-    `unchanged`/`removed`/`renamed` — только для режима доработки, когда
-    модели показаны текущие файлы шага (`orchestrator/steps/base.py`):
-    имена файлов, оставленных как есть; файлы, которые модель предлагает
-    удалить (`{"filename", "reason"}`), и переименования
-    (`{"from", "to", "reason"}`). Без текущих файлов — пустые.
+    `unchanged`/`removed`/`renamed` — only for revision mode, when
+    the model is shown the step's current files (`orchestrator/steps/base.py`):
+    the names of files left as is; files the model proposes to
+    delete (`{"filename", "reason"}`), and renames
+    (`{"from", "to", "reason"}`). Without current files — empty.
     """
 
     status: str
@@ -41,14 +41,14 @@ class ModelResponse:
     renamed: list[dict[str, str]] = field(default_factory=list)
 
 
-# JSON Schema ответа по контракту status/artifacts/notes (`docs/PROMPTS.md`)
-# — общая для всех клиентов, которые умеют принудительный структурированный
-# вывод по схеме (Anthropic API — через strict tool use, Claude Code CLI —
-# через `--json-schema`). Схема намеренно совместима с самым строгим из них
-# (Anthropic strict tool use): у каждой object-схемы `additionalProperties`
-# — буквально `False`, поэтому карта "имя файла" -> "содержимое" из
-# `docs/PROMPTS.md` здесь представлена списком пар, а
-# `model_response_from_payload` собирает её обратно в dict.
+# The JSON Schema of the response by the status/artifacts/notes contract (`docs/PROMPTS.md`)
+# — shared by all clients that can force structured
+# output by a schema (the Anthropic API — via strict tool use, the Claude Code CLI —
+# via `--json-schema`). The schema is deliberately compatible with the strictest of them
+# (Anthropic strict tool use): every object schema's `additionalProperties`
+# is literally `False`, so the "file name" -> "contents" map from
+# `docs/PROMPTS.md` is represented here as a list of pairs, and
+# `model_response_from_payload` assembles it back into a dict.
 RESPONSE_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
@@ -158,8 +158,8 @@ RESPONSE_JSON_SCHEMA: dict[str, Any] = {
 
 
 def model_response_from_payload(payload: dict[str, Any]) -> ModelResponse:
-    """Собирает `ModelResponse` из JSON-объекта по `RESPONSE_JSON_SCHEMA`
-    (список пар `artifacts` -> dict "имя файла" -> "содержимое")."""
+    """Assembles `ModelResponse` from a JSON object by `RESPONSE_JSON_SCHEMA`
+    (a list of pairs `artifacts` -> a "file name" -> "contents" dict)."""
     artifacts = {entry["filename"]: entry["content"] for entry in payload.get("artifacts") or []}
     return ModelResponse(
         status=payload["status"],

@@ -61,7 +61,7 @@ def test_render_user_prompt_for_loop_needs_non_null_list(tmp_path):
     _write_prompt(tmp_path, "statement_draft", "{% for x in items %}{{ x }}{% endfor %}")
     with pytest.raises(TypeError):
         render_user_prompt("statement_draft", {"items": None}, prompts_dir=tmp_path)
-    # с нормализацией None -> [] (with_default_lists) рендеринг не падает
+    # with the None -> [] normalization (with_default_lists) rendering doesn't fail
     rendered = render_user_prompt("statement_draft", {"items": []}, prompts_dir=tmp_path)
     assert rendered == ""
 
@@ -112,8 +112,8 @@ def test_load_context_documents_appends_extra_paths_after_fixed_list(tmp_path):
 
 
 def test_authoring_files_of_a_reference_are_keyed_without_authoring_dir(tmp_path):
-    # Ключ входит в хеш промпта: перенос спека и constraints.yaml в
-    # authoring/ не должен делать шаги stale.
+    # The key is part of the prompt hash: moving the spec and constraints.yaml into
+    # authoring/ mustn't make the steps stale.
     templates_dir = tmp_path / "templates"
     for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
         _write_template_doc(templates_dir, rel_path, "fixed content")
@@ -163,8 +163,8 @@ def test_load_context_documents_keys_extra_paths_inside_templates_dir_relatively
         extra_paths=[str(extra_file), str(already_attached)],
     )
 
-    # Ключ не зависит от написания templates_dir, а файл из фиксированного
-    # списка второй раз не прикладывается.
+    # The key doesn't depend on how templates_dir is written, and a file from the fixed
+    # list isn't attached a second time.
     assert list(documents) == [
         *STEP_CONTEXT_DOCUMENTS["constraints_pick"],
         "examples/some-task/validator.cpp",
@@ -309,7 +309,7 @@ def test_run_generative_step_validate_artifacts_mismatch_applies_nothing(tmp_pat
 
     def validate(artifacts):
         seen.append(dict(artifacts))
-        # к моменту валидации на диске только неприменённый ответ модели
+        # at validation time only the model's unapplied response is on disk
         assert [p.name for p in problems_dir.rglob("*") if p.is_file()] == [
             "statement_draft.response.json"
         ]
@@ -331,7 +331,7 @@ def test_run_generative_step_validate_artifacts_mismatch_applies_nothing(tmp_pat
     problem_dir = problems_dir / "p1"
     assert result.artifact_paths == {}
     conflicts_dir = result.conflicts_dir.relative_to(problem_dir).as_posix()
-    # Файлы шага не записаны — версии модели отложены в каталог конфликтов.
+    # The step's files aren't written — the model's versions are set aside in the conflicts directory.
     assert sorted(
         p.relative_to(problem_dir).as_posix() for p in problem_dir.rglob("*") if p.is_file()
     ) == sorted(
@@ -419,7 +419,7 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
         )
 
     assert set(result.compile_results) == {"gen_ok.cpp", "gen_bad.cpp"}
-    # перед compile-check у задачи появилась своя копия problem_lib.h
+    # before compile-check the problem got its own copy of problem_lib.h
     assert (problems_dir / "p1" / "problem_lib.h").read_bytes() == (
         TEMPLATES_DIR / "problem_lib.h"
     ).read_bytes()
@@ -505,7 +505,7 @@ def test_run_generative_step_extra_context_documents_none_is_backward_compatible
     assert result.status == "confirmed"
     context_documents = mock_call.call_args.kwargs["context_documents"]
     assert set(context_documents) == set(STEP_CONTEXT_DOCUMENTS["statement_draft"])
-    # без .cpp-артефактов копия problem_lib.h не нужна
+    # without .cpp artifacts no copy of problem_lib.h is needed
     assert not (problems_dir / "p1" / "problem_lib.h").exists()
 
 

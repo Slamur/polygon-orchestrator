@@ -1,38 +1,37 @@
-"""Входная точка оркестратора. Все команды имеют вид
-`orchestrator <адрес задачи> <pipeline> <command> [аргументы]` (CLAUDE.md,
-"Запуск"): `init` — каталог задачи с черновиком спека (из шаблона, по
-спеку задачи-основы `--ref` и/или моделью по черновику автора `--draft`),
-`llm generate|tutorial|apply|status|accept` — генеративные шаги,
-`local check|run|fix|clear` — проверка файлов задачи, прогон решений,
-механическое исправление найденного в условии и удаление локальных кэшей
-проверок, без модели и без сети, `polygon push|status|pull` —
-загрузка задачи в Polygon и выгрузка из него. Группы разделены по тому, чего
-стоит команда: `llm` вызывает модель, `polygon` ходит в сеть, `local` — ни то,
-ни другое.
-Адрес задачи — путь её каталога с корнем (`problems/contest/2026/round-1/my-task`,
-`examples/array/prefix-sums`, см. `orchestrator/problem_paths.py`) — идёт
-первым: обычно работа идёт над одной задачей, и разные команды к ней удобнее
-менять в конце строки.
+"""The orchestrator's entry point. All commands have the form
+`orchestrator <problem address> <pipeline> <command> [arguments]` (CLAUDE.md,
+"Running"): `init` — a problem directory with a spec draft (from the template, from
+the base problem's spec `--ref` and/or by the model from the author's draft `--draft`),
+`llm generate|tutorial|apply|status|accept` — the generative steps,
+`local check|run|fix|clear` — checking the problem's files, running solutions,
+mechanically fixing what was found in the statement and deleting the local check
+caches, without the model and without the network, `polygon push|status|pull` —
+uploading the problem to Polygon and downloading it from there. The groups are split by what
+the command costs: `llm` calls the model, `polygon` goes to the network, `local` — neither.
+The problem address — the path of its directory with the root (`problems/contest/2026/round-1/my-task`,
+`examples/array/prefix-sums`, see `orchestrator/problem_paths.py`) — comes
+first: usually the work is on one problem, and it's more convenient to change the different commands to it
+at the end of the line.
 
-Вместо адреса задачи можно указать каталог-группу или сам корень
-(`problems/contest/2026`, `examples`): команда применяется ко всем задачам под
-ним по очереди, сбой одной задачи не останавливает остальные (`_run_group`).
-Перед этим печатается список задач и спрашивается подтверждение — кроме команд,
-которые только показывают состояние (`_NO_CONFIRM_HANDLERS`). `init` создаёт
-одну задачу и групп не принимает.
+Instead of a problem address you can give a group directory or the root itself
+(`problems/contest/2026`, `examples`): the command applies to all problems under
+it in turn, a failure of one problem doesn't stop the rest (`_run_group`).
+Before that the list of problems is printed and a confirmation is asked — except for commands
+that only show the state (`_NO_CONFIRM_HANDLERS`). `init` creates
+one problem and doesn't accept groups.
 
-Здесь только парсер аргументов и диспетчеризация; сами команды — в
-`cli_commands.py`, и импортируется он лениво, уже после разбора аргументов.
-Причина — Tab-дополнение (`argcomplete`, настройка shell — в `docs/SETUP.md`):
-на каждое нажатие Tab shell запускает этот модуль целиком, чтобы получить
-кандидатов, и импорт пайплайнов (pydantic, requests) делал бы каждое нажатие
-заметно медленным. Поэтому на верхнем уровне этого модуля не должно быть
-импортов тяжелее `cache`/`step_order`/`problem_paths`/`drafts`.
+Here there's only the argument parser and dispatching; the commands themselves are in
+`cli_commands.py`, and it's imported lazily, after parsing the arguments.
+The reason is Tab completion (`argcomplete`, the shell setup — in `docs/SETUP.md`):
+on every Tab press the shell runs this module in full to get the
+candidates, and importing the pipelines (pydantic, requests) would make every press
+noticeably slow. So the top level of this module must have no
+imports heavier than `cache`/`step_order`/`problem_paths`/`drafts`.
 
-Сделано на стандартном `argparse`, а не на `click`/`typer`: команд у нас
-немного, с небольшим набором флагов, и `argparse` из стандартной библиотеки
-закрывает это без CLI-фреймворка в зависимостях; автодополнение к нему
-добавляет `argcomplete`, не меняя сам парсер.
+Built on the standard `argparse`, not on `click`/`typer`: we have
+few commands, with a small set of flags, and `argparse` from the standard library
+covers this without a CLI framework in the dependencies; completion for it
+is added by `argcomplete`, without changing the parser itself.
 """
 
 from __future__ import annotations
@@ -59,22 +58,22 @@ from orchestrator.problem_paths import (
 )
 from orchestrator.step_order import LLM_STEPS, POLYGON_STEP_ORDER, STEP_ORDER
 
-# Команды, которые к группе задач применяются без подтверждения: только
-# показывают состояние, модель и сеть не трогают.
+# Commands applied to a problem group without confirmation: they only
+# show the state, don't touch the model or the network.
 _NO_CONFIRM_HANDLERS = ("cmd_llm_status", "cmd_polygon_status")
 
 
 def _complete_problem_addresses(
     prefix: str, parsed_args: argparse.Namespace, **kwargs
 ) -> list[str]:
-    """Кандидаты Tab-дополнения адреса задачи: адреса всех задач в
-    `problems/` и `examples/` — со спеком (`spec.yaml`) или без него, только
-    с `polygon_state.json` (`polygon status|pull` спек не нужен, а команда
-    набирается после адреса и на момент дополнения ещё неизвестна).
+    """Tab completion candidates for the problem address: the addresses of all problems in
+    `problems/` and `examples/` — with a spec (`spec.yaml`) or without it, only
+    with `polygon_state.json` (`polygon status|pull` don't need a spec, and the command
+    is typed after the address and is still unknown at the moment of completion).
 
-    Список не хранится нигде, а читается из каталогов при каждом нажатии Tab —
-    с учётом `--base-dir`, если он уже набран в командной строке.
-    Фильтрацию по набранному префиксу делает сам `argcomplete`.
+    The list isn't stored anywhere, it's read from the directories on every Tab press —
+    taking `--base-dir` into account, if it's already typed on the command line.
+    Filtering by the typed prefix is done by `argcomplete` itself.
     """
     base_dir = Path(getattr(parsed_args, "base_dir", None) or ".")
     return [
@@ -85,16 +84,16 @@ def _complete_problem_addresses(
 
 
 def _complete_draft_names(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
-    """Кандидаты Tab-дополнения `init --draft`: пути файлов относительно
-    `drafts/` на любой глубине (с учётом `--base-dir`), читаются при каждом
-    нажатии Tab."""
+    """Tab completion candidates for `init --draft`: file paths relative to
+    `drafts/` at any depth (taking `--base-dir` into account), read on every
+    Tab press."""
     base_dir = Path(getattr(parsed_args, "base_dir", None) or ".")
     return draft_names(base_dir / DRAFTS_DIR)
 
 
 def _complete_solution_names(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
-    """Кандидаты Tab-дополнения `llm tutorial --ref`: файлы `solutions/` задачи,
-    адрес которой уже набран (с учётом `--base-dir`)."""
+    """Tab completion candidates for `llm tutorial --ref`: the `solutions/` files of the problem
+    whose address is already typed (taking `--base-dir` into account)."""
     base_dir = Path(getattr(parsed_args, "base_dir", None) or ".")
     solutions_dir = base_dir / getattr(parsed_args, "problem", "") / "solutions"
     if not solutions_dir.is_dir():
@@ -354,12 +353,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _autocomplete(parser: argparse.ArgumentParser) -> None:
-    """В режиме Tab-дополнения (shell выставляет `_ARGCOMPLETE`) печатает
-    кандидатов и завершает процесс; при обычном запуске ничего не делает.
+    """In Tab completion mode (the shell sets `_ARGCOMPLETE`) prints the
+    candidates and exits the process; in a normal run does nothing.
 
-    Без установленного `argcomplete` CLI работает как раньше, просто без
-    дополнения — на случай окружения, где зависимости не переустановили
-    после обновления кода.
+    Without `argcomplete` installed the CLI works as before, just without
+    completion — for an environment where the dependencies weren't reinstalled
+    after a code update.
     """
     if "_ARGCOMPLETE" not in os.environ:
         return
@@ -367,8 +366,8 @@ def _autocomplete(parser: argparse.ArgumentParser) -> None:
         import argcomplete
     except ImportError:
         return
-    # Опции — только когда набран "-": иначе Tab на месте адреса задачи
-    # показывал бы флаги вперемешку с именами задач.
+    # Options — only when "-" is typed: otherwise Tab in place of the problem address
+    # would show flags mixed with problem names.
     argcomplete.autocomplete(parser, always_complete_options=False)
 
 
@@ -379,7 +378,7 @@ def main(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
     args = parser.parse_args(argv)
     args.command_line = " ".join(argv)
-    # Дальше задача адресуется парой (корень, путь внутри корня) — см.
+    # From here on the problem is addressed by a pair (root, path inside the root) — see
     # `orchestrator/problem_paths.py`.
     try:
         root, path = parse_address_path(args.problem)
@@ -401,10 +400,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _run_problem(args: argparse.Namespace, problem_path: str) -> int:
-    """Команда для одной задачи в корне `args.problems_dir`."""
+    """A command for one problem in the root `args.problems_dir`."""
     args.problem_id = problem_path
-    # Задача, созданная до `authoring/`, переносится при первой же команде
-    # к ней — дальше все команды видят только новую раскладку.
+    # A problem created before `authoring/` is moved on the very first command
+    # to it — from then on all commands see only the new layout.
     problem_dir = args.problems_dir / args.problem_id
     try:
         moves = migrate_to_authoring(problem_dir)
@@ -413,7 +412,7 @@ def _run_problem(args: argparse.Namespace, problem_path: str) -> int:
         return 1
     for source, target in moves:
         print(f"moved {source} -> {target}", file=sys.stderr)
-    # Так же — условие, лежащее прямо в `statement/`: в каталог своего языка.
+    # Likewise — a statement lying directly in `statement/`: into its language's directory.
     from orchestrator.statement_languages import migrate_statement_languages
 
     try:
@@ -434,8 +433,8 @@ def _run_problem(args: argparse.Namespace, problem_path: str) -> int:
 
 
 def _confirm_group(args: argparse.Namespace, root: Path, group: list[str]) -> bool:
-    """Печатает задачи группы (`problem_id` и адрес) и спрашивает подтверждение.
-    Закрытый ввод — отказ: без ответа пользователя команда не запускается."""
+    """Prints the group's problems (`problem_id` and address) and asks for confirmation.
+    Closed input is a refusal: without the user's answer the command doesn't run."""
     print(f"{args.problem}: {len(group)} problem(s)")
     ids = [problem_id_for(root, path) for path in group]
     width = max(map(len, ids))
@@ -451,9 +450,9 @@ def _confirm_group(args: argparse.Namespace, root: Path, group: list[str]) -> bo
 
 
 def _run_group(args: argparse.Namespace, root: Path, group: list[str]) -> int:
-    """Команда для каждой задачи группы по очереди. Задачи независимы, поэтому
-    сбой одной — в том числе необработанное исключение — не останавливает
-    остальные; в конце — сколько прошло и какие задачи не прошли."""
+    """A command for each problem of the group in turn. The problems are independent, so
+    a failure of one — including an unhandled exception — doesn't stop the
+    rest; at the end — how many passed and which problems didn't."""
     if args.handler not in _NO_CONFIRM_HANDLERS and not _confirm_group(args, root, group):
         print("aborted: nothing was run")
         return 1

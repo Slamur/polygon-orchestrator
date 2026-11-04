@@ -1,5 +1,5 @@
-"""`init --ref` / `init --draft`: спек по задаче-основе и по черновику автора.
-Модель подменена (`model_router.call_model`) — реальных вызовов нет."""
+"""`init --ref` / `init --draft`: a spec from a base problem and from the author's draft.
+The model is replaced (`model_router.call_model`) — there are no real calls."""
 
 from pathlib import Path
 
@@ -35,7 +35,7 @@ DRAFT_TEXT = "Синтетический черновик: дан массив, 
 
 @pytest.fixture
 def base_dir(tmp_path):
-    """Каталог с `problems/`, `examples/` (одна учебная задача со спеком) и
+    """A directory with `problems/`, `examples/` (one sample problem with a spec) and
     `drafts/`."""
     example = tmp_path / "examples" / "array" / "sums"
     example.mkdir(parents=True)
@@ -115,9 +115,9 @@ def test_find_draft_in_subdirectories(base_dir):
     assert draft_names(drafts) == ["icpc/my-idea.md", "icpc/other-idea.md", "my-idea.md"]
     assert find_draft(drafts, "icpc/other-idea.md") == drafts / "icpc" / "other-idea.md"
     assert find_draft(drafts, "icpc/other-idea") == drafts / "icpc" / "other-idea.md"
-    # Имя без подкаталогов ищется и в подкаталогах.
+    # A name without subdirectories is also searched for in subdirectories.
     assert find_draft(drafts, "other-idea") == drafts / "icpc" / "other-idea.md"
-    # Путь, совпавший целиком, выбирается сразу; иначе — неоднозначность.
+    # A path that matched in full is chosen right away; otherwise — an ambiguity.
     assert find_draft(drafts, "my-idea.md") == drafts / "my-idea.md"
     assert find_draft(drafts, "icpc/my-idea") == drafts / "icpc" / "my-idea.md"
     with pytest.raises(DraftError, match="ambiguous"):
@@ -126,7 +126,7 @@ def test_find_draft_in_subdirectories(base_dir):
         find_draft(drafts, "secret")
 
 
-# --- правка текста спека ----------------------------------------------------
+# --- editing the spec text --------------------------------------------------
 
 
 def test_set_problem_id_keeps_comment_column():
@@ -170,7 +170,7 @@ def test_add_reference_to_block_list_and_missing_field():
     assert add_reference(already, "r") == already
 
 
-# --- init --ref без модели ---------------------------------------------------
+# --- init --ref without the model -------------------------------------------
 
 
 def test_create_spec_draft_copies_reference_spec(base_dir):
@@ -256,8 +256,8 @@ def _generate(base_dir, init):
 def test_draft_spec_is_written_with_problem_id_and_reference_set_by_orchestrator(
     base_dir, fake_model
 ):
-    # Модель вернула чужой problem_id и не добавила референс — оркестратор
-    # ставит их сам.
+    # The model returned someone else's problem_id and didn't add the reference — the orchestrator
+    # sets them itself.
     fake = fake_model(
         ModelResponse(
             status="proposed",
@@ -284,7 +284,7 @@ def test_draft_spec_is_written_with_problem_id_and_reference_set_by_orchestrator
     assert DRAFT_TEXT.strip() in call["user"]
     assert "examples/array/sums" in call["user"]
     assert "problem_id: my-task" in call["user"]
-    # Спек задачи-основы — уже в user-промпте, вторым документом не идёт.
+    # The base problem's spec is already in the user prompt, it doesn't go as a second document.
     assert set(call["documents"]) == {SPEC_FORMAT_DOC.as_posix(), "spec_template.yaml"}
 
 
@@ -298,7 +298,7 @@ def test_draft_spec_from_template_attaches_example_specs(base_dir, fake_model):
     (call,) = fake.calls
     assert "examples/array/sums/spec.yaml" in call["documents"]
     assert "шаблон спека" in call["user"]
-    # Невалидный спек всё равно записан — это черновик, вызов не пропадает.
+    # An invalid spec is written anyway — it's a draft, the call isn't wasted.
     assert result.path.read_text(encoding="utf-8") == "problem_id: my-task\n"
     assert result.validation_errors
 
@@ -383,7 +383,7 @@ def test_cli_init_draft_checks_everything_before_calling_the_model(base_dir, fak
     )
     assert not problem_dir.exists()
 
-    # Спек уже есть: `--ref` — только при создании спека.
+    # The spec already exists: `--ref` — only when creating the spec.
     (problem_dir / AUTHORING_DIRNAME).mkdir(parents=True)
     (problem_dir / AUTHORING_DIRNAME / SPEC_FILENAME).write_text("edited", encoding="utf-8")
     assert _cli_draft(base_dir, "--ref", "examples/array/sums") == 1
@@ -411,13 +411,13 @@ def test_spec_from_draft_prompt_renders_for_both_bases(base_dir):
         assert init.base_text.rstrip("\n") in text
 
 
-# --- доработка существующего спека ------------------------------------------
+# --- revising an existing spec ----------------------------------------------
 
 
 @pytest.fixture
 def written_spec(base_dir):
-    """Задача, спек которой уже написан по черновику `drafts/my-idea.md`:
-    спек (с ручной правкой автора) и копия черновика в `authoring/`."""
+    """A problem whose spec is already written from the draft `drafts/my-idea.md`:
+    the spec (with the author's manual edit) and the draft copy in `authoring/`."""
     authoring = base_dir / "problems" / "my-task" / AUTHORING_DIRNAME
     authoring.mkdir(parents=True)
     (authoring / SPEC_FILENAME).write_text(
@@ -439,7 +439,7 @@ def test_cli_init_draft_unchanged_draft_does_not_call_the_model(
     assert fake.calls == []
     assert (written_spec / SPEC_FILENAME).read_text(encoding="utf-8") == spec_before
 
-    # `--force` — доработка, даже если черновик не менялся.
+    # `--force` — a revision even if the draft didn't change.
     assert _cli_draft(base_dir, "--force") == 0
     assert len(fake.calls) == 1
     assert "needs no changes" in capsys.readouterr().out
@@ -461,7 +461,7 @@ def test_cli_init_draft_revises_spec_by_changed_draft(base_dir, written_spec, fa
     assert _cli_draft(base_dir) == 0
 
     (call,) = fake.calls
-    # Режим доработки: текущий спек целиком и "было → стало" черновика.
+    # Revision mode: the whole current spec and the draft's "before → after".
     assert "Режим доработки" in call["user"]
     assert "# author's edit" in call["user"]
     assert "Ещё: n до 10^5." in call["user"]
@@ -501,7 +501,7 @@ def test_revision_unchanged_spec_updates_draft_copy_only(base_dir, written_spec,
 
     assert result.unchanged and result.path == written_spec / SPEC_FILENAME
     assert result.path.read_text(encoding="utf-8") == spec_before
-    # Копия черновика другого расширения заменяет прежнюю, прежняя — в бэкапе.
+    # A draft copy with another extension replaces the previous one, the previous one is in the backup.
     assert not (written_spec / "draft.md").exists()
     assert (written_spec / "draft.txt").read_text(encoding="utf-8") == "other\n"
     assert (result.backup_dir / AUTHORING_DIRNAME / "draft.md").is_file()
@@ -527,7 +527,7 @@ def test_revision_without_draft_copy_says_changes_are_unknown(base_dir, written_
     )
 
     assert "Неизвестно: прошлый запуск не сохранил свой вход" in fake.calls[0]["user"]
-    # Модель спека не вернула — ничего не тронуто, черновик не скопирован.
+    # The model returned no spec — nothing is touched, the draft isn't copied.
     assert result.path is None
     assert init.path.read_text(encoding="utf-8") == spec_before
     assert not (written_spec / "draft.md").exists()

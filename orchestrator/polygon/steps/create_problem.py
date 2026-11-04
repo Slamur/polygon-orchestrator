@@ -1,12 +1,12 @@
-"""Polygon-шаг 1 — создание задачи в Polygon по `problem_id` из спека,
-CLAUDE.md, "Скоуп (текущий)" (создание задачи на Polygon).
+"""Polygon step 1 — creating the problem in Polygon by the spec's `problem_id`,
+CLAUDE.md, "Scope (current)" (creating the problem on Polygon).
 
-У созданной задачи база синхронизации известна — она пустая, — поэтому
-записывается её ревизия, и push сразу продолжает загрузку. Задача,
-найденная на Polygon по имени, привязывается без ревизии: что в ней,
-неизвестно, и push остановится до `polygon pull`.
+For a created problem the sync base is known — it's empty — so
+its revision is recorded, and push continues uploading right away. A problem
+found on Polygon by name is bound without a revision: what's in it is
+unknown, and push stops until `polygon pull`.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -32,10 +32,10 @@ from orchestrator.problem_paths import problem_address, problem_id_for
 
 STEP_NAME = "create_problem"
 
-# Галочку "auto-update" у testlib.h и стандартных чекеров Polygon API не
-# выставляет (нет ни параметра, ни метода, см. `docs/POLYGON_API.md`), поэтому
-# у только что созданной задачи о ней только напоминаем. Найденной по имени
-# задаче не напоминаем: её уже кто-то настраивал.
+# The Polygon API doesn't set the "auto-update" checkbox for testlib.h and the standard checkers
+# (there's neither a parameter nor a method, see `docs/POLYGON_API.md`), so
+# for a just created problem we only remind about it. We don't remind for a problem
+# found by name: someone has already set it up.
 _AUTO_UPDATE_REMINDER = (
     'REMINDER: enable "auto-update" for testlib.h and the standard checker '
     "in the Polygon UI — the API cannot set it"
@@ -43,7 +43,7 @@ _AUTO_UPDATE_REMINDER = (
 
 
 def _check_done(ctx: StepContext) -> str | None:
-    """Локальное состояние уже есть — задача привязана, сети не нужно."""
+    """The local state already exists — the problem is bound, no network needed."""
     existing = load_polygon_state(ctx.problem_id, problems_dir=ctx.problems_dir)
     if existing is None:
         return None
@@ -51,7 +51,7 @@ def _check_done(ctx: StepContext) -> str | None:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """Выполнен, если есть привязка к Polygon (`polygon_state.json`)."""
+    """Done if there's a binding to Polygon (`polygon_state.json`)."""
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
         return STATUS_NOT_RUN, ""
@@ -59,8 +59,8 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Переиспользует существующую на Polygon задачу с таким именем, иначе создаёт новую.
-    Имя задачи на Polygon — её `problem_id` (`problem_id_for`)."""
+    """Reuses an existing problem on Polygon with this name, otherwise creates a new one.
+    The problem's name on Polygon is its `problem_id` (`problem_id_for`)."""
     name = problem_id_for(ctx.problems_dir, ctx.problem_id)
     polygon_id = _find_polygon_id_by_name(client, name)
     if polygon_id is not None:
@@ -79,24 +79,24 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _find_polygon_id_by_name(client: PolygonClient, name: str) -> int | None:
-    """id задачи на Polygon с именем `name` или `None`, если такой нет.
+    """The id of the problem on Polygon named `name`, or `None` if there's no such one.
 
-    NOTE: предполагаем, что фильтр `name` в `problems.list` — точное
-    совпадение (либо пустой список), а не подстрочный поиск. На реальном
-    API это ещё не проверено: если окажется нечётким, результат нужно
-    дополнительно фильтровать по `item["name"] == name`.
+    NOTE: we assume that the `name` filter in `problems.list` is an exact
+    match (or an empty list), not a substring search. This isn't verified on the real
+    API yet: if it turns out fuzzy, the result needs to be
+    additionally filtered by `item["name"] == name`.
     """
     found = client.call("problems.list", {"name": name})
     return found[0]["id"] if found else None
 
 
 def _create_polygon_problem(client: PolygonClient, name: str) -> int:
-    """Создаёт задачу на Polygon и возвращает её id."""
+    """Creates the problem on Polygon and returns its id."""
     return client.call("problem.create", {"name": name})["id"]
 
 
 def _link(ctx: StepContext, polygon_id: int, *, revision: int | None) -> None:
-    """Сохраняет привязку `problem_id` -> Polygon problemId в `polygon_state.json`."""
+    """Saves the `problem_id` -> Polygon problemId binding in `polygon_state.json`."""
     save_polygon_state(
         ctx.problem_id,
         PolygonState(
@@ -114,7 +114,7 @@ STEP = PolygonStep(
     check_done=_check_done,
     execute=_execute,
     compute_status=_compute_status,
-    # Только создаёт задачу/привязывается к существующей — в рабочей копии
-    # нечего коммитить.
+    # It only creates the problem/binds to an existing one — there's nothing to commit
+    # in the working copy.
     commits_changes=False,
 )

@@ -1,6 +1,6 @@
-"""Общее для тестов polygon-шагов: синтетическая задача, привязка её к
-Polygon и прогон шага так, как его прогоняет `run_polygon_pipeline`, — с
-базой синхронизации и записью загруженного."""
+"""Shared by the polygon step tests: a synthetic problem, binding it to
+Polygon and running a step the way `run_polygon_pipeline` runs it — with
+the sync base and recording what was uploaded."""
 
 from pathlib import Path
 
@@ -24,7 +24,7 @@ def link(
     revision: int | None = None,
     synced: dict[str, str] | None = None,
 ) -> None:
-    """Задача `PROBLEM_ID` привязана к Polygon (`polygon_state.json`)."""
+    """The problem `PROBLEM_ID` is bound to Polygon (`polygon_state.json`)."""
     save_polygon_state(
         PROBLEM_ID,
         PolygonState(
@@ -47,9 +47,9 @@ def run_and_record(
     *,
     incremental: bool = False,
 ) -> StepResult:
-    """`incremental=False` — без базы (загрузить всё), как первый push;
-    `True` — с базой из `polygon_state.json`. Загруженное записывается в
-    базу, как после коммита."""
+    """`incremental=False` — without a base (upload everything), like the first push;
+    `True` — with the base from `polygon_state.json`. What was uploaded is recorded in the
+    base, as after a commit."""
     synced = None
     if incremental:
         state = load_polygon_state(problem_id, problems_dir=problems_dir)

@@ -1,12 +1,12 @@
-"""Polygon-шаг 3 — загрузка `problems/<problem_id>/problem_lib.h` в Polygon
-как resource-файла (`problem.saveFile`, `type=resource`).
+"""Polygon step 3 — uploading `problems/<problem_id>/problem_lib.h` to Polygon
+as a resource file (`problem.saveFile`, `type=resource`).
 
-У каждой задачи своя копия `problem_lib.h` (см. `PROBLEM_LIB_FILENAME` в
-`orchestrator/steps/base.py`): если её ещё нет, шаг сначала копирует туда
-`templates/problem_lib.h`.
-Генеративного шага-зависимости нет — только `create_problem`.
+Each problem has its own copy of `problem_lib.h` (see `PROBLEM_LIB_FILENAME` in
+`orchestrator/steps/base.py`): if it doesn't exist yet, the step first copies
+`templates/problem_lib.h` there.
+There's no generative step dependency — only `create_problem`.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -38,18 +38,18 @@ STEP_NAME = "upload_problem_lib"
 
 
 def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
-    """`PolygonStep`, берущий шаблон `problem_lib.h` из `templates_dir`.
+    """A `PolygonStep` that takes the `problem_lib.h` template from `templates_dir`.
 
-    `StepContext` не несёт `templates_dir` — остальные polygon-шаги файлов
-    из `templates/` не читают, — поэтому каталог фиксируется при сборке
-    шага. `STEP` ниже собран с `TEMPLATES_DIR`; другой каталог нужен только
-    тестам.
+    `StepContext` doesn't carry `templates_dir` — the other polygon steps don't read files
+    from `templates/` — so the directory is fixed when building the
+    step. `STEP` below is built with `TEMPLATES_DIR`; another directory is needed only by
+    tests.
     """
     templates_dir = Path(templates_dir)
 
     def execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-        """Загружает `problem_lib.h` задачи как есть (`ctx.spec` не
-        используется), если он отличается от базы синхронизации."""
+        """Uploads the problem's `problem_lib.h` as is (`ctx.spec` isn't
+        used) if it differs from the sync base."""
         polygon_id = require_polygon_state(ctx).polygon_id
         try:
             path = ensure_problem_lib(
@@ -76,8 +76,8 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
         )
 
     def compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-        """По базе синхронизации (`sync_status`). Пока копии задачи нет,
-        сравнивается шаблон — его push скопирует и загрузит."""
+        """By the sync base (`sync_status`). While the problem has no copy,
+        the template is compared — push copies and uploads it."""
 
         def read_items() -> dict[str, str]:
             path = problem_lib_path(problem_id, problems_dir)

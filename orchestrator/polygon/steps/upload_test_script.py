@@ -1,53 +1,53 @@
-"""Polygon-шаг — загрузка FreeMarker test-script'а (результат генеративного
-шага `test_script_draft`) в Polygon (`problem.saveScript`,
+"""A Polygon step — uploading the FreeMarker test-script (the result of the generative
+step `test_script_draft`) to Polygon (`problem.saveScript`,
 `testset=tests`).
 
-Путь к файлу скрипта берётся из
-`orchestrator.steps.test_script_draft.primary_artifact_path` — единый
-источник истины для имени (`test_script`/`test_script_groups` по
-`generation.script_style`), здесь ветвление flat/groups не дублируется.
+The path to the script file is taken from
+`orchestrator.steps.test_script_draft.primary_artifact_path` — the single
+source of truth for the name (`test_script`/`test_script_groups` by
+`generation.script_style`), the flat/groups branching isn't duplicated here.
 
-Ограничение MVP: `generation.script_style == "groups"` сознательно
-отклоняется `PolygonStepError` до любой другой логики — groups-режим в
-Polygon дополнительно требует `problem.enableGroups` (не спроектирован), а
-groups-шаблонов в `templates/` сейчас нет. Явная ошибка лучше тихого
-неверного поведения.
+An MVP limitation: `generation.script_style == "groups"` is deliberately
+rejected with `PolygonStepError` before any other logic — the groups mode in
+Polygon additionally requires `problem.enableGroups` (not designed), and
+there are no groups templates in `templates/` now. An explicit error is better than quiet
+wrong behavior.
 
-Polygon при сохранении скрипта выкидывает из него пустые строки, поэтому
-хеш считается от `normalize_script` (без пустых строк и пробелов в концах
-строк) — иначе `polygon pull` видел бы расхождение с локальным файлом и
-сбрасывал базу, а следующий push загружал бы скрипт заново. Загружается
-при этом исходный файл как есть.
+When saving a script, Polygon drops its empty lines, so the
+hash is computed from `normalize_script` (without empty lines and trailing spaces on
+lines) — otherwise `polygon pull` would see a mismatch with the local file and
+reset the base, and the next push would upload the script again. What's uploaded
+is the original file as is.
 
-Перед загрузкой скрипт раскрывается локально и проверяется на одинаковые
-строки и строки с кавычками или лишним `>` в параметрах генератора
-(`orchestrator/checks/test_script_check.py`, то же делает `local check`):
-такой скрипт Polygon не примет или не сгенерирует по нему тесты, поэтому
-шаг падает до обращения к сети, с отчётом, какие строки скрипта их
-напечатали. Если
-проверку выполнить нельзя (нет `java`, не скачался FreeMarker) или
-FreeMarker не раскрыл скрипт, — только предупреждение в лог: локальное
-раскрытие может разойтись с Polygon, и загрузку оно не блокирует.
-`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` выключает проверку совсем.
+Before uploading, the script is expanded locally and checked for identical
+lines and lines with quotes or an extra `>` in the generator's parameters
+(`orchestrator/checks/test_script_check.py`, `local check` does the same):
+Polygon won't accept such a script or won't generate tests from it, so the
+step fails before going to the network, with a report on which script lines
+printed them. If
+the check can't be run (no `java`, FreeMarker didn't download) or
+FreeMarker didn't expand the script — only a warning to the log: the local
+expansion may diverge from Polygon, and it doesn't block the upload.
+`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` turns the check off completely.
 
-Сохранив скрипт, Polygon тут же генерирует по нему тесты, а коммитить
-рабочую копию до конца генерации бессмысленно. Поэтому шаг идёт в push
-последним, `problem.saveScript` ждёт ответа `_SAVE_SCRIPT_TIMEOUT_SECONDS`
-(на большом наборе тестов — дольше обычного таймаута клиента; повторять
-запрос нельзя — генерация начнётся заново), а потом шаг опрашивает
-`problem.tests` с растущей паузой, пока `scriptLine` сгенерированных тестов
-по порядку не совпадут с командами раскрытого скрипта (строка скрипта без
-`> $`), — не дольше `_GENERATION_WAIT_SECONDS`. Не совпали — `PolygonStepError`
-без коммита: загруженный скрипт остаётся в рабочей копии Polygon, и следующий
-push остановится на незакоммиченных правках. Если скрипт локально не раскрыт
-(проверка выключена или недоступна), признак конца генерации — только ответ
-на `problem.saveScript`: дождались — шаг проходит, нет — `PolygonStepError`.
+Having saved the script, Polygon immediately generates tests from it, and committing
+the working copy before the generation ends is pointless. So the step goes last in push,
+`problem.saveScript` waits for a response for `_SAVE_SCRIPT_TIMEOUT_SECONDS`
+(on a large test set — longer than the client's usual timeout; the request
+can't be repeated — the generation would start again), and then the step polls
+`problem.tests` with a growing pause until the `scriptLine`s of the generated tests
+match, in order, the commands of the expanded script (a script line without
+`> $`) — no longer than `_GENERATION_WAIT_SECONDS`. They didn't match — `PolygonStepError`
+without a commit: the uploaded script stays in the Polygon working copy, and the next
+push stops on uncommitted edits. If the script isn't expanded locally
+(the check is off or unavailable), the sign of the generation's end is only the response
+to `problem.saveScript`: it came — the step passes, it didn't — `PolygonStepError`.
 
-По смыслу шаг идёт после `upload_generators` — скрипт ссылается на
-генераторы по имени, — хотя Polygon при сохранении скрипта этого не
-проверяет.
+Logically the step goes after `upload_generators` — the script refers to the
+generators by name — even though Polygon doesn't check this when saving the
+script.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -90,25 +90,25 @@ logger = logging.getLogger(__name__)
 
 _TESTSET = "tests"
 
-# Сколько ждать ответа `problem.saveScript`: Polygon отвечает, только
-# сгенерировав тесты (см. докстринг модуля).
+# How long to wait for the `problem.saveScript` response: Polygon responds only
+# after generating the tests (see the module docstring).
 _SAVE_SCRIPT_TIMEOUT_SECONDS = 600
 
-# Ожидание конца генерации тестов: опрос `problem.tests` с паузой, растущей
-# вдвое от первой до максимальной, пока не выйдет общий лимит.
+# Waiting for the end of test generation: polling `problem.tests` with a pause growing
+# twofold from the first to the maximal one, until the overall limit runs out.
 _GENERATION_POLL_FIRST_DELAY_SECONDS = 5
 _GENERATION_POLL_MAX_DELAY_SECONDS = 120
 _GENERATION_WAIT_SECONDS = 1800
 
-# Возможные имена файла скрипта — для `_compute_status`, где спека нет.
+# The possible names of the script file — for `_compute_status`, where there's no spec.
 SCRIPT_FILENAMES = ("test_script", "test_script_groups")
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Загружает test-script, если он отличается от базы синхронизации.
+    """Uploads the test-script if it differs from the sync base.
 
-    Все три проверки (`script_style != "groups"`, `create_problem`,
-    наличие файла скрипта) — до первого сетевого вызова.
+    All three checks (`script_style != "groups"`, `create_problem`,
+    the script file's presence) — before the first network call.
     """
     if ctx.spec.generation.script_style == "groups":
         raise PolygonStepError(
@@ -133,8 +133,8 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _save_script(problem_id: str, polygon_id: int, content: bytes, client: PolygonClient) -> bool:
-    """`problem.saveScript`; `True` — ответа не дождались (тесты, скорее
-    всего, ещё генерируются, см. докстринг модуля)."""
+    """`problem.saveScript`; `True` — the response didn't come in time (the tests are most
+    likely still being generated, see the module docstring)."""
     try:
         client.call(
             "problem.saveScript",
@@ -159,12 +159,12 @@ def _wait_for_tests(
     timed_out: bool,
     client: PolygonClient,
 ) -> str:
-    """Ждёт, пока сгенерированные тесты на Polygon не совпадут с раскрытым
-    скриптом (см. докстринг модуля); возвращает приписку к сообщению шага.
+    """Waits until the generated tests on Polygon match the expanded
+    script (see the module docstring); returns a postscript to the step's message.
 
-    `expected` — `None`, если скрипт локально не раскрыт: ответ на
-    `problem.saveScript` тогда — единственный признак конца генерации, и без
-    него шаг падает, не коммитя недогенерированные тесты.
+    `expected` — `None` if the script isn't expanded locally: the response to
+    `problem.saveScript` is then the only sign of the generation's end, and without
+    it the step fails without committing undergenerated tests.
     """
     if expected is None:
         if timed_out:
@@ -204,8 +204,8 @@ def _wait_for_tests(
 
 
 def _generated_script_lines(polygon_id: int, client: PolygonClient) -> list[str] | None:
-    """`scriptLine` сгенерированных тестов по порядку; `None`, если Polygon не
-    ответил вовремя (занят генерацией)."""
+    """The `scriptLine`s of the generated tests in order; `None` if Polygon didn't
+    respond in time (busy with generation)."""
     try:
         tests = client.call(
             "problem.tests",
@@ -224,17 +224,17 @@ def _progress(generated: list[str] | None, expected: list[str]) -> str:
 
 
 def _normalize_command(line: str) -> str:
-    """Команда генератора, как её показывает `scriptLine` теста Polygon: без
-    перенаправления `> $` и с одиночными пробелами."""
+    """The generator command as a Polygon test's `scriptLine` shows it: without
+    the `> $` redirection and with single spaces."""
     return " ".join(line.split(">", 1)[0].split())
 
 
 def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> list[str] | None:
-    """`PolygonStepError` с отчётом, если в раскрытом скрипте есть одинаковые
-    строки или строки, которые Polygon не примет (см. докстринг модуля).
+    """`PolygonStepError` with a report if the expanded script has identical
+    lines or lines Polygon won't accept (see the module docstring).
 
-    Возвращает команды раскрытого скрипта (`_normalize_command`) — по ним
-    `_wait_for_tests` ждёт конца генерации; `None`, если скрипт не раскрыт.
+    Returns the commands of the expanded script (`_normalize_command`) — by them
+    `_wait_for_tests` waits for the generation's end; `None` if the script isn't expanded.
     """
     if os.environ.get(SKIP_CHECK_ENV):
         return None
@@ -251,8 +251,8 @@ def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> li
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации (`sync_status`). Спек здесь недоступен,
-    поэтому сравнивается первый существующий из `SCRIPT_FILENAMES`."""
+    """By the sync base (`sync_status`). The spec isn't available here,
+    so the first existing one of `SCRIPT_FILENAMES` is compared."""
 
     def read_items() -> dict[str, str]:
         problem_dir = Path(problems_dir) / problem_id
@@ -265,17 +265,17 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
 
 
 def normalize_script(content: bytes) -> bytes:
-    """Скрипт в том виде, в каком его сравнивают `push` и `pull`: без пустых
-    строк (их выкидывает Polygon), без пробелов в концах строк и с LF вместо
+    """The script in the form in which `push` and `pull` compare it: without empty
+    lines (Polygon drops them), without trailing spaces on lines and with LF instead of
     CRLF."""
     lines = content.decode("utf-8").replace("\r\n", "\n").split("\n")
     return "\n".join(line.rstrip() for line in lines if line.strip()).encode("utf-8")
 
 
 def _read_script(problem_id: str, problems_dir: Path, script_path: Path) -> bytes:
-    """Содержимое test-script. Путь передаётся снаружи: в `_execute` он
-    зависит от `script_style` спека (`primary_artifact_path`), а в
-    `_compute_status` спека нет."""
+    """The test-script's contents. The path is passed from outside: in `_execute` it
+    depends on the spec's `script_style` (`primary_artifact_path`), and in
+    `_compute_status` there's no spec."""
     if not script_path.exists():
         address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(

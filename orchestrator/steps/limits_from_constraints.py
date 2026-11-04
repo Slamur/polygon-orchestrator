@@ -1,19 +1,19 @@
-"""Механический шаг (без вызова модели) — `limits.yaml` из TL/ML
-`constraints.yaml`, см. `orchestrator/limits.py`.
+"""A mechanical step (without a model call) — `limits.yaml` from the TL/ML of
+`constraints.yaml`, see `orchestrator/limits.py`.
 
-Вход шага — только TL/ML из `constraints.yaml`, поэтому `limits.yaml`
-перезаписывается, лишь когда они изменились (новый прогон `constraints_pick`
-или правка `constraints.yaml`): TL/ML, поправленные на Polygon (и
-скачанные `polygon pull`) или руками, переживают `llm generate`. Если
-`limits.yaml` уже есть, а шаг ещё не запускался (файл скачал `polygon
-pull`), пайплайн принимает файл как есть (`pipeline.run_pipeline`);
-`llm generate --step limits_from_constraints --force` выводит его заново.
-Прежняя версия перезаписанного файла — в `.llm_backup/`, как у
-генеративных шагов.
+The step's input is only the TL/ML from `constraints.yaml`, so `limits.yaml`
+is overwritten only when they changed (a new run of `constraints_pick`
+or an edit of `constraints.yaml`): TL/ML fixed on Polygon (and
+downloaded by `polygon pull`) or by hand survive `llm generate`. If
+`limits.yaml` already exists but the step hasn't run yet (the file was downloaded by `polygon
+pull`), the pipeline accepts the file as is (`pipeline.run_pipeline`);
+`llm generate --step limits_from_constraints --force` derives it again.
+The previous version of the overwritten file — in `.llm_backup/`, as for the
+generative steps.
 
-Интерфейс — тот же, что у генеративных шагов (`pipeline._STEP_MODULES`);
-шаг без модели и промптов, поэтому в кэше вместо класса модели и хеша
-промптов — `MODEL`/`PROMPT_HASH` (`step_order.MECHANICAL_STEPS`).
+The interface is the same as the generative steps' (`pipeline._STEP_MODULES`);
+the step has no model and prompts, so in the cache instead of the model class and the prompt
+hash — `MODEL`/`PROMPT_HASH` (`step_order.MECHANICAL_STEPS`).
 """
 
 from __future__ import annotations
@@ -53,11 +53,11 @@ from orchestrator.steps.base import (
 
 STEP_NAME = "limits_from_constraints"
 
-# Вместо класса модели и хеша промптов в записи кэша.
+# Instead of the model class and the prompt hash in the cache entry.
 MODEL = "none"
 PROMPT_HASH = "none"
 
-# Имя части входа (`cache.compute_input_values`): TL/ML, а не весь файл.
+# The name of the input part (`cache.compute_input_values`): TL/ML, not the whole file.
 _LIMITS_INPUT = f"{CONSTRAINTS_ARTIFACT}: limits"
 
 
@@ -66,10 +66,10 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """`(секция спека, апстрим-артефакты)` для хеша: спек шагу не нужен,
-    из `constraints.yaml` — только TL/ML. `ValueError` (`LimitsError`) —
-    TL/ML в `constraints.yaml` не читаются: пайплайн останавливается с этой
-    ошибкой, как без `constraints.yaml` вовсе."""
+    """`(spec section, upstream artifacts)` for the hash: the step doesn't need the spec,
+    from `constraints.yaml` — only TL/ML. `ValueError` (`LimitsError`) —
+    the TL/ML in `constraints.yaml` can't be read: the pipeline stops with this
+    error, as without `constraints.yaml` at all."""
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     try:
         time_limit_ms, memory_limit_mb = parse_limits(constraints_yaml)
@@ -119,8 +119,8 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Пишет `limits.yaml` по TL/ML из `constraints.yaml` и запись кэша.
-    `revision`/`saved_response` не используются — модели нет."""
+    """Writes `limits.yaml` from the TL/ML of `constraints.yaml` and the cache entry.
+    `revision`/`saved_response` aren't used — there's no model."""
     section, upstream = hash_inputs(problem_id, spec, upstream_artifacts)
     limits = upstream[_LIMITS_INPUT]
     path = primary_artifact_path(problem_id, spec, problems_dir=problems_dir)

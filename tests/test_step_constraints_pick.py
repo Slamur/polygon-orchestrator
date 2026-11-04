@@ -191,8 +191,8 @@ def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
 
 
 def test_test_groups_hint_wins_over_needed_false(spec, tmp_path):
-    # `spec` fixture уже задаёт test_groups_hint; test_groups_needed по умолчанию False —
-    # hint должен формировать группы независимо от флага.
+    # The `spec` fixture already sets test_groups_hint; test_groups_needed is False by default —
+    # the hint must form groups regardless of the flag.
     assert spec.constraints.test_groups_needed is False
     assert spec.constraints.test_groups_hint
 
@@ -259,7 +259,7 @@ def test_user_prompt_includes_input_format_but_not_legend(spec, tmp_path):
     assert f"Индексация: {statement.indexing}" in user_prompt
     for ex in statement.sample_examples:
         assert ex.input.strip() in user_prompt
-    # асимптотику из легенды выводить запрещено — легенду шаг не получает
+    # deriving the asymptotics from the legend is forbidden — the step doesn't get the legend
     assert statement.legend_sketch.strip() not in user_prompt
 
 
@@ -284,7 +284,7 @@ def test_compute_input_hash_depends_only_on_input_part_of_statement(spec, field,
 
 
 def test_problem_id_in_constraints_yaml_comes_from_spec(spec, tmp_path):
-    # Каталог задачи вложен в группу: путь `contest/valid-spec` — не problem_id.
+    # The problem directory is nested in a group: the path `contest/valid-spec` isn't the problem_id.
     response = ModelResponse(
         status="confirmed",
         artifacts={

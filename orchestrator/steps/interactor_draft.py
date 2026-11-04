@@ -1,5 +1,5 @@
-"""Шаг 6 (опциональный) — черновик интерактора интерактивной задачи, CLAUDE.md,
-"Роль каждого генеративного шага", пункт 6.
+"""Step 6 (optional) — an interactor draft for an interactive problem, CLAUDE.md,
+"Role of each generative step", item 6.
 """
 
 from __future__ import annotations
@@ -37,12 +37,12 @@ def _require_interactive(problem_id: str, spec: ProblemSpec) -> None:
 
 
 def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
-    """Секции спека для рендера промпта И для входа хеша кэша — единая точка
-    сборки. Помимо секции `interactor` — то, что интерактор читает и как
-    общается с решением: формат теста (`formal_input_sketch`, `indexing`,
-    input примеров — интерактор читает тест так же, как валидатор) и
-    протокол (`interaction_sketch`). Легенда и формат вывода не передаются:
-    поведение интерактора задаёт автор, а не сюжет."""
+    """The spec sections for rendering the prompt AND for the cache hash input — a single
+    assembly point. Besides the `interactor` section — what the interactor reads and how it
+    communicates with the solution: the test format (`formal_input_sketch`, `indexing`,
+    the examples' input — the interactor reads the test the same way the validator does) and
+    the protocol (`interaction_sketch`). The legend and the output format aren't passed:
+    the interactor's behavior is set by the author, not the plot."""
     statement = spec.statement_draft
     return {
         "interactor": spec.interactor.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD),
@@ -60,11 +60,11 @@ def compute_input_hash(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
-    """Хеш входа шага без вызова модели, см. `constraints_pick.compute_input_hash`
-    и CLAUDE.md, "Кэширование по хешу спека". Как и `run_step`, требует
-    интерактивную задачу (секция `interactor` в спеке). `upstream_artifacts`
-    не используется — шаг зависит только от спека, присутствует ради единой
-    сигнатуры у всех шагов.
+    """The step's input hash without calling the model, see `constraints_pick.compute_input_hash`
+    and CLAUDE.md, "Caching by spec hash". Like `run_step`, it requires
+    an interactive problem (the `interactor` section in the spec). `upstream_artifacts`
+    isn't used — the step depends only on the spec, it's present for the sake of the single
+    signature of all steps.
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
@@ -74,9 +74,9 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """Что входит в хеш входа шага: `(секции спека, апстрим-артефакты)` —
-    общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_values`), чтобы они не разошлись."""
+    """What goes into the step's input hash: `(spec sections, upstream artifacts)` —
+    the shared source for `compute_input_hash` and the per-part hashes
+    (`cache.compute_input_values`), so that they don't diverge."""
     _require_interactive(problem_id, spec)
     return _build_context_sections(spec), None
 
@@ -84,16 +84,16 @@ def hash_inputs(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """Путь к основному артефакту шага — один файл с фиксированным именем,
-    как у `checker_draft`."""
+    """The path to the step's primary artifact — one file with a fixed name,
+    as for `checker_draft`."""
     return Path(problems_dir) / problem_id / INTERACTOR_FILENAME
 
 
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
-    модель) -> путь — для режима доработки (`base.StepRevision`). `interactor.cpp`."""
+    """The step's current files on disk: artifact name (as the
+    model would return it) -> path — for revision mode (`base.StepRevision`). `interactor.cpp`."""
     return existing_artifacts(
         {INTERACTOR_FILENAME: Path(problems_dir) / problem_id / INTERACTOR_FILENAME}
     )
@@ -102,10 +102,10 @@ def current_artifacts(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Образцы для конкретного вызова — файлы, которые этому шагу дают
-    референсы спека (общие `references` и `interactor.references`, см.
-    `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
-    `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково.
+    """Samples for a particular call — the files the spec's references
+    give this step (the shared `references` and `interactor.references`, see
+    `orchestrator/references.py`). The single signature with all steps is needed by
+    `pipeline.py` to compute `compute_prompt_hash` the same way.
     """
     return reference_documents(STEP_NAME, spec)
 
@@ -121,21 +121,21 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `interactor_draft` для `problem_id`.
+    """Runs the `interactor_draft` step for `problem_id`.
 
-    Вход: `interactor.behavior_notes` (как интерактор выбирает ответы,
-    что считается ошибкой решения, что он пишет для чекера) + формат теста и
-    протокол из `statement_draft` (`_build_context_sections`). Модель
-    реализует ровно это поведение; если его не хватает для однозначного
-    интерактора (например, не сказано, адаптивный ли он, или что делать при
-    превышении лимита запросов), шаг обязан вернуть `status: uncertain`, и
-    вызов завершится `StepUncertainError` без записи файлов.
+    Input: `interactor.behavior_notes` (how the interactor chooses answers,
+    what counts as a solution error, what it writes for the checker) + the test format and
+    the protocol from `statement_draft` (`_build_context_sections`). The model
+    implements exactly this behavior; if it isn't enough for an unambiguous
+    interactor (e.g. it isn't said whether it's adaptive, or what to do when
+    the query limit is exceeded), the step must return `status: uncertain`, and the
+    call ends with `StepUncertainError` without writing files.
 
-    Требует интерактивную задачу (секция `interactor` в спеке) — у обычной
-    задачи интерактора нет, шаг не запускается (`pipeline._optional_skip_detail`).
+    Requires an interactive problem (the `interactor` section in the spec) — a normal
+    problem has no interactor, the step doesn't run (`pipeline._optional_skip_detail`).
 
-    При успехе пишет `problems/<problem_id>/interactor.cpp` и проверяет его
-    компиляцию. `upstream_artifacts` не используется.
+    On success it writes `problems/<problem_id>/interactor.cpp` and checks that it
+    compiles. `upstream_artifacts` isn't used.
     """
     _require_interactive(problem_id, spec)
 

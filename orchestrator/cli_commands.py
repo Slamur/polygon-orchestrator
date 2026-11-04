@@ -1,9 +1,9 @@
-"""Реализация команд CLI: `init`, `llm generate|tutorial|apply|status|accept`,
+"""The implementation of the CLI commands: `init`, `llm generate|tutorial|apply|status|accept`,
 `polygon push|status|check|fix|pull`.
 
-Парсер аргументов и входная точка — в `cli.py`; этот модуль он импортирует
-только после разбора аргументов, потому что отсюда тянутся оба пайплайна (а
-с ними pydantic и requests) — см. докстринг `cli.py`.
+The argument parser and the entry point are in `cli.py`; it imports this module
+only after parsing the arguments, because both pipelines are pulled in from here (and
+with them pydantic and requests) — see the docstring of `cli.py`.
 """
 
 from __future__ import annotations
@@ -111,35 +111,35 @@ _OUTCOME_LABELS = {
     OUTCOME_CONFLICT: "conflict",
 }
 
-# Логгер пакета — на него вешается и консольный вывод (см.
-# `_configure_console_logging`), и по-задачные лог-файлы
-# `problems/<id>/llm_generation.log` / `problems/<id>/polygon.log` (см.
-# `_problem_log_handler`), см. CLAUDE.md, задача "лог выполнения". Дочерние
-# логгеры (например, `orchestrator.llm_clients.anthropic_client`, откуда
-# идёт `_log_usage`) пишут через propagate в этот же логгер — отдельно
-# настраивать их не нужно.
+# The package's logger — both the console output (see
+# `_configure_console_logging`) and the per-problem log files
+# `problems/<id>/llm_generation.log` / `problems/<id>/polygon.log` (see
+# `_problem_log_handler`) are attached to it, see CLAUDE.md, the "execution log" task. Child
+# loggers (e.g. `orchestrator.llm_clients.anthropic_client`, where
+# `_log_usage` comes from) write via propagate into this same logger — they don't need
+# separate setup.
 LOGGER_NAME = "orchestrator"
 
-# Отдельные файлы на генерацию и на Polygon: `polygon push` и `llm generate` запускаются
-# независимо, и общий файл, перезаписываемый каждым прогоном, терял бы лог
-# одного при запуске другого.
+# Separate files for generation and for Polygon: `polygon push` and `llm generate` run
+# independently, and a shared file overwritten by each run would lose the log
+# of one when the other is run.
 LLM_GENERATION_LOG = "llm_generation.log"
 POLYGON_LOG = "polygon.log"
 
-# Заголовок прогона в лог-файле задачи; `%s` — команда целиком.
+# The run header in the problem's log file; `%s` — the whole command.
 _RUN_HEADER = "===== run started: orchestrator %s ====="
 
-# Сколько символов текста ошибки polygon-шага печатать в консоль: `comment`
-# от Polygon бывает многострочным (например, лог компиляции валидатора) —
-# целиком он пишется в `polygon.log`. Собственные ошибки оркестратора
-# (`PolygonStepError`) не обрезаются: подсказка, что делать, у них в конце.
+# How many characters of a polygon step's error text to print to the console: the `comment`
+# from Polygon can be multi-line (e.g. the validator's compilation log) —
+# it's written in full to `polygon.log`. The orchestrator's own errors
+# (`PolygonStepError`) aren't truncated: the hint on what to do is at their end.
 _CONSOLE_ERROR_MAX_LEN = 200
 
 _console_handler: logging.Handler | None = None
 
 
 class _ListHandler(logging.Handler):
-    """Копит текст записей в список — CLI печатает его сам, в своём месте вывода."""
+    """Accumulates the text of the records in a list — the CLI prints it itself, at its own place in the output."""
 
     def __init__(self, messages: list[str]) -> None:
         super().__init__()
@@ -150,19 +150,19 @@ class _ListHandler(logging.Handler):
 
 
 def _configure_console_logging(*, warnings_into: list[str] | None = None) -> logging.Logger:
-    """Настраивает логгер пакета так, чтобы INFO-сообщения были видны в
-    консоли — до этого `logger.info(...)` в `_log_usage` никуда не выводился,
-    потому что для логгера не было ни уровня, ни handler'а.
+    """Sets up the package's logger so that INFO messages are visible in the
+    console — before this `logger.info(...)` in `_log_usage` wasn't output anywhere,
+    because the logger had neither a level nor a handler.
 
-    Пересоздаёт handler при каждом вызове (а не один раз при импорте модуля):
-    `logging.StreamHandler()` фиксирует `sys.stdout` в момент создания, а
-    `capsys` в тестах подменяет `sys.stdout` на время теста — handler,
-    созданный при импорте, писал бы мимо этой подмены.
+    Recreates the handler on each call (rather than once at module import):
+    `logging.StreamHandler()` captures `sys.stdout` at the moment of creation, and
+    `capsys` in tests replaces `sys.stdout` for the duration of a test — a handler
+    created at import would write past this replacement.
 
-    `warnings_into` — для `polygon push`/`pull`: в консоль не идёт ничего,
-    WARNING копятся в этот список (CLI печатает их группой в итоге, см.
-    `_print_groups`), а INFO (каждый HTTP-запрос, сообщения шагов) и ERROR
-    (полный текст ошибки шага с traceback) — только в `polygon.log`.
+    `warnings_into` — for `polygon push`/`pull`: nothing goes to the console,
+    WARNINGs accumulate in this list (the CLI prints them as a group in the summary, see
+    `_print_groups`), and INFO (every HTTP request, the steps' messages) and ERROR
+    (the full text of a step's error with the traceback) — only to `polygon.log`.
     """
     global _console_handler
     logger = logging.getLogger(LOGGER_NAME)
@@ -191,17 +191,17 @@ def _problem_log_handler(
     log_name: str,
     command_line: str,
 ) -> Iterator[logging.Handler]:
-    """Заводит `problems/<problem_id>/<log_name>` на время обработки одного
-    `problem_id` — открывается на дозапись: лог накапливает историю
-    прогонов, каждый прогон начинается с заголовка с командой (см.
-    `_RUN_HEADER`) — по нему удобно искать нужный запуск, а время в каждой
-    строке показывает длительность шагов. Handler добавляется к логгеру
-    перед прогоном шагов и снимается сразу после, через try/finally — чтобы
-    необработанное исключение не оставило handler висящим.
+    """Sets up `problems/<problem_id>/<log_name>` for the duration of handling one
+    `problem_id` — it's opened for appending: the log accumulates the history of
+    runs, each run starts with a header with the command (see
+    `_RUN_HEADER`) — it's convenient to search for the needed run by it, and the time on each
+    line shows the duration of the steps. The handler is added to the logger
+    before running the steps and removed right after, via try/finally — so that
+    an unhandled exception doesn't leave the handler hanging.
 
-    Отдаёт сам handler — вызывающий код использует его напрямую в
-    `_log_traceback_to_file` для необработанных исключений (см. там же,
-    почему это не идёт через обычный `logger.exception`).
+    Yields the handler itself — the calling code uses it directly in
+    `_log_traceback_to_file` for unhandled exceptions (see there
+    why this doesn't go through the usual `logger.exception`).
     """
     problem_dir = Path(problems_dir) / problem_id
     problem_dir.mkdir(parents=True, exist_ok=True)
@@ -211,7 +211,7 @@ def _problem_log_handler(
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     if needs_separator:
         handler.stream.write("\n")
-    # Только в файл, мимо консольного handler'а — в консоли команда и так видна.
+    # Only to the file, bypassing the console handler — the command is visible in the console anyway.
     _log_to_file(handler, _RUN_HEADER % command_line)
     logger.addHandler(handler)
     try:
@@ -222,7 +222,7 @@ def _problem_log_handler(
 
 
 def _log_to_file(handler: logging.Handler, message: str) -> None:
-    """INFO-запись только в `handler` (лог-файл задачи), мимо консоли."""
+    """An INFO record only to `handler` (the problem's log file), bypassing the console."""
     handler.handle(
         logging.LogRecord(
             name=LOGGER_NAME,
@@ -237,12 +237,12 @@ def _log_to_file(handler: logging.Handler, message: str) -> None:
 
 
 def _log_traceback_to_file(handler: logging.Handler, message: str) -> None:
-    """Пишет текущий traceback (`sys.exc_info()`) в конкретный `handler`,
-    минуя остальные handler'ы логгера — чтобы вывод в консоль при
-    необработанном исключении остался ровно таким же, как раньше (traceback
-    туда и так печатает сам Python при завершении процесса), а
-    `problems/<id>/llm_generation.log` при этом не терял traceback (CLAUDE.md, задача
-    "лог выполнения", пункт 4).
+    """Writes the current traceback (`sys.exc_info()`) to a particular `handler`,
+    bypassing the logger's other handlers — so that the console output on an
+    unhandled exception stays exactly the same as before (Python itself prints the traceback
+    there anyway when the process exits), while
+    `problems/<id>/llm_generation.log` doesn't lose the traceback (CLAUDE.md, the
+    "execution log" task, item 4).
     """
     record = logging.LogRecord(
         name=LOGGER_NAME,
@@ -263,10 +263,10 @@ def _print_pipeline_result(
     problem_dir: Path,
     command_line: str,
 ) -> None:
-    """Итог `llm generate`/`apply`: в консоль — строка на шаг и путь к
-    отчёту `llm_reports/<шаг>.md` отработавшего шага (заметки модели, файлы,
-    диффы — там, см. `llm_report`); в лог-файл задачи — ещё и все заметки и
-    файлы, чтобы история прогонов в нём оставалась полной."""
+    """The summary of `llm generate`/`apply`: to the console — a line per step and the path to
+    the report `llm_reports/<step>.md` of a step that worked (the model's notes, files,
+    diffs — there, see `llm_report`); to the problem's log file — also all the notes and
+    files, so that the run history in it stays complete."""
     logger.info(f"=== {result.problem_id} ===")
     if result.spec_error is not None:
         logger.info(result.spec_error)
@@ -307,7 +307,7 @@ def _note_lines(notes) -> list[str]:
 
 
 def _outcome_detail_lines(outcome) -> list[str]:
-    """Заметки и файлы шага строками — для лог-файла задачи."""
+    """The step's notes and files as lines — for the problem's log file."""
     lines = _note_lines(outcome.notes)
     for name, stderr in outcome.compile_errors.items():
         lines.append(f"      compile error: {name}: {stderr.strip()}")
@@ -319,8 +319,8 @@ def _outcome_detail_lines(outcome) -> list[str]:
         lines.append(f"      renamed: {old_path} -> {new_path} — {reason}")
     if outcome.backup_dir is not None:
         lines.append(f"      previous versions of overwritten files: {outcome.backup_dir}")
-    # Одна строка на причину: у ответа, не применённого целиком, она
-    # общая для всех его файлов.
+    # One line per reason: for a response not applied in full, it's
+    # shared by all of its files.
     by_reason: dict[str, list[str]] = {}
     for filename, reason in outcome.conflicts:
         by_reason.setdefault(reason, []).append(filename)
@@ -331,14 +331,14 @@ def _outcome_detail_lines(outcome) -> list[str]:
     return lines
 
 
-# Сколько строк с пометками `init --draft` показывать в предупреждении.
+# How many lines with `init --draft` marks to show in the warning.
 _REVIEW_MARKS_SHOWN = 10
 
 
 def _review_marks_warning(args: argparse.Namespace) -> list[str]:
-    """Предупреждение о непроверенных пометках `init --draft` в спеке
-    (`spec.spec_review_marks`) — строками; пусто, если пометок нет. Не
-    останавливает команду: проверять ли каждую — решает автор."""
+    """A warning about unreviewed `init --draft` marks in the spec
+    (`spec.spec_review_marks`) — as lines; empty if there are no marks. Doesn't
+    stop the command: whether to check each one is up to the author."""
     path = spec_path(args.problem_id, problems_dir=args.problems_dir)
     marks = spec_review_marks(path)
     if not marks:
@@ -374,8 +374,8 @@ def cmd_llm_apply(args: argparse.Namespace) -> int:
 
 
 def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
-    """`llm generate` / `llm apply`: прогон шагов с логом в
-    `llm_generation.log`; `mode` — режим `run_pipeline`."""
+    """`llm generate` / `llm apply`: running the steps with a log in
+    `llm_generation.log`; `mode` — the `run_pipeline` mode."""
     logger = _configure_console_logging()
 
     if args.step is not None and args.step not in LLM_STEPS:
@@ -413,9 +413,9 @@ def _run_llm_pipeline(args: argparse.Namespace, **mode) -> int:
 
 
 def _print_step_statuses(problem_id: str, statuses, spec_error: str | None) -> bool:
-    """Печатает `шаг: состояние — подробности` (или ошибку спека); у шага с
-    короткой формой подробностей (`brief`) — она. Возвращает, была ли ошибка
-    спека."""
+    """Prints `step: state — details` (or the spec error); for a step with
+    a short form of the details (`brief`) — that one. Returns whether there was a spec
+    error."""
     print(f"=== {problem_id} ===")
     if spec_error is not None:
         print(spec_error)
@@ -444,9 +444,9 @@ def cmd_llm_status(args: argparse.Namespace) -> int:
 
 
 def cmd_llm_accept(args: argparse.Namespace) -> int:
-    """Принимает текущие артефакты устаревших шагов без вызова модели (см.
-    `pipeline.accept_steps`). Код возврата 1 — ошибка спека или хотя бы один
-    шаг не принят (или заблокирован)."""
+    """Accepts the current artifacts of outdated steps without calling the model (see
+    `pipeline.accept_steps`). Exit code 1 — a spec error or at least one
+    step wasn't accepted (or is blocked)."""
     statuses, spec_error = accept_steps(
         args.problem_id,
         only_step=args.step,
@@ -458,8 +458,8 @@ def cmd_llm_accept(args: argparse.Namespace) -> int:
         status.state in (STATUS_NOT_ACCEPTED, STATUS_BLOCKED) for status in statuses
     )
     any_error = _print_step_statuses(args.problem_id, statuses, spec_error)
-    # Что изменилось во входе принятых шагов — целиком в отчёте, в консоли
-    # только кратко.
+    # What changed in the input of the accepted steps — in full in the report, in the console
+    # only briefly.
     reported = [
         status for status in statuses if status.state in (STATUS_ACCEPTED, STATUS_NOT_ACCEPTED)
     ]
@@ -480,7 +480,7 @@ def _print_polygon_outcomes(outcomes) -> None:
 
 
 def _shorten_error(detail: str) -> str:
-    """Первая строка текста ошибки, не длиннее `_CONSOLE_ERROR_MAX_LEN`."""
+    """The first line of the error text, no longer than `_CONSOLE_ERROR_MAX_LEN`."""
     first_line = detail.strip().splitlines()[0] if detail.strip() else ""
     if len(first_line) > _CONSOLE_ERROR_MAX_LEN:
         return first_line[: _CONSOLE_ERROR_MAX_LEN - 1] + "…"
@@ -488,15 +488,15 @@ def _shorten_error(detail: str) -> str:
 
 
 def _print_progress(name: str) -> None:
-    """Строка прогресса `polygon push`/`pull` перед шагом или частью задачи
-    (`flush` — чтобы прогресс был виден и при выводе в pipe/файл)."""
+    """The `polygon push`/`pull` progress line before a step or a problem part
+    (`flush` — so that the progress is visible also when the output goes to a pipe/file)."""
     print(f"  {name}...", flush=True)
 
 
 def _print_groups(groups: list[tuple[str, list[str], str]]) -> bool:
-    """Итог `polygon push`/`pull` по группам: `(заголовок, строки,
-    подсказка)`; пустые группы не печатаются, подсказка — после строк, если
-    не пуста. Возвращает, было ли что печатать."""
+    """The summary of `polygon push`/`pull` by groups: `(title, lines,
+    hint)`; empty groups aren't printed, the hint — after the lines, if
+    it isn't empty. Returns whether there was anything to print."""
     printed = False
     for title, lines, hint in groups:
         if not lines:
@@ -511,19 +511,19 @@ def _print_groups(groups: list[tuple[str, list[str], str]]) -> bool:
 
 
 def _polygon_error_line(outcome, log_path: Path) -> str:
-    """Ошибка polygon-шага одной строкой: свой текст оркестратора — целиком,
-    ответ Polygon API и прочее — коротко, полный текст в `polygon.log`."""
+    """A polygon step's error in one line: the orchestrator's own text — in full,
+    a Polygon API response and the like — briefly, the full text in `polygon.log`."""
     if outcome.full_detail:
         return f"{outcome.step_name}: {outcome.detail}"
     return f"{outcome.step_name}: {_shorten_error(outcome.detail)} (details: {log_path})"
 
 
 def cmd_polygon_push(args: argparse.Namespace) -> int:
-    """Прогон polygon-шагов (`run_polygon_pipeline`). По ходу — строка на
-    шаг, в конце — группы: что загружено, заметки шагов, ошибка и шаги,
-    которые из-за неё не загрузили своё (не `done` по
-    `compute_polygon_step_statuses`), предупреждения. Шаги, которым нечего
-    загружать, в итоге не печатаются."""
+    """Running the polygon steps (`run_polygon_pipeline`). Along the way — a line per
+    step, at the end — the groups: what was uploaded, the steps' notes, the error and the steps
+    that didn't upload theirs because of it (not `done` by
+    `compute_polygon_step_statuses`), warnings. Steps with nothing
+    to upload aren't printed in the summary."""
     warnings: list[str] = []
     logger = _configure_console_logging(warnings_into=warnings)
     log_path = Path(args.problems_dir) / args.problem_id / POLYGON_LOG
@@ -599,13 +599,13 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 
 
 def cmd_local_check(args: argparse.Namespace) -> int:
-    """Без модели и без сети проверяет файлы задачи: оформление условия
-    (`statement/*.tex`: списки в стиле Markdown, кавычки не `<<…>>` —
-    `orchestrator/checks/statement_check.py`) и test-script(ы) — раскрывает
-    их и печатает одинаковые строки и строки, которые Polygon не примет
-    (кавычки, лишний `>`), с указанием строк скрипта, которые их напечатали
-    (`orchestrator/checks/test_script_check.py`). Спек не нужен —
-    проверяется то, что есть на диске; чего нет — пропускается с заметкой."""
+    """Without the model and without the network checks the problem's files: the statement's formatting
+    (`statement/*.tex`: Markdown-style lists, quotes other than `<<…>>` —
+    `orchestrator/checks/statement_check.py`) and the test-script(s) — expands
+    them and prints identical lines and lines Polygon won't accept
+    (quotes, an extra `>`), pointing to the script lines that printed them
+    (`orchestrator/checks/test_script_check.py`). No spec needed —
+    what's on disk is checked; what's missing is skipped with a note."""
     problem_dir = Path(args.problems_dir) / args.problem_id
     if not problem_dir.is_dir():
         print(f"no problem directory {problem_dir}", file=sys.stderr)
@@ -631,9 +631,9 @@ def cmd_local_check(args: argparse.Namespace) -> int:
 
 
 def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
-    """`local check --full`: тесты по скрипту (с кэшем), валидатор на них и
-    поиск одинаковых по содержимому (`orchestrator/checks/local_tests.py`).
-    Одинаковые тесты только показываются, ошибкой не считаются."""
+    """`local check --full`: tests from the script (with a cache), the validator on them and
+    a search for tests identical in content (`orchestrator/checks/local_tests.py`).
+    Identical tests are only shown, they aren't considered an error."""
 
     def progress(line: str) -> None:
         print(line, flush=True)
@@ -659,8 +659,8 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
 
 
 def cmd_local_clear(args: argparse.Namespace) -> int:
-    """Удаляет локальные кэши проверок задачи (`.tests_cache/`). Кэш шагов
-    модели, состояние Polygon и бэкапы не трогает."""
+    """Deletes the problem's local check caches (`.tests_cache/`). Doesn't touch the model's step
+    cache, the Polygon state and backups."""
     problem_dir = Path(args.problems_dir) / args.problem_id
     if not problem_dir.is_dir():
         print(f"no problem directory {problem_dir}", file=sys.stderr)
@@ -674,13 +674,13 @@ def cmd_local_clear(args: argparse.Namespace) -> int:
 
 
 def cmd_local_run(args: argparse.Namespace) -> int:
-    """Без модели и без сети собирает валидатор и решения задачи и
-    прогоняет их на примерах (`orchestrator/checks/solutions_run.py`). По
-    ходу — заметки и строка на каждое запускаемое решение, в конце — группы,
-    как у `polygon push`: ожидаемые и неожиданные вердикты, не запущенные
-    решения, предупреждения (долгие решения не с вердиктом `tl`), ошибки.
-    Код возврата 1 — если есть неожиданные вердикты, не запущенные решения
-    или ошибки."""
+    """Without the model and without the network builds the problem's validator and solutions and
+    runs them on the examples (`orchestrator/checks/solutions_run.py`). Along
+    the way — notes and a line per solution being run, at the end — the groups,
+    as in `polygon push`: expected and unexpected verdicts, solutions not run,
+    warnings (long-running solutions without the `tl` verdict), errors.
+    Exit code 1 — if there are unexpected verdicts, solutions not run
+    or errors."""
     problem_dir = Path(args.problems_dir) / args.problem_id
     if not problem_dir.is_dir():
         print(f"no problem directory {problem_dir}", file=sys.stderr)
@@ -747,12 +747,12 @@ def _check_statement(problem_dir: Path, tex_files: list[tuple[Path, str]]) -> bo
 
 
 def cmd_local_fix(args: argparse.Namespace) -> int:
-    """Исправляет в условии то, что `local check` находит и что можно
-    исправить механически: списки в стиле Markdown -> `itemize`/`enumerate`,
-    кавычки -> `<<…>>`. Прежние версии изменённых файлов — в
-    `.fix_backup/<время>/` каталога задачи. Без модели и без сети; push
-    загрузит изменённые файлы как обычно. Код возврата 1 — если остались
-    проблемы, которые нужно исправить руками (непарные кавычки)."""
+    """Fixes in the statement what `local check` finds and what can be
+    fixed mechanically: Markdown-style lists -> `itemize`/`enumerate`,
+    quotes -> `<<…>>`. Previous versions of changed files — in the problem directory's
+    `.fix_backup/<time>/`. Without the model and without the network; push
+    uploads the changed files as usual. Exit code 1 — if there are problems
+    left that have to be fixed by hand (unpaired quotes)."""
     problem_dir = Path(args.problems_dir) / args.problem_id
     try:
         tex_files = statement_files(problem_dir)
@@ -795,13 +795,13 @@ def cmd_local_fix(args: argparse.Namespace) -> int:
 
 
 def cmd_polygon_pull(args: argparse.Namespace) -> int:
-    """Привязка к существующей на Polygon задаче, сравнение с ней локальных
-    файлов и выгрузка недостающих и изменённых только на Polygon / с
-    `--overwrite` — и изменённых с обеих сторон (см.
-    `orchestrator/polygon/pull.py`). Спек не нужен. По ходу — строка на
-    часть задачи, в конце — группы по тому, что случилось с файлами;
-    совпадающее с Polygon и отсутствующее с обеих сторон не печатается.
-    Лог — в тот же `polygon.log`, что и у `polygon push`."""
+    """Binding to a problem existing on Polygon, comparing the local
+    files with it and downloading the missing ones and those changed only on Polygon / with
+    `--overwrite` — also those changed on both sides (see
+    `orchestrator/polygon/pull.py`). No spec needed. Along the way — a line per
+    problem part, at the end — groups by what happened to the files;
+    what matches Polygon and what's absent on both sides isn't printed.
+    The log — in the same `polygon.log` as for `polygon push`."""
     warnings: list[str] = []
     logger = _configure_console_logging(warnings_into=warnings)
     log_path = Path(args.problems_dir) / args.problem_id / POLYGON_LOG
@@ -868,19 +868,19 @@ def cmd_polygon_pull(args: argparse.Namespace) -> int:
 
 
 def _pull_conflict_line(item) -> str:
-    """Конфликт pull: что менялось — обе стороны или неизвестно (нет базы) —
-    и пояснение pull (откуда версия на Polygon, чем отличаются TL/ML)."""
+    """A pull conflict: what changed — both sides or unknown (no base) —
+    and pull's explanation (where the version on Polygon came from, how the TL/ML differ)."""
     reason = "changed on both sides" if item.status == PULL_ITEM_CONFLICT else "no sync base"
     return f"{item.name} — {reason}" + (f"; {item.detail}" if item.detail else "")
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    """Создаёт каталог задачи со спеком (см. `spec.prepare_spec_init`): из
-    шаблона, копией спека задачи-основы (`--ref`) или — с `--draft` — моделью
-    по черновику автора (`orchestrator/spec_from_draft.py`, единственный
-    вариант `init`, который вызывает модель). Спек уже есть — с `--draft`
-    модель дорабатывает его по изменившемуся черновику
-    (`spec_from_draft.prepare_spec_revision`). Polygon не вызывается."""
+    """Creates a problem directory with a spec (see `spec.prepare_spec_init`): from the
+    template, as a copy of the base problem's spec (`--ref`) or — with `--draft` — by the model
+    from the author's draft (`orchestrator/spec_from_draft.py`, the only
+    variant of `init` that calls the model). The spec already exists — with `--draft`
+    the model revises it by the changed draft
+    (`spec_from_draft.prepare_spec_revision`). Polygon isn't called."""
     try:
         draft_path = (
             None if args.draft is None else find_draft(args.base_dir / DRAFTS_DIR, args.draft)
@@ -914,9 +914,9 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def _revise_spec_from_draft(args: argparse.Namespace, draft_path: Path) -> int:
-    """`init --draft` у задачи со спеком: доработка спека, если черновик
-    изменился с прошлой копии (или `--force`). `--ref` — только при
-    создании: задача-основа уже в референсах спека."""
+    """`init --draft` for a problem with a spec: revising the spec if the draft
+    changed since the previous copy (or `--force`). `--ref` — only on
+    creation: the base problem is already in the spec's references."""
     from orchestrator.spec_from_draft import draft_unchanged, prepare_spec_revision
 
     if args.ref is not None:
@@ -942,8 +942,8 @@ def _print_spec_validation_errors(errors: list[str], output) -> None:
 
 
 def _init_from_draft(args: argparse.Namespace, init, draft_path: Path, *, revision=None) -> int:
-    """`init --draft`: спек пишет (с `revision` — дорабатывает) модель, лог —
-    в `llm_generation.log` задачи."""
+    """`init --draft`: the spec is written (with `revision` — revised) by the model, the log —
+    in the problem's `llm_generation.log`."""
     from orchestrator.spec_from_draft import generate_spec_from_draft
 
     logger = _configure_console_logging()

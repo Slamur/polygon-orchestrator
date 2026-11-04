@@ -1,50 +1,50 @@
-"""Polygon-шаг — загрузка всех файлов из `problems/<problem_id>/solutions/`
-(результат генеративного шага `solutions_draft`) в Polygon
-(`problem.saveSolution`) с тегом вердикта для каждого.
+"""A Polygon step — uploading all files from `problems/<problem_id>/solutions/`
+(the result of the `solutions_draft` generative step) to Polygon
+(`problem.saveSolution`) with a verdict tag for each.
 
-Решение, которое уже есть на Polygon, загружается со своим текущим тегом:
-теги там выставляет автор, и push их не меняет. Тег нового решения выводится
-из имени файла по схеме `<verdict>_<language>_<description>_<author>.<ext>`
-(`prompts/solutions_draft/system.md`, правило 5):
+A solution that already exists on Polygon is uploaded with its current tag:
+the author sets the tags there, and push doesn't change them. A new solution's tag is derived
+from the file name by the `<verdict>_<language>_<description>_<author>.<ext>` scheme
+(`prompts/solutions_draft/system.md`, rule 5):
 
-- `MA` (Main correct — эталон для генерации ответов на тесты,
-  `templates/tutorials/solutions.md`, "Решения в Polygon") назначается, только
-  если на Polygon его ещё нет (второй `MA` Polygon отклоняет): тогда его
-  получает один `ok`-файл, выбор — по приоритету языков
-  `_MAIN_LANGUAGE_PRIORITY`, внутри языка — по алфавиту имён; это единственный
-  случай, когда меняется тег решения, которое уже есть на Polygon;
-- остальные `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL или OK"),
+- `MA` (Main correct — the reference for generating the tests' answers,
+  `templates/tutorials/solutions.md`, "Solutions in Polygon") is assigned only
+  if Polygon doesn't have one yet (Polygon rejects a second `MA`): then one `ok` file
+  gets it, chosen by the language priority
+  `_MAIN_LANGUAGE_PRIORITY`, within a language — alphabetically by name; this is the only
+  case when the tag of a solution that already exists on Polygon changes;
+- the other `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL or OK"),
   `wa` -> `WA`, `ml`/`mle` -> `ML`;
-- всё прочее допустимое (`re`, `il` — Idleness limit exceeded в
-  интерактивной задаче) -> `RJ` ("Incorrect").
+- everything else allowed (`re`, `il` — Idleness limit exceeded in an
+  interactive problem) -> `RJ` ("Incorrect").
 
-Риск 1: `Solutions.languages` в спеке — `list[str]` без ограничения
-значений, и модель может записать язык в имени файла по-разному (`py`,
-`python`, `python3`, `c++`). Известные варианты приводятся к одному имени
-через `_LANGUAGE_ALIASES`; если язык всё равно не из приоритета, шаг не
-падает, а пишет WARNING и берёт Main correct первым по алфавиту
-`ok`-файлом — автору стоит проверить выбор в UI.
+Risk 1: `Solutions.languages` in the spec is a `list[str]` without restricting
+the values, and the model may write the language in the file name differently (`py`,
+`python`, `python3`, `c++`). Known variants are mapped to one name
+via `_LANGUAGE_ALIASES`; if the language is still not from the priority, the step doesn't
+fail, but writes a WARNING and takes as Main correct the alphabetically first
+`ok` file — the author should check the choice in the UI.
 
-Риск 2: `sourceType` не передаётся — не подтверждено, какое значение
-ожидает Polygon для каждого языка; предполагается, что он определит язык по
-расширению, как в `upload_validator`/`upload_generators`. Первый реальный
-вызов обязательно сверить в UI.
+Risk 2: `sourceType` isn't passed — it isn't confirmed which value
+Polygon expects for each language; it's assumed it determines the language by the
+extension, as in `upload_validator`/`upload_generators`. The first real
+call must be checked in the UI.
 
-Все имена файлов разбираются и наличие `ok`-файла проверяется до первого
-сетевого вызова: файл с неподходящим именем — `PolygonStepError`, а не тихий
-пропуск. Текущие теги читаются из `problem.solutions` — одним запросом и
-только если есть что загружать.
+All file names are parsed and the presence of an `ok` file is checked before the first
+network call: a file with an unsuitable name is a `PolygonStepError`, not a quiet
+skip. The current tags are read from `problem.solutions` — with one request and
+only if there's something to upload.
 
-Загружаются только решения, чьё содержимое отличается от базы
-синхронизации; тег в базу не входит. Менять теги решений, которые уже есть на
-Polygon, — в том числе переносить Main correct — нужно в UI, `polygon push
---force` их тоже не меняет. Если снять там `MA`, следующая загрузка решения
-назначит его заново.
+Only solutions whose contents differ from the sync
+base are uploaded; the tag isn't part of the base. Changing the tags of solutions that already exist on
+Polygon — including moving Main correct — has to be done in the UI, `polygon push
+--force` doesn't change them either. If you remove `MA` there, the next upload of a solution
+assigns it again.
 
-Если решение удалено или переименовано с прошлой загрузки, старый файл на
-Polygon остаётся — шаг его не удаляет.
+If a solution was deleted or renamed since the last upload, the old file on
+Polygon stays — the step doesn't delete it.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -73,11 +73,11 @@ logger = logging.getLogger(__name__)
 
 STEP_NAME = "upload_solutions"
 
-# Приоритет выбора Main correct — именно в этом порядке. Значения — языки
-# после нормализации через `_LANGUAGE_ALIASES`.
+# The Main correct choice priority — exactly in this order. The values are languages
+# after normalization via `_LANGUAGE_ALIASES`.
 _MAIN_LANGUAGE_PRIORITY = ["cpp", "java", "py"]
 
-# Варианты написания языка в имени файла -> имя из `_MAIN_LANGUAGE_PRIORITY`.
+# Spellings of a language in a file name -> the name from `_MAIN_LANGUAGE_PRIORITY`.
 _LANGUAGE_ALIASES = {
     "python": "py",
     "python3": "py",
@@ -85,7 +85,7 @@ _LANGUAGE_ALIASES = {
     "c++": "cpp",
 }
 
-# Совпадает с `orchestrator.spec._ALLOWED_VERDICTS` (допустимые
+# Matches `orchestrator.spec._ALLOWED_VERDICTS` (the allowed
 # `solutions.wanted_verdicts`).
 _VALID_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il"}
 
@@ -98,11 +98,11 @@ class _ParsedSolution:
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Загружает каждое решение, отличающееся от базы синхронизации, с тегом
-    из `_tag_to_send` (`ctx.spec` не используется).
+    """Uploads each solution that differs from the sync base, with the tag
+    from `_tag_to_send` (`ctx.spec` isn't used).
 
-    Обе зависимости (`create_problem`, `solutions_draft`), разбор имён и
-    наличие `ok`-файла — по всему набору и до первого сетевого вызова.
+    Both dependencies (`create_problem`, `solutions_draft`), parsing the names and
+    the presence of an `ok` file — over the whole set and before the first network call.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
     solutions = _read_solutions(ctx.problem_id, ctx.problems_dir)
@@ -141,8 +141,8 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации (`sync_status`): новое или изменённое решение
-    делает шаг "stale"."""
+    """By the sync base (`sync_status`): a new or changed solution
+    makes the step "stale"."""
     return sync_status(
         problem_id,
         problems_dir,
@@ -152,14 +152,14 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
 
 
 def _items(solutions: list[tuple[str, bytes]]) -> dict[str, str]:
-    """Только содержимое, без тега — см. докстринг модуля."""
+    """Only the contents, without the tag — see the module docstring."""
     return {solution_key(name): digest(content) for name, content in solutions}
 
 
 def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
-    """[(имя, содержимое), ...] для всех файлов `solutions/` по алфавиту
-    имён, кроме помеченных шагом как удалённые (`is_removed_mark`). Нет
-    каталога или он пуст — `PolygonStepError`."""
+    """[(name, contents), ...] for all files of `solutions/` alphabetically by
+    name, except those marked by a step as removed (`is_removed_mark`). No
+    directory or it's empty — `PolygonStepError`."""
     solutions_dir = Path(problems_dir) / problem_id / "solutions"
     if not solutions_dir.is_dir():
         address = problem_address(problems_dir, problem_id)
@@ -178,11 +178,11 @@ def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, byte
 
 
 def _parse_solution_filename(path: Path) -> _ParsedSolution:
-    """Разбирает `<verdict>_<language>_<description>_<author>.<ext>`.
-    `description` может содержать подчёркивания — берутся только первые два
-    токена как verdict/language, остальное не разбирается (author для тега
-    не нужен); составной вердикт (`tl_ok`) — один токен
-    (`split_solution_stem`). Минимум 3 токена в stem."""
+    """Parses `<verdict>_<language>_<description>_<author>.<ext>`.
+    `description` may contain underscores — only the first two
+    tokens are taken as verdict/language, the rest isn't parsed (author isn't needed
+    for the tag); a compound verdict (`tl_ok`) is one token
+    (`split_solution_stem`). At least 3 tokens in the stem."""
     parts = split_solution_stem(path.stem)
     if len(parts) < 3:
         raise PolygonStepError(
@@ -209,16 +209,16 @@ def _require_ok_solution(parsed: list[_ParsedSolution]) -> None:
 
 
 def _tags_on_polygon(client: PolygonClient, polygon_id: int) -> dict[str, str]:
-    """Имя решения на Polygon -> его текущий тег."""
+    """A solution's name on Polygon -> its current tag."""
     solutions = client.call("problem.solutions", {"problemId": str(polygon_id)}) or []
     return {solution["name"]: solution["tag"] for solution in solutions}
 
 
 def _choose_main(parsed: list[_ParsedSolution]) -> str:
-    """Имя файла Main correct — первый по алфавиту `ok`-файл первого языка из
-    `_MAIN_LANGUAGE_PRIORITY`, для которого такой файл есть. Если ни один
-    язык из приоритета не встретился — WARNING и первый по алфавиту
-    `ok`-файл (риск 1 в докстринге модуля), не ошибка."""
+    """The Main correct file name — the alphabetically first `ok` file of the first language from
+    `_MAIN_LANGUAGE_PRIORITY` for which such a file exists. If no
+    language from the priority occurred — a WARNING and the alphabetically first
+    `ok` file (risk 1 in the module docstring), not an error."""
     _require_ok_solution(parsed)
     ok_names = sorted(p.path.name for p in parsed if p.verdict == "ok")
 
@@ -240,8 +240,8 @@ def _choose_main(parsed: list[_ParsedSolution]) -> str:
 def _tag_to_send(
     parsed: _ParsedSolution, main_name: str | None, polygon_tags: dict[str, str]
 ) -> str:
-    """Текущий тег решения на Polygon, кроме выбранного сейчас Main correct;
-    `main_name` — `None`, если Main correct на Polygon уже есть."""
+    """The solution's current tag on Polygon, except for the Main correct chosen now;
+    `main_name` — `None` if Polygon already has a Main correct."""
     name = parsed.path.name
     if name != main_name and name in polygon_tags:
         return polygon_tags[name]

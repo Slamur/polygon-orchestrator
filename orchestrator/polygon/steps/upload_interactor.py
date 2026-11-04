@@ -1,17 +1,17 @@
-"""Polygon-шаг — загрузка интерактора интерактивной задачи
+"""A Polygon step — uploading the interactor of an interactive problem
 (`problem.setInteractor`).
 
-Задача интерактивная, если в спеке есть секция `interactor`: тогда
-`problems/<problem_id>/interactor.cpp` (результат генеративного шага
-`interactor_draft`) загружается как source-файл (`problem.saveFile`,
-`type=source`) и назначается интерактором. У обычной задачи шаг ничего не
-делает. Флаг интерактивности задачи выставляет `set_constraints` — он идёт
-раньше, и Polygon к этому шагу уже знает, что задача интерактивная.
+A problem is interactive if the spec has an `interactor` section: then
+`problems/<problem_id>/interactor.cpp` (the result of the `interactor_draft` generative step)
+is uploaded as a source file (`problem.saveFile`,
+`type=source`) and assigned as the interactor. For a normal problem the step does
+nothing. The problem's interactivity flag is set by `set_constraints` — it goes
+earlier, and by this step Polygon already knows the problem is interactive.
 
-Если задачу сделали обычной, а интерактор на Polygon остался, шаг его не
-трогает (как и другие шаги не удаляют файлы на Polygon).
+If the problem was made normal and the interactor stayed on Polygon, the step doesn't
+touch it (just as other steps don't delete files on Polygon).
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -48,8 +48,8 @@ NOT_INTERACTIVE_MESSAGE = (
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Загружает и назначает `interactor.cpp`, если файл или назначенный
-    интерактор отличаются от базы синхронизации — оба вызова, как в
+    """Uploads and assigns `interactor.cpp` if the file or the assigned
+    interactor differ from the sync base — both calls, as in
     `upload_validator`."""
     if not ctx.spec.interactive:
         return StepResult(NOT_INTERACTIVE_MESSAGE)
@@ -78,9 +78,9 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации. Спек здесь недоступен, поэтому интерактивная
-    ли задача — по базе и файлу: нет ни интерактора в базе, ни локального
-    `interactor.cpp` — задача обычная, шагу делать нечего ("done")."""
+    """By the sync base. The spec isn't available here, so whether the problem
+    is interactive — by the base and the file: there's neither an interactor in the base nor a local
+    `interactor.cpp` — the problem is normal, the step has nothing to do ("done")."""
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     synced = state.synced if state is not None else {}
     local = Path(problems_dir) / problem_id / INTERACTOR_FILENAME

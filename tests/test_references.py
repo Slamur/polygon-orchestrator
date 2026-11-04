@@ -22,7 +22,7 @@ def _write(path: Path, content: str = "x") -> Path:
 
 
 def _reference_dir(tmp_path: Path, name: str = "example-problem") -> Path:
-    """Каталог в раскладке problems/<problem_id>/ со своим spec.yaml."""
+    """A directory in the problems/<problem_id>/ layout with its own spec.yaml."""
     directory = tmp_path / name
     _write(directory / "authoring" / "spec.yaml")
     _write(directory / "authoring" / "constraints.yaml")
@@ -76,8 +76,8 @@ def test_directory_gives_only_files_of_the_step(spec, tmp_path):
 
 
 def test_directory_in_layout_before_authoring_still_gives_spec_and_constraints(spec, tmp_path):
-    # Задача-референс, ещё не перенесённая в authoring/ (её не трогала ни
-    # одна команда после обновления).
+    # A reference problem not yet moved into authoring/ (no command
+    # touched it after the update).
     directory = tmp_path / "old-problem"
     _write(directory / "spec.yaml")
     _write(directory / "constraints.yaml")
@@ -110,8 +110,8 @@ def test_files_marked_removed_are_not_references(spec, tmp_path):
 
 
 def test_common_directory_without_files_for_the_step_is_skipped(spec, tmp_path):
-    # Нет checker.cpp — шагу checker_draft этот каталог ничего не даёт, и
-    # spec.yaml без результата тоже не прикладывается.
+    # No checker.cpp — this directory gives the checker_draft step nothing, and
+    # spec.yaml without a result isn't attached either.
     directory = _reference_dir(tmp_path)
 
     assert reference_documents("checker_draft", _with_common(spec, [directory])) is None

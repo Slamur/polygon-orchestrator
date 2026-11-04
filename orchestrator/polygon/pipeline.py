@@ -1,49 +1,49 @@
-"""Прогон polygon-шагов для одного `problem_id` (CLAUDE.md, "Скоуп
-(текущий)": создание задачи на Polygon и последующие шаги интеграции).
+"""Running the polygon steps for one `problem_id` (CLAUDE.md, "Scope
+(current)": creating the problem on Polygon and the following integration steps).
 
-Каждый шаг вызывается всегда, но загружает только элементы задачи,
-изменившиеся с последней синхронизации (база — `revision`/`synced` в
-`polygon_state.json`, см. `orchestrator/polygon/sync.py`). Как
-`git push` с проверкой fast-forward: перед первым загружающим шагом
-сверяется ревизия задачи на Polygon (`_sync_baseline`):
+Each step is always called, but uploads only the problem elements
+changed since the last sync (the base — `revision`/`synced` in
+`polygon_state.json`, see `orchestrator/polygon/sync.py`). Like
+`git push` with a fast-forward check: before the first uploading step
+the problem's revision on Polygon is compared (`_sync_baseline`):
 
-- ревизия равна записанной и в рабочей копии нет незакоммиченных правок —
-  базе можно доверять, шаги загружают только изменённое;
-- в рабочей копии есть незакоммиченные правки — push останавливается
-  всегда, даже с `force`: иначе коммит после шага унёс бы их в ревизию;
-- задан `force` — база не используется, шаги загружают всё (как `git push
-  --force`), а первый коммит заменяет базу целиком на загруженное: прежние
-  записи о том, что на Polygon, после правок в обход оркестратора могли
-  устареть, а ревизия в базе станет текущей;
-- ревизия неизвестна (задача привязана к уже существующей на Polygon или
-  до появления этого поля) — что на Polygon, неизвестно, push
-  останавливается до `polygon pull` (или `--force`);
-- ревизия другая — Polygon меняли в обход оркестратора, push
-  останавливается с предложением сделать `polygon pull` или `polygon push
+- the revision equals the recorded one and there are no uncommitted edits in the working copy —
+  the base can be trusted, the steps upload only what changed;
+- the working copy has uncommitted edits — push always stops,
+  even with `force`: otherwise the commit after a step would carry them into the revision;
+- `force` is given — the base isn't used, the steps upload everything (like `git push
+  --force`), and the first commit replaces the base entirely with what was uploaded: the previous
+  records of what's on Polygon could have become outdated after edits bypassing the orchestrator,
+  and the revision in the base becomes the current one;
+- the revision is unknown (the problem is bound to one already existing on Polygon or
+  from before this field appeared) — what's on Polygon is unknown, push
+  stops until `polygon pull` (or `--force`);
+- the revision is different — Polygon was changed bypassing the orchestrator, push
+  stops suggesting `polygon pull` or `polygon push
   --force`.
 
-После каждого шага, который что-то загрузил (кроме тех, у кого
-`commits_changes=False`), рабочая копия задачи коммитится на Polygon
-(`problem.commitChanges`), и только после этого загруженное и новая
-ревизия записываются в базу — чтобы при падении на очередном шаге всё
-сделанное предыдущими уже было в ревизии и в базе.
+After each step that uploaded something (except those with
+`commits_changes=False`), the problem's working copy is committed on Polygon
+(`problem.commitChanges`), and only after that what was uploaded and the new
+revision are recorded in the base — so that on a failure at a later step everything
+done by the previous ones is already in the revision and in the base.
 
-В конце прогона (и при падении шага) — отметки версий файлов на Polygon
-(`stamps`, см. `orchestrator/polygon/sync.py`), чтобы следующий `polygon
-pull` не скачивал загруженное: `_record_stamps`, если что-то коммитилось
-или у файлов из базы нет отметок. Отметки пишутся, только если ревизия на
-Polygon после листинга всё ещё та, что в базе, и незакоммиченных правок
-нет — иначе листинг мог захватить чужую правку. Ошибка здесь push не
-роняет: без отметок следующий pull просто скачает эти файлы.
+At the end of the run (and on a step failure) — the version stamps of the files on Polygon
+(`stamps`, see `orchestrator/polygon/sync.py`), so that the next `polygon
+pull` doesn't download what was uploaded: `_record_stamps`, if something was committed
+or files from the base have no stamps. Stamps are written only if the revision on
+Polygon after the listing is still the one in the base, and there are no uncommitted edits —
+otherwise the listing could have captured someone else's edit. An error here doesn't fail
+the push: without stamps the next pull just downloads these files.
 
-`no_commit` (`polygon push --no-commit`) — загруженное остаётся в рабочей
-копии на Polygon, автор разбирается с ним там и коммитит сам, одной пачкой.
-Коммитов нет, поэтому незакоммиченные правки push не останавливают (можно
-загружать по одному шагу), только предупреждение: загрузка перезапишет те
-же файлы рабочей копии. База и отметки не меняются: на Polygon в ревизии
-загруженного ещё нет. После коммита на Polygon ревизия станет другой, и
-обычный push потребует `polygon pull` — он увидит те же файлы, что локально,
-и обновит базу.
+`no_commit` (`polygon push --no-commit`) — what was uploaded stays in the working
+copy on Polygon, the author sorts it out there and commits themselves, in one batch.
+There are no commits, so uncommitted edits don't stop push (you can
+upload one step at a time), only a warning: the upload will overwrite the same
+files of the working copy. The base and the stamps don't change: Polygon has no revision
+with the uploaded files yet. After the commit on Polygon the revision becomes different, and
+a normal push requires `polygon pull` — it sees the same files as locally
+and updates the base.
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_test_script.STEP_NAME: upload_test_script.STEP,
 }
 
-# Статусы PolygonStepOutcome.status:
+# PolygonStepOutcome.status statuses:
 OUTCOME_OK = "ok"
 OUTCOME_ERROR = "error"
 
@@ -105,23 +105,23 @@ _COMMIT_MESSAGE_PREFIX = "orchestrator: "
 
 @dataclass
 class PolygonStepOutcome:
-    """Что произошло с одним polygon-шагом (или его состояние для `status`)."""
+    """What happened to one polygon step (or its state for `status`)."""
 
     step_name: str
     status: str
     detail: str = ""
-    # `detail` — собственный текст оркестратора (`PolygonStepError`): короткий,
-    # однострочный, с подсказкой в конце, — CLI печатает его целиком, а не
-    # обрезает, как ответы Polygon API и неожиданные исключения.
+    # `detail` — the orchestrator's own text (`PolygonStepError`): short,
+    # one-line, with a hint at the end — the CLI prints it in full rather than
+    # truncating it, like Polygon API responses and unexpected exceptions.
     full_detail: bool = False
-    # Что шаг загрузил (ключи базы, см. `sync.describe_keys`).
+    # What the step uploaded (base keys, see `sync.describe_keys`).
     uploaded: tuple[str, ...] = ()
     notice: str = ""  # `StepResult.notice`
 
 
 @dataclass
 class PolygonPipelineResult:
-    """Результат прогона polygon-шагов для одного `problem_id`."""
+    """The result of running the polygon steps for one `problem_id`."""
 
     problem_id: str
     outcomes: list[PolygonStepOutcome] = field(default_factory=list)
@@ -143,38 +143,38 @@ def run_polygon_pipeline(
     on_outcome: Callable[[PolygonStepOutcome], None] | None = None,
     on_step_start: Callable[[str], None] | None = None,
 ) -> PolygonPipelineResult:
-    """Прогоняет polygon-шаги для `problem_id` по порядку `POLYGON_STEP_ORDER`
-    (или только один, если задан `only_step`).
+    """Runs the polygon steps for `problem_id` in the `POLYGON_STEP_ORDER` order
+    (or only one, if `only_step` is given).
 
-    Каждый шаг вызывается всегда; что загружать, шаг решает сам по базе
-    синхронизации (см. докстринг модуля). `force` — загружать всё, не
-    сверяясь ни с базой, ни с ревизией на Polygon (незакоммиченные правки
-    на Polygon останавливают push и с `force`). `no_commit` — только
-    загрузить, без коммитов и записи в базу (см. докстринг модуля).
+    Each step is always called; what to upload the step decides itself by the sync
+    base (see the module docstring). `force` — upload everything, comparing
+    neither with the base nor with the revision on Polygon (uncommitted edits
+    on Polygon stop push even with `force`). `no_commit` — only
+    upload, without commits and writing to the base (see the module docstring).
 
-    После каждого шага с `commits_changes=True`, который что-то загрузил, —
-    `problem.commitChanges` и запись базы (см. `_commit_and_record`). Ошибка
-    коммита — такая же ошибка шага: шаг получает статус "error", пайплайн
-    останавливается. Загруженное, но не закоммиченное остаётся в рабочей
-    копии Polygon — следующий push увидит незакоммиченные правки и
-    остановится (нужен `--force`).
+    After each step with `commits_changes=True` that uploaded something —
+    `problem.commitChanges` and writing the base (see `_commit_and_record`). A commit
+    error is the same kind of step error: the step gets the "error" status, the pipeline
+    stops. What was uploaded but not committed stays in the Polygon working
+    copy — the next push sees uncommitted edits and
+    stops (`--force` is needed).
 
-    `client` создаётся один раз здесь и передаётся во все шаги — чтобы не
-    плодить по отдельному `PolygonClient` с ленивым чтением `.env` на шаг.
+    `client` is created once here and passed to all steps — so as not to
+    spawn a separate `PolygonClient` with lazy `.env` reading per step.
 
-    Останавливается на первой ошибке шага, не бросая её наружу:
-    `result.outcomes` получает запись со статусом "error", последующие шаги
-    не запускаются. Помимо ожидаемых `PolygonApiError` (ошибка Polygon API)
-    и `PolygonStepError` (не хватает локальных данных/зависимостей шага)
-    так же обрабатывается любое другое исключение (сеть, отсутствие ключей,
-    баг в шаге) — с traceback в лог, `detail` при этом — тип и текст
-    исключения. Полный текст ошибки всегда пишется в лог (ERROR), т.к.
-    вызывающий код может показывать `detail` сокращённо.
+    It stops at the first step error without raising it outward:
+    `result.outcomes` gets an entry with the "error" status, the following steps
+    don't run. Besides the expected `PolygonApiError` (a Polygon API error)
+    and `PolygonStepError` (the step's local data/dependencies are missing),
+    any other exception (network, missing keys,
+    a bug in a step) is handled the same way — with a traceback to the log, `detail` then being the type and text of
+    the exception. The full text of the error is always written to the log (ERROR), since
+    the calling code may show `detail` abbreviated.
 
-    `on_step_start` вызывается с именем шага перед его запуском, `on_outcome`
-    — сразу после каждого шага (и успешного, и упавшего) — чтобы CLI
-    показывал прогресс по мере выполнения, а не одним куском в конце. Ошибка валидации спека — как в `run_pipeline`:
-    записывается в `result.spec_error`, клиент при этом не создаётся.
+    `on_step_start` is called with the step's name before running it, `on_outcome`
+    — right after each step (both successful and failed) — so that the CLI
+    shows progress as it goes, not as one chunk at the end. A spec validation error — as in `run_pipeline`:
+    it's recorded in `result.spec_error`, the client isn't created then.
     """
     try:
         spec = load_problem_spec(problem_id, problems_dir=problems_dir)
@@ -192,7 +192,7 @@ def run_polygon_pipeline(
 
     baseline_checked = False
     committed = False
-    # `force`: первый коммит заменяет базу целиком (см. докстринг модуля).
+    # `force`: the first commit replaces the base entirely (see the module docstring).
     replace_base = force
     synced: dict[str, str] | None = None
 
@@ -243,7 +243,7 @@ def run_polygon_pipeline(
                     )
                 )
                 return result
-            except Exception as exc:  # noqa: BLE001 — traceback в лог, а не в консоль
+            except Exception as exc:  # noqa: BLE001 — traceback to the log, not the console
                 logger.exception("[%s] unexpected error", step_name)
                 record(PolygonStepOutcome(step_name, OUTCOME_ERROR, f"{type(exc).__name__}: {exc}"))
                 return result
@@ -268,18 +268,18 @@ def run_polygon_pipeline(
 def _sync_baseline(
     problem_id: str, *, force: bool, no_commit: bool, problems_dir: Path, client: PolygonClient
 ) -> dict[str, str] | None:
-    """База синхронизации для шагов этого прогона (см. докстринг модуля);
-    `None` — загружать всё.
+    """The sync base for the steps of this run (see the module docstring);
+    `None` — upload everything.
 
-    Задача ещё не привязана — `None` без сети: шаг сам упадёт с указанием
-    запустить `create_problem`. Polygon меняли в обход оркестратора —
+    The problem isn't bound yet — `None` without the network: the step itself fails pointing to
+    running `create_problem`. Polygon was changed bypassing the orchestrator —
     `PolygonStepError`.
 
-    Незакоммиченные правки в рабочей копии на Polygon останавливают push
-    всегда, в том числе с `force`: коммит после шага коммитит рабочую копию
-    целиком и унёс бы чужие правки в ревизию оркестратора (а правки в
-    перезаписанных файлах потерялись бы без следа в истории). Исключение —
-    `no_commit`: коммитов не будет.
+    Uncommitted edits in the working copy on Polygon always stop push,
+    including with `force`: the commit after a step commits the working copy
+    entirely and would carry someone else's edits into the orchestrator's revision (and the edits in
+    overwritten files would be lost without a trace in the history). The exception is
+    `no_commit`: there won't be any commits.
     """
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
@@ -330,18 +330,18 @@ def _commit_and_record(
     problems_dir: Path,
     client: PolygonClient,
 ) -> str:
-    """Коммитит рабочую копию задачи на Polygon после шага `step_name` и
-    записывает в базу синхронизации загруженное шагом и новую ревизию.
+    """Commits the problem's working copy on Polygon after the step `step_name` and
+    records in the sync base what the step uploaded and the new revision.
 
-    `minorChanges=true` — без email-уведомлений: коммит идёт после каждого
-    шага, иначе один прогон рассылал бы письмо на каждый шаг.
+    `minorChanges=true` — without email notifications: a commit comes after each
+    step, otherwise one run would send a letter per step.
 
-    Новая ревизия перечитывается с Polygon (`problems.list`), а не
-    вычисляется как "+1" — так база не зависит от того, как Polygon
-    нумерует ревизии.
+    The new revision is reread from Polygon (`problems.list`), not
+    computed as "+1" — so the base doesn't depend on how Polygon
+    numbers revisions.
 
-    `replace` — база заменяется загруженным целиком (первый коммит
-    `--force`, см. докстринг модуля).
+    `replace` — the base is replaced entirely with what was uploaded (the first commit of
+    `--force`, see the module docstring).
     """
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:
@@ -367,10 +367,10 @@ def _commit_and_record(
 def _record_stamps(
     problem_id: str, *, committed: bool, problems_dir: Path, client: PolygonClient
 ) -> None:
-    """Записывает в базу отметки версий файлов на Polygon (см. докстринг
-    модуля). Без коммитов в этом прогоне — только если у каких-то файлов из
-    базы отметок нет (задача синхронизирована до их появления): иначе
-    листинг ничего бы не добавил."""
+    """Records in the base the version stamps of the files on Polygon (see the module
+    docstring). Without commits in this run — only if some files from the
+    base have no stamps (the problem was synced before they appeared): otherwise
+    the listing wouldn't add anything."""
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None or state.revision is None:
         return
@@ -378,12 +378,12 @@ def _record_stamps(
     if not committed and not unstamped:
         return
     try:
-        # Интерактор в базе — задача интерактивная (спека здесь нет).
+        # An interactor in the base — the problem is interactive (there's no spec here).
         stamps = fetch_remote_stamps(
             client, state.polygon_id, interactive=state.synced.get(INTERACTOR_KEY) is not None
         )
         current = fetch_revision(client, state.polygon_id)
-    except Exception as exc:  # noqa: BLE001 — оптимизация, push не роняет
+    except Exception as exc:  # noqa: BLE001 — an optimization, doesn't fail the push
         logger.warning("modification times are not recorded: %s", exc)
         return
     if current.modified or current.revision != state.revision:
@@ -402,12 +402,12 @@ def _record_stamps(
 def compute_polygon_step_statuses(
     problem_id: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> list[PolygonStepOutcome]:
-    """Состояние polygon-шагов для `orchestrator <задача> polygon status`, без сети:
-    по `compute_status` каждого шага, в порядке `POLYGON_STEP_ORDER`.
+    """The state of the polygon steps for `orchestrator <problem> polygon status`, without the network:
+    by each step's `compute_status`, in the `POLYGON_STEP_ORDER` order.
 
-    Состояние — только по локальным данным (база синхронизации в
-    `polygon_state.json` и входные файлы шага); ручные правки на стороне
-    Polygon отсюда не видны.
+    The state is only by local data (the sync base in
+    `polygon_state.json` and the step's input files); manual edits on the
+    Polygon side aren't visible from here.
     """
     outcomes = []
     for step_name in POLYGON_STEP_ORDER:

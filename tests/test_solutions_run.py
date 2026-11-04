@@ -12,13 +12,13 @@ from orchestrator.checks.solutions_run import (
 )
 from orchestrator.spec import _ALLOWED_VERDICTS
 
-# Тесты модуля собирают и запускают C++/Java, см. маркер slow в pyproject.toml.
+# The module's tests build and run C++/Java, see the slow marker in pyproject.toml.
 pytestmark = pytest.mark.slow
 
 PROBLEM_ID = "example-problem"
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
-# Синтетическая задача: сумма двух чисел.
+# A synthetic problem: the sum of two numbers.
 OK_PY = "a, b = map(int, input().split())\nprint(a + b)\n"
 WA_PY = "a, b = map(int, input().split())\nprint(a - b)\n"
 RE_PY = "raise SystemExit(3)\n"
@@ -205,8 +205,8 @@ def test_checker_problems_stop_solution_runs(tmp_path, checker, message):
     assert any(message in error for error in result.errors)
 
 
-# Синтетический интерактив: интерактор сообщает n, решение отвечает 2n,
-# интерактор подтверждает "ok", решение читает подтверждение и завершается.
+# A synthetic interactive problem: the interactor reports n, the solution answers 2n,
+# the interactor confirms "ok", the solution reads the confirmation and exits.
 INTERACTOR_CPP = (
     '#include "testlib.h"\n'
     "#include <iostream>\n"
@@ -233,7 +233,7 @@ def _interactive_problem(
     problem_dir = _problem(
         tmp_path,
         solutions,
-        # Реплики решения в диалоге, а не ответ: чекер их не видит.
+        # The solution's lines in the dialogue, not the answer: the checker doesn't see them.
         examples=[("5\n", "10\n\n")],
         checker={"standard": "wcmp", "custom_needed": False},
         extra_spec={"interactor": {"behavior_notes": "synthetic"}},
@@ -297,9 +297,9 @@ def _statement_io_errors(result) -> list[str]:
 def test_statement_io_of_plain_problem_is_validated_and_checked(tmp_path):
     problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY})
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
-    # Свой ввод и верный вывод к нему.
+    # Its own input and a correct output for it.
     _write_statement_io(problem_dir, 1, input="5 6\n", output="11\n")
-    # Только вывод — неверный для input теста (10 20).
+    # Only the output — wrong for the test's input (10 20).
     _write_statement_io(problem_dir, 2, output="31\n")
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
@@ -313,7 +313,7 @@ def test_statement_io_of_plain_problem_is_validated_and_checked(tmp_path):
 def test_statement_input_rejected_by_validator(tmp_path):
     problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY})
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
-    # Ответ примера (3) к своему вводу не подходит — тоже ошибка.
+    # The example's answer (3) doesn't fit its own input — an error too.
     _write_statement_io(problem_dir, 1, input="0 4\n")
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
@@ -331,9 +331,9 @@ def test_interactive_dialogue_is_replayed(tmp_path):
     (examples_dir / "example_2.txt").write_text("7\n", encoding="utf-8")
     (examples_dir / "example_3.txt").write_text("8\n", encoding="utf-8")
     _write_statement_io(problem_dir, 1, input="5\n\nok\n", output="\n10\n\n")
-    # Реплики интерактора в условии не те, что он отвечает.
+    # The interactor's lines in the statement aren't what it answers.
     _write_statement_io(problem_dir, 2, input="7\n\nyes\n", output="\n14\n\n")
-    # Решение в условии ошибается — интерактор не принимает.
+    # The solution in the statement is wrong — the interactor doesn't accept it.
     _write_statement_io(problem_dir, 3, output="\n8\n")
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
@@ -401,12 +401,12 @@ def test_local_check_does_not_run_solutions(tmp_path, capsys):
     assert "running" not in capsys.readouterr().out
 
 
-# Синтетический генератор: печатает аргументы одной строкой через пробел.
+# A synthetic generator: prints its arguments in one line separated by spaces.
 GEN_PAIR_CPP = (
     "#include <iostream>\n"
     'int main(int argc, char** argv) { std::cout << argv[1] << " " << argv[2] << "\\n"; }\n'
 )
-# Верно везде, кроме входа с a = 7: примеры (1 2, 10 20) этого не видят.
+# Correct everywhere except the input with a = 7: the examples (1 2, 10 20) don't see this.
 WA_ON_SEVEN_PY = "a, b = map(int, input().split())\nprint(a + b + (1 if a == 7 else 0))\n"
 
 
@@ -429,7 +429,7 @@ def test_full_wa_caught_by_generated_test_stops_there(tmp_path):
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
     assert not result.failed
     wa = _by_name(result)["wa_py_seven_draft.py"]
-    # Два примера, потом первый же сгенерированный — и стоп.
+    # Two examples, then the very first generated one — and stop.
     assert [t.verdict for t in wa.tests] == ["OK", "OK", "WA"]
     assert wa.stopped_early
     assert wa.tests[-1].command == "gen_pair 7 1"

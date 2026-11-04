@@ -1,5 +1,5 @@
-"""Шаг 5 (опциональный) — черновик кастомного чекера, CLAUDE.md, "Роль
-каждого генеративного шага", пункт 5.
+"""Step 5 (optional) — a custom checker draft, CLAUDE.md, "Role
+of each generative step", item 5.
 """
 
 from __future__ import annotations
@@ -39,12 +39,12 @@ def compute_input_hash(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> str:
-    """Хеш входа шага без вызова модели, см. `constraints_pick.compute_input_hash`
-    и CLAUDE.md, "Кэширование по хешу спека". Как и `run_step`, требует
-    `checker.custom_needed: true` в спеке. `upstream_artifacts` не
-    используется — шаг ни от чего не зависит, кроме
-    `checker.custom_comparison_notes`, присутствует ради единой сигнатуры
-    у всех шагов.
+    """The step's input hash without calling the model, see `constraints_pick.compute_input_hash`
+    and CLAUDE.md, "Caching by spec hash". Like `run_step`, it requires
+    `checker.custom_needed: true` in the spec. `upstream_artifacts` isn't
+    used — the step depends on nothing except
+    `checker.custom_comparison_notes`, it's present for the sake of the single signature
+    of all steps.
     """
     return _cache_compute_input_hash(STEP_NAME, *hash_inputs(problem_id, spec, upstream_artifacts))
 
@@ -54,9 +54,9 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """Что входит в хеш входа шага: `(секция спека, апстрим-артефакты)` —
-    общий источник для `compute_input_hash` и хешей по частям
-    (`cache.compute_input_values`), чтобы они не разошлись."""
+    """What goes into the step's input hash: `(spec section, upstream artifacts)` —
+    the shared source for `compute_input_hash` and the per-part hashes
+    (`cache.compute_input_values`), so that they don't diverge."""
     _require_custom_checker(problem_id, spec)
     return spec.checker.custom_comparison_notes, None
 
@@ -64,9 +64,9 @@ def hash_inputs(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """Путь к основному артефакту шага — в отличие от `solutions_draft`
-    (каталог с произвольным набором файлов), у `checker_draft` ровно один
-    файл с фиксированным именем, см. `constraints_pick.primary_artifact_path`.
+    """The path to the step's primary artifact — unlike `solutions_draft`
+    (a directory with an arbitrary set of files), `checker_draft` has exactly one
+    file with a fixed name, see `constraints_pick.primary_artifact_path`.
     """
     return Path(problems_dir) / problem_id / "checker.cpp"
 
@@ -74,18 +74,18 @@ def primary_artifact_path(
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага на диске: имя артефакта (как его вернула бы
-    модель) -> путь — для режима доработки (`base.StepRevision`). `checker.cpp`."""
+    """The step's current files on disk: artifact name (as the
+    model would return it) -> path — for revision mode (`base.StepRevision`). `checker.cpp`."""
     return existing_artifacts({"checker.cpp": Path(problems_dir) / problem_id / "checker.cpp"})
 
 
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Образцы для конкретного вызова — файлы, которые этому шагу дают
-    референсы спека (общие `references` и `checker.references`, см.
-    `orchestrator/references.py`). Единая сигнатура со всеми шагами нужна
-    `pipeline.py`, чтобы считать `compute_prompt_hash` одинаково.
+    """Samples for a particular call — the files the spec's references
+    give this step (the shared `references` and `checker.references`, see
+    `orchestrator/references.py`). The single signature with all steps is needed by
+    `pipeline.py` to compute `compute_prompt_hash` the same way.
     """
     return reference_documents(STEP_NAME, spec)
 
@@ -101,27 +101,27 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `checker_draft` для `problem_id`.
+    """Runs the `checker_draft` step for `problem_id`.
 
-    Вход: секция `checker` спека — единственное поле, которое реально
-    определяет содержимое, это `checker.custom_comparison_notes`
-    (самодостаточное текстовое описание формата ответа и правила сравнения,
-    см. CLAUDE.md, "Роль каждого генеративного шага", пункт 5). Модель не
-    имеет права выводить формат ответа/правило сравнения из легенды или
-    условия — только из этого поля; если оно неполно, шаг обязан вернуть
-    `status: uncertain`, и этот вызов завершится `StepUncertainError` без
-    записи файлов.
+    Input: the spec's `checker` section — the only field that actually
+    determines the contents is `checker.custom_comparison_notes`
+    (a self-contained text description of the answer format and the comparison rule,
+    see CLAUDE.md, "Role of each generative step", item 5). The model has no
+    right to derive the answer format/comparison rule from the legend or the
+    statement — only from this field; if it's incomplete, the step must return
+    `status: uncertain`, and this call ends with `StepUncertainError` without
+    writing files.
 
-    Требует, чтобы `spec.checker.custom_needed is True` — при стандартном
-    чекере (`custom_needed: false`) черновик не заказан, и шаг не имеет
-    смысла запускать (в отличие от `solutions_draft`, где отсутствует целая
-    опциональная секция, здесь секция `checker` обязательна всегда, а
-    "шаг не нужен" выражается конкретным значением `custom_needed: false`).
+    Requires `spec.checker.custom_needed is True` — with a standard
+    checker (`custom_needed: false`) no draft was ordered, and running the step makes no
+    sense (unlike `solutions_draft`, where a whole
+    optional section is absent, here the `checker` section is always mandatory, and
+    "the step isn't needed" is expressed by the concrete value `custom_needed: false`).
 
-    При успехе пишет `problems/<problem_id>/checker.cpp`.
+    On success it writes `problems/<problem_id>/checker.cpp`.
 
-    `upstream_artifacts` не используется: `checker_draft` ни от чего не
-    зависит (CLAUDE.md, "Кэширование по хешу спека").
+    `upstream_artifacts` isn't used: `checker_draft` depends on
+    nothing (CLAUDE.md, "Caching by spec hash").
     """
     _require_custom_checker(problem_id, spec)
 

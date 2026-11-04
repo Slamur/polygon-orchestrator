@@ -68,7 +68,7 @@ def test_problem_id_mismatch_with_filename_raises(tmp_path):
 
 
 def test_expected_id_replaces_file_name_check(tmp_path):
-    # Так загружается spec.yaml учебной задачи: id сверяется с именем каталога.
+    # This is how a sample problem's spec.yaml is loaded: the id is compared with the directory name.
     path = tmp_path / "spec.yaml"
     path.write_text(
         (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8"),
@@ -272,7 +272,7 @@ def test_plain_spec_is_not_interactive():
 
 
 def _without_block(text: str, header: str) -> str:
-    """Текст спека без строки `header` и её блочного значения под ней."""
+    """The spec text without the line `header` and its block value under it."""
     lines = text.splitlines()
     start = lines.index(header)
     end = start + 1

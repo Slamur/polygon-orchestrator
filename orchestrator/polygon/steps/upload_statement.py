@@ -1,66 +1,66 @@
-"""Polygon-шаг 6 — загрузка условия из `problems/<problem_id>/statement/<код
-языка>/` (на основном языке — результат генеративного шага `statement_draft`):
-legend/input/output/notes через `problem.saveStatement` и тестовые примеры
-из `statement/examples/` как первые тесты
+"""Polygon step 6 — uploading the statement from `problems/<problem_id>/statement/<language
+code>/` (in the main language — the result of the `statement_draft` generative step):
+legend/input/output/notes via `problem.saveStatement` and the example tests
+from `statement/examples/` as the first tests
 (`problem.saveTest`, `testIndex` 1..N, `testUseInStatements=true`).
 
-В Polygon уходит только input примеров — output из `sample_examples` в этом
-шаге не читается и не используется (docs/SPEC_FORMAT.md: output "никуда
-дальше... не транслируется"). Answer для этих тестов Polygon посчитает сам
-по главному решению, когда оно будет загружено отдельным (ещё не
-написанным) шагом — это осознанный порядок, не ошибка.
+Only the examples' input goes to Polygon — the output from `sample_examples` isn't
+read or used in this step (docs/SPEC_FORMAT.md: the output "isn't translated
+any further"). Polygon computes the answer for these tests itself
+from the main solution once it's uploaded by a separate (not yet
+written) step — this is a deliberate order, not a mistake.
 
-`testIndex` примеров всегда 1..N без сдвига: templates/tutorials/statement.md
-требует, чтобы тестовые примеры были первыми тестами.
+The examples' `testIndex` is always 1..N without a shift: templates/tutorials/statement.md
+requires the example tests to be the first tests.
 
-Параметры `problem.saveTest` — по docs/POLYGON_API.md. Флаг "использовать
-в условии" называется `testUseInStatements` (`useInStatements` — имя поля в
-возвращаемом объекте Test, не параметра): неизвестный параметр Polygon
-молча игнорирует, и тест загружается без этого флага.
+The parameters of `problem.saveTest` — by docs/POLYGON_API.md. The "use
+in statements" flag is called `testUseInStatements` (`useInStatements` is the name of the field in
+the returned Test object, not of a parameter): Polygon silently ignores an unknown parameter,
+and the test is uploaded without this flag.
 
-Тестовые группы (`generation.script_style: "groups"`) этим шагом НЕ
-поддерживаются: примеры загружаются без `testGroup`, т.е. в группу Polygon
-по умолчанию. Для задачи с группами это может быть не то, что нужно, —
-осознанное ограничение MVP, группу примеров придётся выставить руками.
+Test groups (`generation.script_style: "groups"`) are NOT supported
+by this step: the examples are uploaded without `testGroup`, i.e. into Polygon's default
+group. For a problem with groups this may not be what's needed —
+a deliberate MVP limitation, the examples' group will have to be set by hand.
 
-Если число примеров уменьшилось с прошлой загрузки, лишние тесты с
-индексами > N на Polygon остаются — шаг их не удаляет.
+If the number of examples decreased since the last upload, the extra tests with
+indices > N stay on Polygon — the step doesn't delete them.
 
-Интерактивная задача (в спеке есть секция `interactor`): протокол
-взаимодействия `statement/<код>/interaction.tex` уходит в `problem.saveStatement`
-параметром `interaction` (без файла — ошибка).
+An interactive problem (the spec has an `interactor` section): the interaction
+protocol `statement/<code>/interaction.tex` goes to `problem.saveStatement`
+as the `interaction` parameter (no file — an error).
 
-Разбор `statement/<код>/tutorial.tex` (необязательный, пишет автор, `polygon pull`
-или шаг `tutorial_draft`) уходит туда же параметром `tutorial`. Файла нет —
-параметр не передаётся (Polygon оставляет разбор как есть), но если в базе
-синхронизации разбор был, а файл удалили, разбор очищается пустой строкой.
+The tutorial `statement/<code>/tutorial.tex` (optional, written by the author, `polygon pull`
+or the `tutorial_draft` step) goes there too as the `tutorial` parameter. No file —
+the parameter isn't passed (Polygon leaves the tutorial as is), but if the sync
+base had a tutorial and the file was deleted, the tutorial is cleared with an empty string.
 
-Input/output for statements примера (`example_<N>.input_for_statement.txt`,
-`example_<N>.output_for_statement.txt` — каждый сам по себе, у обычной
-задачи их задаёт автор, у интерактивной это диалог решения с интерактором)
-уходят в `problem.saveTest` параметрами
-`testInputForStatements`/`testOutputForStatements`, флаг
-`example_<N>.verify_for_statement.txt` (файл есть и содержит `true`) —
-`verifyInputOutputForStatements=true`. Файла нет — параметр не
-передаётся (Polygon оставляет поле как есть), но если в базе синхронизации
-поле было, а файл удалили, поле очищается: пустая строка, у флага —
+An example's input/output for statements (`example_<N>.input_for_statement.txt`,
+`example_<N>.output_for_statement.txt` — each on its own, for a normal
+problem the author sets them, for an interactive one it's the dialogue of the solution with the interactor)
+go to `problem.saveTest` as the parameters
+`testInputForStatements`/`testOutputForStatements`, the flag
+`example_<N>.verify_for_statement.txt` (the file exists and contains `true`) —
+`verifyInputOutputForStatements=true`. No file — the parameter isn't
+passed (Polygon leaves the field as is), but if the sync base
+had the field and the file was deleted, the field is cleared: an empty string, for the flag —
 `false`.
 
-Название задачи берётся из `statement/<код>/name.txt`, а не из спека:
-название спека на этом языке (`title.ru` у `ru`) — только начальное
-значение, которым шаг заполняет `name.txt`, если его ещё нет (нет и
-названия в спеке — ошибка). Иначе название, поменянное на Polygon и
-выгруженное `polygon pull` (он пишет его в тот же `name.txt`), следующий
-push перезаписал бы значением из спека.
+The problem's name is taken from `statement/<code>/name.txt`, not from the spec:
+the spec's name in this language (`title.ru` for `ru`) is only the initial
+value with which the step fills in `name.txt` if it doesn't exist yet (no
+name in the spec either — an error). Otherwise a name changed on Polygon and
+downloaded by `polygon pull` (it writes it into the same `name.txt`) would be overwritten by the next
+push with the value from the spec.
 
-Языки (`orchestrator/statement_languages.py`): каждый каталог
-`statement/<код>/` уходит своим `problem.saveStatement` с `lang` — именем
-языка в Polygon (`ru` -> `russian`). Каталог основного языка (`language`
-спека) обязателен, остальные пишет автор или `polygon pull`. Примеры общие
-для всех языков. Удалённый каталог языка условие на Polygon не удаляет —
-это делает автор.
+Languages (`orchestrator/statement_languages.py`): each directory
+`statement/<code>/` goes with its own `problem.saveStatement` with `lang` — the
+language's name in Polygon (`ru` -> `russian`). The directory of the main language (the spec's
+`language`) is mandatory, the others are written by the author or `polygon pull`. The examples are shared
+by all languages. A deleted language directory doesn't delete the statement on Polygon —
+the author does that.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -127,9 +127,9 @@ _VERIFY_VALUE = b"true"
 
 @dataclass(frozen=True)
 class Statement:
-    """Условие на одном языке: `code` — каталог `statement/<code>/`,
-    `tex_files` — имя файла -> содержимое (`_read_statement_dir`), `name` —
-    из `name.txt` (`None` — файла нет)."""
+    """The statement in one language: `code` — the directory `statement/<code>/`,
+    `tex_files` — file name -> contents (`_read_statement_dir`), `name` —
+    from `name.txt` (`None` — there's no file)."""
 
     code: str
     tex_files: dict[str, bytes]
@@ -137,11 +137,11 @@ class Statement:
 
     @property
     def language(self) -> str:
-        """Имя языка в Polygon."""
+        """The language's name in Polygon."""
         return polygon_language(self.code)
 
     def items(self) -> dict[str, str]:
-        """Элементы базы синхронизации: tex-файлы и название (если известно)."""
+        """The sync base elements: the tex files and the name (if known)."""
         items = {
             statement_file_key(filename, self.code): digest(content)
             for filename, content in self.tex_files.items()
@@ -157,9 +157,9 @@ class Statement:
 
 @dataclass(frozen=True)
 class Example:
-    """Пример условия: `testIndex`, input теста и необязательные поля теста
-    для условия — ключ базы синхронизации -> (параметр `problem.saveTest`,
-    значение); есть только у полей, файлы которых есть на диске."""
+    """A statement example: `testIndex`, the test's input and the optional fields of the test
+    for the statement — sync base key -> (`problem.saveTest` parameter,
+    value); only fields whose files exist on disk have it."""
 
     index: int
     input: bytes
@@ -173,8 +173,8 @@ class Example:
 
 
 def _optional_fields(index: int) -> list[tuple[str, str, str, str]]:
-    """Необязательные поля теста примера: (имя файла, ключ базы, параметр
-    `problem.saveTest`, значение при очистке)."""
+    """The optional fields of an example test: (file name, base key, the
+    `problem.saveTest` parameter, the value on clearing)."""
     input_name, output_name = dialogue_filenames(index)
     input_key, output_key = dialogue_keys(index)
     return [
@@ -185,13 +185,13 @@ def _optional_fields(index: int) -> list[tuple[str, str, str, str]]:
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Загружает условие каждого языка (если какой-то из его tex-файлов или
-    название отличаются от базы синхронизации — `problem.saveStatement`
-    принимает их только вместе), затем изменившиеся примеры по порядку
+    """Uploads the statement of each language (if any of its tex files or the
+    name differ from the sync base — `problem.saveStatement`
+    accepts them only together), then the changed examples in the order of
     `testIndex`.
 
-    Обе зависимости (`create_problem`, `statement_draft`) проверяются до
-    первого сетевого вызова.
+    Both dependencies (`create_problem`, `statement_draft`) are checked before the
+    first network call.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
     statement_dir = _statement_dir(ctx.problem_id, ctx.problems_dir)
@@ -209,7 +209,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
     for statement in statements:
         statement_items = statement.items()
-        # Без базы (`push --force`) неизвестно, что на Polygon, — не очищается ничего.
+        # Without a base (`push --force`) it's unknown what's on Polygon — nothing is cleared.
         tutorial_cleared = (
             TUTORIAL_FILENAME not in statement.tex_files
             and ctx.synced is not None
@@ -263,20 +263,20 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации (`sync_status`). Пока `name.txt` нет (его
-    создаст push из названия в спеке), название не сравнивается."""
+    """By the sync base (`sync_status`). While there's no `name.txt` (push
+    creates it from the name in the spec), the name isn't compared."""
 
     def read_items() -> dict[str, str]:
         statement_dir = _statement_dir(problem_id, problems_dir)
-        # Спека здесь нет: interaction.tex сравнивается, если он есть, и
-        # обязательного языка нет.
+        # There's no spec here: interaction.tex is compared if it exists, and there's no
+        # mandatory language.
         statements = read_statements(statement_dir)
         items = _example_items(_read_examples(statement_dir))
         state = load_polygon_state(problem_id, problems_dir=problems_dir)
         synced = state.synced if state is not None else {}
         for statement in statements:
             items.update(statement.items())
-            # Удалённый разбор push очистит на Polygon — это тоже несинхронизированная правка.
+            # Push clears a deleted tutorial on Polygon — that's an unsynced edit too.
             if statement.tutorial_key not in items and synced.get(statement.tutorial_key):
                 items[statement.tutorial_key] = digest(b"")
         return items
@@ -291,13 +291,13 @@ def read_statements(
     interactive: bool | None = None,
     title: Title | None = None,
 ) -> list[Statement]:
-    """Условие каждого языка `statement/<код>/`, по алфавиту кодов.
+    """The statement of each language `statement/<code>/`, alphabetically by code.
 
-    `language` — основной язык: без его каталога — `PolygonStepError`.
-    `interactive` — нужен ли `interaction.tex`; `None` (`polygon status`, без
-    спека) — читается, если он есть. С `title` (push) недостающий `name.txt`
-    создаётся из названия спека на этом языке, а без названия —
-    `PolygonStepError`; без `title` название такого условия неизвестно
+    `language` — the main language: without its directory — `PolygonStepError`.
+    `interactive` — whether `interaction.tex` is needed; `None` (`polygon status`, without
+    a spec) — it's read if it exists. With `title` (push) a missing `name.txt`
+    is created from the spec's name in this language, and without a name —
+    `PolygonStepError`; without `title` the name of such a statement is unknown
     (`Statement.name` — `None`).
     """
     try:
@@ -340,8 +340,8 @@ def read_statements(
 
 
 def read_name(path: Path) -> str:
-    """Название задачи из `name.txt` без окружающих пробелов и переводов
-    строк — их добавляют редакторы, в название они не входят."""
+    """The problem's name from `name.txt` without surrounding spaces and line
+    breaks — editors add them, they aren't part of the name."""
     name = path.read_text(encoding="utf-8").strip()
     if not name:
         raise PolygonStepError(f"{path} is empty — write the problem name into it")
@@ -361,9 +361,9 @@ def _example_items(examples: list[Example]) -> dict[str, str]:
 
 
 def _cleared_fields(ctx: StepContext, example: Example) -> dict[str, tuple[str, str]]:
-    """Поля теста примера, которые есть в базе синхронизации, но файла
-    которых больше нет: ключ -> (параметр, значение при очистке). Без базы
-    (`push --force`) неизвестно, что было на Polygon, — не очищается ничего."""
+    """The fields of an example test that are in the sync base but whose file
+    no longer exists: key -> (parameter, the value on clearing). Without a base
+    (`push --force`) it's unknown what was on Polygon — nothing is cleared."""
     if ctx.synced is None:
         return {}
     return {
@@ -380,12 +380,12 @@ def _statement_dir(problem_id: str, problems_dir: Path) -> Path:
 def _read_statement_dir(
     statement_dir: Path, *, interactive: bool = False, generated: bool = True
 ) -> dict[str, bytes]:
-    """Содержимое 4 фиксированных tex-файлов (имя файла -> содержимое), у
-    интерактивной задачи — ещё `interaction.tex`. Если какого-то нет —
-    `PolygonStepError` с его именем, а не пустая строка вместо содержимого.
-    Необязательный `tutorial.tex` — только если он есть.
-    `generated=False` — каталог не основного языка: его пишет не шаг модели,
-    а автор (или `polygon pull`)."""
+    """The contents of the 4 fixed tex files (file name -> contents), for an
+    interactive problem — also `interaction.tex`. If one is missing —
+    `PolygonStepError` with its name, not an empty string instead of the contents.
+    The optional `tutorial.tex` — only if it exists.
+    `generated=False` — a directory of a non-main language: it's written not by a model step,
+    but by the author (or `polygon pull`)."""
     names = [*_TEX_PARAM_NAMES, *([INTERACTION_FILENAME] if interactive else [])]
     missing = [name for name in names if not (statement_dir / name).exists()]
     if missing:
@@ -401,12 +401,12 @@ def _read_statement_dir(
 
 
 def _read_examples(statement_dir: Path) -> list[Example]:
-    """Примеры по возрастанию `testIndex` с полями для условия, файлы которых
-    есть (см. `Example`). Флаг verify не `true` — `PolygonStepError`.
+    """The examples by ascending `testIndex` with the fields for the statement whose files
+    exist (see `Example`). A verify flag other than `true` — `PolygonStepError`.
 
-    Нумерация `example_<N>.txt` должна быть непрерывной 1..N. Набор файлов
-    уже проверяет `statement_draft` перед записью, но этот шаг запускается
-    независимо от него, поэтому проверка повторяется здесь.
+    The numbering of `example_<N>.txt` must be contiguous 1..N. The set of files
+    is already checked by `statement_draft` before writing, but this step runs
+    independently of it, so the check is repeated here.
     """
     examples_dir = statement_dir / EXAMPLES_DIRNAME
     if not examples_dir.is_dir():

@@ -124,8 +124,8 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
         "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
     )
 
-    # constraints_pick не читает statement.md (это документ statement_draft) —
-    # его правка не должна инвалидировать кэш constraints_pick.
+    # constraints_pick doesn't read statement.md (it's a document of statement_draft) —
+    # editing it mustn't invalidate the cache of constraints_pick.
     _write_context_doc(templates_dir, "tutorials/statement.md", "statement v2")
     h2 = compute_prompt_hash(
         "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
@@ -243,7 +243,7 @@ def test_is_cache_valid_false_when_no_entry():
     assert is_cache_valid(None, "h1", "p1") is False
 
 
-# --- хеши по частям и модель --------------------------------------------
+# --- per-part hashes and the model ----------------------------------------
 
 
 def test_is_cache_valid_false_when_model_changed():

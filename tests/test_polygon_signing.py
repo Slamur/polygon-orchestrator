@@ -5,7 +5,7 @@ from orchestrator.polygon.signing import generate_signature
 
 
 def _expected(rand: str, sig_source: str) -> str:
-    """Ожидаемая подпись из вручную собранной строки sig_source."""
+    """The expected signature from a manually assembled sig_source string."""
     return rand + hashlib.sha512(sig_source.encode()).hexdigest()
 
 
@@ -14,7 +14,7 @@ def test_signature_matches_hand_built_sig_source():
 
     signature = generate_signature("problem.info", params, "sec", rand="abcdef")
 
-    # Имена отсортированы: apiKey < problemId < time.
+    # The names are sorted: apiKey < problemId < time.
     assert signature == _expected(
         "abcdef",
         "abcdef/problem.info?apiKey=key123&problemId=42&time=1700000000#sec",
@@ -40,8 +40,8 @@ def test_signature_does_not_depend_on_params_insertion_order():
 
 
 def test_signature_sorts_names_bytewise_uppercase_before_lowercase():
-    # Сортировка — обычная сортировка Python по (name, value): "Z" (0x5A)
-    # раньше "a" (0x61), а не регистронезависимая.
+    # The sorting is the ordinary Python sorting by (name, value): "Z" (0x5A)
+    # before "a" (0x61), not case-insensitive.
     signature = generate_signature("m", {"a": "1", "Z": "2"}, "s", rand="000000")
 
     assert signature == _expected("000000", "000000/m?Z=2&a=1#s")
@@ -52,7 +52,7 @@ def test_signature_uses_raw_non_ascii_values():
 
     signature = generate_signature("problem.create", params, "s", rand="zzzzzz")
 
-    # Без percent-encoding: значение в UTF-8 как есть, пробел — пробел.
+    # Without percent-encoding: the value in UTF-8 as is, a space is a space.
     assert signature == _expected(
         "zzzzzz",
         "zzzzzz/problem.create?apiKey=k&name=Задача A&time=1#s",
@@ -60,8 +60,8 @@ def test_signature_uses_raw_non_ascii_values():
 
 
 def test_signature_uses_raw_reserved_characters():
-    # "&", "=", "/", "#" и переводы строк внутри значения подписываются как
-    # есть — так же, как их подписывает сервер Polygon.
+    # "&", "=", "/", "#" and line breaks inside a value are signed as
+    # is — the same way the Polygon server signs them.
     signature = generate_signature("m", {"q": "a&b=c/d#e\nf"}, "s", rand="000000")
 
     assert signature == _expected("000000", "000000/m?q=a&b=c/d#e\nf#s")
@@ -87,5 +87,5 @@ def test_signature_depends_on_secret():
 def test_signature_generates_random_prefix_when_rand_is_none():
     signature = generate_signature("m", {"apiKey": "k", "time": "1"}, "s")
 
-    # 6 alphanumeric символов rand + 128 hex-символов sha512.
+    # 6 alphanumeric characters of rand + 128 hex characters of sha512.
     assert re.fullmatch(r"[a-z0-9]{6}[0-9a-f]{128}", signature)

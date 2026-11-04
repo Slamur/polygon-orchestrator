@@ -23,7 +23,7 @@ SCRIPT_FUNCTIONS = (TEMPLATES_DIR / "test_script_functions.ftl").read_text(encod
 
 @pytest.fixture
 def spec():
-    # script_style: groups — файл test_script_groups.
+    # script_style: groups — the test_script_groups file.
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
@@ -60,7 +60,7 @@ def test_writes_script_by_style_from_the_plan(spec, tmp_path):
     assert "gen_rand -n=maxN" in user_prompt
     assert "n_max: 100000" in user_prompt
     assert "time_limit_seconds" not in user_prompt
-    # Скрипту не нужен алгоритм генератора — только как его вызывать.
+    # The script doesn't need the generator's algorithm — only how to call it.
     assert "Случайный массив длины n." not in user_prompt
 
 

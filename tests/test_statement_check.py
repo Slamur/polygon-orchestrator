@@ -18,7 +18,7 @@ def _kinds(text: str) -> list[tuple[int, str]]:
     return [(issue.line, issue.kind) for issue in check_text(text, FILE)]
 
 
-# --- списки -------------------------------------------------------------------
+# --- lists --------------------------------------------------------------------
 
 
 def test_bullet_list_becomes_itemize():
@@ -57,7 +57,7 @@ def test_dashes_and_latex_lists_are_not_markdown():
     assert fix_text(text) == text
 
 
-# --- кавычки ------------------------------------------------------------------
+# --- quotes -------------------------------------------------------------------
 
 
 def test_quotes_become_guillemets():
@@ -157,7 +157,7 @@ def test_local_fix_without_statement(tmp_path, capsys):
     assert "no statement" in capsys.readouterr().err
 
 
-# --- языки условия ------------------------------------------------------------
+# --- statement languages ------------------------------------------------------
 
 
 def test_quotes_are_checked_only_in_russian_text(tmp_path, capsys):

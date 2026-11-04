@@ -1,10 +1,10 @@
-"""Шаги интеграции с Polygon (создание задачи, ограничения, условие, файлы и т.д.).
+"""Polygon integration steps (creating the problem, limits, statement, files, etc.).
 
-В отличие от `orchestrator/steps/` это не генеративные шаги: модель не
-вызывается, шаг — последовательность вызовов Polygon API. Ничего отсюда не
-импортируется на верхнем уровне пакета — см. docstring `orchestrator/polygon/__init__.py`.
+Unlike `orchestrator/steps/` these aren't generative steps: the model isn't
+called, a step is a sequence of Polygon API calls. Nothing from here is
+imported at the package's top level — see the docstring of `orchestrator/polygon/__init__.py`.
 
-Каждый шаг — модуль с константой `STEP: PolygonStep` (см. `base.py`); общую
-логику "выполнить, если ещё не выполнялся" даёт `base.run_step`, шаг
-описывает только свою специфику.
+Each step is a module with a `STEP: PolygonStep` constant (see `base.py`); the shared
+"run if not run yet" logic is provided by `base.run_step`, a step
+describes only its specifics.
 """

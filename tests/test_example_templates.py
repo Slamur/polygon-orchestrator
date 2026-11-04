@@ -1,12 +1,12 @@
-"""Согласованность учебных задач-образцов в `examples/`.
+"""Consistency of the sample problems in `examples/`.
 
-`authoring/spec.yaml`, `authoring/constraints.yaml` и `validator.cpp` каждой учебной задачи
-прикладываются к вызовам модели как пара "спек -> ожидаемый результат" (см.
-docs/PROMPTS.md, "Приложенные шаблоны как образцы"). Если образцы разойдутся
-между собой, модель начнёт учиться неверному соответствию — тесты ловят то,
-что можно проверить механически. Каждый тест прогоняется по всем каталогам
-задач в `examples/` (на любой глубине, см. `orchestrator/problem_paths.py`),
-так что новая учебная задача проверяется без правки этого файла.
+The `authoring/spec.yaml`, `authoring/constraints.yaml` and `validator.cpp` of each sample problem
+are attached to model calls as a "spec -> expected result" pair (see
+docs/PROMPTS.md, "Attached templates as samples"). If the samples diverge
+from each other, the model will start learning a wrong mapping — the tests catch what
+can be checked mechanically. Each test runs over all problem
+directories in `examples/` (at any depth, see `orchestrator/problem_paths.py`),
+so a new sample problem is checked without editing this file.
 """
 
 import os
@@ -70,8 +70,8 @@ def test_examples_exist():
 
 
 def test_example_dirs_hold_only_problems():
-    """Файлы образцов лежат только в каталогах задач: всё, что вне них,
-    не проверяется этими тестами и не годится как референс."""
+    """Sample files lie only in problem directories: everything outside them
+    isn't checked by these tests and isn't fit as a reference."""
     stray = [
         path
         for path in EXAMPLES_ROOT.rglob("*")
@@ -105,8 +105,8 @@ def test_example_constraints_match_example_spec(example_dir):
 
 @examples
 def test_example_constraints_follow_constraints_format(example_dir):
-    # constraints_format.yaml прикладывается к constraints_pick как формат
-    # результата — образцы не должны ему противоречить.
+    # constraints_format.yaml is attached to constraints_pick as the format of the
+    # result — the samples mustn't contradict it.
     format_keys = set(
         yaml.safe_load((TEMPLATES_DIR / "constraints_format.yaml").read_text(encoding="utf-8"))
     )
@@ -124,8 +124,8 @@ def test_example_constraints_limits_are_readable_by_set_constraints(example_dir)
 
 @examples
 def test_example_limits_file_is_readable(example_dir):
-    # С constraints.yaml не сравнивается: актуальные TL/ML могут отличаться от
-    # предложенных constraints_pick (подгонка на Polygon, `polygon pull`).
+    # Not compared with constraints.yaml: the actual TL/ML may differ from those
+    # proposed by constraints_pick (tuning on Polygon, `polygon pull`).
     path = example_dir / LIMITS_FILENAME
     assert path.is_file(), f"{path} is missing"
     parse_limits(path.read_text(encoding="utf-8"))
@@ -138,8 +138,8 @@ def test_example_validator_uses_constraints_bounds(example_dir):
         name: float(value)
         for name, value in re.findall(r"\b((?:min|max)\w+)\s*=\s*(-?[0-9.e]+)", validator)
     }
-    # Границы-выражения (`max: N`) валидатор берёт из уже прочитанных
-    # значений, а не из констант — сравниваются только числовые.
+    # The validator takes expression bounds (`max: N`) from already read
+    # values, not from constants — only numeric ones are compared.
     bounds = sorted(
         float(bound)
         for constant in _example_constraints(example_dir)["validator"]["constants"]
@@ -151,9 +151,9 @@ def test_example_validator_uses_constraints_bounds(example_dir):
 
 @examples
 def test_example_test_scripts_contain_standard_functions(example_dir):
-    # Шаблон стандартных функций приложен к test_script_draft всегда, а
-    # скрипт-образец — через референсы: если в образце окажется другой набор,
-    # модель получит два противоречащих друг другу образца.
+    # The standard functions template is always attached to test_script_draft, and
+    # the sample script — via references: if the sample turns out to have a different set,
+    # the model gets two samples contradicting each other.
     functions = (TEMPLATES_DIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
     for name in SCRIPT_NAMES:
         script_path = example_dir / name
@@ -163,8 +163,8 @@ def test_example_test_scripts_contain_standard_functions(example_dir):
 
 @examples
 def test_example_test_scripts_have_no_comparison_signs_in_directives(example_dir):
-    # `>` внутри тега FreeMarker закрывает тег — Polygon такой скрипт не
-    # сохраняет (templates/tutorials/freemarker.md, "Сравнения").
+    # `>` inside a FreeMarker tag closes the tag — Polygon doesn't save such a script
+    # (templates/tutorials/freemarker.md, "Comparisons").
     for name in SCRIPT_NAMES:
         script_path = example_dir / name
         if script_path.exists():
@@ -174,10 +174,10 @@ def test_example_test_scripts_have_no_comparison_signs_in_directives(example_dir
 
 @examples
 def test_example_tests_plan_matches_spec_and_generators(example_dir):
-    # Пара "спек -> план" для tests_plan и "план -> генераторы" для
-    # generators_draft: план разбирается, покрывает все пункты
-    # specific_test_ideas/known_wrong_approaches спека, и его генераторы — это
-    # ровно generators/*.cpp с теми же параметрами opt<T>(...).
+    # The "spec -> plan" pair for tests_plan and "plan -> generators" for
+    # generators_draft: the plan parses, covers all the spec's
+    # specific_test_ideas/known_wrong_approaches items, and its generators are
+    # exactly generators/*.cpp with the same opt<T>(...) parameters.
     plan = parse_tests_plan(
         (example_dir / AUTHORING_DIRNAME / "tests_plan.yaml").read_text(encoding="utf-8")
     )
@@ -194,19 +194,19 @@ def test_example_tests_plan_matches_spec_and_generators(example_dir):
     assert planned == actual
 
 
-# Таймаут сборки образца: пул собирает в фоне, пока остальные тесты тоже
-# компилируют, и на занятой машине 30 секунд по умолчанию не хватает.
+# The sample build timeout: the pool builds in the background while the other tests
+# compile too, and on a busy machine the default 30 seconds isn't enough.
 _EXAMPLE_COMPILE_TIMEOUT_SECONDS = 120.0
 
 
 def _compile(cpp_path: Path, cache_dir: Path | None) -> str | None:
-    """stderr компилятора, если `cpp_path` не собрался, иначе None.
+    """The compiler's stderr if `cpp_path` didn't build, otherwise None.
 
-    `problem_lib.h` ищется, как в compile-check пайплайна, сначала в каталоге
-    задачи (у образца может быть своя копия с функциями задачи), потом в
-    `templates/`. Удачная сборка помечается в `cache_dir` по `source_key`
-    (исходник после препроцессора, флаги, версия g++): тот же вход между
-    запусками pytest не пересобирается, изменённый собирается честно."""
+    `problem_lib.h` is looked up as in the pipeline's compile-check, first in the problem
+    directory (a sample may have its own copy with the problem's functions), then in
+    `templates/`. A successful build is marked in `cache_dir` by `source_key`
+    (the preprocessed source, the flags, the g++ version): the same input isn't rebuilt
+    between pytest runs, a changed one is built honestly."""
     example_dir = next(example for example in EXAMPLE_DIRS if example in cpp_path.parents)
     include_dirs = [example_dir, TEMPLATES_DIR]
     key = source_key(cpp_path, include_dirs) if cache_dir else None
@@ -225,13 +225,13 @@ def _compile(cpp_path: Path, cache_dir: Path | None) -> str | None:
 
 @pytest.fixture(scope="session")
 def _example_compilations(request, pytestconfig):
-    """Сборки `.cpp` выбранных образцов, запущенные сразу все параллельно.
+    """Builds of the `.cpp` of the selected samples, all started in parallel at once.
 
-    Тест на образец ждёт только свои файлы, но собираются они в общем пуле:
-    с testlib.h каждый файл собирается несколько секунд, а у одного образца
-    файлов меньше, чем ядер. Компиляций — не больше половины ядер: остальные
-    тесты в это время тоже собирают и запускают бинари.
-    Кэш — в `.pytest_cache` (без cacheprovider — без кэша)."""
+    A test for a sample waits only for its own files, but they're built in a shared pool:
+    with testlib.h each file builds for several seconds, and one sample has
+    fewer files than there are cores. Compilations — no more than half the cores: the other
+    tests build and run binaries at that time too.
+    The cache — in `.pytest_cache` (without cacheprovider — without a cache)."""
     cache = getattr(pytestconfig, "cache", None)
     cache_dir = cache.mkdir("example-compiles") if cache else None
     selected = sorted(
@@ -251,9 +251,9 @@ def _example_compilations(request, pytestconfig):
 
 @pytest.mark.slow
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
-# Под pytest-xdist (`--dist loadgroup`) все образцы — на одном процессе: пул
-# `_example_compilations` собирает образцы всех тестов сессии, и на каждом
-# процессе собирал бы всё заново.
+# Under pytest-xdist (`--dist loadgroup`) all samples are in one process: the
+# `_example_compilations` pool builds the samples of all tests of the session, and in each
+# process it would build everything anew.
 @pytest.mark.xdist_group("example-compiles")
 @examples
 def test_example_cpp_files_compile(example_dir, _example_compilations):

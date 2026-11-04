@@ -1,51 +1,51 @@
-"""Общий цикл одного генеративного шага.
+"""The shared loop of one generative step.
 
-Каждый из шагов (`statement_draft`, `constraints_pick`, `tests_plan`,
+Each of the steps (`statement_draft`, `constraints_pick`, `tests_plan`,
 `generators_draft`, `test_script_draft`, `solutions_draft`, `checker_draft`,
-`interactor_draft`, см. CLAUDE.md,
-"Роль каждого генеративного шага") — это одна и та же последовательность
-действий над разными данными:
+`interactor_draft`, see CLAUDE.md,
+"Role of each generative step") is the same sequence of
+actions over different data:
 
-1. отрендерить `prompts/<step>/user.md.j2` (Jinja2) из секции спека
-   (+ апстрим-артефактов, если шаг от них зависит);
-2. прочитать `prompts/<step>/system.md` как системный промпт;
-3. вызвать `model_router.call_model(...)`;
-4. разобрать `ModelResponse.status` по "Правилу эскалации при неуверенности"
-   (CLAUDE.md): `uncertain` — остановить шаг и не писать артефакты;
-   `confirmed`/`proposed` — записать артефакты в `problems/<problem_id>/...`,
-   прогнать `compile_check` по всем `.cpp`-артефактам и сохранить
-   `CacheEntry` через `cache.py`.
+1. render `prompts/<step>/user.md.j2` (Jinja2) from the spec section
+   (+ upstream artifacts, if the step depends on them);
+2. read `prompts/<step>/system.md` as the system prompt;
+3. call `model_router.call_model(...)`;
+4. handle `ModelResponse.status` by the "Escalation rule on uncertainty"
+   (CLAUDE.md): `uncertain` — stop the step and don't write artifacts;
+   `confirmed`/`proposed` — write the artifacts to `problems/<problem_id>/...`,
+   run `compile_check` on all `.cpp` artifacts and save the
+   `CacheEntry` via `cache.py`.
 
-Режим доработки (`StepRevision`): если файлы шага уже есть на диске, модель
-получает их вместе с тем, что изменилось во входе шага с прошлого прогона
-(`prompts/revise.md.j2`), и дорабатывает их, а не пишет с нуля. Каждый
-текущий файл в ответе — ровно в одном из: `artifacts` (изменён),
-`unchanged`, `removed`, `renamed[].from` (`_plan_response`). Удалённые
-файлы не удаляются, а переименовываются в `<имя>.removed`
-(`REMOVED_SUFFIX`) — автор посмотрит и удалит сам; переименования
-применяются сразу. Прежние версии перезаписанных и переименованных файлов
-(в любом режиме) — в `.llm_backup/<время>/` каталога задачи
-(`problems/` вне git, истории у файлов задачи нет).
+Revision mode (`StepRevision`): if the step's files already exist on disk, the model
+gets them together with what changed in the step's input since the last run
+(`prompts/revise.md.j2`), and revises them rather than writing from scratch. Each
+current file in the response is in exactly one of: `artifacts` (changed),
+`unchanged`, `removed`, `renamed[].from` (`_plan_response`). Removed
+files aren't deleted but renamed to `<name>.removed`
+(`REMOVED_SUFFIX`) — the author looks and deletes them themselves; renames
+are applied immediately. Previous versions of overwritten and renamed files
+(in any mode) — in the problem directory's `.llm_backup/<time>/`
+(`problems/` is outside git, the problem's files have no history).
 
-Ответ применяется как `git merge`: то, что применить нельзя (недопустимое
-имя файла, текущий файл сразу в нескольких местах ответа, переименование в
-занятое имя), — конфликт: файл задачи остаётся как был, версия модели
-откладывается в `.llm_conflicts/<шаг>-<время>/` с отчётом `CONFLICTS.md`, а
-остальное применяется. Шаги, файлы которых связаны друг с другом
-(`partial_apply=False`), и ответ, не прошедший `validate_artifacts`,
-применяются только целиком: при конфликте не применяется ничего. Запись
-кэша с конфликтами — не cache hit, пока автор их не разберёт и не сделает
+The response is applied like a `git merge`: what can't be applied (an invalid
+file name, a current file in several places of the response at once, a rename to
+an occupied name) is a conflict: the problem file stays as it was, the model's version
+is set aside in `.llm_conflicts/<step>-<time>/` with a `CONFLICTS.md` report, and
+the rest is applied. Steps whose files are tied to each other
+(`partial_apply=False`), and a response that failed `validate_artifacts`,
+are applied only in full: on a conflict nothing is applied. A cache entry
+with conflicts isn't a cache hit until the author resolves them and runs
 `llm accept`.
 
-Неполный ответ — без части файлов, которые шаг обязан вернуть
-(`MissingArtifactsError` из `validate_artifacts`), — модель один раз
-дописывает отдельным вызовом (`MISSING_ARTIFACTS_PROMPT`): ей показываются
-уже возвращённые файлы, и она возвращает только недостающие.
+An incomplete response — missing some of the files the step must return
+(`MissingArtifactsError` from `validate_artifacts`) — the model completes once
+with a separate call (`MISSING_ARTIFACTS_PROMPT`): it is shown
+the files already returned, and it returns only the missing ones.
 
-Этот модуль реализует шаги 1-5 один раз (`run_generative_step`); конкретные
-модули в `orchestrator/steps/*.py` только знают, какую секцию спека читать,
-как разложить артефакты по каталогам `problems/<id>/...` и что входит в
-апстрим-хеш — сами не дублируют этот цикл.
+This module implements steps 1-5 once (`run_generative_step`); the concrete
+modules in `orchestrator/steps/*.py` only know which spec section to read,
+how to lay out the artifacts into the `problems/<id>/...` directories and what goes into the
+upstream hash — they don't duplicate this loop themselves.
 """
 
 from __future__ import annotations
@@ -90,66 +90,66 @@ from orchestrator.statement_languages import DEFAULT_LANGUAGE
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
 
-# `REVISE_PROMPT` (импортирован из `cache.py`) — общий для всех шагов блок
-# user-промпта режима доработки (относительно prompts_dir): дописывается к
-# `prompts/<step>/user.md.j2`, когда модели показаны текущие файлы шага.
+# `REVISE_PROMPT` (imported from `cache.py`) — the revision-mode user-prompt block
+# shared by all steps (relative to prompts_dir): appended to
+# `prompts/<step>/user.md.j2` when the model is shown the step's current files.
 
-# Общий для всех шагов блок user-промпта дозапроса недостающих файлов
-# (относительно prompts_dir): дописывается к user-промпту первого вызова,
-# если его ответ не содержал части обязательных файлов. В хеш промпта шага
-# не входит: результат шага он не задаёт — только просит дописать то, что
-# основной промпт и так требовал.
+# The re-request-of-missing-files user-prompt block shared by all steps
+# (relative to prompts_dir): appended to the user prompt of the first call
+# if its response lacked some of the mandatory files. It isn't part of the step's
+# prompt hash: it doesn't set the step's result — it only asks to add what the
+# main prompt required anyway.
 MISSING_ARTIFACTS_PROMPT = "missing_artifacts.md.j2"
 
-# Каталог (в каталоге задачи) с прежними версиями файлов, которые шаг
-# перезаписал или переименовал: `.llm_backup/<время>/<путь в каталоге задачи>`.
+# The directory (in the problem directory) with the previous versions of files the step
+# overwrote or renamed: `.llm_backup/<time>/<path in the problem directory>`.
 LLM_BACKUP_DIRNAME = ".llm_backup"
-# Каталог (в каталоге задачи) с тем, что из ответа модели не применено:
-# `.llm_conflicts/<шаг>-<время>/` — версии файлов от модели и отчёт
-# `CONFLICTS_REPORT`; файлы с недопустимыми именами — в `INVALID_NAMES_SUBDIR`.
+# The directory (in the problem directory) with what of the model's response wasn't applied:
+# `.llm_conflicts/<step>-<time>/` — the model's versions of files and the
+# `CONFLICTS_REPORT` report; files with invalid names — in `INVALID_NAMES_SUBDIR`.
 LLM_CONFLICTS_DIRNAME = ".llm_conflicts"
 CONFLICTS_REPORT = "CONFLICTS.md"
-# Причина конфликта у частей ответа, не применённого целиком: сама причина
-# одна на весь ответ (`StepResult.not_applied_reason`), у файлов не повторяется.
+# The conflict reason for the parts of a response not applied in full: the reason itself
+# is one for the whole response (`StepResult.not_applied_reason`), it isn't repeated for the files.
 WHOLE_RESPONSE_NOT_APPLIED = "the response is not applied as a whole"
 INVALID_NAMES_SUBDIR = "invalid_names"
-# Учебные задачи-образцы `examples/` (`EXAMPLES_DIR`), каждая в раскладке
-# `problems/<problem_id>/` плюс свой спек `spec.yaml` (как задачи раскладываются
-# по вложенным каталогам — см. `orchestrator/problem_paths.py`). Сами по себе к
-# вызову не прикладываются — только как референсы спека (`orchestrator/references.py`).
+# The sample problems `examples/` (`EXAMPLES_DIR`), each in the
+# `problems/<problem_id>/` layout plus its own spec `spec.yaml` (how problems are laid out
+# in nested directories — see `orchestrator/problem_paths.py`). They aren't attached to the
+# call by themselves — only as spec references (`orchestrator/references.py`).
 
-# У каждой задачи своя копия `problem_lib.h` — `problems/<problem_id>/problem_lib.h`:
-# шаблон `templates/problem_lib.h` — только её начальное содержимое, и правки
-# автора под конкретную задачу не перезаписывают ни шаблон, ни
-# `llm generate`, ни `polygon push`. Копию создаёт `ensure_problem_lib` —
-# перед compile-check сгенерированных `.cpp` и в polygon-шаге
-# `upload_problem_lib`; `polygon pull` скачивает в неё resource-файл с
-# Polygon. К вызову модели прикладывается шаблон (`STEP_CONTEXT_DOCUMENTS`).
+# Each problem has its own copy of `problem_lib.h` — `problems/<problem_id>/problem_lib.h`:
+# the template `templates/problem_lib.h` is only its initial content, and the author's
+# edits for a particular problem are overwritten neither by the template, nor by
+# `llm generate`, nor by `polygon push`. The copy is created by `ensure_problem_lib` —
+# before the compile-check of the generated `.cpp` and in the polygon step
+# `upload_problem_lib`; `polygon pull` downloads the resource file from
+# Polygon into it. The model is given the template (`STEP_CONTEXT_DOCUMENTS`).
 PROBLEM_LIB_FILENAME = "problem_lib.h"
 
-# Правила для интерактивных задач (`spec.interactive`): `interactor_draft`
-# получает их всегда, `statement_draft` и `solutions_draft` — только для
-# интерактивной задачи (через `extra_context_documents`), чтобы их правка не
-# инвалидировала кэш этих шагов у обычных задач.
+# The rules for interactive problems (`spec.interactive`): `interactor_draft`
+# always gets them, `statement_draft` and `solutions_draft` — only for an
+# interactive problem (via `extra_context_documents`), so that editing them doesn't
+# invalidate the cache of these steps for normal problems.
 INTERACTIVE_TUTORIAL = "tutorials/interactive.md"
 
-# Обязательные документы контекста на шаг (пути относительно templates_dir),
-# см. CLAUDE.md, "Как использовать приложенные материалы": tutorials/*.md —
-# это правила, а не справочный материал. Правила разбиты по темам, и шаг
-# получает только нужные ему темы: правка одной темы инвалидирует кэш только
-# читающих её шагов (tutorials/polygon.md — справка по интерфейсу Polygon,
-# ни одному шагу не прикладывается). `constraints_format.yaml` — формат
-# результата `constraints_pick`, который читают следующие шаги и
-# оркестратор (обязателен и при спеке без референсов), а problem_lib.h —
-# основа, которую нужно расширять. Промпты (prompts/<step>/system.md) лишь ссылаются на эти
-# файлы по имени — здесь их содержимое реально прикладывается к вызову
-# модели (см. `call_model` в `model_router.py` и `LLMClient.generate`), а не
-# пересказывается.
+# The mandatory context documents per step (paths relative to templates_dir),
+# see CLAUDE.md, "How to use the attached materials": tutorials/*.md
+# are rules, not reference material. The rules are split by topic, and a step
+# gets only the topics it needs: editing one topic invalidates the cache only of
+# the steps that read it (tutorials/polygon.md — a reference on the Polygon interface,
+# not attached to any step). `constraints_format.yaml` — the format of the
+# `constraints_pick` result, which the following steps and the
+# orchestrator read (mandatory even with a spec without references), and problem_lib.h —
+# the base to extend. The prompts (prompts/<step>/system.md) only refer to these
+# files by name — here their contents are actually attached to the model
+# call (see `call_model` in `model_router.py` and `LLMClient.generate`), not
+# retold.
 #
-# Запись с `*` — glob-шаблон относительно templates_dir: прикладываются все
-# подходящие файлы (в отсортированном порядке). Образцы (файлы других задач)
-# здесь не перечислены — они зависят от референсов конкретного спека, см.
-# `extra_context_documents` шагов и `orchestrator/references.py`.
+# An entry with `*` is a glob pattern relative to templates_dir: all
+# matching files are attached (in sorted order). Samples (files of other problems)
+# aren't listed here — they depend on the references of a particular spec, see
+# the steps' `extra_context_documents` and `orchestrator/references.py`.
 STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [
         "tutorials/statement.md",
@@ -189,19 +189,19 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     ],
 }
 
-# Статусы ответа модели по контракту из docs/PROMPTS.md.
+# The statuses of the model's response by the contract from docs/PROMPTS.md.
 STATUS_CONFIRMED = "confirmed"
 STATUS_PROPOSED = "proposed"
 STATUS_UNCERTAIN = "uncertain"
 _VALID_STATUSES = {STATUS_CONFIRMED, STATUS_PROPOSED, STATUS_UNCERTAIN}
 
 
-# Результат `constraints_pick`, который читают следующие шаги (через
-# `upstream_artifacts`, CLAUDE.md, "Кэширование по хешу спека").
+# The result of `constraints_pick`, which the following steps read (via
+# `upstream_artifacts`, CLAUDE.md, "Caching by spec hash").
 CONSTRAINTS_ARTIFACT = "constraints.yaml"
 
-# TL/ML в `constraints.yaml`: секция `limits` и пара ключей, которую
-# `set_constraints` принимает и прямо в корне документа, см.
+# TL/ML in `constraints.yaml`: the `limits` section and the pair of keys that
+# `set_constraints` also accepts right at the document root, see
 # `constraints_without_limits`.
 _LIMITS_BLOCK_RE = re.compile(r"limits\s*:")
 _LIMITS_KEY_RE = re.compile(r"(time_limit_seconds|memory_limit_mb)\s*:")
@@ -210,9 +210,9 @@ _LIMITS_KEY_RE = re.compile(r"(time_limit_seconds|memory_limit_mb)\s*:")
 def require_constraints_yaml(
     step_name: str, problem_id: str, upstream_artifacts: dict[str, Any] | None
 ) -> str:
-    """`constraints.yaml` из `upstream_artifacts` шага, который от него
-    зависит; нет — `ValueError` (шаги запущены не по порядку). `step_name` —
-    чтобы сообщение называло шаг, вызвавший проверку."""
+    """`constraints.yaml` from the `upstream_artifacts` of a step that
+    depends on it; missing — `ValueError` (the steps were run out of order). `step_name` —
+    so that the message names the step that triggered the check."""
     if not upstream_artifacts or CONSTRAINTS_ARTIFACT not in upstream_artifacts:
         raise ValueError(
             f"Step '{step_name}' for '{problem_id}': upstream_artifacts has no "
@@ -223,12 +223,12 @@ def require_constraints_yaml(
 
 
 def constraints_without_limits(constraints_yaml: str) -> str:
-    """`constraints.yaml` без TL/ML: секции `limits` верхнего уровня (вместе
-    с вложенными строками) и ключей `time_limit_seconds`/`memory_limit_mb`
-    в корне. Тесты и решения строятся по асимптотике и диапазонам
-    переменных: TL модель проверить не может, а его подгонка (в том числе на
-    Polygon) не должна инвалидировать шаги. Вырезается текстом, а не через
-    YAML, чтобы остальной файл, с комментариями, модель видела как есть.
+    """`constraints.yaml` without TL/ML: the top-level `limits` sections (together
+    with the nested lines) and the `time_limit_seconds`/`memory_limit_mb` keys
+    at the root. Tests and solutions are built from the asymptotics and the variable
+    ranges: the model can't check the TL, and tuning it (including on
+    Polygon) mustn't invalidate the steps. It's cut out as text, not through
+    YAML, so that the model sees the rest of the file, with comments, as is.
     """
     kept: list[str] = []
     in_limits = False
@@ -243,13 +243,13 @@ def constraints_without_limits(constraints_yaml: str) -> str:
 
 
 class StepUncertainError(Exception):
-    """Шаг остановлен из-за `status: uncertain` в ответе модели.
+    """The step is stopped because of `status: uncertain` in the model's response.
 
-    Реализует "Правило эскалации при неуверенности" (CLAUDE.md): если для
-    ответа не хватает данных, явно заданных автором в спеке, модель обязана
-    вернуть `uncertain` вместо того, чтобы додумывать значение, а оркестратор
-    обязан остановить пайплайн для этого `problem_id` и не трогать
-    `problems/` — этот класс исключения и есть тот механический стоп-сигнал.
+    Implements the "Escalation rule on uncertainty" (CLAUDE.md): if the
+    response lacks data explicitly set by the author in the spec, the model must
+    return `uncertain` instead of making up a value, and the orchestrator
+    must stop the pipeline for this `problem_id` and not touch
+    `problems/` — this exception class is that mechanical stop signal.
     """
 
     def __init__(self, step_name: str, problem_id: str, notes: list[dict[str, Any]]):
@@ -267,10 +267,10 @@ class StepUncertainError(Exception):
 
 
 class MissingArtifactsError(ValueError):
-    """Ответ модели неполон: в нём нет части файлов, которые шаг обязан
-    вернуть (`missing` — их имена, как их вернула бы модель). Бросается из
-    `validate_artifacts` шага (`check_artifact_names`); `run_generative_step`
-    один раз дозапрашивает эти файлы у модели."""
+    """The model's response is incomplete: it lacks some of the files the step must
+    return (`missing` — their names, as the model would return them). Raised from
+    the step's `validate_artifacts` (`check_artifact_names`); `run_generative_step`
+    requests these files from the model once more."""
 
     def __init__(self, message: str, missing: list[str]):
         super().__init__(message)
@@ -278,8 +278,8 @@ class MissingArtifactsError(ValueError):
 
 
 def check_artifact_names(step_name: str, expected: set[str], artifacts: dict[str, str]) -> None:
-    """Проверка набора имён файлов шага: ровно `expected`. Недостача —
-    `MissingArtifactsError` (её можно дозапросить), только лишние файлы —
+    """Checks the set of the step's file names: exactly `expected`. A shortage is a
+    `MissingArtifactsError` (it can be requested again), only extra files — a
     `ValueError`."""
     actual = set(artifacts)
     missing = sorted(expected - actual)
@@ -295,15 +295,15 @@ def check_artifact_names(step_name: str, expected: set[str], artifacts: dict[str
 
 @dataclass
 class GeneratedArtifacts:
-    """Файлы шага, которые пишет оркестратор, а не модель (например, input
-    примеров условия — копия из спека): модель их не возвращает, а если
-    вернула — её версия отбрасывается (заметка `ignored`).
+    """The step's files written by the orchestrator, not the model (e.g. the input of the
+    statement's examples — a copy from the spec): the model doesn't return them, and if it
+    did — its version is discarded (an `ignored` note).
 
-    `artifacts` — имя (как его вернула бы модель) -> содержимое; входят в
-    набор, который проверяет `validate_artifacts`, и пишутся вместе с
-    ответом модели — только если он применён. `stale` — такие же файлы
-    прошлых прогонов, которых больше нет (имя -> путь): помечаются
-    `.removed`, как удалённые моделью."""
+    `artifacts` — name (as the model would return it) -> contents; they are part of
+    the set checked by `validate_artifacts`, and are written together with the
+    model's response — only if it's applied. `stale` — the same kind of files from
+    previous runs that no longer exist (name -> path): they are marked
+    `.removed`, like files removed by the model."""
 
     artifacts: dict[str, str]
     stale: dict[str, Path] = field(default_factory=dict)
@@ -312,53 +312,53 @@ class GeneratedArtifacts:
 
 @dataclass
 class StepResult:
-    """Результат успешного (`confirmed`/`proposed`) прогона шага.
+    """The result of a successful (`confirmed`/`proposed`) run of a step.
 
-    `notes` сохраняет заметки модели как есть (в т.ч. `kind: proposed`) —
-    какие поля отмечать как "требует ручной проверки автором" в
-    `problems/` решает вызывающий код (пайплайн), см. CLAUDE.md, "Правило
-    эскалации при неуверенности".
+    `notes` keeps the model's notes as is (incl. `kind: proposed`) —
+    which fields to mark as "requires the author's manual review" in
+    `problems/` is decided by the calling code (the pipeline), see CLAUDE.md, "Escalation
+    rule on uncertainty".
     """
 
     step_name: str
     problem_id: str
     status: str
     artifact_paths: dict[str, Path] = field(default_factory=dict)
-    # Пути из `artifact_paths`, которых до записи не было (новые файлы).
+    # The paths from `artifact_paths` that didn't exist before writing (new files).
     created: list[Path] = field(default_factory=list)
     notes: list[dict[str, Any]] = field(default_factory=list)
     compile_results: dict[str, CompileResult] = field(default_factory=dict)
     # Written source files with non-ASCII characters (artifact name -> message),
     # see `orchestrator/checks/source_charset.py`.
     charset_errors: dict[str, str] = field(default_factory=dict)
-    # Режим доработки: файлы, помеченные `.removed` (путь пометки, причина),
-    # и переименования (старый путь, новый путь, причина).
+    # Revision mode: files marked `.removed` (mark path, reason),
+    # and renames (old path, new path, reason).
     revised: bool = False
     removed: list[tuple[Path, str]] = field(default_factory=list)
     renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
-    # Куда легли прежние версии перезаписанных/переименованных файлов;
-    # `None` — ничего не перезаписано.
+    # Where the previous versions of overwritten/renamed files went;
+    # `None` — nothing was overwritten.
     backup_dir: Path | None = None
-    # Что из ответа модели не применено (имя файла, причина) и каталог, куда
-    # отложены версии модели (`_write_conflicts`); `None` — всё применено.
+    # What of the model's response wasn't applied (file name, reason) and the directory where
+    # the model's versions were set aside (`_write_conflicts`); `None` — everything was applied.
     conflicts: list[tuple[str, str]] = field(default_factory=list)
     conflicts_dir: Path | None = None
-    # Почему ответ не применён целиком (не прошёл `validate_artifacts` или
-    # конфликт в шаге, применяемом только целиком); `None` — применён.
+    # Why the response wasn't applied in full (it failed `validate_artifacts` or
+    # a conflict in a step applied only in full); `None` — it was applied.
     not_applied_reason: str | None = None
 
 
 @dataclass
 class StepRevision:
-    """Режим доработки: шаг уже запускался, и его файлы есть на диске.
+    """Revision mode: the step has already run, and its files are on disk.
 
-    `current_paths` — текущие файлы шага: имя артефакта (как его вернула бы
-    модель, см. `current_artifacts` шагов) -> путь. `previous_input_values`
-    — вход прошлого прогона по частям (`CacheEntry.input_values`), по нему
-    модели показывается, что изменилось; `None` — неизвестно (записи кэша
-    нет или она старше `input_values`). `other_changes` — что ещё
-    изменилось с прошлого прогона, кроме входа (модель, промпт, приложенные
-    документы), — только имена, без содержимого.
+    `current_paths` — the step's current files: artifact name (as the
+    model would return it, see the steps' `current_artifacts`) -> path. `previous_input_values`
+    — the previous run's input by parts (`CacheEntry.input_values`), from it the
+    model is shown what changed; `None` — unknown (there's no cache entry
+    or it's older than `input_values`). `other_changes` — what else
+    changed since the last run besides the input (the model, the prompt, the attached
+    documents) — only names, without contents.
     """
 
     current_paths: dict[str, Path]
@@ -376,14 +376,14 @@ def _jinja_env(prompts_dir: Path) -> jinja2.Environment:
 
 
 def with_default_lists(data: dict[str, Any], list_fields: list[str]) -> dict[str, Any]:
-    """Копия `data`, где `None` по ключам из `list_fields` заменён на `[]`.
+    """A copy of `data` where `None` under the keys from `list_fields` is replaced with `[]`.
 
-    В `docs/SPEC_FORMAT.md` часть полей спека — `Optional[list[...]] = None`
-    (например, `known_ambiguities`, `special_guarantees`) специально
-    допускает `null` как "автор ничего не указал". `user.md.j2`-шаблоны
-    (см. `docs/PROMPTS.md`) перебирают такие поля через `{% for %}` без
-    отдельной проверки на `null` — с `None` вместо `[]` рендеринг упадёт с
-    `TypeError`, поэтому нормализация нужна до вызова Jinja, а не в шаблоне.
+    In `docs/SPEC_FORMAT.md` some spec fields are `Optional[list[...]] = None`
+    (e.g. `known_ambiguities`, `special_guarantees`) deliberately
+    allowing `null` as "the author specified nothing". The `user.md.j2` templates
+    (see `docs/PROMPTS.md`) iterate over such fields with `{% for %}` without
+    a separate check for `null` — with `None` instead of `[]` rendering fails with
+    `TypeError`, so the normalization is needed before calling Jinja, not in the template.
     """
     result = dict(data)
     for key in list_fields:
@@ -393,32 +393,32 @@ def with_default_lists(data: dict[str, Any], list_fields: list[str]) -> dict[str
 
 
 def language_input(spec: Any) -> dict[str, Any]:
-    """Язык условия (`language` спека) как часть входа шага, который пишет
-    текст на нём (`statement_draft`, `tutorial_draft`): у `DEFAULT_LANGUAGE`
-    ключа нет — его появление в спеке не инвалидировало кэш этих шагов у
-    задач, написанных до него."""
+    """The statement language (the spec's `language`) as part of the input of a step that writes
+    text in it (`statement_draft`, `tutorial_draft`): `DEFAULT_LANGUAGE` has no
+    key — its appearance in the spec didn't invalidate the cache of these steps for
+    problems written before it."""
     return {} if spec.language == DEFAULT_LANGUAGE else {"language": spec.language}
 
 
 def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[str, Any]:
-    """Формат ввода-вывода задачи из секции `statement_draft` спека — для
-    шагов, которые сами по себе от этой секции не зависят, но без неё
-    вынуждены угадывать формат (валидатор, генераторы, решения).
+    """The problem's input/output format from the spec's `statement_draft` section — for
+    steps that don't depend on this section by themselves, but without it
+    are forced to guess the format (validator, generators, solutions).
 
-    Берётся именно спек, а не сгенерированные `problems/<id>/statement/*.tex`:
-    спек — первоисточник, и он есть, даже если `statement_draft` ушёл в
-    `uncertain`. Возвращаемый словарь — одновременно контекст для
-    `user.md.j2` и часть входа хеша кэша шага (единая точка сборки, чтобы они
-    не разошлись).
+    It's exactly the spec that is taken, not the generated `problems/<id>/statement/*.tex`:
+    the spec is the primary source, and it exists even if `statement_draft` went to
+    `uncertain`. The returned dict is both the context for
+    `user.md.j2` and part of the step's cache hash input (a single assembly point, so that they
+    don't diverge).
 
-    `include_output_and_legend=False` — только ввод (`formal_input_sketch`,
-    `indexing`, input примеров): для `constraints_pick` легенда не
-    передаётся намеренно — асимптотику из неё выводить запрещено, и лишний
-    повод так сделать в промпте не нужен. `True` — дополнительно
-    `formal_output_sketch`, `legend_sketch` и output примеров (`null`, если
-    автор его не указал) — для решений, которым нужно и читать вход, и
-    печатать ответ, — и у интерактивной задачи протокол взаимодействия
-    (`interaction_sketch`; у обычной ключа нет, чтобы не менять хеш).
+    `include_output_and_legend=False` — only the input (`formal_input_sketch`,
+    `indexing`, the examples' input): for `constraints_pick` the legend isn't
+    passed on purpose — deriving the asymptotics from it is forbidden, and an extra
+    reason to do so in the prompt isn't needed. `True` — additionally
+    `formal_output_sketch`, `legend_sketch` and the examples' output (`null` if
+    the author didn't give it) — for solutions, which need both to read the input and
+    print the answer — and for an interactive problem the interaction protocol
+    (`interaction_sketch`; a normal one has no key, so as not to change the hash).
     """
     statement = spec.statement_draft
     section: dict[str, Any] = {
@@ -441,16 +441,16 @@ def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[
 def render_user_prompt(
     step_name: str, context: dict[str, Any], *, prompts_dir: Path = PROMPTS_DIR
 ) -> str:
-    """Рендерит `prompts/<step_name>/user.md.j2` из `context`."""
+    """Renders `prompts/<step_name>/user.md.j2` from `context`."""
     env = _jinja_env(prompts_dir)
     template = env.get_template(f"{step_name}/user.md.j2")
     return template.render(**context)
 
 
 def _display_value(value: Any) -> str | None:
-    """Часть входа шага текстом для промпта: строка — как есть (текст
-    легенды, содержимое `constraints.yaml`), списки и словари — YAML,
-    прочие значения — JSON (`true`, `5`, `null` у поля, заданного как null)."""
+    """A part of the step's input as text for the prompt: a string — as is (the
+    legend text, the contents of `constraints.yaml`), lists and dicts — YAML,
+    other values — JSON (`true`, `5`, `null` for a field set to null)."""
     if isinstance(value, str):
         return value
     if not isinstance(value, (dict, list)):
@@ -466,9 +466,9 @@ def render_revision_prompt(
     *,
     prompts_dir: Path = PROMPTS_DIR,
 ) -> str:
-    """Блок режима доработки (`prompts/revise.md.j2`): текущие файлы шага и
-    что изменилось во входе шага с прошлого прогона (`None` у "было" —
-    части не было, у "стало" — её больше нет; поле со значением null —
+    """The revision-mode block (`prompts/revise.md.j2`): the step's current files and
+    what changed in the step's input since the last run (`None` for "before" —
+    the part didn't exist, for "after" — it no longer exists; a field with a null value —
     `null`)."""
     previous = revision.previous_input_values
     changes = changed_input_values(previous, input_values)
@@ -495,8 +495,8 @@ def render_revision_prompt(
 def render_missing_artifacts_prompt(
     missing: list[str], returned: dict[str, str], *, prompts_dir: Path = PROMPTS_DIR
 ) -> str:
-    """Блок дозапроса (`MISSING_ARTIFACTS_PROMPT`): каких файлов не было в
-    ответе и что модель уже вернула."""
+    """The re-request block (`MISSING_ARTIFACTS_PROMPT`): which files weren't in the
+    response and what the model has already returned."""
     context = {
         "missing": missing,
         "returned_files": [
@@ -507,15 +507,15 @@ def render_missing_artifacts_prompt(
 
 
 def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> str:
-    """Читает `prompts/<step_name>/system.md` как системный промпт."""
+    """Reads `prompts/<step_name>/system.md` as the system prompt."""
     return (Path(prompts_dir) / step_name / "system.md").read_text(encoding="utf-8")
 
 
 def _expand_context_entry(step_name: str, entry: str, templates_dir: Path) -> list[str]:
-    """Раскрывает запись `STEP_CONTEXT_DOCUMENTS` в список путей относительно
-    `templates_dir`: обычный путь — как есть, glob-запись (с `*`) — во все
-    подходящие файлы в отсортированном порядке (порядок входит в
-    `compute_prompt_hash`, поэтому он должен быть детерминированным).
+    """Expands a `STEP_CONTEXT_DOCUMENTS` entry into a list of paths relative to
+    `templates_dir`: an ordinary path — as is, a glob entry (with `*`) — into all
+    matching files in sorted order (the order is part of
+    `compute_prompt_hash`, so it must be deterministic).
     """
     if "*" not in entry:
         if not (templates_dir / entry).exists():
@@ -539,20 +539,20 @@ def _expand_context_entry(step_name: str, entry: str, templates_dir: Path) -> li
 
 
 def _context_document_key(path: Path, templates_dir: Path) -> str:
-    """Имя, под которым документ из `extra_paths` прикладывается к вызову.
+    """The name under which a document from `extra_paths` is attached to the call.
 
-    Файл внутри `templates_dir` получает тот же вид ключа, что и документы
-    фиксированного списка, — путь относительно `templates_dir`
-    (`problem_lib.h`). Так он не прикладывается второй
-    раз, если на него ведут два референса (общий каталог и шаговый файл из
-    него), а ключ (он входит в `compute_prompt_hash`) не зависит от того,
-    как записан сам `templates_dir` — относительно или абсолютно. Файл вне
-    `templates_dir` остаётся под путём как он передан
+    A file inside `templates_dir` gets the same kind of key as the documents of the
+    fixed list — the path relative to `templates_dir`
+    (`problem_lib.h`). This way it isn't attached a second
+    time if two references lead to it (a shared directory and a per-step file from
+    it), and the key (it's part of `compute_prompt_hash`) doesn't depend on how
+    `templates_dir` itself is written — relative or absolute. A file outside
+    `templates_dir` stays under the path as given
     (`examples/<problem_id>/validator.cpp`, `problems/<problem_id>/validator.cpp`),
-    кроме файлов `authoring/` (спек, `constraints.yaml`): они — под путём без
-    `authoring/` (`examples/<problem_id>/constraints.yaml`), под тем же
-    именем, под которым шаг возвращает свой `constraints.yaml`, — и ключ
-    (а с ним хеш промпта) тот же, что до переноса этих файлов в `authoring/`.
+    except the `authoring/` files (the spec, `constraints.yaml`): they go under a path without
+    `authoring/` (`examples/<problem_id>/constraints.yaml`), under the same
+    name under which the step returns its own `constraints.yaml` — and the key
+    (and with it the prompt hash) is the same as before these files moved into `authoring/`.
     """
     try:
         return path.resolve().relative_to(templates_dir.resolve()).as_posix()
@@ -568,19 +568,19 @@ def load_context_documents(
     templates_dir: Path = TEMPLATES_DIR,
     extra_paths: list[str] | None = None,
 ) -> dict[str, str]:
-    """Читает документы контекста для шага `step_name`.
+    """Reads the context documents for the step `step_name`.
 
-    Порядок: сначала фиксированный список `STEP_CONTEXT_DOCUMENTS[step_name]`
-    (пути относительно `templates_dir`; glob-записи раскрываются в
-    отсортированный список файлов), затем `extra_paths` — пути
-    относительно корня репозитория, специфичные для конкретного вызова шага
-    (файлы референсов спека, см. `orchestrator/references.py`), а не для
-    всех вызовов шага вообще.
+    Order: first the fixed list `STEP_CONTEXT_DOCUMENTS[step_name]`
+    (paths relative to `templates_dir`; glob entries are expanded into a
+    sorted list of files), then `extra_paths` — paths
+    relative to the repository root, specific to a particular call of the step
+    (the spec's reference files, see `orchestrator/references.py`), not to
+    all calls of the step in general.
 
-    Отсутствующий файл (или glob-запись без единого совпадения) — понятная
-    ошибка ДО вызова модели, с указанием пути и того, откуда он взят
-    (фиксированный список или `extra_paths`) — не падаем молча и не
-    пропускаем документ.
+    A missing file (or a glob entry without a single match) is a clear
+    error BEFORE calling the model, stating the path and where it came from
+    (the fixed list or `extra_paths`) — we don't fail silently and don't
+    skip the document.
     """
     documents: dict[str, str] = {}
 
@@ -614,8 +614,8 @@ def problem_lib_path(problem_id: str, problems_dir: Path = PROBLEMS_DIR) -> Path
 def ensure_problem_lib(
     problem_id: str, *, problems_dir: Path = PROBLEMS_DIR, templates_dir: Path = TEMPLATES_DIR
 ) -> Path:
-    """Путь к `problem_lib.h` задачи; если его нет — сначала копирует туда
-    шаблон. Нет и шаблона — `FileNotFoundError`."""
+    """The path to the problem's `problem_lib.h`; if it doesn't exist — first copies the
+    template there. No template either — `FileNotFoundError`."""
     path = problem_lib_path(problem_id, problems_dir)
     if not path.exists():
         template = template_problem_lib_path(templates_dir)
@@ -627,13 +627,13 @@ def ensure_problem_lib(
 
 
 def artifact_filename(filename: str, subdir: str | None = None) -> str:
-    """Имя файла артефакта без каталога, для шагов, которые сами решают, в
-    какой каталог `problems/<problem_id>/` его положить. Заголовки образцов,
-    которые видит модель, — пути вида `.../generators/gen_rand.cpp`, и
-    модель может вернуть ключ `generators/gen_rand.cpp` вместо
-    `gen_rand.cpp`: префикс `subdir` (каталог, куда шаг и так кладёт файл)
-    снимается. Любой другой путь — `ValueError`: иначе файл лёг бы во
-    вложенный каталог (`generators/generators/`) или за пределы задачи."""
+    """The artifact's file name without a directory, for steps that decide themselves into
+    which directory of `problems/<problem_id>/` to put it. The headers of the samples
+    the model sees are paths like `.../generators/gen_rand.cpp`, and the
+    model may return the key `generators/gen_rand.cpp` instead of
+    `gen_rand.cpp`: the `subdir` prefix (the directory the step puts the file into anyway)
+    is stripped. Any other path is a `ValueError`: otherwise the file would go into a
+    nested directory (`generators/generators/`) or outside the problem."""
     parts = PurePosixPath(filename).parts
     if subdir is not None and len(parts) == 2 and parts[0] == subdir:
         parts = parts[1:]
@@ -647,8 +647,8 @@ def artifact_filename(filename: str, subdir: str | None = None) -> str:
 
 
 def existing_artifacts(candidates: dict[str, Path]) -> dict[str, Path]:
-    """Те из `candidates` (имя артефакта -> путь), что есть на диске и не
-    помечены как удалённые, — для `current_artifacts` шагов."""
+    """Those of `candidates` (artifact name -> path) that exist on disk and aren't
+    marked as removed — for the steps' `current_artifacts`."""
     return {
         name: path
         for name, path in candidates.items()
@@ -657,8 +657,8 @@ def existing_artifacts(candidates: dict[str, Path]) -> dict[str, Path]:
 
 
 def directory_artifacts(directory: Path, pattern: str = "*") -> dict[str, Path]:
-    """Файлы `directory` по `pattern` под своими именами (по алфавиту), кроме
-    помеченных как удалённые."""
+    """The files of `directory` by `pattern` under their own names (alphabetically), except
+    those marked as removed."""
     if not directory.is_dir():
         return {}
     return existing_artifacts(
@@ -668,9 +668,9 @@ def directory_artifacts(directory: Path, pattern: str = "*") -> dict[str, Path]:
 
 @dataclass
 class _Conflict:
-    """Часть ответа модели, которая не применена: версия файла от модели
-    (`content`, если есть) откладывается в каталог конфликтов
-    (`LLM_CONFLICTS_DIRNAME`), файл задачи остаётся как был."""
+    """A part of the model's response that wasn't applied: the model's version of the file
+    (`content`, if any) is set aside in the conflicts directory
+    (`LLM_CONFLICTS_DIRNAME`), the problem file stays as it was."""
 
     filename: str
     reason: str
@@ -679,14 +679,14 @@ class _Conflict:
 
 @dataclass
 class _ApplyPlan:
-    """Что сделать с файлами шага по ответу модели.
+    """What to do with the step's files according to the model's response.
 
-    `artifacts` — новые и изменённые файлы к записи; `final_artifacts` —
-    итоговый набор файлов шага (его проверяет `validate_artifacts`):
-    записанные + оставшиеся как есть + переименованные, без удалённых;
-    `conflicts` — что из ответа не применено; `notes` — что применено не
-    буквально (например, текущий файл, о котором ответ молчит, оставлен как
-    есть)."""
+    `artifacts` — new and changed files to write; `final_artifacts` —
+    the step's final set of files (checked by `validate_artifacts`):
+    written + left as is + renamed, without removed ones;
+    `conflicts` — what of the response wasn't applied; `notes` — what was applied not
+    literally (e.g. a current file the response is silent about was left as
+    is)."""
 
     artifacts: dict[str, str]
     final_artifacts: dict[str, str]
@@ -705,21 +705,21 @@ def _plan_response(
     revision: StepRevision | None,
     resolve_path: Callable[[str], Path],
 ) -> _ApplyPlan:
-    """Раскладывает ответ модели на то, что можно применить, и конфликты —
-    как `git merge`: применимое применяется, остальное откладывается автору.
+    """Splits the model's response into what can be applied and conflicts —
+    like `git merge`: what's applicable is applied, the rest is set aside for the author.
 
-    Файл с недопустимым именем (`resolve_path` бросает `ValueError`) —
-    конфликт. В режиме доработки каждый текущий файл шага должен быть ровно
-    в одном из `artifacts`/`unchanged`/`removed`/`renamed[].from` (файлы
-    сопоставляются по пути, а не по строке имени: `generators/gen.cpp` и
-    `gen.cpp` — один файл):
-    - ни в одном — оставляется как есть (заметка `kept`);
-    - в нескольких — конфликт: текущий файл не трогается, версия модели
-      откладывается;
-    - неизвестное имя в `unchanged`/`removed`/`renamed[].from` —
-      игнорируется (заметка `ignored`);
-    - переименование в занятое или повторяющееся имя — конфликт: файл не
-      переименовывается, его новая версия (если есть) откладывается."""
+    A file with an invalid name (`resolve_path` raises `ValueError`) is a
+    conflict. In revision mode each current file of the step must be in exactly
+    one of `artifacts`/`unchanged`/`removed`/`renamed[].from` (files
+    are matched by path, not by the name string: `generators/gen.cpp` and
+    `gen.cpp` are one file):
+    - in none — it's left as is (a `kept` note);
+    - in several — a conflict: the current file isn't touched, the model's version
+      is set aside;
+    - an unknown name in `unchanged`/`removed`/`renamed[].from` —
+      ignored (an `ignored` note);
+    - a rename to an occupied or duplicate name — a conflict: the file isn't
+      renamed, its new version (if any) is set aside."""
     plan = _ApplyPlan(artifacts={}, final_artifacts={})
     for filename, content in response.artifacts.items():
         try:
@@ -735,8 +735,8 @@ def _plan_response(
                 _note(
                     "response",
                     "ignored",
-                    "модель вернула unchanged/removed/renamed, хотя текущие файлы ей "
-                    "не показывались (генерация с нуля), — проигнорировано",
+                    "the model returned unchanged/removed/renamed although it wasn't shown "
+                    "the current files (generation from scratch) — ignored",
                 )
             )
         plan.final_artifacts = dict(plan.artifacts)
@@ -757,7 +757,7 @@ def _plan_response(
         )
 
     places: dict[str, list[str]] = {name: [] for name in current_paths}
-    modified: dict[str, str] = {}  # текущее имя -> имя в artifacts ответа
+    modified: dict[str, str] = {}  # current name -> the name in the response's artifacts
     for filename in plan.artifacts:
         name = current_name(filename)
         if name is not None:
@@ -849,8 +849,8 @@ def _plan_response(
 def _add_generated_artifacts(
     plan: _ApplyPlan, generated: GeneratedArtifacts, resolve_path: Callable[[str], Path]
 ) -> set[str]:
-    """Файлы оркестратора — в итоговый набор файлов шага; их версии от
-    модели отбрасываются (возвращаются их имена в ответе)."""
+    """The orchestrator's files — into the step's final set of files; the model's versions of them
+    are discarded (their names in the response are returned)."""
     dropped: set[str] = set()
     generated_paths = {resolve_path(name).resolve() for name in generated.artifacts}
     for filename in list(plan.artifacts):
@@ -873,9 +873,9 @@ def _plan_and_check(
     validate_artifacts: Callable[[dict[str, str]], None] | None,
     partial_apply: bool,
 ) -> tuple[_ApplyPlan, str | None, list[str]]:
-    """`_plan_response` + проверка итогового набора файлов шага. Возвращает
-    план, причину, по которой ответ не применяется целиком (`None` —
-    применяется), и недостающие файлы (`MissingArtifactsError`)."""
+    """`_plan_response` + checking the step's final set of files. Returns
+    the plan, the reason why the response isn't applied in full (`None` —
+    it's applied), and the missing files (`MissingArtifactsError`)."""
     plan = _plan_response(response, revision, resolve_path)
     dropped: set[str] = set()
     if generated is not None:
@@ -902,9 +902,9 @@ def _merge_missing_artifacts(
     missing: list[str],
     resolve_path: Callable[[str], Path],
 ) -> ModelResponse:
-    """Ответ с файлами из дозапроса: из него берутся только недостающие
-    файлы (остальные — заметкой `ignored`), заметки обоих ответов
-    складываются, статус — худший из двух."""
+    """The response with the files from the re-request: only the missing
+    files are taken from it (the rest — as an `ignored` note), the notes of both responses
+    are combined, the status is the worse of the two."""
 
     def resolved(filename: str) -> Path | None:
         try:
@@ -950,11 +950,11 @@ def _merge_missing_artifacts(
 def _whole_step_conflict(
     response: Any, plan: _ApplyPlan, *, ignored: set[str] = frozenset()
 ) -> _ApplyPlan:
-    """Ответ не применяется целиком: все файлы модели и её предложения
-    удалить/переименовать — в конфликты, файлы шага не трогаются. Причина —
-    одна на весь ответ (`StepResult.not_applied_reason`, начало
-    `CONFLICTS.md`), у файлов она не повторяется. `ignored` — файлы ответа,
-    отброшенные и при применении (`GeneratedArtifacts`)."""
+    """The response isn't applied in full: all of the model's files and its proposals
+    to remove/rename go to conflicts, the step's files aren't touched. The reason is
+    one for the whole response (`StepResult.not_applied_reason`, the start of
+    `CONFLICTS.md`), it isn't repeated for the files. `ignored` — the response's files
+    that are discarded on application anyway (`GeneratedArtifacts`)."""
     conflicts = list(plan.conflicts)
     set_aside = {conflict.filename for conflict in conflicts if conflict.content is not None}
     for filename, content in response.artifacts.items():
@@ -978,8 +978,8 @@ def _whole_step_conflict(
 
 
 class Backup:
-    """Прежние версии файлов задачи — в `.llm_backup/<время>/` (создаётся при
-    первом файле)."""
+    """Previous versions of the problem's files — in `.llm_backup/<time>/` (created on
+    the first file)."""
 
     def __init__(self, problem_dir: Path) -> None:
         self.problem_dir = problem_dir
@@ -1002,8 +1002,8 @@ def _write_artifacts(
     skip_backup: set[Path] = frozenset(),
     created: list[Path] | None = None,
 ) -> dict[str, Path]:
-    """Пишет файлы ответа; прежние версии изменённых — в `backup`. В
-    `created` (если задан) — пути файлов, которых до записи не было."""
+    """Writes the response's files; previous versions of the changed ones — to `backup`. Into
+    `created` (if given) — the paths of files that didn't exist before writing."""
     written: dict[str, Path] = {}
     for filename, content in artifacts.items():
         path = resolve_path(filename)
@@ -1032,10 +1032,10 @@ def _write_conflicts(
     resolve_path: Callable[[str], Path],
     whole_step_reason: str | None,
 ) -> Path:
-    """Каталог `.llm_conflicts/<шаг>-<время>/`: версии файлов от модели (по
-    их путям в каталоге задачи; файлы с недопустимыми именами — в
-    `INVALID_NAMES_SUBDIR`) и `CONFLICTS_REPORT` — что и почему не
-    применено."""
+    """The `.llm_conflicts/<step>-<time>/` directory: the model's versions of files (at
+    their paths in the problem directory; files with invalid names — in
+    `INVALID_NAMES_SUBDIR`) and `CONFLICTS_REPORT` — what wasn't applied
+    and why."""
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     directory = problem_dir / LLM_CONFLICTS_DIRNAME / f"{step_name}-{stamp}"
     lines = [f"# Not applied: {step_name}", ""]
@@ -1066,9 +1066,9 @@ def _write_conflicts(
 
 
 def _apply_removals_and_renames(plan: _ApplyPlan, backup: Backup) -> list[tuple[Path, str]]:
-    """Помечает удалённые файлы (`<имя>.removed`; прежняя пометка с тем же
-    именем — в бэкап) и переименовывает файлы (старая версия — в бэкап).
-    Возвращает `(путь пометки, причина)` удалённых."""
+    """Marks removed files (`<name>.removed`; a previous mark with the same
+    name — to the backup) and renames files (the old version — to the backup).
+    Returns `(mark path, reason)` of the removed ones."""
     marks: list[tuple[Path, str]] = []
     for path, reason in plan.removed:
         mark = path.with_name(path.name + REMOVED_SUFFIX)
@@ -1104,83 +1104,84 @@ def run_generative_step(
     partial_apply: bool = False,
     generated_artifacts: GeneratedArtifacts | None = None,
 ) -> StepResult:
-    """Общий цикл шага: рендер промптов, вызов модели, запись результата.
+    """The shared loop of a step: rendering the prompts, calling the model, writing the result.
 
-    `context` — уже готовый для Jinja словарь (секция спека шага +
-    апстрим-артефакты, если нужны шагу); нормализацию `None -> []` для
-    перечисляемых полей (см. `with_default_lists`) должен сделать
-    вызывающий модуль конкретного шага, а не эта функция — у каждого шага
-    свой набор таких полей.
+    `context` — a dict already ready for Jinja (the step's spec section +
+    upstream artifacts, if the step needs them); the `None -> []` normalization for
+    iterated fields (see `with_default_lists`) must be done by the
+    calling module of the particular step, not this function — each step has
+    its own set of such fields.
 
-    `input_hash` — уже посчитанный `cache.compute_input_hash(...)` для этого
-    шага; сюда же передаётся вызывающим модулем, поскольку только он знает,
-    какая секция спека и какие апстрим-артефакты на шаг влияют (см.
-    CLAUDE.md, "Кэширование по хешу спека"). `input_values` — тот же вход по
-    частям (`cache.compute_input_values`): он и его хеши по частям
-    сохраняются в `CacheEntry`, чтобы `llm status` мог сказать, что именно
-    изменилось, а следующий прогон в режиме доработки — показать это модели.
+    `input_hash` — the already computed `cache.compute_input_hash(...)` for this
+    step; it's passed here by the calling module, since only it knows
+    which spec section and which upstream artifacts affect the step (see
+    CLAUDE.md, "Caching by spec hash"). `input_values` — the same input by
+    parts (`cache.compute_input_values`): it and its per-part hashes
+    are saved in `CacheEntry`, so that `llm status` can say what exactly
+    changed, and the next run in revision mode can show it to the model.
 
-    `revision` — режим доработки (см. докстринг модуля): к user-промпту
-    дописывается `prompts/revise.md.j2` с текущими файлами шага и
-    изменениями входа; ответ раскладывается `_plan_response`, удалённые
-    файлы помечаются `.removed`, переименования применяются. `None` — модель
-    пишет файлы с нуля (текущие файлы шага, которых нет в ответе, остаются
-    на диске как есть).
+    `revision` — revision mode (see the module docstring): `prompts/revise.md.j2`
+    with the step's current files and the input changes is appended to the user prompt;
+    the response is split by `_plan_response`, removed
+    files are marked `.removed`, renames are applied. `None` — the model
+    writes the files from scratch (the step's current files that aren't in the response stay
+    on disk as is).
 
-    `resolve_artifact_path(filename)` — как разложить `artifacts` ответа
-    модели по каталогам `problems/<problem_id>/...` (у каждого шага своя
-    раскладка, см. CLAUDE.md, "Структура каталогов").
+    `resolve_artifact_path(filename)` — how to lay out the `artifacts` of the model's
+    response into the `problems/<problem_id>/...` directories (each step has its own
+    layout, see CLAUDE.md, "Directory structure").
 
-    `extra_context_documents` — дополнительные пути (относительно корня
-    репозитория), специфичные для конкретного вызова этого шага, а не для
-    всех его вызовов вообще (файлы референсов спека, см.
-    `orchestrator/references.py` и `load_context_documents`). Вместе с фиксированным списком
-    `STEP_CONTEXT_DOCUMENTS[step_name]` они читаются и передаются модели как
-    `context_documents`, а также входят в `compute_prompt_hash` — правка
-    любого из этих документов должна инвалидировать кэш шага.
+    `extra_context_documents` — additional paths (relative to the repository
+    root), specific to a particular call of this step rather than to
+    all of its calls in general (the spec's reference files, see
+    `orchestrator/references.py` and `load_context_documents`). Together with the fixed list
+    `STEP_CONTEXT_DOCUMENTS[step_name]` they are read and passed to the model as
+    `context_documents`, and are also part of `compute_prompt_hash` — editing
+    any of these documents must invalidate the step's cache.
 
-    `validate_artifacts(artifacts)` — необязательная проверка набора
-    артефактов из ответа модели (например, что имена файлов ровно те, что
-    ожидает шаг); в режиме доработки — итогового набора файлов шага
-    (изменённые + `unchanged` + переименованные, без удалённых). Вызывается
-    только при `confirmed`/`proposed` (при
-    `uncertain` `artifacts` по контракту может быть пустым/частичным) и
-    строго ДО записи на диск: если она бросает `ValueError`, из ответа не
-    применяется ничего — всё уходит в конфликты (см. докстринг модуля), а
-    сохранённый ответ остаётся для `llm apply`. `MissingArtifactsError`
-    (неполный ответ) после вызова модели — один дозапрос недостающих файлов
-    (`MISSING_ARTIFACTS_PROMPT`), они добавляются к ответу (заметка
-    `retried`), и проверка повторяется; у сохранённого ответа (`llm apply`)
-    дозапроса нет.
+    `validate_artifacts(artifacts)` — an optional check of the set of
+    artifacts from the model's response (e.g. that the file names are exactly those the
+    step expects); in revision mode — of the step's final set of files
+    (changed + `unchanged` + renamed, without removed ones). Called
+    only with `confirmed`/`proposed` (with
+    `uncertain` `artifacts` may be empty/partial by the contract) and
+    strictly BEFORE writing to disk: if it raises `ValueError`, nothing of the response
+    is applied — everything goes to conflicts (see the module docstring), and the
+    saved response stays for `llm apply`. `MissingArtifactsError`
+    (an incomplete response) after a model call — one re-request of the missing files
+    (`MISSING_ARTIFACTS_PROMPT`), they're added to the response (a
+    `retried` note), and the check is repeated; a saved response (`llm apply`)
+    has no re-request.
 
-    `generated_artifacts` — файлы шага, которые пишет оркестратор, а не
-    модель (`GeneratedArtifacts`).
+    `generated_artifacts` — the step's files written by the orchestrator, not the
+    model (`GeneratedArtifacts`).
 
-    `partial_apply` — файлы шага независимы друг от друга: при конфликте в
-    части файлов остальные применяются. `False` — при любом конфликте ответ
-    не применяется целиком.
+    `partial_apply` — the step's files are independent of each other: on a conflict in
+    some of the files the rest are applied. `False` — on any conflict the response
+    isn't applied at all.
 
-    `postprocess_artifacts(artifacts)` — необязательная механическая
-    доработка артефактов после `validate_artifacts` и до записи на диск:
-    возвращает новый набор артефактов и заметки о сделанном (добавляются к
-    `notes` ответа модели, чтобы автор видел, что файл правила не модель).
-    В режиме доработки получает только новые и изменённые файлы.
+    `postprocess_artifacts(artifacts)` — an optional mechanical
+    post-processing of the artifacts after `validate_artifacts` and before writing to disk:
+    returns a new set of artifacts and notes about what was done (added to
+    the `notes` of the model's response, so that the author sees that the file was fixed by a rule, not the model).
+    In revision mode it gets only new and changed files.
 
-    Ответ модели (кроме `uncertain` — применять нечего) сохраняется
-    (`cache.PendingResponse`) до проверок ответа и записи файлов и удаляется,
-    когда применён (хотя бы частично): если ответ не применён целиком, вызов
-    не потерян. `saved_response` — такой
-    сохранённый ответ: применяется вместо вызова модели (`llm apply`);
-    совпадение его входа с текущим и режим доработки проверяет вызывающий
-    код (`pipeline.py`).
+    The model's response (except `uncertain` — there's nothing to apply) is saved
+    (`cache.PendingResponse`) before checking the response and writing the files and is deleted
+    once applied (at least partially): if the response isn't applied in full, the call
+    isn't lost. `saved_response` — such a
+    saved response: it's applied instead of calling the model (`llm apply`);
+    whether its input matches the current one and the revision mode is checked by the calling
+    code (`pipeline.py`).
 
-    При `status: uncertain` бросает `StepUncertainError` и не пишет ничего в
-    `problems/`. При `confirmed`/`proposed` пишет артефакты, компилирует все
-    записанные `.cpp`-файлы через `compile_check` (без запуска — см.
-    CLAUDE.md, "Минимальная страховка вместо судящего контура") и сохраняет
-    `CacheEntry` с этим `input_hash`, актуальным хешем промптов, моделью
-    шага из `model_router.STEP_TO_MODEL` и каталогом конфликтов, если они
-    есть.
+    With `status: uncertain` raises `StepUncertainError` and writes nothing to
+    `problems/`. With `confirmed`/`proposed` writes the artifacts, compiles all
+    written `.cpp` files with `compile_check` (without running — see
+    CLAUDE.md, "The minimal safety net instead of a judging loop"), checks the written
+    sources for non-ASCII characters (`source_charset`) and saves the
+    `CacheEntry` with this `input_hash`, the current prompt hash, the step's
+    model from `model_router.STEP_TO_MODEL` and the conflicts directory, if there
+    are any.
     """
     input_values = input_values or {}
     if saved_response is None:
@@ -1224,7 +1225,7 @@ def run_generative_step(
                 f"'{response.status}' (expected one of {sorted(_VALID_STATUSES)})"
             )
         if response.status == STATUS_UNCERTAIN:
-            # Применять нечего; прежний неприменённый ответ того же шага устарел.
+            # Nothing to apply; the previous unapplied response of the same step is outdated.
             discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
             raise StepUncertainError(step_name, problem_id, response.notes)
 
@@ -1253,8 +1254,8 @@ def run_generative_step(
         save_pending(response)
     plan, whole_step_reason, missing = plan_and_check(response)
     if missing and saved_response is None:
-        # Неполный ответ: недостающие файлы — одним дозапросом, а не новым
-        # вызовом целиком (`MISSING_ARTIFACTS_PROMPT`).
+        # An incomplete response: the missing files — with one re-request, not a new
+        # call in full (`MISSING_ARTIFACTS_PROMPT`).
         retry_prompt = (
             user_prompt.rstrip("\n")
             + "\n\n"
@@ -1308,7 +1309,7 @@ def run_generative_step(
     if any(path.suffix == ".cpp" for path in to_compile.values()):
         ensure_problem_lib(problem_id, problems_dir=problems_dir, templates_dir=templates_dir)
     compile_results: dict[str, CompileResult] = {
-        # `problem_lib.h` задачи — раньше шаблонного.
+        # The problem's `problem_lib.h` — before the template's.
         filename: compile_check(path, [Path(problems_dir) / problem_id, Path(templates_dir)])
         for filename, path in to_compile.items()
         if path.suffix == ".cpp"
@@ -1322,8 +1323,8 @@ def run_generative_step(
     cache_entry.timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     save_cache_entry(problem_id, step_name, cache_entry, problems_dir=problems_dir)
     if whole_step_reason is None:
-        # Не применённый целиком ответ остаётся: после правки причины
-        # `llm apply` применит его без нового вызова модели.
+        # A response not applied in full stays: after fixing the cause
+        # `llm apply` applies it without a new model call.
         discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
 
     return StepResult(

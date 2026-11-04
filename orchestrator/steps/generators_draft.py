@@ -1,15 +1,15 @@
-"""Шаг 3, вторая часть — генераторы (C++/testlib) по плану тестов, CLAUDE.md, "Роль
-каждого генеративного шага", пункт 3.
+"""Step 3, the second part — generators (C++/testlib) from the test plan, CLAUDE.md, "Role
+of each generative step", item 3.
 
-Механическая часть подготовки тестов: каждый генератор плана
-(`authoring/tests_plan.yaml`, шаг `tests_plan`) — файл
-`generators/<name>.cpp` с параметрами из плана. Спек шаг не видит, кроме
-формата ввода: что и как генерировать, решено в плане.
+The mechanical part of test preparation: each generator of the plan
+(`authoring/tests_plan.yaml`, the `tests_plan` step) is a file
+`generators/<name>.cpp` with the parameters from the plan. The step doesn't see the spec, except
+the input format: what and how to generate is decided in the plan.
 
-Вход по частям — каждый генератор плана отдельно (`upstream: tests_plan.yaml:
-<name>`): правка одной записи плана в режиме доработки показывается модели
-как правка одного генератора, а правка тестов плана (`tests`, `constants`)
-этот шаг не трогает вовсе.
+The input by parts — each generator of the plan separately (`upstream: tests_plan.yaml:
+<name>`): editing one plan entry is shown to the model in revision mode
+as editing one generator, and editing the plan's tests (`tests`, `constants`)
+doesn't touch this step at all.
 """
 
 from __future__ import annotations
@@ -47,10 +47,10 @@ from orchestrator.steps.tests_plan import (
 
 STEP_NAME = "generators_draft"
 
-# Каталог генераторов внутри каталога задачи.
+# The generators directory inside the problem directory.
 GENERATORS_SUBDIR = "generators"
 
-# `opt<T>("name")` в генераторе — параметр командной строки testlib.
+# `opt<T>("name")` in a generator is a testlib command-line parameter.
 _OPT_RE = re.compile(r"\bopt\s*<[^>]*>\s*\(\s*\"([A-Za-z_][A-Za-z0-9_]*)\"")
 
 
@@ -63,10 +63,10 @@ def hash_inputs(
     spec: ProblemSpec,
     upstream_artifacts: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any] | None]:
-    """`(секция спека, апстрим-артефакты)`: формат ввода из `statement_draft`;
-    `constraints.yaml` без TL/ML (гарантии входа, которые проверяет
-    валидатор, — генератор обязан их соблюдать) и каждый генератор плана
-    отдельной частью."""
+    """`(spec section, upstream artifacts)`: the input format from `statement_draft`;
+    `constraints.yaml` without TL/ML (the input guarantees the
+    validator checks — the generator must respect them) and each generator of the plan
+    as a separate part."""
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     plan = load_tests_plan(STEP_NAME, problem_id, upstream_artifacts)
     upstream = {CONSTRAINTS_ARTIFACT: constraints_without_limits(constraints_yaml)}
@@ -86,38 +86,38 @@ def compute_input_hash(
 def extra_context_documents(
     spec: ProblemSpec, *, templates_dir: Path = TEMPLATES_DIR
 ) -> list[str] | None:
-    """Образцы — генераторы из референсов спека (`orchestrator/references.py`)."""
+    """Samples — generators from the spec's references (`orchestrator/references.py`)."""
     return reference_documents(STEP_NAME, spec)
 
 
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """Каталог генераторов: их имена задаёт план, поэтому `pipeline.py`
-    считает файлы шага на месте, если каталог есть и не пуст."""
+    """The generators directory: their names are set by the plan, so `pipeline.py`
+    considers the step's files in place if the directory exists and isn't empty."""
     return Path(problems_dir) / problem_id / GENERATORS_SUBDIR
 
 
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """Текущие файлы шага для режима доработки: `generators/*.cpp` под
-    именами файлов."""
+    """The step's current files for revision mode: `generators/*.cpp` under
+    their file names."""
     return directory_artifacts(
         primary_artifact_path(problem_id, spec, problems_dir=problems_dir), "*.cpp"
     )
 
 
 def generator_params(source: str) -> list[str]:
-    """Имена параметров `opt<T>("name")` в коде генератора, без повторов."""
+    """The names of the `opt<T>("name")` parameters in the generator's code, without repeats."""
     return list(dict.fromkeys(_OPT_RE.findall(source)))
 
 
 def plan_mismatch_notes(plan: dict[str, Any], generators_dir: Path) -> list[dict[str, Any]]:
-    """Заметки `plan_mismatch` после записи файлов: генератор на диске,
-    которого нет в плане, и генератор, чьи `opt<T>(...)` не совпадают с
-    параметрами плана, — test-script строится по плану и вызовет его с
-    другими параметрами."""
+    """`plan_mismatch` notes after writing the files: a generator on disk
+    that isn't in the plan, and a generator whose `opt<T>(...)` don't match the
+    plan's parameters — the test-script is built from the plan and will call it with
+    other parameters."""
     expected = {
         g["name"]: [p["name"] for p in g.get("params") or []] for g in plan_generators(plan)
     }
@@ -159,15 +159,15 @@ def run_step(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> StepResult:
-    """Прогоняет шаг `generators_draft` для `problem_id`.
+    """Runs the `generators_draft` step for `problem_id`.
 
-    Вход: генераторы плана (`upstream_artifacts["tests_plan.yaml"]`), формат
-    ввода из `statement_draft`, `constraints.yaml` без TL/ML. Выход — по
-    файлу `generators/<name>.cpp` на генератор плана: недостающие модель
-    один раз дописывает отдельным вызовом (`MissingArtifactsError`), о
-    генераторах, которых в плане нет, — заметка. Файлы независимы и
-    применяются по одному (`partial_apply`); после записи — сверка
-    параметров с планом (`plan_mismatch_notes`).
+    Input: the plan's generators (`upstream_artifacts["tests_plan.yaml"]`), the input
+    format from `statement_draft`, `constraints.yaml` without TL/ML. Output — one
+    file `generators/<name>.cpp` per generator of the plan: the model completes missing ones
+    once with a separate call (`MissingArtifactsError`), about
+    generators that aren't in the plan — a note. The files are independent and
+    are applied one by one (`partial_apply`); after writing — reconciling the
+    parameters with the plan (`plan_mismatch_notes`).
     """
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     plan = load_tests_plan(STEP_NAME, problem_id, upstream_artifacts)
@@ -192,9 +192,9 @@ def run_step(
         return generators_dir / artifact_filename(filename, GENERATORS_SUBDIR)
 
     def validate_artifacts(artifacts: dict[str, str]) -> None:
-        # Лишние генераторы — не ошибка ответа (например, прежний генератор,
-        # о котором модель промолчала в режиме доработки): о них заметка
-        # `plan_mismatch_notes`.
+        # Extra generators aren't a response error (e.g. a previous generator
+        # the model kept silent about in revision mode): there's a
+        # `plan_mismatch_notes` note about them.
         missing = sorted(expected - {resolve_artifact_path(name).name for name in artifacts})
         if missing:
             raise MissingArtifactsError(
@@ -211,7 +211,7 @@ def run_step(
         saved_response=saved_response,
         resolve_artifact_path=resolve_artifact_path,
         validate_artifacts=validate_artifacts,
-        # Генераторы независимы: применяются по одному.
+        # The generators are independent: they're applied one by one.
         partial_apply=True,
         prompts_dir=prompts_dir,
         problems_dir=problems_dir,

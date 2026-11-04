@@ -10,9 +10,9 @@ from orchestrator.model_router import (
 
 
 class _FakeLLMClient:
-    """Тестовый дублёр `LLMClient` — доказывает, что `model_router.call_model`
-    не завязан ни на какого конкретного вендора и умеет работать с любым
-    объектом, реализующим протокол `generate(...)`.
+    """A test double of `LLMClient` — proves that `model_router.call_model`
+    isn't tied to any particular vendor and can work with any
+    object implementing the `generate(...)` protocol.
     """
 
     def __init__(self, response: ModelResponse):
@@ -123,9 +123,9 @@ def test_call_model_routes_different_steps_to_their_own_class_and_effort():
 
 
 def test_set_client_lets_a_different_vendor_replace_the_default(monkeypatch):
-    # Ничего Anthropic-специфичного не импортируется/не требуется, если
-    # клиент подменён явно — это и есть точка расширения под другого
-    # вендора (см. `orchestrator/llm_client.py`).
+    # Nothing Anthropic-specific is imported/required if
+    # the client is replaced explicitly — that's the extension point for another
+    # vendor (see `orchestrator/llm_client.py`).
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     fake_client = _FakeLLMClient(ModelResponse(status="proposed"))
     model_router.set_client(fake_client)

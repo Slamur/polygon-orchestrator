@@ -1,26 +1,26 @@
-"""Референсы спека — файлы других задач, которые прикладываются к вызову
-модели как образцы (см. docs/SPEC_FORMAT.md, "references").
+"""Spec references — files of other problems that are attached to the model
+call as samples (see docs/SPEC_FORMAT.md, "references").
 
-Референс — путь от корня репозитория на файл или каталог. Каталог-референс
-устроен как результат оркестратора `problems/<problem_id>/` (`validator.cpp`,
-`generators/`, ..., `authoring/constraints.yaml`) и, возможно, со своим
-спеком `authoring/spec.yaml` — так устроены учебные задачи `examples/<problem_id>/`, но
-подходит и каталог прошлой задачи автора в `problems/` (в том числе
-выгруженной `polygon pull`). Каждый шаг берёт из каталога только свою часть
-(`REFERENCE_DOCUMENTS`); файл-референс прикладывается как есть.
+A reference is a path from the repository root to a file or a directory. A directory reference
+is laid out like the orchestrator's result `problems/<problem_id>/` (`validator.cpp`,
+`generators/`, ..., `authoring/constraints.yaml`) and possibly with its own
+spec `authoring/spec.yaml` — that's how the sample problems `examples/<problem_id>/` are laid out, but
+the directory of a past problem of the author in `problems/` fits too (including one
+downloaded by `polygon pull`). Each step takes only its own part from the directory
+(`REFERENCE_DOCUMENTS`); a file reference is attached as is.
 
-Референсы бывают общими (`references` в корне спека — ко всем шагам) и
-шаговыми (`references` в секции шага, `STEP_SECTIONS`) — шаговые
-добавляются к общим, а не заменяют их.
+References are shared (`references` at the spec root — for all steps) and
+per-step (`references` in a step's section, `STEP_SECTIONS`) — per-step ones
+are added to the shared ones, not replacing them.
 
-Ошибки (`SpecReferenceError`) — до вызова модели, чтобы опечатка в пути не
-превратилась в молча пропущенный образец:
-- путь не существует;
-- шаговый каталог-референс не дал этому шагу ни одного файла;
-- общий каталог-референс не дал ни одного файла ни одному шагу.
-Общий каталог, в котором нет части для конкретного шага (например, у
-задачи со стандартным чекером нет `checker.cpp`), для этого шага просто
-пропускается.
+Errors (`SpecReferenceError`) — before calling the model, so that a typo in a path doesn't
+turn into a silently skipped sample:
+- the path doesn't exist;
+- a per-step directory reference gave this step no files;
+- a shared directory reference gave no files to any step.
+A shared directory that has no part for a particular step (e.g. a
+problem with a standard checker has no `checker.cpp`) is simply
+skipped for that step.
 """
 
 from __future__ import annotations
@@ -38,18 +38,18 @@ from orchestrator.problem_paths import (
 from orchestrator.spec import SPEC_FILENAME, ProblemSpec
 from orchestrator.statement_languages import read_spec_language
 
-# Что каждый шаг берёт из каталога-референса: пути относительно каталога,
-# запись с `*` — glob (файлы в отсортированном порядке); спек и
-# `constraints.yaml` — из `authoring/` (`problem_paths.find_authoring_file`). `spec.yaml`
-# прикладывается, только если из каталога взят хотя бы один другой файл —
-# спек без результата образцом не служит. Файлы, помеченные шагом как
-# удалённые (`<имя>.removed`), и разбор `tutorial.tex` (по драфту автора, не
-# образец условия) под glob не попадают. `{language}` — основной язык условия
-# каталога-референса (`read_spec_language`); `statement/*.tex` — условие
-# задачи, ещё не перенесённой в каталоги языков. Шаги подготовки тестов
-# берут пары "вход → результат" своего уровня: `tests_plan` — спек → план (и
-# скрипт, если плана у образца нет), `generators_draft` — план → генераторы,
-# `test_script_draft` — план → скрипт.
+# What each step takes from a directory reference: paths relative to the directory,
+# an entry with `*` is a glob (files in sorted order); the spec and
+# `constraints.yaml` — from `authoring/` (`problem_paths.find_authoring_file`). `spec.yaml`
+# is attached only if at least one other file was taken from the directory —
+# a spec without a result doesn't serve as a sample. Files marked by a step as
+# deleted (`<name>.removed`) and the tutorial `tutorial.tex` (from the author's draft, not
+# a statement sample) don't match the glob. `{language}` — the main statement language
+# of the directory reference (`read_spec_language`); `statement/*.tex` — the statement of a
+# problem not yet moved into language directories. The test preparation steps
+# take "input → result" pairs of their level: `tests_plan` — spec → plan (and
+# the script, if the sample has no plan), `generators_draft` — plan → generators,
+# `test_script_draft` — plan → script.
 REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [SPEC_FILENAME, "statement/{language}/*.tex", "statement/*.tex"],
     "constraints_pick": [SPEC_FILENAME, "constraints.yaml", "validator.cpp"],
@@ -72,7 +72,7 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     "interactor_draft": [SPEC_FILENAME, "interactor.cpp"],
 }
 
-# Секция спека, в которой лежат шаговые `references` для шага.
+# The spec section containing the per-step `references` for the step.
 STEP_SECTIONS: dict[str, str] = {
     "statement_draft": "statement_draft",
     "constraints_pick": "constraints",
@@ -86,11 +86,11 @@ STEP_SECTIONS: dict[str, str] = {
 
 
 class SpecReferenceError(ValueError):
-    """Референс спека не найден или ничего не даёт шагу."""
+    """A spec reference isn't found or gives the step nothing."""
 
 
 def step_references(step_name: str, spec: ProblemSpec) -> tuple[list[str], list[str]]:
-    """(общие, шаговые) референсы для шага `step_name`, как записаны в спеке."""
+    """(shared, per-step) references for the step `step_name`, as written in the spec."""
     section = getattr(spec, STEP_SECTIONS[step_name], None)
     section_refs = (section.references if section is not None else None) or []
     return list(spec.references or []), list(section_refs)
@@ -102,13 +102,13 @@ def reference_documents(
     *,
     keep: Callable[[str], bool] | None = None,
 ) -> list[str] | None:
-    """Пути файлов, которые референсы спека дают шагу `step_name`, — сначала
-    общие референсы, затем шаговые, в порядке записи в спеке; `None`, если
-    ничего нет (шаг работает без образцов).
+    """The paths of the files the spec references give the step `step_name` — first
+    the shared references, then the per-step ones, in the order they are written in the spec; `None` if
+    there's nothing (the step works without samples).
 
-    `keep` — дополнительный фильтр по пути внутри каталога-референса
-    (например, решения только на заказанных языках); на файлы-референсы и
-    `spec.yaml` он не действует.
+    `keep` — an additional filter by the path inside a directory reference
+    (e.g. solutions only in the ordered languages); it doesn't apply to file references and
+    `spec.yaml`.
     """
     common_refs, section_refs = step_references(step_name, spec)
     paths: list[str] = []
@@ -156,8 +156,8 @@ def _existing(ref: str, field: str) -> Path:
 def _directory_files(
     directory: Path, step_name: str, keep: Callable[[str], bool] | None = None
 ) -> list[str]:
-    """Файлы каталога-референса для шага: по `REFERENCE_DOCUMENTS[step_name]`,
-    `spec.yaml` — только если есть что-то кроме него."""
+    """The files of a directory reference for the step: by `REFERENCE_DOCUMENTS[step_name]`,
+    `spec.yaml` — only if there's something besides it."""
     spec_file: Path | None = None
     files: list[Path] = []
     for entry in REFERENCE_DOCUMENTS[step_name]:

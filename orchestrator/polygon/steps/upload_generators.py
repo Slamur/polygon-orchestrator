@@ -1,20 +1,20 @@
-"""Polygon-шаг 7 — загрузка всех `problems/<problem_id>/generators/*.cpp`
-(результат генеративного шага `generators_draft`; имена файлов — из
-плана тестов) в Polygon как source-файлов (`problem.saveFile`,
+"""Polygon step 7 — uploading all `problems/<problem_id>/generators/*.cpp`
+(the result of the `generators_draft` generative step; the file names are from the
+test plan) to Polygon as source files (`problem.saveFile`,
 `type=source`).
 
-`sourceType` не передаётся — как и в `upload_validator`, предполагается, что
-Polygon определит язык по расширению `.cpp`.
+`sourceType` isn't passed — as in `upload_validator`, it's assumed that
+Polygon determines the language by the `.cpp` extension.
 
-Файлы загружаются в алфавитном порядке имён — ради детерминированности
-тестов и логов; самому Polygon порядок загрузки source-файлов не важен.
-Файлы с другими расширениями в `generators/` (например, случайно попавший
-туда `.h`) не загружаются.
+The files are uploaded in alphabetical order of names — for the sake of deterministic
+tests and logs; Polygon itself doesn't care about the upload order of source files.
+Files with other extensions in `generators/` (e.g. a `.h` that got
+there by accident) aren't uploaded.
 
-Если генератор удалён или переименован с прошлой загрузки, старый файл на
-Polygon остаётся — шаг его не удаляет.
+If a generator was deleted or renamed since the last upload, the old file on
+Polygon stays — the step doesn't delete it.
 
-Запускается через `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
+Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 """
 
 from __future__ import annotations
@@ -40,11 +40,11 @@ STEP_NAME = "upload_generators"
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
-    """Загружает каждый `generators/*.cpp`, отличающийся от базы
-    синхронизации (`ctx.spec` не используется).
+    """Uploads each `generators/*.cpp` that differs from the sync
+    base (`ctx.spec` isn't used).
 
-    Обе зависимости (`create_problem`, `generators_draft`) проверяются
-    до первого сетевого вызова.
+    Both dependencies (`create_problem`, `generators_draft`) are checked
+    before the first network call.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
     generators = _read_generators(ctx.problem_id, ctx.problems_dir)
@@ -70,8 +70,8 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """По базе синхронизации (`sync_status`): новый или изменённый
-    генератор делает шаг "stale"."""
+    """By the sync base (`sync_status`): a new or changed
+    generator makes the step "stale"."""
     return sync_status(
         problem_id,
         problems_dir,
@@ -85,8 +85,8 @@ def _items(generators: list[tuple[str, bytes]]) -> dict[str, str]:
 
 
 def _read_generators(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
-    """[(имя, содержимое), ...] для `generators/*.cpp` по алфавиту имён.
-    Нет каталога или в нём нет ни одного `.cpp` — `PolygonStepError`."""
+    """[(name, contents), ...] for `generators/*.cpp` alphabetically by name.
+    No directory or not a single `.cpp` in it — `PolygonStepError`."""
     generators_dir = Path(problems_dir) / problem_id / "generators"
     if not generators_dir.is_dir():
         address = problem_address(problems_dir, problem_id)

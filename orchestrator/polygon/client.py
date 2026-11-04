@@ -1,18 +1,18 @@
-"""Тонкий HTTP-клиент поверх Polygon API.
+"""A thin HTTP client on top of the Polygon API.
 
-Бережёт Polygon от потока запросов (`pull` делает по запросу на каждый файл):
-между двумя запросами — не меньше `_MIN_REQUEST_INTERVAL_SECONDS`; на HTTP
-429 (Too Many Requests) запрос повторяется с экспоненциальной паузой
-(`_RETRY_DELAYS_SECONDS`, или сколько просит `Retry-After`), а интервал
-между запросами удваивается до конца жизни клиента
-(до `_MAX_REQUEST_INTERVAL_SECONDS`) — чтобы дальше в лимит не упираться.
-Если и после всех повторов 429 — ответ уходит вызывающему как есть
-(`PolygonApiError` с HTTP 429).
+Protects Polygon from a stream of requests (`pull` makes a request per file):
+between two requests — no less than `_MIN_REQUEST_INTERVAL_SECONDS`; on HTTP
+429 (Too Many Requests) the request is repeated with an exponential pause
+(`_RETRY_DELAYS_SECONDS`, or as much as `Retry-After` asks), and the interval
+between requests is doubled until the end of the client's life
+(up to `_MAX_REQUEST_INTERVAL_SECONDS`) — so as not to hit the limit again.
+If it's still 429 after all retries — the response goes to the caller as is
+(`PolygonApiError` with HTTP 429).
 
-Таймаут ответа — `_REQUEST_TIMEOUT_SECONDS`; метод, который Polygon
-выполняет долго (`problem.saveScript` сразу генерирует тесты), передаёт свой
-`timeout` в `call`. Таймаут не повторяется: запрос мог дойти до Polygon, и
-что делать дальше, решает вызывающий.
+The response timeout is `_REQUEST_TIMEOUT_SECONDS`; a method that Polygon
+runs for a long time (`problem.saveScript` generates tests right away) passes its own
+`timeout` to `call`. A timeout isn't retried: the request might have reached Polygon, and
+what to do next is up to the caller.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ _TOO_MANY_REQUESTS = 429
 
 
 class PolygonApiError(Exception):
-    """`comment` из ответа Polygon при `status == "FAILED"`."""
+    """The `comment` from the Polygon response with `status == "FAILED"`."""
 
     def __init__(self, method_name: str, comment: str):
         self.method_name = method_name
@@ -49,10 +49,10 @@ class PolygonApiError(Exception):
 
 
 class PolygonClient:
-    """Тонкий HTTP-клиент поверх Polygon API.
+    """A thin HTTP client on top of the Polygon API.
 
-    Ключи читаются лениво, при первом вызове (см. `.env.example`) — тот же
-    подход, что в `AnthropicClient._get_sdk_client`.
+    The keys are read lazily, on the first call (see `.env.example`) — the same
+    approach as in `AnthropicClient._get_sdk_client`.
     """
 
     def __init__(
@@ -71,11 +71,11 @@ class PolygonClient:
         self._last_request_at: float | None = None
 
     def _ensure_credentials(self) -> tuple[str, str, str]:
-        """Возвращает (api_key, api_secret, base_url), читая их из окружения.
+        """Returns (api_key, api_secret, base_url), reading them from the environment.
 
-        Если ключа/секрета нет — падаем сразу с понятной ошибкой, а не
-        получаем невнятный FAILED от Polygon. `POLYGON_API_BASE_URL`
-        необязателен (по умолчанию — боевой Polygon).
+        If there's no key/secret — fail right away with a clear error rather than
+        getting an obscure FAILED from Polygon. `POLYGON_API_BASE_URL`
+        is optional (by default — the production Polygon).
         """
         if self._api_key is None or self._api_secret is None or self._base_url is None:
             if not self._env_loaded:
@@ -101,14 +101,14 @@ class PolygonClient:
         *,
         timeout: float = _REQUEST_TIMEOUT_SECONDS,
     ) -> Any:
-        """Вызывает один метод Polygon API, возвращает `result` или бросает `PolygonApiError`.
+        """Calls one Polygon API method, returns `result` or raises `PolygonApiError`.
 
-        Содержимое файлов (`file` в `problem.saveFile`/`problem.saveSolution`)
-        передаётся в `params` наравне с остальными параметрами — как `bytes`
-        или `str` — и входит в подпись (см. `generate_signature`). Запрос
-        уходит как multipart/form-data, где каждый параметр — обычное поле
-        формы без имени файла: так `bytes` передаются без перекодирования.
-        `timeout` — сколько секунд ждать ответа (см. докстринг модуля).
+        File contents (`file` in `problem.saveFile`/`problem.saveSolution`)
+        are passed in `params` on a par with the other parameters — as `bytes`
+        or `str` — and are part of the signature (see `generate_signature`). The request
+        goes as multipart/form-data, where each parameter is an ordinary form field
+        without a file name: this way `bytes` are passed without re-encoding.
+        `timeout` — how many seconds to wait for the response (see the module docstring).
         """
         response = self._post(method_name, params, timeout=timeout)
 
@@ -125,18 +125,18 @@ class PolygonClient:
         return body.get("result")
 
     def call_raw(self, method_name: str, params: dict[str, str | bytes]) -> bytes:
-        """Вызывает метод Polygon API, который при успехе отдаёт не JSON, а само
-        содержимое (`problem.viewFile`, `problem.viewSolution`,
-        `problem.script`, `problem.testInput`) — возвращает тело ответа как
-        есть.
+        """Calls a Polygon API method that on success returns not JSON but the
+        contents themselves (`problem.viewFile`, `problem.viewSolution`,
+        `problem.script`, `problem.testInput`) — returns the response body as
+        is.
 
-        Ошибка у таких методов приходит обычным JSON со `status == "FAILED"`.
-        Она распознаётся по не-200 HTTP-статусу; на случай, если Polygon
-        отдаст FAILED с HTTP 200, — ещё и по `Content-Type: application/json`
-        (по одному телу судить нельзя: скачиваемый файл сам может быть JSON).
+        An error of such methods comes as ordinary JSON with `status == "FAILED"`.
+        It's recognized by a non-200 HTTP status; in case Polygon
+        returns FAILED with HTTP 200 — also by `Content-Type: application/json`
+        (one can't judge by the body alone: the downloaded file may itself be JSON).
 
-        NOTE: на реальном API не проверено, каким HTTP-статусом и
-        Content-Type Polygon сопровождает FAILED у этих методов.
+        NOTE: it isn't verified on the real API with which HTTP status and
+        Content-Type Polygon accompanies FAILED for these methods.
         """
         response = self._post(method_name, params)
 
@@ -162,8 +162,8 @@ class PolygonClient:
         *,
         timeout: float = _REQUEST_TIMEOUT_SECONDS,
     ) -> requests.Response:
-        """Отправляет запрос с паузами и повторами на 429 (см. докстринг
-        модуля); разбор ответа — у вызывающего."""
+        """Sends a request with pauses and retries on 429 (see the module
+        docstring); parsing the response is up to the caller."""
         for attempt, retry_delay in enumerate(_RETRY_DELAYS_SECONDS, start=1):
             response = self._post_once(method_name, params, timeout=timeout)
             if response.status_code != _TOO_MANY_REQUESTS:
@@ -192,8 +192,8 @@ class PolygonClient:
     def _post_once(
         self, method_name: str, params: dict[str, str | bytes], *, timeout: float
     ) -> requests.Response:
-        """Подписывает и отправляет один запрос, выдержав интервал после
-        предыдущего. Подпись — заново на каждую попытку: в неё входит `time`."""
+        """Signs and sends one request, keeping the interval after the
+        previous one. The signature — anew for each attempt: `time` is part of it."""
         self._wait_for_interval()
         api_key, api_secret, base_url = self._ensure_credentials()
 
@@ -214,8 +214,8 @@ class PolygonClient:
 
 
 def _retry_after(response: requests.Response) -> float | None:
-    """`Retry-After` в секундах (форма с датой не поддерживается), не больше
-    `_MAX_RETRY_AFTER_SECONDS`; `None`, если заголовка нет или он не число."""
+    """`Retry-After` in seconds (the date form isn't supported), no more than
+    `_MAX_RETRY_AFTER_SECONDS`; `None` if there's no header or it isn't a number."""
     try:
         seconds = float(response.headers.get("Retry-After"))
     except (TypeError, ValueError):

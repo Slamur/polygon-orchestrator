@@ -1,74 +1,74 @@
-"""Прогон решений задачи на примерах — `orchestrator <задача> local run`.
-Без модели и без сети; не судящий контур (CLAUDE.md, "Скоуп (текущий)"), а
-проверка, что решения хотя бы на примерах ведут себя так, как заявляет
-вердикт в их имени. Отдельно от `local check`: сборка и запуск всех решений
-— долго, и нужны не при каждой проверке.
+"""Running a problem's solutions on the examples — `orchestrator <problem> local run`.
+Without the model and without the network; not a judging loop (CLAUDE.md, "Scope (current)"), but
+a check that the solutions behave, at least on the examples, as the verdict
+in their name claims. Separate from `local check`: building and running all solutions
+takes long and isn't needed on every check.
 
-Что делается:
+What is done:
 
-1. Тесты — `statement/examples/example_<N>.txt` (то, что уходит на Polygon
-   примерами). Ответ N-го — `output` у `sample_examples[N-1]` спека; у
-   примеров без него ответ — вывод Main correct (выбор — как у
-   `upload_solutions`), и об этом печатается заметка.
-2. Валидатор (`validator.cpp`, если есть) прогоняется на input каждого
-   примера: пример, который он не пропускает, — ошибка.
-3. Каждое решение из `solutions/` собирается один раз: C++ — g++ (как
-   compile-check, стек процесса поднят до жёсткого лимита), Java — `javac`,
-   а без него в PATH — тот же компилятор из модуля `jdk.compiler` через
-   `java -m` (он есть везде, где `java` запускает `.java` без сборки), и
-   запуск `java -Xmx<ML>m -Xss64m`; Python — `python3` без сборки. Вердикт
-   на примере: TL — дольше TL задачи (`limits.yaml`, без него —
-   `authoring/constraints.yaml`), RE — ненулевой код возврата, иначе —
-   вердикт чекера (`checker.cpp` при `checker.custom_needed`, иначе
-   стандартный чекер testlib из `checker.standard` — исходники в
-   `std_checkers/`, тот же `testlib.h` из `templates/`).
-4. Допустимое на примерах по вердикту из имени решения —
-   `ALLOWED_VERDICTS`: решение с вердиктом X получает OK или X. Остальное —
-   ошибка. Решение не с вердиктом `tl`, которое на примере работало дольше
-   `SLOW_FRACTION` TL, — предупреждение: на больших тестах оно может не
-   уложиться (у `tl_ok` — видно, насколько оно пограничное).
+1. The tests — `statement/examples/example_<N>.txt` (what goes to Polygon as
+   examples). The answer of the N-th one is the `output` of the spec's `sample_examples[N-1]`; for
+   examples without it the answer is the output of Main correct (chosen as in
+   `upload_solutions`), and a note about it is printed.
+2. The validator (`validator.cpp`, if any) is run on the input of each
+   example: an example it rejects is an error.
+3. Each solution from `solutions/` is built once: C++ — g++ (as in
+   compile-check, the process's stack raised to the hard limit), Java — `javac`,
+   and without it in PATH — the same compiler from the `jdk.compiler` module via
+   `java -m` (it exists wherever `java` runs `.java` without building), and
+   run as `java -Xmx<ML>m -Xss64m`; Python — `python3` without building. The verdict
+   on an example: TL — longer than the problem's TL (`limits.yaml`, without it —
+   `authoring/constraints.yaml`), RE — a non-zero exit code, otherwise —
+   the checker's verdict (`checker.cpp` with `checker.custom_needed`, otherwise
+   the standard testlib checker from `checker.standard` — the sources are in
+   `std_checkers/`, the same `testlib.h` from `templates/`).
+4. What's allowed on the examples by the verdict in the solution's name —
+   `ALLOWED_VERDICTS`: a solution with verdict X gets OK or X. Anything else is
+   an error. A solution without the `tl` verdict that ran on an example longer than
+   `SLOW_FRACTION` of the TL — a warning: on large tests it may not
+   fit (for `tl_ok` — it shows how borderline it is).
 
-Время — wall-clock на локальной машине, с запуском JVM/интерпретатора:
-компиляторы, флаги и скорость не те, что на Polygon, поэтому TL здесь —
-сигнал, а не вердикт Polygon. ML не меряется.
+The time is wall-clock on the local machine, including starting the JVM/interpreter:
+compilers, flags and speed aren't those of Polygon, so the TL here is
+a signal, not a Polygon verdict. ML isn't measured.
 
-Интерактивная задача (секция `interactor` в спеке, без спека — есть
-`interactor.cpp`): решение и интерактор (`interactor.cpp`, testlib) связаны
-двумя пайпами, интерактор читает тест и пишет `tout` — его, как на Polygon,
-судит чекер, а ответ — `tout` Main correct (`output` примеров в спеке у
-интерактивной задачи — реплики решения в диалоге, а не ответ). Вердикт:
-решение не завершилось за TL с запасом — IL, если процессорного времени оно
-потратило меньше половины прошедшего (ждало ответа интерактора, обычно — не
-сбросило вывод), иначе TL; дальше — вердикт интерактора (WA/PE/FAIL), RE
-решения, вердикт чекера.
+An interactive problem (the `interactor` section in the spec, without a spec — `interactor.cpp`
+exists): the solution and the interactor (`interactor.cpp`, testlib) are connected by
+two pipes, the interactor reads the test and writes `tout` — which, as on Polygon,
+is judged by the checker, and the answer is the `tout` of Main correct (the examples' `output` in the spec of
+an interactive problem are the solution's lines in the dialogue, not the answer). The verdict:
+the solution didn't finish within TL with a margin — IL, if it spent less CPU time
+than half of the elapsed time (it was waiting for the interactor's answer, usually — it didn't
+flush its output), otherwise TL; then — the interactor's verdict (WA/PE/FAIL), the solution's RE,
+the checker's verdict.
 
-Input/output for statements примера (`example_<N>.input_for_statement.txt`,
-`example_<N>.output_for_statement.txt` — то, что показывается в условии
-вместо теста, см. `upload_statement`) проверяются тоже, независимо от флага
-verify на Polygon:
+An example's input/output for statements (`example_<N>.input_for_statement.txt`,
+`example_<N>.output_for_statement.txt` — what is shown in the statement
+instead of the test, see `upload_statement`) are checked too, regardless of the
+verify flag on Polygon:
 
-- обычная задача: input for statements — валидатором; показанный вывод
-  (output for statements, без него — ответ примера) — чекером против
-  ответа Main correct на показанном вводе (input for statements, без него —
-  ответ примера на input теста);
-- интерактивная задача: диалог проигрывается — интерактор получает тест и
-  реплики решения (output for statements) разом, его ответы решению должны
-  по токенам совпасть с input for statements, сам он — завершиться с OK, а
-  его `tout` — пройти чекер против `tout` Main correct.
+- a normal problem: the input for statements — by the validator; the shown output
+  (the output for statements, without it — the example's answer) — by the checker against
+  the answer of Main correct on the shown input (the input for statements, without it —
+  the example's answer on the test's input);
+- an interactive problem: the dialogue is replayed — the interactor gets the test and
+  the solution's lines (the output for statements) at once, its answers to the solution must
+  match the input for statements token by token, it must finish with OK, and
+  its `tout` must pass the checker against the `tout` of Main correct.
 
-Расхождение — ошибка (группа `errors`).
+A mismatch is an error (the `errors` group).
 
-С `--full` (`full=True`) к примерам добавляются тесты по test-script'у
-(`local_tests.generate_tests`, с кэшем), на которых тоже прогоняется
-валидатор. Ответ на них — вывод Main correct (у интерактивной задачи — его
-`tout`): Main correct идёт первым, остальные решения на тесте без ответа не
-запускаются. На полном наборе заявленный вердикт требуется, а не только
-допускается (`REQUIRED_VERDICTS`): `wa`, `re`, `il` без него — ошибка (тесты не
-ловят заявленную ошибку), `tl` — только предупреждение (локальное время — не
-Polygon), у `ml` память не меряется, поэтому требования нет. Такие решения
-останавливаются на первом заявленном вердикте, в том числе полученном на
-примере: прогон до конца нужен только `ok` и `tl_ok`, у которых важен каждый
-тест. Посторонний вердикт после остановки поэтому не будет замечен.
+With `--full` (`full=True`), tests from the test-script are added to the examples
+(`local_tests.generate_tests`, with a cache), on which the validator is
+run too. The answer on them is the output of Main correct (for an interactive problem — its
+`tout`): Main correct goes first, the other solutions aren't run on a test without an answer.
+On the full set the declared verdict is required, not only
+allowed (`REQUIRED_VERDICTS`): `wa`, `re`, `il` without it — an error (the tests don't
+catch the declared mistake), `tl` — only a warning (local time isn't
+Polygon), `ml` memory isn't measured, so there's no requirement. Such solutions
+stop at the first declared verdict, including one received on an
+example: running to the end is needed only for `ok` and `tl_ok`, for which every
+test matters. A stray verdict after the stop therefore won't be noticed.
 """
 
 from __future__ import annotations
@@ -126,14 +126,14 @@ VERDICT_WA = "WA"
 VERDICT_PE = "PE"
 VERDICT_TL = "TL"
 VERDICT_RE = "RE"
-# Idleness limit: решение интерактивной задачи ждёт ответа, которого не будет.
+# Idleness limit: an interactive problem's solution waits for an answer that won't come.
 VERDICT_IL = "IL"
-# Чекер упал или вернул неизвестный код — ошибка проверки, не решения.
+# The checker crashed or returned an unknown code — a checking error, not the solution's.
 VERDICT_FAIL = "FAIL"
 
-# Вердикт из имени решения -> что допустимо на примерах. `ml`: память здесь
-# не меряется, нехватка проявится как RE (OutOfMemoryError у Java). `il`
-# (Idleness limit) бывает только в интерактивной задаче.
+# The verdict from the solution's name -> what's allowed on the examples. `ml`: memory isn't
+# measured here, a shortage shows up as RE (OutOfMemoryError in Java). `il`
+# (Idleness limit) happens only in an interactive problem.
 ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "ok": frozenset({VERDICT_OK}),
     "wa": frozenset({VERDICT_OK, VERDICT_WA}),
@@ -146,7 +146,7 @@ ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "il": frozenset({VERDICT_OK, VERDICT_IL}),
 }
 
-# Вердикт из имени решения -> что оно обязано получить хоть раз на полном наборе.
+# The verdict from the solution's name -> what it must get at least once on the full set.
 REQUIRED_VERDICTS: dict[str, str] = {
     "wa": VERDICT_WA,
     "re": VERDICT_RE,
@@ -154,11 +154,11 @@ REQUIRED_VERDICTS: dict[str, str] = {
     "tl": VERDICT_TL,
     "tle": VERDICT_TL,
 }
-# Сколько тестов решения перечисляется по одному, дальше — сводка.
+# How many of a solution's tests are listed one by one, then — a summary.
 _MAX_LISTED_RUNS = 8
 _MAX_LISTED_UNEXPECTED = 10
 
-# Доля TL, дольше которой решение не с вердиктом `tl` — предупреждение.
+# The fraction of the TL above which a solution without the `tl` verdict gets a warning.
 SLOW_FRACTION = 0.5
 _TL_VERDICTS = frozenset({"tl", "tle"})
 
@@ -166,7 +166,7 @@ STD_CHECKERS_DIR = Path(__file__).with_name("std_checkers")
 SOLUTIONS_DIRNAME = "solutions"
 
 _STD_PREFIX = "std::"
-# Без `limits.yaml` и `constraints.yaml`.
+# Without `limits.yaml` and `constraints.yaml`.
 _DEFAULT_TIME_LIMIT_MS = 2000
 _DEFAULT_MEMORY_LIMIT_MB = 256
 _CHECKER_TIMEOUT_SECONDS = 10.0
@@ -183,7 +183,7 @@ class SampleTest:
     name: str
     input: str
     answer: str | None
-    # Input/output for statements (у интерактивной задачи — диалог).
+    # Input/output for statements (for an interactive problem — the dialogue).
     statement_input: str | None = None
     statement_output: str | None = None
 
@@ -198,7 +198,7 @@ class TestOutcome:
     verdict: str
     seconds: float | None = None
     comment: str = ""
-    # Команда из test-script'а; у примеров — пусто.
+    # The command from the test-script; empty for the examples.
     command: str = ""
 
 
@@ -208,9 +208,9 @@ class SolutionOutcome:
     verdict: str
     allowed: frozenset[str]
     tests: list[TestOutcome] = field(default_factory=list)
-    # Не разобралось имя, не собралось, не запустилось.
+    # The name didn't parse, it didn't build, it didn't start.
     error: str | None = None
-    # Вердикт, который решение обязано получить (только `--full`).
+    # The verdict the solution must get (only `--full`).
     required: str | None = None
     stopped_early: bool = False
 
@@ -251,9 +251,9 @@ Progress = Callable[[str], None]
 
 @dataclass
 class SolutionsRunResult:
-    # Что проверено и откуда взято (TL, чекер, ответы) — печатается по ходу.
+    # What was checked and where it came from (TL, checker, answers) — printed along the way.
     notes: list[str] = field(default_factory=list)
-    # Проблемы не отдельного решения: валидатор, чекер, ответы.
+    # Problems that aren't of a single solution: validator, checker, answers.
     errors: list[str] = field(default_factory=list)
     solutions: list[SolutionOutcome] = field(default_factory=list)
     time_limit: float | None = None
@@ -270,8 +270,8 @@ class SolutionsRunResult:
 
     @property
     def warnings(self) -> list[str]:
-        """Решения не с вердиктом `tl`, работавшие на примере дольше
-        `SLOW_FRACTION` TL (но уложившиеся в него)."""
+        """Solutions without the `tl` verdict that ran on an example longer than
+        `SLOW_FRACTION` of the TL (but fit into it)."""
         if self.time_limit is None:
             return []
         threshold = SLOW_FRACTION * self.time_limit
@@ -296,8 +296,8 @@ class SolutionsRunResult:
         return warnings
 
     def groups(self) -> list[tuple[str, list[str], str]]:
-        """Итог по группам `(заголовок, строки, подсказка)` — как у `polygon
-        push`; пустые группы печатающий пропускает."""
+        """The summary by groups `(title, lines, hint)` — as in `polygon
+        push`; the printer skips empty groups."""
         expected = [f"{s.name}: {s.runs}" for s in self.solutions if not s.failed]
         unexpected = []
         not_run = []
@@ -356,10 +356,10 @@ def run_solutions(
     *,
     full: bool = False,
 ) -> SolutionsRunResult:
-    """Прогоняет валидатор и решения задачи на её примерах, с `full` — ещё и
-    на тестах по test-script'у (см. докстринг модуля). В каталоге задачи
-    пишет только кэш тестов (`full`). `progress` получает строки по ходу:
-    заметки и запуск каждого решения."""
+    """Runs the problem's validator and solutions on its examples, with `full` — also
+    on the tests from the test-script (see the module docstring). In the problem directory it
+    writes only the test cache (`full`). `progress` gets lines along the way:
+    notes and the start of each solution."""
     problem_dir = Path(problem_dir)
     result = SolutionsRunResult(progress=progress)
     spec = _read_spec(problem_dir, result)
@@ -457,7 +457,7 @@ def run_solutions(
 def _generated_tests(
     problem_dir: Path, templates_dir: Path, result: SolutionsRunResult
 ) -> list[LocalTest]:
-    """Тесты по test-script'у, проверенные валидатором."""
+    """Tests from the test-script, checked by the validator."""
     generated = generate_tests(problem_dir, templates_dir, progress=result.progress)
     result.errors.extend(generated.errors)
     result.note(
@@ -482,8 +482,8 @@ def _run_generated(
     interactor: _Program | None,
     result: SolutionsRunResult,
 ) -> None:
-    """Решения на тестах по test-script'у (см. докстринг модуля). Тесты и
-    ответы читаются по одному: в памяти весь набор не держится."""
+    """Solutions on the tests from the test-script (see the module docstring). Tests and
+    answers are read one at a time: the whole set isn't kept in memory."""
     try:
         main_name = _choose_main(list(parsed.values()))
     except PolygonStepError:
@@ -526,7 +526,7 @@ def _run_generated(
             continue
         (answers_dir / str(test.number)).write_text(execution.output, encoding="utf-8")
         answered.append(test)
-        # Ответ — его же вывод: чекер обязан принять, иначе чекер неверен.
+        # The answer is its own output: the checker must accept it, otherwise the checker is wrong.
         verdict, comment = _judge(
             checker, sample.input, execution.output, execution.output, work_dir
         )
@@ -564,8 +564,8 @@ def _run_generated(
 
 
 def _read_spec(problem_dir: Path, result: SolutionsRunResult) -> dict | None:
-    """Спек как есть (YAML), без валидации: проверка нужна и задаче, спек
-    которой ещё не проходит валидацию. Нет спека — `None`."""
+    """The spec as is (YAML), without validation: the check is needed for a problem whose spec
+    doesn't pass validation yet too. No spec — `None`."""
     path = find_authoring_file(problem_dir, SPEC_FILENAME)
     if not path.is_file():
         result.note(f"no {SPEC_FILENAME}: no expected outputs and checker settings")
@@ -661,8 +661,8 @@ def _check_validator(
     *,
     interactive: bool = False,
 ) -> None:
-    """Input примеров и, у обычной задачи, их input for statements (у
-    интерактивной это реплики интерактора, а не тест)."""
+    """The examples' input and, for a normal problem, their input for statements (for
+    an interactive one these are the interactor's lines, not a test)."""
     path = problem_dir / VALIDATOR_FILENAME
     inputs = [(test.name, test.input) for test in tests]
     if not interactive:
@@ -774,8 +774,8 @@ def _build_solution(
 
 
 def _java_class_name(source: str) -> str | None:
-    """Имя класса, под которым Polygon сохранит файл: public-класс, иначе
-    первый класс файла."""
+    """The class name under which Polygon saves the file: the public class, otherwise
+    the file's first class."""
     match = _PUBLIC_CLASS.search(source) or _ANY_CLASS.search(source)
     return match.group(1) if match else None
 
@@ -799,7 +799,7 @@ def _build_java(path: Path, work_dir: Path, memory_limit_mb: int) -> _Program:
     class_name = _java_class_name(source)
     if class_name is None:
         raise _BuildError("no class found in the Java source")
-    # javac требует, чтобы public-класс лежал в файле со своим именем.
+    # javac requires the public class to be in a file with its name.
     src_dir = work_dir / f"java_{path.stem}"
     out_dir = src_dir / "out"
     out_dir.mkdir(parents=True)
@@ -819,18 +819,18 @@ def _build_java(path: Path, work_dir: Path, memory_limit_mb: int) -> _Program:
 
 
 def _hard_timeout(time_limit: float) -> float:
-    """Процесс убивается позже TL, чтобы было видно, насколько он не
-    уложился."""
+    """The process is killed later than the TL, so that it's visible by how much it didn't
+    fit."""
     return 2 * time_limit + 1
 
 
 @dataclass
 class _Execution:
     seconds: float
-    # `None` — решение завершилось как надо, его вывод судит чекер.
+    # `None` — the solution finished as it should, its output is judged by the checker.
     verdict: str | None = None
     comment: str = ""
-    # Вывод решения, у интерактивной задачи — `tout` интерактора.
+    # The solution's output, for an interactive problem — the interactor's `tout`.
     output: str = ""
 
 
@@ -853,9 +853,9 @@ def _execute(
 
 
 def _wait(proc: subprocess.Popen, deadline: float | None) -> tuple[int | None, float]:
-    """(код возврата, процессорное время в секундах) процесса; `None`, если
-    он не завершился к `deadline` (`None` — ждать сколько угодно).
-    `os.wait4`, а не `Popen.wait`: нужно процессорное время самого процесса."""
+    """(exit code, CPU time in seconds) of the process; `None` if
+    it didn't finish by `deadline` (`None` — wait as long as needed).
+    `os.wait4`, not `Popen.wait`: the CPU time of the process itself is needed."""
     while True:
         pid, status, usage = os.wait4(proc.pid, 0 if deadline is None else os.WNOHANG)
         if pid:
@@ -873,8 +873,8 @@ def _execute_interactive(
     time_limit: float,
     work_dir: Path,
 ) -> _Execution:
-    """Решение и интерактор, связанные пайпами: вывод решения — вход
-    интерактора, и наоборот. Интерактор — `interactor <input> <tout>`."""
+    """The solution and the interactor connected with pipes: the solution's output is the
+    interactor's input, and vice versa. The interactor is `interactor <input> <tout>`."""
     run_dir = work_dir / "interaction"
     run_dir.mkdir(exist_ok=True)
     input_path = run_dir / "input.txt"
@@ -903,7 +903,7 @@ def _execute_interactive(
             stderr=solution_err,
             preexec_fn=_raise_stack_limit if program.unlimited_stack else None,
         )
-        # Иначе конец ввода не дойдёт ни до одного из процессов.
+        # Otherwise the end of input won't reach either of the processes.
         for fd in (to_interactor_read, to_interactor_write, to_solution_read, to_solution_write):
             os.close(fd)
         exit_code, cpu = _wait(solution_proc, started + _hard_timeout(time_limit))
@@ -946,8 +946,8 @@ def _fill_answers(
     interactor: _Program | None,
     result: SolutionsRunResult,
 ) -> list[SampleTest]:
-    """Ответы примеров без `output` в спеке — вывод Main correct. У
-    интерактивной задачи — всех примеров: `tout` Main correct."""
+    """The answers of examples without `output` in the spec — the output of Main correct. For
+    an interactive problem — of all examples: the `tout` of Main correct."""
     if interactor is not None:
         tests = [replace(t, answer=None) for t in tests]
     missing = [t for t in tests if t.answer is None]
@@ -1002,13 +1002,13 @@ def _run_test(
 def _judge(
     checker: _Program, input_text: str, output: str, answer: str, work_dir: Path
 ) -> tuple[str, str]:
-    """Вердикт чекера и его комментарий."""
+    """The checker's verdict and its comment."""
     judge_dir = work_dir / "judge"
     judge_dir.mkdir(exist_ok=True)
     files = {"input": input_text, "output": output, "answer": answer}
     for name, text in files.items():
         (judge_dir / f"{name}.txt").write_text(text, encoding="utf-8")
-    # testlib-чекер: `checker <input> <output> <answer>`, комментарий — в stderr.
+    # A testlib checker: `checker <input> <output> <answer>`, the comment — in stderr.
     judged = run_with_timeout(
         Path(checker.command[0]),
         [str(judge_dir / f"{name}.txt") for name in files],
@@ -1028,7 +1028,7 @@ def _check_statement_io(
     interactor: _Program | None,
     result: SolutionsRunResult,
 ) -> None:
-    """Input/output for statements примеров (см. докстринг модуля)."""
+    """The examples' input/output for statements (see the module docstring)."""
     for test in tests:
         if not test.has_statement_io:
             continue
@@ -1051,8 +1051,8 @@ def _check_shown_output(
     time_limit: float,
     work_dir: Path,
 ) -> str | None:
-    """Обычная задача: показанный в условии вывод — верный ответ на
-    показанный ввод. `None` — да, иначе — что не так."""
+    """A normal problem: the output shown in the statement is a correct answer to
+    the shown input. `None` — yes, otherwise — what's wrong."""
     shown_output = test.statement_output if test.statement_output is not None else test.answer
     if test.statement_input is None:
         shown_input, answer = test.input, test.answer
@@ -1082,8 +1082,8 @@ def _check_shown_output(
 def _check_dialogue(
     test: SampleTest, interactor: _Program, checker: _Program, work_dir: Path
 ) -> str | None:
-    """Интерактивная задача: диалог в условии проигрывается с интерактором.
-    `None` — диалог согласован с ним, иначе — что не так."""
+    """An interactive problem: the dialogue in the statement is replayed with the interactor.
+    `None` — the dialogue agrees with it, otherwise — what's wrong."""
     if test.statement_output is None:
         return "not checked — no output for statements (what the solution prints) to replay"
     run_dir = work_dir / "dialogue"
@@ -1119,8 +1119,8 @@ def _check_dialogue(
 
 
 def _note_suspicious_answers(tests: list[SampleTest], result: SolutionsRunResult) -> None:
-    """Если на примере с ответом из спека WA у всех `ok`-решений — скорее
-    ошибся ответ в спеке, чем все решения сразу."""
+    """If on an example with an answer from the spec all `ok` solutions get WA — more likely
+    the answer in the spec is wrong than all the solutions at once."""
     ok_solutions = [s for s in result.solutions if s.verdict == "ok" and s.error is None]
     if len(ok_solutions) < 2:
         return

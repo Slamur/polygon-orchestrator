@@ -94,7 +94,7 @@ def test_missing_interactor_points_to_interactor_draft(problems_dir, spec):
 
 
 def test_status(problems_dir, spec):
-    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"  # не интерактивная
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"  # not interactive
     link(problems_dir)
     _write_interactor(problems_dir)
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"

@@ -1,8 +1,8 @@
-"""Compile-check для сгенерированных .cpp файлов (валидатор/чекер/генератор/решение).
+"""Compile-check for generated .cpp files (validator/checker/generator/solution).
 
-Это не полноценный судящий контур (см. CLAUDE.md, раздел "Скоуп (текущий)") —
-только механическая проверка "компилируется / не компилируется" плюс stderr
-компилятора для диагностики. Сам бинарь здесь не запускается.
+This is not a full judging loop (see CLAUDE.md, the "Scope (current)" section) —
+only a mechanical "compiles / doesn't compile" check plus the compiler's
+stderr for diagnostics. The binary itself isn't run here.
 """
 
 from __future__ import annotations
@@ -32,8 +32,8 @@ def compile_check(
     *,
     timeout_seconds: float = _DEFAULT_COMPILE_TIMEOUT_SECONDS,
 ) -> CompileResult:
-    """Компилирует `path` через g++ с `-I` на каждый из `include_dirs` (в
-    этом порядке поиска), не запуская результат."""
+    """Compiles `path` with g++ with `-I` for each of `include_dirs` (in
+    this search order), without running the result."""
     if isinstance(include_dirs, Path):
         include_dirs = [include_dirs]
 

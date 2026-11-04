@@ -261,7 +261,7 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     mock_call.assert_not_called()
     assert rc == 0
     out = capsys.readouterr().out
-    # В консоли — только что изменилось в целом, список частей — в отчёте.
+    # The console gets only what changed in general, the list of parts is in the report.
     assert "tests_plan: accepted — was stale: spec (or upstream artifact) changed\n" in out
     assert "upstream: constraints.yaml" not in out
     report = problems_dir / "p1" / "llm_reports" / "accept.md"
@@ -302,7 +302,7 @@ def test_all_is_not_supported(problems_dir, tmp_path):
 
 
 def _mark_spec(problems_dir: Path, problem_id: str) -> None:
-    """Пометки `init --draft` в спеке — как их оставляет модель."""
+    """`init --draft` marks in the spec — as the model leaves them."""
     spec_path = problems_dir / problem_id / "authoring" / "spec.yaml"
     text = spec_path.read_text(encoding="utf-8")
     spec_path.write_text(
@@ -339,13 +339,13 @@ def test_status_warns_about_review_marks_only_when_present(problems_dir, capsys)
 
 
 def _write_group(problems_dir: Path) -> None:
-    """Группа `contest/2026` с двумя задачами и задача вне её."""
+    """The group `contest/2026` with two problems and a problem outside it."""
     for path in ("contest/2026/task-a", "contest/2026/task-b", "other/task-c"):
         _write_spec(problems_dir, path)
 
 
 def _answer(answer):
-    """Подмена `input`: `answer` — ответ или исключение."""
+    """Replacing `input`: `answer` — the answer or an exception."""
     return patch("builtins.input", side_effect=[answer])
 
 

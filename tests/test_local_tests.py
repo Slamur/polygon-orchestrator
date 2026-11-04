@@ -14,20 +14,20 @@ from orchestrator.checks.local_tests import (
 )
 from orchestrator.checks.test_script_check import ScriptCheckUnavailable, freemarker_jar
 
-# Тесты модуля собирают и запускают C++/Java, см. маркер slow в pyproject.toml.
+# The module's tests build and run C++/Java, see the slow marker in pyproject.toml.
 pytestmark = pytest.mark.slow
 
 PROBLEM_ID = "example-problem"
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
-# Без testlib, чтобы тесты быстро собирались: печатает свои аргументы.
+# Without testlib, so that the tests build fast: prints its arguments.
 GEN_ARGS_CPP = (
     "#include <iostream>\n"
     "int main(int argc, char** argv) {\n"
     '    for (int i = 1; i < argc; ++i) std::cout << argv[i] << "\\n";\n'
     "}\n"
 )
-# Читает вход и дописывает к нему строку: звено цепочки.
+# Reads the input and appends a line to it: a link of the chain.
 UPD_APPEND_CPP = (
     "#include <iostream>\n"
     "#include <string>\n"
@@ -39,7 +39,7 @@ UPD_APPEND_CPP = (
 )
 GEN_EMPTY_CPP = "int main() {}\n"
 GEN_FAIL_CPP = "int main() { return 3; }\n"
-# Пропускает всё, кроме входа, в котором есть строка `bad`.
+# Accepts everything except an input containing the line `bad`.
 VALIDATOR_CPP = (
     "#include <iostream>\n"
     "#include <string>\n"
@@ -147,7 +147,7 @@ def test_removed_line_deletes_its_test(tmp_path):
 
 
 def test_generator_edit_regenerates_only_its_tests(tmp_path):
-    # Скрипт не меняется — только код одного из генераторов.
+    # The script doesn't change — only the code of one of the generators.
     problem_dir = _problem(
         tmp_path,
         "gen_args a > $\ngen_other b > $\n",
@@ -170,7 +170,7 @@ def test_problem_lib_edit_regenerates_everything(tmp_path):
 
 
 def test_relative_problem_dir_works(tmp_path, monkeypatch):
-    # Генераторы запускаются из каталога кэша.
+    # Generators are run from the cache directory.
     _problem(tmp_path, "gen_args a > $\n")
     monkeypatch.chdir(tmp_path)
     result = generate_tests(Path("problems") / PROBLEM_ID, TEMPLATES_DIR)
@@ -205,7 +205,7 @@ def test_script_with_identical_lines_is_not_generated(tmp_path):
 
 
 def test_equal_tests_are_found_across_commands_and_examples(tmp_path):
-    # Разные строки скрипта, одинаковое содержимое, в том числе с примером.
+    # Different script lines, identical contents, including with an example.
     problem_dir = _problem(
         tmp_path,
         "gen_args a > $\ngen_args b > $\ngen_other a > $\ngen_args x > $\n",

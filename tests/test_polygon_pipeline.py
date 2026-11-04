@@ -23,12 +23,12 @@ from orchestrator.polygon.steps.base import PolygonStep, StepResult
 def _write_spec(
     problems_dir: Path, problem_id: str, *, dir_name: str | None = None, flat_script: bool = False
 ) -> None:
-    """Спек с `problem_id` в каталоге задачи `problems_dir/<dir_name>/spec.yaml`
-    (`dir_name` по умолчанию — сам `problem_id`)."""
+    """A spec with `problem_id` in the problem directory `problems_dir/<dir_name>/spec.yaml`
+    (`dir_name` by default — the `problem_id` itself)."""
     content = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     content = content.replace("problem_id: valid-spec", f"problem_id: {problem_id}")
     if flat_script:
-        # upload_test_script отклоняет groups — для полного прогона нужен flat
+        # upload_test_script rejects groups — a full run needs flat
         content = content.replace('script_style: "groups"', 'script_style: "flat"')
     spec_path = problems_dir / (dir_name or problem_id) / "authoring" / "spec.yaml"
     spec_path.parent.mkdir(parents=True, exist_ok=True)
@@ -43,8 +43,8 @@ def _fake_step(
     commits_changes: bool = False,
     baselines: list | None = None,
 ) -> PolygonStep:
-    """Фейковый шаг: "загружает" один элемент `<name>/item`, если в базе его
-    нет. `baselines` получает `ctx.synced` каждого вызова."""
+    """A fake step: "uploads" one element `<name>/item` if the base doesn't
+    have it. `baselines` gets the `ctx.synced` of each call."""
 
     def execute(ctx, client):
         calls.append(name)
@@ -68,7 +68,7 @@ def _fake_step(
 
 @pytest.fixture
 def fake_steps(monkeypatch):
-    """Подменяет реестр polygon-шагов на три фейковых, записывающих порядок вызовов."""
+    """Replaces the polygon step registry with three fake ones that record the order of calls."""
     calls: list[str] = []
 
     def install(
@@ -155,7 +155,7 @@ def test_on_outcome_called_after_each_step_including_failed(problems_dir, fake_s
     seen = []
 
     def on_outcome(outcome):
-        # к моменту вызова следующий шаг ещё не запускался
+        # by the time of the call the next step hasn't run yet
         seen.append((outcome.step_name, outcome.status, list(calls)))
 
     run_polygon_pipeline(
@@ -241,7 +241,7 @@ def _link(
     link(problems_dir, polygon_id=polygon_id, revision=revision, synced=synced)
 
 
-# Запись отметок версий файлов в конце push (`pipeline._record_stamps`).
+# Recording the file version stamps at the end of push (`pipeline._record_stamps`).
 _STAMP_CALLS = [
     "problem.files",
     "problem.solutions",
@@ -252,8 +252,8 @@ _STAMP_CALLS = [
 
 
 class RevisionClient:
-    """Клиент, у которого задача 777 на Polygon с ревизией `revision`: каждый
-    `problem.commitChanges` увеличивает её на 1. Остальные методы — `None`."""
+    """A client for which problem 777 on Polygon has the revision `revision`: each
+    `problem.commitChanges` increases it by 1. The other methods — `None`."""
 
     def __init__(self, revision: int = 10, *, modified: bool = False, failing: str | None = None):
         self.revision = revision
@@ -294,8 +294,8 @@ def _commit_call(step_name: str, polygon_id: int = 777):
 
 
 def _new_problem_polygon(method, params, **kwargs):
-    """Polygon без задачи с таким именем: `problem.create` создаёт задачу 555
-    (ревизия 1), остальные методы отвечают `None`."""
+    """Polygon without a problem with this name: `problem.create` creates problem 555
+    (revision 1), the other methods answer `None`."""
     if method == "problems.list":
         return [{"id": 555, "revision": 1, "modified": False}] if "id" in params else []
     if method == "problem.create":
@@ -376,7 +376,7 @@ def test_commit_without_polygon_state_is_step_error(problems_dir, fake_steps):
     assert client.calls == []
 
 
-# --- база синхронизации ---
+# --- the sync base ---
 
 
 def test_unknown_revision_stops_push_until_pull(problems_dir, fake_steps):
@@ -424,7 +424,7 @@ def test_reused_polygon_problem_needs_pull_before_push(problems_dir):
     ]
     assert "polygon pull" in result.outcomes[0].detail
     assert "polygon pull" in result.outcomes[1].detail
-    # поиск по имени и проверка незакоммиченных правок — до загрузки не дошло
+    # the search by name and the check for uncommitted edits — it didn't get to uploading
     assert [c.args[0] for c in client.call.call_args_list] == ["problems.list", "problems.list"]
 
 
@@ -442,7 +442,7 @@ def test_matching_revision_passes_baseline_and_skips_commit_without_changes(
     assert result.ok
     assert baselines == [{"step_a/item": "h"}] * 3
     assert result.outcomes[0].detail == "step_a unchanged"
-    # одна проверка ревизии до шагов; step_a ничего не загрузил — без коммита
+    # one revision check before the steps; step_a uploaded nothing — no commit
     assert client.methods()[0] == "problems.list"
     assert client.commits() == ["orchestrator: step_b", "orchestrator: step_c"]
 
@@ -523,7 +523,7 @@ def test_no_commit_uploads_without_commit_base_or_stamps(problems_dir, fake_step
 
     assert result.ok
     assert calls == ["step_a", "step_b", "step_c"]
-    assert client.methods() == ["problems.list"]  # только сверка ревизии
+    assert client.methods() == ["problems.list"]  # only the revision check
     assert result.outcomes[0].uploaded == ("step_a/item",)
     assert result.outcomes[0].detail == "step_a done; not committed"
     state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
@@ -568,7 +568,7 @@ def test_push_after_no_commit_stops_on_uncommitted_changes(problems_dir, fake_st
     _write_spec(problems_dir, PROBLEM_ID)
     _link(problems_dir)
     calls = fake_steps(commits_changes=True)
-    # После `--no-commit` загруженное лежит в рабочей копии на Polygon.
+    # After `--no-commit` what was uploaded lies in the working copy on Polygon.
     client = RevisionClient(revision=10, modified=True)
 
     result = run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
@@ -590,7 +590,7 @@ def test_create_problem_does_not_commit(problems_dir):
     )
 
     assert result.ok
-    # поиск по имени, создание, ревизия новой задачи — без коммита
+    # the search by name, the creation, the new problem's revision — no commit
     assert [c.args[0] for c in client.call.call_args_list] == [
         "problems.list",
         "problem.create",
@@ -612,7 +612,7 @@ def test_full_run_commits_after_every_step_but_create_problem(problems_dir):
         for c in client.call.call_args_list
         if c.args[0] == "problem.commitChanges"
     ]
-    # upload_interactor у обычной задачи ничего не загружает — коммита нет.
+    # upload_interactor uploads nothing for a normal problem — no commit.
     assert commits == [
         f"orchestrator: {name}" for name in POLYGON_STEP_ORDER[1:] if name != "upload_interactor"
     ]
@@ -635,7 +635,7 @@ def test_step_order():
 
 
 def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
-    # задача привязана, но limits.yaml нет -> PolygonStepError в set_constraints
+    # the problem is bound, but there's no limits.yaml -> PolygonStepError in set_constraints
     _write_spec(problems_dir, PROBLEM_ID)
     _link(problems_dir)
     client = RevisionClient(revision=10)
@@ -649,8 +649,8 @@ def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
         ("set_constraints", "error"),
     ]
     assert "limits_from_constraints" in result.outcomes[-1].detail
-    # set_constraints упал до сети — вызовы только от проверки ревизии и
-    # upload_attachments, потом запись отметок после коммита upload_attachments
+    # set_constraints failed before the network — the calls are only from the revision check and
+    # upload_attachments, then recording the stamps after upload_attachments's commit
     assert client.methods() == [
         "problems.list",
         "problem.saveFile",
@@ -661,7 +661,7 @@ def test_polygon_step_error_stops_pipeline_before_network(problems_dir):
 
 
 def test_invalid_spec_sets_spec_error_and_never_creates_client(problems_dir):
-    # problem_id внутри файла не совпадает с именем файла -> SpecValidationError
+    # the problem_id inside the file doesn't match the file name -> SpecValidationError
     _write_spec(problems_dir, "other-problem", dir_name=PROBLEM_ID)
 
     with patch.object(polygon_pipeline, "PolygonClient") as client_cls:
@@ -801,14 +801,14 @@ def test_cli_polygon_run_prints_outcomes(problems_dir, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    # Прогресс — строка на каждый шаг.
+    # Progress — a line per step.
     for step_name in polygon_pipeline.POLYGON_STEP_ORDER:
         assert f"  {step_name}...\n" in out
     pushed = out.split("=== pushed ===\n")[1].split("\n\n")[0].splitlines()
     assert "validator.cpp" in pushed
     assert "TL/ML (limits.yaml)" in pushed
     assert "authoring/spec.yaml" in pushed
-    assert "validator assignment" not in pushed  # вместе с validator.cpp — одна строка
+    assert "validator assignment" not in pushed  # together with validator.cpp — one line
     assert pushed[-1] == "(committed on Polygon id=555, revision 1)"
     assert "=== notes ===\ncreate_problem: created new Polygon problem (id=555)" in out
     assert "=== errors ===" not in out
@@ -950,7 +950,7 @@ def test_cli_polygon_run_error_is_short_in_console_and_full_in_log(problems_dir,
 
 
 def test_cli_polygon_run_own_step_error_is_printed_in_full(problems_dir, capsys):
-    # ревизия неизвестна — длинное сообщение с подсказкой в конце
+    # the revision is unknown — a long message with a hint at the end
     _write_spec(problems_dir, PROBLEM_ID)
     _link(problems_dir, revision=None)
 
@@ -963,7 +963,7 @@ def test_cli_polygon_run_own_step_error_is_printed_in_full(problems_dir, capsys)
     assert len(error) > cli_commands._CONSOLE_ERROR_MAX_LEN
     assert f"orchestrator problems/{PROBLEM_ID} polygon push --force" in error
     assert "…" not in out
-    # Шаги, которые из-за ошибки не загрузили своё, — по имени, без подробностей.
+    # Steps that didn't upload theirs because of the error — by name, without details.
     not_pushed = out.split("=== not pushed ===\n")[1].splitlines()
     assert not_pushed[0] == "upload_attachments"
     assert "upload_solutions" in not_pushed
@@ -1022,18 +1022,18 @@ def test_cli_polygon_run_appends_to_log_with_run_header(problems_dir, capsys):
     header = f"===== run started: orchestrator {' '.join(argv)} ====="
     assert log.count(header) == 2
     assert log.count("[create_problem] step started") == 2
-    assert "\n\n" in log  # пустая строка между прогонами
-    # заголовок только в файл, не в консоль
+    assert "\n\n" in log  # an empty line between runs
+    # the header goes only to the file, not to the console
     assert "run started" not in capsys.readouterr().out
 
 
-# --- Отметки версий файлов на Polygon в конце push ---
+# --- File version stamps on Polygon at the end of push ---
 
 
 class ListingClient(RevisionClient):
-    """`RevisionClient`, который отдаёт листинг с `spec.yaml` в Attachments;
-    `bump_on_listing` — кто-то коммитит на Polygon между коммитом push и
-    листингом."""
+    """A `RevisionClient` that returns a listing with `spec.yaml` in Attachments;
+    `bump_on_listing` — someone commits on Polygon between push's commit and the
+    listing."""
 
     def __init__(self, *args, bump_on_listing: bool = False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1051,7 +1051,7 @@ class ListingClient(RevisionClient):
 
 
 def test_push_records_stamps_of_uploaded_files(problems_dir):
-    # upload_attachments загрузит spec.yaml, set_constraints упадёт без limits.yaml
+    # upload_attachments uploads spec.yaml, set_constraints fails without limits.yaml
     _write_spec(problems_dir, PROBLEM_ID)
     _link(problems_dir)
     client = ListingClient(revision=10)
@@ -1099,7 +1099,7 @@ def test_push_without_commits_lists_only_for_unstamped_files(problems_dir, fake_
 
     run_polygon_pipeline(PROBLEM_ID, problems_dir=problems_dir, client=client)
 
-    # Ни коммитов, ни файлов без отметок — листинг не нужен.
+    # Neither commits nor files without stamps — no listing needed.
     assert client.methods() == ["problems.list"]
 
     _link(problems_dir, synced={**unchanged, "spec.yaml": "x"})
@@ -1114,7 +1114,7 @@ def test_push_without_commits_lists_only_for_unstamped_files(problems_dir, fake_
 
 def test_force_push_replaces_baseline_with_uploaded(problems_dir):
     _write_spec(problems_dir, PROBLEM_ID)
-    # Ключ из прошлой базы: после правок на Polygon в обход он мог устареть.
+    # A key from the previous base: after edits on Polygon bypassing the orchestrator it could have become outdated.
     _link(problems_dir, synced={"generators/gen_old.cpp": "stale"})
     client = ListingClient(revision=10)
 

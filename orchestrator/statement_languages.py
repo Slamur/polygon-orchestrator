@@ -1,23 +1,23 @@
-"""Языки условия задачи.
+"""The problem's statement languages.
 
-Условие на каждом языке лежит в своём каталоге `statement/<код>/`
+The statement in each language lies in its own directory `statement/<code>/`
 (`statement/ru/`, `statement/en/`): `legend.tex`, `input_format.tex`,
-`output_format.tex`, `notes.tex` (+ `interaction.tex`, `tutorial.tex`) и
-`name.txt`. Примеры общие для всех языков — `statement/examples/`. Код
-языка — каталог, ключ `title` спека и значение `language`; на Polygon язык
-называется полным именем (`POLYGON_LANGUAGES`: `ru` -> `russian`), язык без
-кода в таблице — каталог с самим именем Polygon.
+`output_format.tex`, `notes.tex` (+ `interaction.tex`, `tutorial.tex`) and
+`name.txt`. The examples are shared by all languages — `statement/examples/`. The language
+code is the directory, the key of the spec's `title` and the value of `language`; on Polygon the language
+is called by its full name (`POLYGON_LANGUAGES`: `ru` -> `russian`), a language without
+a code in the table — a directory with the Polygon name itself.
 
-Основной язык — `language` спека (по умолчанию `ru`): на нём пишут шаги
-модели (`statement_draft`, `tutorial_draft`). Остальные языки существуют
-только на уровне Polygon: их пишет автор или `polygon pull`, а `polygon
-push` загружает каждый язык своим `problem.saveStatement`.
+The main language is the spec's `language` (`ru` by default): the model's steps
+(`statement_draft`, `tutorial_draft`) write in it. The other languages exist
+only at the Polygon level: they are written by the author or `polygon pull`, and `polygon
+push` uploads each language with its own `problem.saveStatement`.
 
-Задачи, у которых условие лежит прямо в `statement/` (раскладка до языков),
-переносит `migrate_statement_languages` при первой команде к задаче.
+Problems whose statement lies directly in `statement/` (the layout from before languages)
+are moved by `migrate_statement_languages` on the first command to the problem.
 
-Без тяжёлых импортов: модуль читают перенос раскладки в `cli.py` и проверки
-без спека.
+Without heavy imports: the module is read by the layout migration in `cli.py` and by checks
+without a spec.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from orchestrator.problem_paths import (
 STATEMENT_DIRNAME = "statement"
 DEFAULT_LANGUAGE = "ru"
 
-# Код языка -> имя языка в Polygon.
+# Language code -> the language's name in Polygon.
 POLYGON_LANGUAGES = {
     "ru": "russian",
     "en": "english",
@@ -66,32 +66,32 @@ POLYGON_LANGUAGES = {
 }
 _CODES = {name: code for code, name in POLYGON_LANGUAGES.items()}
 
-# Языки, на которых умеют писать шаги модели: код -> название для промпта.
-# Правила оформления (кавычки и т.п.) в `templates/tutorials/` описаны для них.
+# The languages the model's steps can write in: code -> the name for the prompt.
+# The formatting rules (quotes, etc.) in `templates/tutorials/` are described for them.
 GENERATION_LANGUAGES = {
     "ru": "русский",
     "en": "английский",
 }
 
-# Каталог `statement/`, который не язык: примеры общие для всех языков.
+# The `statement/` directory that isn't a language: the examples are shared by all languages.
 EXAMPLES_DIRNAME = "examples"
 
-# Каталог языка — строчная латиница (`ru`, `en`, `kazakh`).
+# A language directory — lowercase Latin letters (`ru`, `en`, `kazakh`).
 _LANGUAGE_PATTERN = re.compile(r"^[a-z]+$")
 
 
 def polygon_language(code: str) -> str:
-    """Имя языка в Polygon по каталогу `statement/<code>/`."""
+    """The language's name in Polygon by the `statement/<code>/` directory."""
     return POLYGON_LANGUAGES.get(code, code)
 
 
 def language_code(polygon_name: str) -> str:
-    """Каталог `statement/<код>/` для языка Polygon `polygon_name`."""
+    """The `statement/<code>/` directory for the Polygon language `polygon_name`."""
     return _CODES.get(polygon_name, polygon_name)
 
 
 def language_name(code: str) -> str:
-    """Название языка генерации для промпта (`русский`)."""
+    """The name of a generation language for the prompt."""
     return GENERATION_LANGUAGES[code]
 
 
@@ -100,9 +100,9 @@ def is_language_dirname(name: str) -> bool:
 
 
 def statement_languages(statement_dir: Path) -> list[str]:
-    """Языки условия — подкаталоги `statement/` с именем языка, по
-    алфавиту. Каталог с полным именем Polygon языка, у которого есть код
-    (`russian` при `ru`), — `ProblemPathError`: у языка один каталог."""
+    """The statement languages — the subdirectories of `statement/` named after a language, in
+    alphabetical order. A directory with the full Polygon name of a language that has a code
+    (`russian` with `ru`) is a `ProblemPathError`: a language has one directory."""
     if not statement_dir.is_dir():
         return []
     languages = sorted(
@@ -122,9 +122,9 @@ def statement_languages(statement_dir: Path) -> list[str]:
 
 
 def read_spec_language(problem_dir: Path) -> str:
-    """Основной язык условия по спеку задачи без его валидации — для
-    переноса раскладки, когда спек ещё не разобран: нет спека, он не
-    читается или поле не задано — `DEFAULT_LANGUAGE`."""
+    """The main statement language by the problem's spec without validating it — for
+    the layout migration, when the spec isn't parsed yet: no spec, it isn't
+    readable or the field isn't set — `DEFAULT_LANGUAGE`."""
     path = find_authoring_file(Path(problem_dir), SPEC_FILENAME)
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -137,13 +137,13 @@ def read_spec_language(problem_dir: Path) -> str:
 
 
 def migrate_statement_languages(problem_dir: Path) -> tuple[str, list[str]] | None:
-    """Переносит условие, лежащее прямо в `statement/` (раскладка до
-    языков), в `statement/<основной язык>/` и переименовывает его ключи в
-    базе синхронизации `polygon_state.json` (`statement/legend.tex` ->
-    `statement/ru/legend.tex`), чтобы push не загрузил условие заново.
-    Возвращает (язык, перенесённые имена файлов) или `None`, если переносить
-    нечего. Файл, который уже есть в каталоге языка, — `ProblemPathError` до
-    любого переноса."""
+    """Moves a statement lying directly in `statement/` (the layout from before
+    languages) into `statement/<main language>/` and renames its keys in the
+    sync base `polygon_state.json` (`statement/legend.tex` ->
+    `statement/ru/legend.tex`), so that push doesn't upload the statement again.
+    Returns (the language, the moved file names) or `None` if there's nothing
+    to move. A file that already exists in the language directory is a `ProblemPathError` before
+    any move."""
     statement_dir = Path(problem_dir) / STATEMENT_DIRNAME
     if not statement_dir.is_dir():
         return None
@@ -166,9 +166,9 @@ def migrate_statement_languages(problem_dir: Path) -> tuple[str, list[str]] | No
 
 
 def _migrate_sync_keys(problem_dir: Path, language: str) -> None:
-    """Ключи условия без каталога языка (`statement/<файл>`,
-    `statement/name`) -> `statement/<language>/...`, вместе с отметками."""
-    # Состояние лежит в каталоге задачи: путь внутри корня здесь не нужен.
+    """The statement keys without a language directory (`statement/<file>`,
+    `statement/name`) -> `statement/<language>/...`, together with the stamps."""
+    # The state lies in the problem directory: the path inside the root isn't needed here.
     problems_dir, problem_id = problem_dir.parent, problem_dir.name
     state = load_polygon_state(problem_id, problems_dir=problems_dir)
     if state is None:

@@ -1,18 +1,18 @@
-"""Прогон генеративных шагов для одного `problem_id`, с учётом кэша (CLAUDE.md,
-"Запуск", "Кэширование по хешу спека"), статус кэша шагов
-(`compute_step_statuses`) и принятие текущих файлов без вызова модели
+"""Running the generative steps for one `problem_id`, taking the cache into account (CLAUDE.md,
+"Running", "Caching by spec hash"), the cache status of the steps
+(`compute_step_statuses`) and accepting the current files without calling the model
 (`accept_steps`).
 
-`run_pipeline` не вызывает модель, если это не нужно: перед каждым шагом
-считает `input_hash`/`prompt_hash` (не запуская сам шаг) и проверяет
-`cache.is_cache_valid(...)` — модель вызывается только если кэш невалиден,
-`force=True` или `fresh=True`. Если файлы шага уже есть на диске, шаг
-запускается в режиме доработки (`steps.base.StepRevision`): модель получает
-их и то, что изменилось во входе шага; `fresh=True` — с нуля, без текущих
-файлов. Если шаг возвращает `status: uncertain`
-(`StepUncertainError`), пайплайн останавливается для этого `problem_id`
-(последующие шаги не запускаются), но не бросает исключение наружу: это
-ожидаемый исход, а не сбой, и CLI печатает его как результат шага.
+`run_pipeline` doesn't call the model if it isn't needed: before each step
+it computes `input_hash`/`prompt_hash` (without running the step itself) and checks
+`cache.is_cache_valid(...)` — the model is called only if the cache is invalid,
+`force=True` or `fresh=True`. If the step's files already exist on disk, the step
+runs in revision mode (`steps.base.StepRevision`): the model gets
+them and what changed in the step's input; `fresh=True` — from scratch, without the current
+files. If a step returns `status: uncertain`
+(`StepUncertainError`), the pipeline stops for this `problem_id`
+(the following steps don't run), but doesn't raise the exception outward: it's
+an expected outcome, not a failure, and the CLI prints it as the step's result.
 """
 
 from __future__ import annotations
@@ -92,9 +92,9 @@ _STEP_MODULES: dict[str, ModuleType] = {
     "tutorial_draft": tutorial_draft,
 }
 
-# Артефакты шагов, которые следующие шаги получают как upstream-вход (см.
-# CLAUDE.md, "Кэширование по хешу спека"): шаг-источник -> имя артефакта
-# (файл — `primary_artifact_path` источника) и шаг -> какие из них ему нужны.
+# The steps' artifacts that the following steps get as upstream input (see
+# CLAUDE.md, "Caching by spec hash"): source step -> the artifact name
+# (the file — the source's `primary_artifact_path`) and step -> which of them it needs.
 _UPSTREAM_PRODUCERS: dict[str, str] = {
     "constraints_pick": CONSTRAINTS_ARTIFACT,
     "tests_plan": tests_plan.TESTS_PLAN_ARTIFACT,
@@ -107,7 +107,7 @@ _STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
     "solutions_draft": ("constraints_pick",),
 }
 
-# Статусы StepOutcome.status:
+# StepOutcome.status statuses:
 OUTCOME_CACHE_HIT = "cache_hit"
 OUTCOME_CONFIRMED = "confirmed"
 OUTCOME_PROPOSED = "proposed"
@@ -120,26 +120,26 @@ OUTCOME_NO_PENDING = "no_pending_response"
 
 @dataclass
 class StepOutcome:
-    """Что произошло с одним шагом в рамках одного прогона пайплайна."""
+    """What happened to one step within one pipeline run."""
 
     step_name: str
     status: str
     detail: str = ""
     notes: list[dict[str, Any]] = field(default_factory=list)
-    # Режим доработки (`steps.base.StepResult`): файлы, помеченные
-    # `.removed`, переименования и каталог с прежними версиями файлов.
+    # Revision mode (`steps.base.StepResult`): files marked
+    # `.removed`, renames and the directory with the previous versions of files.
     removed: list[tuple[Path, str]] = field(default_factory=list)
     renamed: list[tuple[Path, Path, str]] = field(default_factory=list)
     backup_dir: Path | None = None
-    # Что из ответа модели не применено (имя файла, причина) и куда отложены
-    # версии модели (`steps.base.StepResult`).
+    # What of the model's response wasn't applied (file name, reason) and where the
+    # model's versions were set aside (`steps.base.StepResult`).
     conflicts: list[tuple[str, str]] = field(default_factory=list)
     conflicts_dir: Path | None = None
-    # Шаг отработал в этом прогоне (вызвал модель или применил сохранённый
-    # ответ), а не пропущен — только о таком пишется отчёт `llm_reports/`.
+    # The step worked in this run (called the model or applied a saved
+    # response) rather than being skipped — the `llm_reports/` report is written only about such a step.
     ran: bool = False
-    # Записанные файлы (имя артефакта -> путь), какие из них новые, и
-    # ошибки compile-check (имя артефакта -> stderr).
+    # The written files (artifact name -> path), which of them are new, and
+    # the compile-check errors (artifact name -> stderr).
     artifact_paths: dict[str, Path] = field(default_factory=dict)
     created: list[Path] = field(default_factory=list)
     compile_errors: dict[str, str] = field(default_factory=dict)
@@ -149,7 +149,7 @@ class StepOutcome:
 
 @dataclass
 class PipelineResult:
-    """Результат прогона всех шагов для одного `problem_id`."""
+    """The result of running all steps for one `problem_id`."""
 
     problem_id: str
     outcomes: list[StepOutcome] = field(default_factory=list)
@@ -162,12 +162,12 @@ class PipelineResult:
 
 
 def _artifact_present(path: Path) -> bool:
-    """Проверяет, что файл/каталог, ожидаемый шагом, реально на месте.
+    """Checks that the file/directory expected by the step is actually in place.
 
-    Для шага `solutions_draft` `path` — каталог с произвольным набором
-    файлов (модель сама называет решения), поэтому "на месте" означает
-    "существует и в нём есть что-то, кроме помеченного `.removed`"; для
-    остальных шагов `path` — конкретный файл.
+    For the `solutions_draft` step `path` is a directory with an arbitrary set of
+    files (the model names the solutions itself), so "in place" means
+    "exists and has something in it besides what's marked `.removed`"; for
+    the other steps `path` is a particular file.
     """
     if path.is_dir():
         return any(not is_removed_mark(child) for child in path.iterdir())
@@ -176,7 +176,7 @@ def _artifact_present(path: Path) -> bool:
 
 @dataclass
 class _StepHashes:
-    """Текущие хеши входа шага — то, с чем сравнивается `CacheEntry`."""
+    """The current hashes of the step's input — what `CacheEntry` is compared with."""
 
     input_hash: str
     prompt_hash: str
@@ -187,7 +187,7 @@ class _StepHashes:
 
 
 def _generate_command(step_name: str) -> str:
-    """Какой командой запускается шаг."""
+    """Which command runs the step."""
     if step_name in ON_DEMAND_STEPS:
         return "llm tutorial"
     return f"llm generate --step {step_name}"
@@ -196,7 +196,7 @@ def _generate_command(step_name: str) -> str:
 def _optional_skip_detail(
     step_name: str, spec: Any, problem_id: str, problems_dir: Path
 ) -> str | None:
-    """Почему опциональный шаг не нужен этой задаче; `None` — нужен."""
+    """Why an optional step isn't needed for this problem; `None` — it is needed."""
     if (
         step_name == "tutorial_draft"
         and not tutorial_draft.draft_path(problem_id, problems_dir=problems_dir).is_file()
@@ -222,12 +222,12 @@ def _load_upstream(
     *,
     tutorial_refs: list[str] | None = None,
 ) -> None:
-    """Подхватывает с диска upstream-артефакты шага (`_STEP_UPSTREAM`),
-    которых ещё нет в `upstream_artifacts`: шаг-источник в этом прогоне не
-    запускался (только --step или пропущен по кэшу). У `tutorial_draft` —
-    файлы его входа (`tutorial_draft.read_inputs`); `tutorial_refs` — решения
-    из `--ref`, `None` — те же, что в прошлом прогоне. `ValueError` — входа
-    шага нет на диске."""
+    """Picks up from disk the step's upstream artifacts (`_STEP_UPSTREAM`)
+    that aren't in `upstream_artifacts` yet: the source step didn't run in this
+    run (only --step or skipped by the cache). For `tutorial_draft` — the
+    files of its input (`tutorial_draft.read_inputs`); `tutorial_refs` — the solutions
+    from `--ref`, `None` — the same as in the previous run. `ValueError` — the step's input
+    isn't on disk."""
     if step_name == "tutorial_draft":
         if tutorial_refs is None:
             pending = load_pending_response(problem_id, step_name, problems_dir=problems_dir)
@@ -254,7 +254,7 @@ def _load_upstream(
 
 
 def _remember_upstream(step_name: str, path: Path, upstream_artifacts: dict[str, Any]) -> None:
-    """После шага-источника — его артефакт, как он теперь на диске."""
+    """After the source step — its artifact, as it is on disk now."""
     if step_name in _UPSTREAM_PRODUCERS and path.exists():
         upstream_artifacts[_UPSTREAM_PRODUCERS[step_name]] = path.read_text(encoding="utf-8")
 
@@ -268,9 +268,9 @@ def _compute_step_hashes(
     prompts_dir: Path,
     templates_dir: Path,
 ) -> _StepHashes:
-    """Хеши шага без вызова модели. `ValueError` — нет нужного
-    upstream-артефакта (`constraints.yaml`), `SpecReferenceError` —
-    референс спека не найден или ничего не даёт шагу."""
+    """The step's hashes without calling the model. `ValueError` — a needed
+    upstream artifact (`constraints.yaml`) is missing, `SpecReferenceError` —
+    a spec reference isn't found or gives the step nothing."""
     module = _STEP_MODULES[step_name]
     input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*module.hash_inputs(problem_id, spec, upstream_artifacts))
@@ -300,10 +300,10 @@ def _compute_step_hashes(
 
 
 def _stale_reason(entry: CacheEntry, hashes: _StepHashes, *, brief: bool = False) -> str:
-    """Почему кэш шага невалиден (при уже известном, что он невалиден и
-    `entry.status` — не `uncertain`): что именно изменилось — по хешам
-    частей, если они есть в записи кэша. `brief` — только что изменилось в
-    целом (модель, спек, промпт), без списка частей — для консоли."""
+    """Why the step's cache is invalid (given it's already known to be invalid and
+    `entry.status` isn't `uncertain`): what exactly changed — by the hashes of the
+    parts, if they are in the cache entry. `brief` — only what changed in
+    general (model, spec, prompt), without the list of parts — for the console."""
     reasons: list[str] = []
     parts_unknown = False
     if entry.model != hashes.model:
@@ -349,9 +349,9 @@ def _revision_for_step(
     hashes: _StepHashes,
     problems_dir: Path,
 ) -> StepRevision | None:
-    """Режим доработки, если файлы шага есть на диске; иначе `None` (с нуля).
-    Что изменилось во входе — по `input_values` записи кэша; смена модели и
-    промптов/документов — только именами (`other_changes`)."""
+    """Revision mode if the step's files exist on disk; otherwise `None` (from scratch).
+    What changed in the input — by the `input_values` of the cache entry; a change of the model and
+    the prompts/documents — only by name (`other_changes`)."""
     current = module.current_artifacts(problem_id, spec, problems_dir=problems_dir)
     if not current:
         return None
@@ -378,9 +378,9 @@ def _pending_revision(
     hashes: _StepHashes,
     problems_dir: Path,
 ) -> tuple[StepRevision | None, str | None]:
-    """Режим, в котором применяется сохранённый ответ (`_revision_for_step`,
-    если ответ получен в режиме доработки), или почему его нельзя применить
-    к текущему входу шага: `(revision, None)` или `(None, причина)`."""
+    """The mode in which a saved response is applied (`_revision_for_step`,
+    if the response was received in revision mode), or why it can't be applied
+    to the step's current input: `(revision, None)` or `(None, reason)`."""
     try:
         ModelResponse(**pending.response)
     except TypeError as exc:
@@ -417,8 +417,8 @@ def _run_step_into(
     problems_dir: Path,
     templates_dir: Path,
 ) -> bool:
-    """Запускает шаг и дописывает его исход в `result`. `False` — пайплайн
-    остановлен (`uncertain` или ответ модели не прошёл проверку)."""
+    """Runs the step and appends its outcome to `result`. `False` — the pipeline
+    is stopped (`uncertain` or the model's response failed the check)."""
     try:
         step_result = module.run_step(
             problem_id,
@@ -431,7 +431,7 @@ def _run_step_into(
             templates_dir=templates_dir,
         )
     except StepUncertainError as exc:
-        # Текст заметок — в отчёте шага (`llm_report`), здесь только поля.
+        # The text of the notes is in the step report (`llm_report`), only the fields here.
         fields = ", ".join(str(note.get("field", "?")) for note in exc.notes)
         detail = (
             f"the model needs more data in the spec ({fields or 'no fields named'}) — "
@@ -444,8 +444,8 @@ def _run_step_into(
         result.stopped_uncertain = True
         return False
     except LLMCallError as exc:
-        # Модель не ответила (таймаут, ошибка CLI/API) — записывать нечего,
-        # следующий прогон вызовет её заново.
+        # The model didn't respond (a timeout, a CLI/API error) — there's nothing to record,
+        # the next run calls it again.
         message = f"the model call failed: {exc} — nothing written"
         if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
             message += (
@@ -457,9 +457,9 @@ def _run_step_into(
         result.stopped_uncertain = True
         return False
     except ValueError as exc:
-        # Ответ модели не прошёл проверку — в `problems/` ничего не записано.
-        # Сам ответ сохранён (`PendingResponse`): после правки причины его
-        # можно применить без нового вызова модели.
+        # The model's response failed the check — nothing is written to `problems/`.
+        # The response itself is saved (`PendingResponse`): after fixing the cause it
+        # can be applied without a new model call.
         message = str(exc)
         if load_pending_response(problem_id, step_name, problems_dir=problems_dir) is not None:
             message += (
@@ -518,8 +518,8 @@ def _run_step_into(
         )
     )
     if conflicts_dir is not None:
-        # Следующие шаги зависят от файлов этого — пока автор не разберёт
-        # конфликты, дальше не идём.
+        # The following steps depend on this one's files — until the author resolves the
+        # conflicts, we don't go further.
         result.stopped_uncertain = True
         return False
     return True
@@ -537,40 +537,40 @@ def run_pipeline(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> PipelineResult:
-    """Прогоняет шаги `problem_id` по порядку `STEP_ORDER`.
+    """Runs the steps of `problem_id` in the `STEP_ORDER` order.
 
-    `only_step`, если задан, ограничивает прогон одним шагом (используется
-    CLI-флагом `--step`); шаги перед ним всё равно не запускаются, но
-    upstream-артефакты, нужные ему (`constraints.yaml`), читаются с диска —
-    предполагается, что предыдущие шаги уже отработали (см. `cli.py`
-    `run <problem_id> --step NAME`, требующий этого руками).
+    `only_step`, if set, limits the run to one step (used by the
+    `--step` CLI flag); the steps before it don't run anyway, but the
+    upstream artifacts it needs (`constraints.yaml`) are read from disk —
+    it's assumed that the previous steps have already worked (see `cli.py`
+    `run <problem_id> --step NAME`, which requires this by hand).
 
-    `force=True` обходит кэш полностью — каждый нужный шаг вызывает модель
-    заново, независимо от `input_hash`/`prompt_hash`. Шаг, файлы которого
-    уже есть на диске, запускается в режиме доработки (`_revision_for_step`);
-    `fresh=True` — с нуля, без текущих файлов, и, как `force`, независимо от
-    кэша (просьба "с нуля" при валидном кэше иначе молча ничего бы не
-    сделала). Если шаг перезапущен
-    без `force` из-за устаревшего кэша, в `StepOutcome.detail` — что именно
-    изменилось (`_stale_reason`).
+    `force=True` bypasses the cache completely — each needed step calls the model
+    again, regardless of `input_hash`/`prompt_hash`. A step whose files
+    already exist on disk runs in revision mode (`_revision_for_step`);
+    `fresh=True` — from scratch, without the current files, and, like `force`, regardless of the
+    cache (a "from scratch" request with a valid cache would otherwise silently do
+    nothing). If a step is rerun
+    without `force` because of an outdated cache, `StepOutcome.detail` has what exactly
+    changed (`_stale_reason`).
 
-    `apply_pending=True` (`llm apply`) — модель не вызывается вовсе: шаги с
-    сохранённым неприменённым ответом (`cache.PendingResponse` — ответ, не
-    прошедший проверку) применяют его, если он получен на текущий вход шага
-    (те же хеши, что у кэша) и в том же режиме (доработка или с нуля);
-    остальные шаги пропускаются. Только в этом режиме без `only_step`
-    участвуют и шаги по команде (`ON_DEMAND_STEPS`): их сохранённый ответ тоже
-    нужно применить, а вызвать модель они могут только через `only_step`.
+    `apply_pending=True` (`llm apply`) — the model isn't called at all: steps with
+    a saved unapplied response (`cache.PendingResponse` — a response that
+    failed the check) apply it if it was received for the step's current input
+    (the same hashes as the cache) and in the same mode (revision or from scratch);
+    the other steps are skipped. Only in this mode without `only_step` do
+    on-demand steps (`ON_DEMAND_STEPS`) take part: their saved response also
+    needs applying, and they can call the model only through `only_step`.
 
-    `tutorial_refs` — решения из `--ref` для `tutorial_draft` (`_load_upstream`).
+    `tutorial_refs` — the solutions from `--ref` for `tutorial_draft` (`_load_upstream`).
 
-    Останавливается (не бросая исключение) на первом `StepUncertainError` —
-    `result.stopped_uncertain=True`, `result.outcomes` содержит всё, что
-    успело отработать. Так же — на ответе модели, не прошедшем проверку
-    (`ValueError` шага; ответ сохранён для `apply_pending`) и на неудачном
-    вызове модели (`LLMCallError`: таймаут, ошибка CLI/API). Ошибка валидации спека (`SpecValidationError`) тоже не
-    прокидывается наружу — записывается в `result.spec_error`, и CLI печатает
-    её вместо результатов шагов.
+    It stops (without raising an exception) at the first `StepUncertainError` —
+    `result.stopped_uncertain=True`, `result.outcomes` contains everything that
+    managed to work. Likewise — on a model response that failed the check
+    (the step's `ValueError`; the response is saved for `apply_pending`) and on a failed
+    model call (`LLMCallError`: a timeout, a CLI/API error). A spec validation error (`SpecValidationError`) isn't
+    propagated outward either — it's recorded in `result.spec_error`, and the CLI prints
+    it instead of the steps' results.
     """
     try:
         spec = load_problem_spec(problem_id, problems_dir=problems_dir)
@@ -623,10 +623,10 @@ def run_pipeline(
                 templates_dir=templates_dir,
             )
         except (ValueError, SpecReferenceError) as exc:
-            # ValueError — нет constraints.yaml (constraints_pick ещё не
-            # запускался успешно) или входа шага, SpecReferenceError — референс спека не
-            # найден: спек или запуск нужно поправить. Это не uncertain, но
-            # пайплайн останавливается так же — с сообщением, а не traceback.
+            # ValueError — there's no constraints.yaml (constraints_pick hasn't
+            # run successfully yet) or no step input, SpecReferenceError — a spec reference isn't
+            # found: the spec or the run needs fixing. It isn't uncertain, but the
+            # pipeline stops the same way — with a message, not a traceback.
             result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, str(exc)))
             result.stopped_uncertain = True
             return result
@@ -687,8 +687,8 @@ def run_pipeline(
             and artifact_present
             and not (force or fresh)
         ):
-            # Файл появился не из этого шага (например, `limits.yaml` скачал
-            # `polygon pull`) — он актуальнее, чем то, что шаг вывел бы.
+            # The file didn't come from this step (e.g. `limits.yaml` was downloaded by
+            # `polygon pull`) — it's more up to date than what the step would derive.
             _save_accepted_entry(problem_id, step_name, hashes, problems_dir)
             result.outcomes.append(
                 StepOutcome(
@@ -752,8 +752,8 @@ def run_pipeline(
     return result
 
 
-# Состояния StepStatus.state для `orchestrator <задача> llm status` (CLAUDE.md, "Запуск":
-# "печатает таблицу 'шаг -> cache hit / stale / not run'").
+# StepStatus.state states for `orchestrator <problem> llm status` (CLAUDE.md, "Running":
+# "prints a 'step -> cache hit / stale / not run' table").
 STATUS_CACHE_HIT = "cache hit"
 STATUS_STALE = "stale"
 STATUS_NOT_RUN = "not run"
@@ -762,22 +762,22 @@ STATUS_CONFLICT = "conflict"
 STATUS_SKIPPED_OPTIONAL = "skipped (optional)"
 STATUS_BLOCKED = "blocked"
 
-# Дополнительные состояния StepStatus.state для `orchestrator <задача> llm accept`.
+# Additional StepStatus.state states for `orchestrator <problem> llm accept`.
 STATUS_ACCEPTED = "accepted"
 STATUS_NOT_ACCEPTED = "not accepted"
 
 
 @dataclass
 class StepStatus:
-    """Состояние одного шага для `orchestrator <задача> llm status`/`llm accept` —
-    считается только по `.cache/*.json`, файлам и текущим хешам, без вызова
-    модели."""
+    """The state of one step for `orchestrator <problem> llm status`/`llm accept` —
+    computed only from `.cache/*.json`, the files and the current hashes, without calling the
+    model."""
 
     step_name: str
     state: str
     detail: str = ""
-    # Короткая форма `detail` для консоли, если полная длинная (полная — в
-    # отчёте); пусто — в консоль идёт `detail`.
+    # A short form of `detail` for the console if the full one is long (the full one is in the
+    # report); empty — the console gets `detail`.
     brief: str = ""
 
 
@@ -788,17 +788,17 @@ def compute_step_statuses(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> tuple[list[StepStatus], str | None]:
-    """Статус каждого шага для `problem_id`: cache hit / stale / not run /
-    uncertain / blocked / skipped (optional) — без единого вызова модели.
+    """The status of each step for `problem_id`: cache hit / stale / not run /
+    uncertain / blocked / skipped (optional) — without a single model call.
 
-    Использует те же хеши (`_compute_step_hashes`) и `is_cache_valid`, что и
-    `run_pipeline`, поэтому "cache hit" здесь и реальный пропуск шага в
-    `run_pipeline` всегда согласованы (CLAUDE.md, "Запуск":
-    "используя те же хеши, что и run"). У `stale` в `detail` — что именно
-    изменилось (`_stale_reason`).
+    Uses the same hashes (`_compute_step_hashes`) and `is_cache_valid` as
+    `run_pipeline`, so "cache hit" here and the actual skipping of the step in
+    `run_pipeline` always agree (CLAUDE.md, "Running":
+    "using the same hashes as run"). For `stale`, `detail` has what exactly
+    changed (`_stale_reason`).
 
-    Возвращает `(статусы, spec_error)`: если спек не проходит валидацию,
-    статусы — пустой список, а `spec_error` — текст ошибки.
+    Returns `(statuses, spec_error)`: if the spec doesn't pass validation,
+    the statuses are an empty list, and `spec_error` is the error text.
     """
     return _walk_steps(
         problem_id,
@@ -818,27 +818,27 @@ def accept_steps(
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
 ) -> tuple[list[StepStatus], str | None]:
-    """`orchestrator <задача> llm accept`: принимает текущие артефакты шагов как
-    актуальные — перезаписывает кэш устаревших (`stale`) шагов текущими
-    хешами, без вызова модели. Нужно, когда изменилось то, что не должно
-    менять результат (рефакторинг промптов/шаблонов, смена раскладки
-    `templates/`), или когда автор поправил спек под уже исправленные
-    руками файлы: после этого `llm generate` перезапускает только шаги,
-    вход которых изменится уже после принятия.
+    """`orchestrator <problem> llm accept`: accepts the steps' current artifacts as
+    up to date — overwrites the cache of outdated (`stale`) steps with the current
+    hashes, without calling the model. Needed when something changed that shouldn't
+    change the result (refactoring prompts/templates, a change of the
+    `templates/` layout), or when the author adjusted the spec to files already fixed
+    by hand: after that `llm generate` reruns only the steps
+    whose input changes after the acceptance.
 
-    Не принимаются: шаги без артефакта на диске, шаги без записи кэша
-    (`not run` — ни разу не генерировались), шаги со `status: uncertain`
-    (провал по недостатку данных должен всплывать, пока спек не поправят) и
-    шаги с неразобранными конфликтами (каталог конфликтов ещё на месте).
-    Шаг с разобранными конфликтами (каталог удалён) принимается, даже если
-    его вход не менялся. Неприменённый сохранённый ответ принятого шага
-    удаляется.
-    Статус записи кэша (`confirmed`/`proposed`) сохраняется, у записи
-    выставляется `accepted: true`.
+    Not accepted: steps without an artifact on disk, steps without a cache entry
+    (`not run` — never generated), steps with `status: uncertain`
+    (a failure due to missing data must surface until the spec is fixed) and
+    steps with unresolved conflicts (the conflicts directory is still in place).
+    A step with resolved conflicts (the directory is deleted) is accepted even if
+    its input didn't change. An unapplied saved response of an accepted step
+    is deleted.
+    The cache entry's status (`confirmed`/`proposed`) is kept, the entry
+    gets `accepted: true`.
 
-    Шаги обходятся по порядку: принятый `constraints.yaml` — тот, что на
-    диске, — сразу же входит в хеш следующих шагов, так же и `tests_plan.yaml`.
-    Возвращает `(состояния, spec_error)` как `compute_step_statuses`.
+    The steps are traversed in order: the accepted `constraints.yaml` — the one on
+    disk — immediately becomes part of the hash of the following steps, likewise `tests_plan.yaml`.
+    Returns `(states, spec_error)` like `compute_step_statuses`.
     """
     return _walk_steps(
         problem_id,
@@ -859,10 +859,10 @@ def _walk_steps(
     problems_dir: Path,
     templates_dir: Path,
 ) -> tuple[list[StepStatus], str | None]:
-    """Общий обход шагов для `llm status`/`llm accept`: опциональные шаги,
-    подхват upstream-артефактов (`_load_upstream`), хеши — как в `run_pipeline`;
+    """The shared traversal of steps for `llm status`/`llm accept`: optional steps,
+    picking up upstream artifacts (`_load_upstream`), hashes — as in `run_pipeline`;
     `visit(problem_id, step_name, entry, hashes, artifact_present, problems_dir)`
-    решает, что сказать (и сделать) про шаг."""
+    decides what to say (and do) about the step."""
     try:
         spec = load_problem_spec(problem_id, problems_dir=problems_dir)
     except SpecValidationError as exc:
@@ -938,7 +938,7 @@ def _status_of_step(
 
 
 def _conflicts_resolved(problem_id: str, entry: CacheEntry, problems_dir: Path) -> bool:
-    """Автор разобрал конфликты прошлого прогона — удалил их каталог."""
+    """The author resolved the conflicts of the previous run — deleted their directory."""
     assert entry.conflicts is not None
     return not (Path(problems_dir) / problem_id / entry.conflicts).exists()
 
@@ -1023,7 +1023,7 @@ def _accept_step(
 
     assert cache_entry is not None
     _save_accepted_entry(problem_id, step_name, hashes, problems_dir, status=cache_entry.status)
-    # Принятые файлы актуальны — неприменённый ответ того же шага больше не нужен.
+    # The accepted files are up to date — the unapplied response of the same step is no longer needed.
     discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
     return StepStatus(step_name, STATUS_ACCEPTED, accepted_detail, accepted_brief)
 
@@ -1036,8 +1036,8 @@ def _save_accepted_entry(
     *,
     status: str = OUTCOME_CONFIRMED,
 ) -> None:
-    """Запись кэша, принимающая текущие файлы шага как актуальные
-    (`accepted: true`), без вызова модели."""
+    """A cache entry accepting the step's current files as up to date
+    (`accepted: true`), without calling the model."""
     save_cache_entry(
         problem_id,
         step_name,
