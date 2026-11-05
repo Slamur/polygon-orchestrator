@@ -18,7 +18,8 @@ What is done:
    `java -m` (it exists wherever `java` runs `.java` without building), and
    run as `java -Xmx<ML>m -Xss64m`; Python — `python3` without building. The verdict
    on an example: TL — longer than the problem's TL (`limits.yaml`, without it —
-   `authoring/constraints.yaml`), RE — a non-zero exit code, otherwise —
+   `authoring/constraints.yaml`; a process killed by a signal — by its CPU time,
+   see `_over_time`), RE — a non-zero exit code, otherwise —
    the checker's verdict (`checker.cpp` with `checker.custom_needed`, otherwise
    the standard testlib checker from `checker.standard` — the sources are in
    `std_checkers/`, the same `testlib.h` from `templates/`).
@@ -30,7 +31,11 @@ What is done:
 
 The time is wall-clock on the local machine, including starting the JVM/interpreter:
 compilers, flags and speed aren't those of Polygon, so the TL here is
-a signal, not a Polygon verdict. ML isn't measured.
+a signal, not a Polygon verdict. Memory isn't measured (`run_with_timeout` says
+why), only capped: the address space of C++ and Python solutions — at the ML plus
+`_MEMORY_CAP_SLACK_MB` for the runtime, Java — `-Xmx<ML>m`; a solution over it gets RE
+(a failed allocation, `OutOfMemoryError`). The address space isn't Polygon's
+memory accounting either: this is a signal too.
 
 An interactive problem (the `interactor` section in the spec, without a spec — `interactor.cpp`
 exists): the solution and the interactor (`interactor.cpp`, testlib) are connected by
@@ -63,12 +68,18 @@ With `--full` (`full=True`), tests from the test-script are added to the example
 run too. The answer on them is the output of Main correct (for an interactive problem — its
 `tout`): Main correct goes first, the other solutions aren't run on a test without an answer.
 On the full set the declared verdict is required, not only
-allowed (`REQUIRED_VERDICTS`): `wa`, `re`, `il` without it — an error (the tests don't
-catch the declared mistake), `tl` — only a warning (local time isn't
-Polygon), `ml` memory isn't measured, so there's no requirement. Such solutions
-stop at the first declared verdict, including one received on an
-example: running to the end is needed only for `ok` and `tl_ok`, for which every
-test matters. A stray verdict after the stop therefore won't be noticed.
+allowed (`REQUIRED_VERDICTS`), and only on the generated tests: the examples
+don't count — a mistake the examples catch still needs a test of its own.
+`wa`, `re`, `il` without it — an error (the tests don't catch the declared mistake),
+unless an example catches it — then a warning; `tl`, `ml` — only a warning (local
+time and memory aren't Polygon's). Such solutions stop at the first declared
+verdict on a generated test: running to the end is needed only for `ok` and `tl_ok`,
+for which every test matters. A stray verdict after the stop therefore won't be
+noticed.
+
+`SolutionsRunResult.summary()` — the same outcome in a machine-readable form: the
+status of each solution (`STATUS_*`; `survived` — the declared verdict on no
+generated test) and the test that caught it.
 """
 
 from __future__ import annotations
@@ -98,7 +109,7 @@ from orchestrator.checks.local_tests import (
 )
 from orchestrator.checks.run_with_timeout import (
     RunResult,
-    _raise_stack_limit,
+    resource_limits,
     run_with_timeout,
 )
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
@@ -132,8 +143,9 @@ VERDICT_IL = "IL"
 VERDICT_FAIL = "FAIL"
 
 # The verdict from the solution's name -> what's allowed on the examples. `ml`: memory isn't
-# measured here, a shortage shows up as RE (OutOfMemoryError in Java). `il`
-# (Idleness limit) happens only in an interactive problem.
+# measured here, a shortage shows up as RE (OutOfMemoryError in Java, a failed
+# allocation over the address space cap in C++ and Python). `il` (Idleness limit)
+# happens only in an interactive problem.
 ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "ok": frozenset({VERDICT_OK}),
     "wa": frozenset({VERDICT_OK, VERDICT_WA}),
@@ -146,14 +158,27 @@ ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "il": frozenset({VERDICT_OK, VERDICT_IL}),
 }
 
-# The verdict from the solution's name -> what it must get at least once on the full set.
-REQUIRED_VERDICTS: dict[str, str] = {
-    "wa": VERDICT_WA,
-    "re": VERDICT_RE,
-    "il": VERDICT_IL,
-    "tl": VERDICT_TL,
-    "tle": VERDICT_TL,
+# The verdict from the solution's name -> what it must get at least once on the
+# generated tests of the full set.
+REQUIRED_VERDICTS: dict[str, frozenset[str]] = {
+    "wa": frozenset({VERDICT_WA}),
+    "re": frozenset({VERDICT_RE}),
+    "il": frozenset({VERDICT_IL}),
+    "tl": frozenset({VERDICT_TL}),
+    "tle": frozenset({VERDICT_TL}),
+    "ml": frozenset({VERDICT_RE}),
+    "mle": frozenset({VERDICT_RE}),
 }
+# Solutions for which a missed required verdict is only a warning: local time and
+# memory aren't Polygon's.
+_SOFT_REQUIRED = frozenset({"tl", "tle", "ml", "mle"})
+
+# `SolutionOutcome.status`.
+STATUS_EXPECTED = "expected"
+STATUS_UNEXPECTED = "unexpected"
+# The declared verdict on no generated test (only the full set).
+STATUS_SURVIVED = "survived"
+STATUS_NOT_RUN = "not_run"
 # How many of a solution's tests are listed one by one, then — a summary.
 _MAX_LISTED_RUNS = 8
 _MAX_LISTED_UNEXPECTED = 10
@@ -169,6 +194,9 @@ _STD_PREFIX = "std::"
 # Without `limits.yaml` and `constraints.yaml`.
 _DEFAULT_TIME_LIMIT_MS = 2000
 _DEFAULT_MEMORY_LIMIT_MB = 256
+# The address space cap of C++ and Python solutions — the ML plus this, for the
+# runtime's own mappings (the interpreter, shared libraries).
+_MEMORY_CAP_SLACK_MB = 64
 _CHECKER_TIMEOUT_SECONDS = 10.0
 _COMPILE_TIMEOUT_SECONDS = 60.0
 _JAVA_STACK = "-Xss64m"
@@ -200,6 +228,8 @@ class TestOutcome:
     comment: str = ""
     # The command from the test-script; empty for the examples.
     command: str = ""
+    # A test from the test-script, not an example.
+    generated: bool = False
 
 
 @dataclass
@@ -210,20 +240,53 @@ class SolutionOutcome:
     tests: list[TestOutcome] = field(default_factory=list)
     # The name didn't parse, it didn't build, it didn't start.
     error: str | None = None
-    # The verdict the solution must get (only `--full`).
-    required: str | None = None
+    # The verdicts one of which the solution must get on a generated test (only `--full`).
+    required: frozenset[str] | None = None
     stopped_early: bool = False
 
     @property
-    def got_required(self) -> bool:
-        return self.required is None or any(t.verdict == self.required for t in self.tests)
+    def required_label(self) -> str:
+        return "/".join(sorted(self.required or ()))
+
+    @property
+    def caught_by(self) -> TestOutcome | None:
+        """The first generated test with the required verdict: the examples don't count."""
+        if self.required is None:
+            return None
+        return next((t for t in self.tests if t.generated and t.verdict in self.required), None)
+
+    @property
+    def caught_on_example(self) -> bool:
+        return self.required is not None and any(
+            not t.generated and t.verdict in self.required for t in self.tests
+        )
+
+    @property
+    def missed_required(self) -> bool:
+        return self.required is not None and self.caught_by is None
+
+    @property
+    def status(self) -> str:
+        if self.error is not None:
+            return STATUS_NOT_RUN
+        if any(t.verdict not in self.allowed for t in self.tests):
+            return STATUS_UNEXPECTED
+        if self.missed_required:
+            return STATUS_SURVIVED
+        return STATUS_EXPECTED
 
     @property
     def failed(self) -> bool:
+        """For `local run`: a survivor is an error only if no example catches it either
+        and the verdict isn't a local time/memory one."""
         return (
             self.error is not None
             or any(t.verdict not in self.allowed for t in self.tests)
-            or (not self.got_required and self.verdict not in _TL_VERDICTS)
+            or (
+                self.missed_required
+                and not self.caught_on_example
+                and self.verdict not in _SOFT_REQUIRED
+            )
         )
 
     @property
@@ -242,8 +305,34 @@ class SolutionOutcome:
             if seconds:
                 text += f", max {max(seconds):.2f}s"
         if self.stopped_early:
-            text += f", stopped at the first {self.required}"
+            text += f", stopped at the first {self.required_label}"
         return text
+
+    def summary(self) -> dict:
+        """See `SolutionsRunResult.summary`."""
+        seconds = [t.seconds for t in self.tests if t.seconds is not None]
+        caught = self.caught_by
+        return {
+            "name": self.name,
+            "verdict": self.verdict,
+            "status": self.status,
+            "error": self.error,
+            "caught_by": _test_summary(caught) if caught is not None else None,
+            "caught_on_example": self.caught_on_example,
+            "unexpected": [_test_summary(t) for t in self.tests if t.verdict not in self.allowed][
+                :_MAX_LISTED_UNEXPECTED
+            ],
+            "max_seconds": round(max(seconds), 2) if seconds else None,
+        }
+
+
+def _test_summary(test: TestOutcome) -> dict:
+    return {
+        "test": test.test,
+        "verdict": test.verdict,
+        "command": test.command or None,
+        "comment": "\n".join(test.comment.strip().splitlines()[-5:]) or None,
+    }
 
 
 Progress = Callable[[str], None]
@@ -257,6 +346,9 @@ class SolutionsRunResult:
     errors: list[str] = field(default_factory=list)
     solutions: list[SolutionOutcome] = field(default_factory=list)
     time_limit: float | None = None
+    memory_limit_mb: int | None = None
+    # Whether the tests from the test-script were run (`full`).
+    full: bool = False
     progress: Progress | None = None
 
     def note(self, message: str) -> None:
@@ -268,17 +360,40 @@ class SolutionsRunResult:
     def failed(self) -> bool:
         return bool(self.errors) or any(s.failed for s in self.solutions)
 
+    def summary(self) -> dict:
+        """The outcome in a machine-readable form, for the steps that act on it: the
+        problem-wide errors and, per solution, its status (`STATUS_*`), the test that
+        caught it, its unexpected verdicts. Plain data, ready for YAML/JSON."""
+        return {
+            "full": self.full,
+            "time_limit_seconds": self.time_limit,
+            "memory_limit_mb": self.memory_limit_mb,
+            "errors": list(self.errors),
+            "solutions": [s.summary() for s in self.solutions],
+        }
+
     @property
     def warnings(self) -> list[str]:
-        """Solutions without the `tl` verdict that ran on an example longer than
+        """Survivors that aren't an error (caught only on the examples; `tl`/`ml`) and
+        solutions without the `tl` verdict that ran on an example longer than
         `SLOW_FRACTION` of the TL (but fit into it)."""
-        if self.time_limit is None:
-            return []
-        threshold = SLOW_FRACTION * self.time_limit
         warnings = []
         for s in self.solutions:
-            if not s.got_required and s.verdict in _TL_VERDICTS and s.error is None:
-                warnings.append(f"{s.name}: never got {s.required} (local time, not Polygon's)")
+            if s.status != STATUS_SURVIVED:
+                continue
+            if s.caught_on_example:
+                warnings.append(
+                    f"{s.name}: got {s.required_label} only on examples — "
+                    "no generated test catches it"
+                )
+            elif s.verdict in _SOFT_REQUIRED:
+                warnings.append(
+                    f"{s.name}: never got {s.required_label} (local time and memory, not Polygon's)"
+                )
+        if self.time_limit is None:
+            return warnings
+        threshold = SLOW_FRACTION * self.time_limit
+        for s in self.solutions:
             if s.verdict in _TL_VERDICTS:
                 continue
             slow = [
@@ -308,8 +423,12 @@ class SolutionsRunResult:
                 not_run.extend(f"    {line}" for line in rest[:10])
             elif s.failed:
                 unexpected.append(f"{s.name}: {s.runs}")
-                if not s.got_required and s.verdict not in _TL_VERDICTS:
-                    unexpected.append(f"  never got {s.required}: no test catches it")
+                if (
+                    s.missed_required
+                    and not s.caught_on_example
+                    and s.verdict not in _SOFT_REQUIRED
+                ):
+                    unexpected.append(f"  never got {s.required_label}: no test catches it")
                 bad = [t for t in s.tests if t.verdict not in s.allowed]
                 for t in bad[:_MAX_LISTED_UNEXPECTED]:
                     allowed = ", ".join(sorted(s.allowed))
@@ -334,6 +453,14 @@ class SolutionsRunResult:
 class _Program:
     command: list[str]
     unlimited_stack: bool = False
+    # Cap the address space at this ML (plus the slack); `None` — don't.
+    memory_limit_mb: int | None = None
+
+    @property
+    def memory_cap_mb(self) -> int | None:
+        if self.memory_limit_mb is None:
+            return None
+        return self.memory_limit_mb + _MEMORY_CAP_SLACK_MB
 
     def run(self, stdin: str, timeout_seconds: float) -> RunResult:
         return run_with_timeout(
@@ -342,6 +469,7 @@ class _Program:
             timeout_seconds,
             stdin,
             unlimited_stack=self.unlimited_stack,
+            memory_cap_mb=self.memory_cap_mb,
         )
 
 
@@ -361,7 +489,7 @@ def run_solutions(
     writes only the test cache (`full`). `progress` gets lines along the way:
     notes and the start of each solution."""
     problem_dir = Path(problem_dir)
-    result = SolutionsRunResult(progress=progress)
+    result = SolutionsRunResult(progress=progress, full=full)
     spec = _read_spec(problem_dir, result)
     tests = _sample_tests(problem_dir, spec)
     generated = _generated_tests(problem_dir, templates_dir, result) if full else []
@@ -396,6 +524,7 @@ def run_solutions(
         time_limit_ms, memory_limit_mb = _limits(problem_dir, result)
         time_limit = time_limit_ms / 1000
         result.time_limit = time_limit
+        result.memory_limit_mb = memory_limit_mb
 
         parsed = {}
         for path in sources:
@@ -520,7 +649,12 @@ def _run_generated(
         if execution.verdict is not None:
             main_outcome.tests.append(
                 TestOutcome(
-                    test.name, execution.verdict, execution.seconds, execution.comment, test.command
+                    test.name,
+                    execution.verdict,
+                    execution.seconds,
+                    execution.comment,
+                    test.command,
+                    generated=True,
                 )
             )
             continue
@@ -531,7 +665,14 @@ def _run_generated(
             checker, sample.input, execution.output, execution.output, work_dir
         )
         main_outcome.tests.append(
-            TestOutcome(test.name, verdict, execution.seconds, comment, test.command)
+            TestOutcome(
+                test.name,
+                verdict,
+                execution.seconds,
+                comment,
+                test.command,
+                generated=True,
+            )
         )
     report(main_outcome)
     if len(answered) < len(generated):
@@ -544,10 +685,6 @@ def _run_generated(
         outcome = outcomes[name]
         if name == main_name or outcome.error is not None:
             continue
-        if outcome.required is not None and outcome.got_required:
-            outcome.stopped_early = True
-            report(outcome)
-            continue
         if result.progress is not None:
             result.progress(f"running {name} on generated tests")
         program = program_for(solution.path)
@@ -556,8 +693,8 @@ def _run_generated(
             tested = _run_test(
                 program, checker, load(test, answer), time_limit, work_dir, interactor
             )
-            outcome.tests.append(replace(tested, command=test.command))
-            if outcome.required == tested.verdict:
+            outcome.tests.append(replace(tested, command=test.command, generated=True))
+            if outcome.required is not None and tested.verdict in outcome.required:
                 outcome.stopped_early = True
                 break
         report(outcome)
@@ -764,12 +901,16 @@ def _build_solution(
 ) -> _Program:
     suffix = path.suffix.lower()
     if suffix == ".cpp":
-        return _Program([str(_compile_cpp(path, include_dirs, work_dir))], unlimited_stack=True)
+        return _Program(
+            [str(_compile_cpp(path, include_dirs, work_dir))],
+            unlimited_stack=True,
+            memory_limit_mb=memory_limit_mb,
+        )
     if suffix == ".java":
         return _build_java(path, work_dir, memory_limit_mb)
     if suffix == ".py":
         python = shutil.which("python3") or sys.executable
-        return _Program([python, str(path)])
+        return _Program([python, str(path)], memory_limit_mb=memory_limit_mb)
     raise _BuildError(f"unsupported language '{path.suffix}' — not run")
 
 
@@ -845,11 +986,26 @@ def _execute(
         return _execute_interactive(program, interactor, test, time_limit, work_dir)
     run = program.run(test.input, _hard_timeout(time_limit))
     seconds = run.elapsed_seconds
-    if run.timed_out or seconds > time_limit:
+    if run.timed_out or _over_time(seconds, run.cpu_seconds, run.exit_code, time_limit):
         return _Execution(seconds, VERDICT_TL)
     if run.exit_code != 0:
-        return _Execution(seconds, VERDICT_RE, f"exit code {run.exit_code}\n{run.stderr}")
+        return _Execution(seconds, VERDICT_RE, _runtime_error(program, run.exit_code, run.stderr))
     return _Execution(seconds, output=run.stdout)
+
+
+def _over_time(seconds: float, cpu: float, exit_code: int | None, time_limit: float) -> bool:
+    """Longer than the TL. A process killed by a signal (`abort` after an exception,
+    a failed allocation over the memory cap) — by its CPU time: the elapsed time then
+    includes the system crash handler (apport on Ubuntu takes over a second)."""
+    if exit_code is not None and exit_code < 0:
+        return cpu > time_limit
+    return seconds > time_limit
+
+
+def _runtime_error(program: _Program, exit_code: int | None, stderr: str) -> str:
+    cap = program.memory_cap_mb
+    hint = f" (the address space is capped at {cap} MB: maybe memory)" if cap is not None else ""
+    return f"exit code {exit_code}{hint}\n{stderr}"
 
 
 def _wait(proc: subprocess.Popen, deadline: float | None) -> tuple[int | None, float]:
@@ -901,7 +1057,9 @@ def _execute_interactive(
             stdin=to_solution_read,
             stdout=to_interactor_write,
             stderr=solution_err,
-            preexec_fn=_raise_stack_limit if program.unlimited_stack else None,
+            preexec_fn=resource_limits(
+                unlimited_stack=program.unlimited_stack, memory_cap_mb=program.memory_cap_mb
+            ),
         )
         # Otherwise the end of input won't reach either of the processes.
         for fd in (to_interactor_read, to_interactor_write, to_solution_read, to_solution_write):
@@ -924,7 +1082,7 @@ def _execute_interactive(
     if killed:
         verdict = VERDICT_IL if cpu < seconds / 2 else VERDICT_TL
         return _Execution(seconds, verdict, f"CPU time {cpu:.2f}s of {seconds:.2f}s")
-    if seconds > time_limit:
+    if _over_time(seconds, cpu, exit_code, time_limit):
         return _Execution(seconds, VERDICT_TL)
     if interactor_code is None:
         return _Execution(seconds, VERDICT_FAIL, "interactor did not finish after the solution")
@@ -932,7 +1090,7 @@ def _execute_interactive(
         verdict = {1: VERDICT_WA, 2: VERDICT_PE}.get(interactor_code, VERDICT_FAIL)
         return _Execution(seconds, verdict, f"interactor: {interactor_stderr}")
     if exit_code != 0:
-        return _Execution(seconds, VERDICT_RE, f"exit code {exit_code}\n{solution_stderr}")
+        return _Execution(seconds, VERDICT_RE, _runtime_error(program, exit_code, solution_stderr))
     output = tout_path.read_text(encoding="utf-8") if tout_path.is_file() else ""
     return _Execution(seconds, output=output, comment=f"interactor: {interactor_stderr}")
 
