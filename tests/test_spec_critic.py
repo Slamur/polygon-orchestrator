@@ -686,11 +686,22 @@ def test_cli_llm_critic_writes_the_report_only(base_dir, monkeypatch, capsys):
     assert spec.read_text(encoding="utf-8") == text
     problem_dir = base_dir / "problems" / "my-task"
     assert not (problem_dir / ".llm_backup").exists()
-    report = (problem_dir / "llm_reports" / "spec_critic.md").read_text(encoding="utf-8")
-    assert "## Critic: 2 finding(s)" in report
-    assert "### Your values — for your review (1)" in report
-    assert "### Values still marked PROPOSED / SUGGESTION — for your review (1)" in report
-    assert "→" not in report
+    reports = problem_dir / "llm_reports" / "spec_critic"
+    assert sorted(p.name for p in reports.iterdir()) == sorted(f"{n}.md" for n in LENS_NAMES)
+    statement = (reports / "statement.md").read_text(encoding="utf-8")
+    assert statement.startswith("# spec_critic/statement: 1 finding(s)")
+    assert "### Your values — for your review (1)" in statement
+    assert "(<../../authoring/spec.yaml>)" in statement
+    assert "specific_test_ideas" not in statement
+    tests = (reports / "tests.md").read_text(encoding="utf-8")
+    assert "### Values still marked PROPOSED / SUGGESTION — for your review (1)" in tests
+    assert "legend_sketch" not in tests
+    assert (
+        (reports / "limits.md")
+        .read_text(encoding="utf-8")
+        .startswith("# spec_critic/limits: no findings")
+    )
+    assert all("→" not in (reports / f"{n}.md").read_text(encoding="utf-8") for n in LENS_NAMES)
     assert f"spec critic ({', '.join(LENS_NAMES)}) — 2 finding(s)" in capsys.readouterr().out
 
 
@@ -699,9 +710,16 @@ def test_cli_llm_critic_lens(base_dir, monkeypatch, capsys):
     fake = _CliModel(None, _critique(_item("generation.specific_test_ideas[0]")))
     monkeypatch.setattr(model_router, "call_model", fake)
 
+    reports = base_dir / "problems" / "my-task" / "llm_reports" / "spec_critic"
+    reports.mkdir(parents=True)
+    (reports / "solutions.md").write_text("an earlier run\n", encoding="utf-8")
+
     assert _cli_critic(base_dir, "--lens", "tests") == 0
     assert fake.steps == ["spec_critic"]
     assert "spec critic (tests) — 1 finding(s)" in capsys.readouterr().out
+    # Only the report of the lens that ran is written, the others are kept.
+    assert sorted(p.name for p in reports.iterdir()) == ["solutions.md", "tests.md"]
+    assert (reports / "solutions.md").read_text(encoding="utf-8") == "an earlier run\n"
 
 
 def test_cli_llm_critic_invalid_critique_fails(base_dir, monkeypatch):
@@ -710,8 +728,26 @@ def test_cli_llm_critic_invalid_critique_fails(base_dir, monkeypatch):
     monkeypatch.setattr(model_router, "call_model", _CliModel(None, critique))
 
     assert _cli_critic(base_dir) == 1
-    report = base_dir / "problems" / "my-task" / "llm_reports" / "spec_critic.md"
-    assert "not valid YAML" in report.read_text(encoding="utf-8")
+    report = base_dir / "problems" / "my-task" / "llm_reports" / "spec_critic" / "tests.md"
+    text = report.read_text(encoding="utf-8")
+    assert "not valid YAML" in text and text.count("not valid YAML") == 1
+
+
+def test_cli_llm_critic_failed_lens_report(base_dir, monkeypatch):
+    _write_problem_spec(base_dir, _marked_valid_spec())
+
+    def model(step, system_prompt, user_prompt, context_documents=None):
+        if _lens_of(user_prompt) == "limits":
+            raise LLMCallError("killed")
+        return _critique()
+
+    monkeypatch.setattr(model_router, "call_model", model)
+
+    assert _cli_critic(base_dir) == 1
+    reports = base_dir / "problems" / "my-task" / "llm_reports" / "spec_critic"
+    limits = (reports / "limits.md").read_text(encoding="utf-8")
+    assert limits.startswith("# spec_critic/limits: failed") and "killed" in limits
+    assert "killed" not in (reports / "tests.md").read_text(encoding="utf-8")
 
 
 def test_cli_llm_critic_without_spec_does_not_call_the_model(base_dir, monkeypatch, capsys):

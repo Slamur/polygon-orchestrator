@@ -11,7 +11,7 @@ applied, compile errors, `proposed`), then the model's ideas
 (`suggestion`), what it changed, the step's files and the diffs of changed files
 against the previous versions from `.llm_backup/`. `init --draft` likewise writes
 `llm_reports/spec_from_draft.md` (with the critic's findings and what was done
-with them), `llm critic` — `llm_reports/spec_critic.md`, `llm accept` — `llm_reports/accept.md` (what was accepted and what
+with them), `llm critic` — `llm_reports/spec_critic/<lens>.md`, `llm accept` — `llm_reports/accept.md` (what was accepted and what
 changed in the input of each step).
 """
 
@@ -146,20 +146,48 @@ def write_spec_from_draft_report(
     return _write(report_path(problem_dir, SPEC_FROM_DRAFT_REPORT), lines)
 
 
-def write_spec_critic_report(
-    problem_dir: Path, outcome: Any, *, spec_path: Path, status_label: str, command_line: str
+def write_spec_critic_reports(
+    problem_dir: Path, outcome: Any, *, spec_path: Path, command_line: str
+) -> list[Path]:
+    """Writes `llm_reports/spec_critic/<lens>.md` for every lens of the
+    `spec_critic.CritiqueOutcome` of `llm critic` that ran or failed: the findings
+    only, the spec isn't changed. The reports of the other lenses are kept."""
+    from orchestrator.spec_critic import LENS_NAMES
+
+    ran = set(outcome.lenses) | set(outcome.failed_lenses)
+    return [
+        _write_spec_critic_report(
+            problem_dir,
+            outcome.of_lens(name),
+            name,
+            spec_path=spec_path,
+            command_line=command_line,
+        )
+        for name in LENS_NAMES
+        if name in ran
+    ]
+
+
+def _write_spec_critic_report(
+    problem_dir: Path, outcome: Any, lens: str, *, spec_path: Path, command_line: str
 ) -> Path:
-    """Writes `llm_reports/spec_critic.md` from the `spec_critic.CritiqueOutcome` of
-    `llm critic`: the findings only, the spec isn't changed."""
     problem_dir = Path(problem_dir)
-    lines = _header(SPEC_CRITIC_REPORT, status_label, command_line)
+    name = f"{SPEC_CRITIC_REPORT}/{lens}"
+    if outcome.failed_lenses:
+        status_label = "failed"
+    elif outcome.findings:
+        status_label = f"{len(outcome.findings)} finding(s)"
+    else:
+        status_label = "no findings"
+    lines = _header(name, status_label, command_line)
     lines += [
-        f"**Spec:** {_link(problem_dir, spec_path)} — not changed, the findings are for you",
+        f"**Spec:** {_link(problem_dir, spec_path, depth=2)} — not changed, the findings are "
+        "for you",
         "",
     ]
     lines += _critique_section(outcome, review_only=True)
     lines += _notes_sections(outcome.notes, title_prefix="Critic run — ")
-    return _write(report_path(problem_dir, SPEC_CRITIC_REPORT), lines)
+    return _write(report_path(problem_dir, name), lines)
 
 
 def write_accept_report(problem_dir: Path, statuses: list[Any], *, command_line: str) -> Path:
@@ -343,11 +371,12 @@ def _relative(problem_dir: Path, path: Path) -> str:
         return str(path)
 
 
-def _link(problem_dir: Path, path: Path) -> str:
-    """A link to a problem file relative to `llm_reports/` — clickable in the
-    editor and in a Markdown preview."""
+def _link(problem_dir: Path, path: Path, *, depth: int = 1) -> str:
+    """A link to a problem file relative to the report — `depth` directories below
+    the problem directory (`llm_reports/` — 1) — clickable in the editor and in a
+    Markdown preview."""
     relative = _relative(problem_dir, path)
-    target = f"../{relative}" if not Path(relative).is_absolute() else relative
+    target = "../" * depth + relative if not Path(relative).is_absolute() else relative
     return f"[{relative}](<{target}>)"
 
 

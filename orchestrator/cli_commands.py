@@ -49,7 +49,7 @@ from orchestrator.llm_client import LLMCallError
 from orchestrator.llm_report import (
     note_counts,
     write_accept_report,
-    write_spec_critic_report,
+    write_spec_critic_reports,
     write_spec_from_draft_report,
     write_step_report,
 )
@@ -372,7 +372,7 @@ def cmd_llm_tutorial(args: argparse.Namespace) -> int:
 
 def cmd_llm_critic(args: argparse.Namespace) -> int:
     """`llm critic`: the critic over the spec as it is (`spec_critic.review_spec`) —
-    the findings go to `llm_reports/spec_critic.md`, the spec isn't changed. No cache:
+    the findings go to `llm_reports/spec_critic/<lens>.md`, the spec isn't changed. No cache:
     every run calls the model."""
     import yaml
 
@@ -413,14 +413,14 @@ def cmd_llm_critic(args: argparse.Namespace) -> int:
         logger.info(
             f"=== {args.problem_id}: spec critic ({', '.join(outcome.lenses)}) — {label} ==="
         )
-        report = write_spec_critic_report(
+        reports = write_spec_critic_reports(
             Path(args.problems_dir) / args.problem_id,
             outcome,
             spec_path=path,
-            status_label=label,
             command_line=args.command_line,
         )
-        logger.info(f"      report: {report}")
+        for report in reports:
+            logger.info(f"      report: {report}")
         for finding in outcome.findings:
             owner = finding.owner or "unresolved"
             _log_to_file(

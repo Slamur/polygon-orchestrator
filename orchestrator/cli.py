@@ -252,7 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
     critic_parser = llm_commands.add_parser(
         "critic",
         help="review the spec as it is with the critic model: what to remove or simplify, "
-        "into llm_reports/spec_critic.md; the spec is not changed (calls the model, no cache; "
+        "into llm_reports/spec_critic/<lens>.md; the spec is not changed (calls the model, no cache; "
         "not a part of 'llm generate')",
     )
     critic_parser.add_argument(

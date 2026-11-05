@@ -147,9 +147,11 @@ lens failed, the spec is kept as the generator wrote it.
 `orchestrator <problem> llm critic [--lens NAME ...]` runs the critics over the
 spec as it is — written by hand, or edited since `init --draft`
 (`spec_critic.review_spec`). The input is the same (the spec with the marks
-stripped, the same documents per lens), one round, and nothing is acted on: there is no draft to revise against, so every
-finding goes to `llm_reports/spec_critic.md` for the author. The findings are still
-classified by the marks — the report lists the author's values first, then the values
+stripped, the same documents per lens), one round, and nothing is acted on: there is
+no draft to revise against, so every finding goes to the author — a report per lens,
+`llm_reports/spec_critic/<lens>.md` (with the lens's notes of the run; a lens that
+didn't run keeps its previous report, so `--lens` reruns one lens without losing the
+others). The findings are still classified by the marks — each report lists the author's values first, then the values
 still marked `PROPOSED` / `SUGGESTION`, then the unresolved paths. No cache: the
 author runs it when they want a review. A failed call of a lens or an invalid
 critique (notes of the run) — exit code 1.

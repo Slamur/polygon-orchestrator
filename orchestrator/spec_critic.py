@@ -188,6 +188,18 @@ class CritiqueOutcome:
     def changed(self) -> bool:
         return self.spec_text != self.before_text
 
+    def of_lens(self, name: str) -> CritiqueOutcome:
+        """The findings and notes of one lens (`llm critic` writes a report per lens)."""
+        return CritiqueOutcome(
+            before_text=self.before_text,
+            spec_text=self.spec_text,
+            findings=[f for f in self.findings if f.lens == name],
+            notes=[n for n in self.notes if n.get("lens") == name],
+            rounds=self.rounds,
+            lenses=[name] if name in self.lenses else [],
+            failed_lenses=[name] if name in self.failed_lenses else [],
+        )
+
 
 def _note(field_name: str, kind: str, explanation: str) -> dict[str, Any]:
     return {"field": field_name, "kind": kind, "explanation": explanation}
@@ -488,6 +500,7 @@ def _call_critic(
         notes.append(_note(filename, "uncertain", "unexpected file in the critique, ignored"))
     for note in notes:
         note["explanation"] = f"({lens.name}) {note['explanation']}"
+        note["lens"] = lens.name
     return items, notes
 
 
@@ -539,7 +552,8 @@ def _critique_round(
         except LLMCallError as exc:
             error = exc
             outcome.failed_lenses.append(lens.name)
-            outcome.notes.append(_note(f"{STEP_NAME}.{lens.name}", "uncertain", f"failed: {exc}"))
+            note = _note(f"{STEP_NAME}.{lens.name}", "uncertain", f"failed: {exc}")
+            outcome.notes.append({**note, "lens": lens.name})
             continue
         if lens.name not in outcome.lenses:
             outcome.lenses.append(lens.name)
