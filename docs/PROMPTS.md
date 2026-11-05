@@ -527,8 +527,9 @@ stop with status: uncertain, don't estimate the complexity yourself.
 
 Test preparation is three steps: the plan (`tests_plan`), then the code from it
 (`generators_draft`, `test_script_draft`). The substantive part —
-test design, including adversarial tests — is here, in a small response;
-the next steps don't see the spec and implement the plan.
+test design — is here, in a small response; the next steps don't see the spec
+and implement the plan. The plan is the base one: tests for particular wrong
+solutions are added only for those the base tests don't catch.
 
 ### system.md
 
@@ -562,10 +563,11 @@ with each other. None of them has anything to do with yours. If a directory
 has spec.yaml — it's the spec of that problem, and together with its other files it
 gives a "spec → expected result" pair; if there's no spec.yaml — only
 the result is attached.
-Match the `generation` section (and `solutions.known_wrong_approaches`) of the
-sample's spec against its plan (and without a plan — against its script) to see how
-`generator_ideas`, `specific_test_ideas` and the wrong approaches turn into
-generators and tests — and transform your problem's spec the same way. From the samples
+Match the `generation` section of the sample's spec against its plan (and without
+a plan — against its script) to see how `generator_ideas` and `specific_test_ideas`
+turn into generators and tests — and transform your problem's spec the same way.
+Blocks of a sample plan whose `covers` refer to `known_wrong_approaches` were made
+for particular wrong solutions by a separate step — they aren't a sample for you. From the samples
 take the approach and the level of detail, but not the content: the input data
 format of the sample problem, the names of its variables and parameters, the values of its
 limits and the very ideas of its tests — all of this is determined by your
@@ -608,9 +610,9 @@ How the plan's tests work:
   the variables' bounds: they're taken from the fixed limits of the
   constraints_pick step (the section below in the request) — don't invent your own
   ranges.
-- `covers` — which spec items the block implements: `specific_test_ideas[i]` and
-  `known_wrong_approaches[i]` (numbered from 0, in the order of the lists in the request).
-  The orchestrator reconciles them with the spec and tells the author about uncovered items.
+- `covers` — which spec items the block implements: `specific_test_ideas[i]`
+  (numbered from 0, in the order of the list in the request). The orchestrator
+  reconciles them with the spec and tells the author about uncovered items.
 - Don't make several runs of a generator with identical parameters
   differing only in the seed: identical script lines give Polygon
   identical tests. For a test on the bound of one limit — a separate
@@ -622,36 +624,28 @@ How the plan's tests work:
   each test of a block satisfies the limits of its group. The distribution of tests
   over groups is your decision: `status: proposed` with a justification.
 
-Important: the plan's tests come from four sources (A, B, C, D). These are NOT
-mutually exclusive modes and not alternatives to each other — they are four DIFFERENT
+This is the base plan of the problem. Tests aimed at particular wrong solutions
+(an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
+on the base tests first, and a test of its own is added later, by a separate step,
+only for a wrong solution that the base tests don't catch. If the current plan
+(revision mode) has blocks whose `covers` refer to `known_wrong_approaches[i]` —
+they are such tests: keep them and the generators they call unchanged.
+
+Important: the plan's tests come from three sources (A, B, C). These are NOT
+mutually exclusive modes and not alternatives to each other — they are three DIFFERENT
 sources that all together add up to one plan. A filled
-`specific_test_ideas` doesn't cancel or reduce A and B — if the problem has
-`generator_ideas`, `known_wrong_approaches` and `specific_test_ideas`, all
-three must be worked through simultaneously, and D complements them. An empty source
-just adds nothing, but doesn't replace the others.
+`specific_test_ideas` doesn't cancel or reduce A — if the problem has
+`generator_ideas` and `specific_test_ideas`, both must be worked through
+simultaneously, and C complements them. An empty source just adds nothing, but
+doesn't replace the others.
 
 A. Generators already given by the author — `generation.generator_ideas`
    (name/params/purpose): include each in the plan under the same name and with the same
    parameters, without changing the idea, `status: confirmed`; your part is to describe its
    `params` with types, `input`/`output` and `algorithm` by its `purpose`.
 
-B. DESIGNING stress/adversarial tests for particular wrong solutions — this is
-   not the mechanical part, it requires reasoning about WHY a given wrong
-   approach fails and which test catches it. The source is the list
-   `solutions.known_wrong_approaches` (if it's in the spec): for each
-   item come up with a test (on the author's generators if they fit, otherwise — with
-   a new generator) specifically aimed at making this particular
-   wrong approach give a wrong answer or not fit into the TL (e.g.:
-   "off-by-one on the right bound" → a test exactly at the bound; "O(N^2) without
-   optimization" → the maximal N from the fixed limits). Such
-   tests and new generators — `status: proposed` with a `rationale`: which mistake
-   they catch and why; the block refers to the item in `covers`. If
-   `known_wrong_approaches` is empty or absent — state explicitly in `notes` that
-   there are no adversarial cases ordered by the author and manual review by the
-   author is needed (this doesn't block the step); your own ideas of wrong approaches — by D.
-
-C. IMPLEMENTING the concrete test scenarios given by the author explicitly —
-   `generation.specific_test_ideas`. Unlike B (you come up yourself with
+B. IMPLEMENTING the concrete test scenarios given by the author explicitly —
+   `generation.specific_test_ideas`. Unlike C (you come up yourself with
    which test is needed), here the author has already said WHAT must be tested
    ("N=1", "N=N_max, all elements are equal") — your task is only to turn this
    into the plan's tests. If an idea can be implemented with the author's generator with
@@ -661,24 +655,25 @@ C. IMPLEMENTING the concrete test scenarios given by the author explicitly —
    the model's decision. Don't invent items for this list on the author's behalf if they
    didn't fill it in.
 
-D. YOUR OWN IDEAS of tests beyond those ordered by the author. The tests by A, B and C are built
+C. YOUR OWN IDEAS of tests beyond those ordered by the author. The tests by A and B are built
    the way the author set them, and aren't replaced by yours. But if from the legend and
    the author's solution idea (the "Legend" and "The author's solution idea" sections of the request)
-   you see that the plan doesn't catch something — add it separately: a likely
-   contestant mistake that isn't in `known_wrong_approaches` (an unhandled
-   case, a wrong greedy, an overflow, a solution with asymptotics worse than
-   declared), or an edge case not covered by A–C. Such blocks and
-   generators — `status: suggestion` with a `rationale`: which mistake or case
-   they catch and why the test fails on them; for each idea — an entry in
-   `notes` with `kind: suggestion` (`field` — the generator's name or the block's
-   description). Propose only what's really not covered by A–C; if
+   you see that the plan misses a case of the input — add it separately: an edge case
+   (the minimal and maximal values of each limit, degenerate structures, all
+   values equal, the answer at its bound — e.g. an overflow of a 32-bit type) or a
+   kind of input the standard order of tests from tests.md needs and A–B don't
+   give. A case, not a particular wrong solution: tests aimed at one are made by
+   a separate step (see above). Such blocks and generators — `status: suggestion`
+   with a `rationale`: which case they cover and why it matters; for each idea — an
+   entry in `notes` with `kind: suggestion` (`field` — the generator's name or the
+   block's description). Propose only what's really not covered by A–B; if
    there's nothing to propose — don't.
 
 If the plan lacks data (e.g. the shape of the input data
 for a multidimensional structure isn't described) — `status: uncertain` naming the missing
 field. If something was chosen without an explicit indication from the author (the number of tests, the parameter
 values, the distribution over groups) — `status: proposed` with a justification in
-notes. A response with your own ideas by D — no lower than `status: proposed`.
+notes. A response with your own ideas by C — no lower than `status: proposed`.
 
 Respond in the JSON format from the contract. `artifacts` — exactly one file
 `tests_plan.yaml` in the tests_plan_format.yaml format.
@@ -690,7 +685,7 @@ Respond in the JSON format from the contract. `artifacts` — exactly one file
 The problem spec (problem_id: {{ problem_id }}):
 
 ## Legend (the author's sketch — for understanding the problem and your own test ideas, see
-## item D of the system message)
+## item C of the system message)
 {{ statement.legend_sketch }}
 
 ## The author's solution idea (from the solutions section, if it's set)
@@ -718,26 +713,14 @@ be printed in exactly the same form):
 {% endfor %}
 
 ## Concrete test scenarios ordered by the author (not generators, but
-## concrete tests — see item C of the system message; in `covers` —
+## concrete tests — see item B of the system message; in `covers` —
 ## specific_test_ideas[number])
 {% for t in generation.specific_test_ideas %}
 - [{{ loop.index0 }}] {{ t }}
 {% endfor %}
 {% if not generation.specific_test_ideas %}
 (the author gave no concrete test scenarios — act by the rule for
-this case from item C of the system message)
-{% endif %}
-
-## Known wrong approaches (from the solutions section, if it's set) —
-## the source for adversarial tests, see item B of the system message; in
-## `covers` — known_wrong_approaches[number]
-{% for w in solutions.known_wrong_approaches %}
-- [{{ loop.index0 }}] {{ w }}
-{% endfor %}
-{% if not solutions or not solutions.known_wrong_approaches %}
-(there's no solutions section or known_wrong_approaches is empty — adversarial
-tests aren't ordered explicitly, act by the rule for this case from the system
-message)
+this case from item B of the system message)
 {% endif %}
 
 ## Script style

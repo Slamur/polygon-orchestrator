@@ -169,8 +169,8 @@ constraints:
 # ---------------------------------------------------------------------------
 # 3. GENERATORS / FREEMARKER — input for the tests_plan step
 # ---------------------------------------------------------------------------
-# From this section (and solutions.known_wrong_approaches/algorithm_hint) the
-# tests_plan step makes the test plan authoring/tests_plan.yaml, and from the plan
+# From this section (and solutions.algorithm_hint) the tests_plan step makes the
+# base test plan authoring/tests_plan.yaml, and from the plan
 # generators_draft writes the generators and test_script_draft — the test-script; these two
 # steps don't see the spec.
 # The shape of the input data for the generators is taken automatically from

@@ -28,7 +28,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      there is no separate `generation.input_shape` field in the spec, so as not to
      duplicate the input format description) + `legend_sketch` + the fixed
      limits from step 2 without TL/ML + (if the `solutions` section is set in the spec)
-     `solutions.known_wrong_approaches` and `solutions.algorithm_hint`.
+     `solutions.algorithm_hint`.
      Output: the test plan `authoring/tests_plan.yaml` in the
      `templates/tests_plan_format.yaml` format — generators (name, parameters with
      types, what they read and print, the algorithm) and test-script blocks
@@ -37,22 +37,21 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      the next two steps don't see the spec. The orchestrator checks it before writing
      (`parse_tests_plan`: commands call only the plan's generators and only
      their parameters; doesn't parse — a conflict) and reports with `uncovered` notes
-     the `specific_test_ideas`/`known_wrong_approaches` items
-     not covered by any block, and generators without tests. Inside,
-     the step does two things of different nature, and it's important not to mix them:
-     if `generation.generator_ideas` already describes the needed generator — that's
-     the mechanical part; for each `known_wrong_approaches` item the step
-     must come up with a test itself (and, if needed, a generator) that purposefully
-     checks exactly this scenario, and mark it `status: proposed` with
-     a justification in `rationale` (why this test catches exactly this
-     mistake) — as with any other model assumption, this isn't an
-     independent decision but a proposal for the author to review. If neither
-     `generator_ideas` nor `known_wrong_approaches` give any hints for
-     stress tests — the step must not stay silent about it: explicitly state in `notes`
-     that adversarial cases weren't invented and manual review is needed. Beyond
-     what the author ordered, the step may propose its own tests for likely
-     mistakes that aren't in the spec (from the legend and `algorithm_hint`) — see
-     "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
+     the `specific_test_ideas` items
+     not covered by any block, and generators without tests. The plan is the
+     base one: the author's generators (`generator_ideas`, `status: confirmed`),
+     the author's concrete tests (`specific_test_ideas`; a generator the author didn't
+     describe — `status: proposed`) and, beyond what the author ordered, the model's own
+     edge cases of the input (from the legend and `algorithm_hint`, `status:
+     suggestion`) — see "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
+     Tests aimed at particular wrong solutions (`known_wrong_approaches`) aren't
+     designed here: the solutions are run on the base tests first, and a test of its own
+     is added only for a wrong solution the base tests don't catch (a separate step,
+     in progress). So `known_wrong_approaches` isn't part of the step's input — editing it
+     doesn't invalidate the plan; blocks whose `covers` refer to
+     `known_wrong_approaches[i]` are kept in revision mode and aren't reconciled with
+     the spec. Until that separate step exists, wrong approaches get no tests of their
+     own unless the author adds them to the plan by hand.
    - **`generators_draft`** — input: the plan's generators (each a separate
      input part: editing one plan entry — editing one generator in
      revision mode, editing the plan's tests doesn't touch the step) + the input format from

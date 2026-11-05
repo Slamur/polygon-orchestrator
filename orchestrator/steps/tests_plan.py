@@ -1,13 +1,18 @@
 """Step 3, the first part — the test plan: which generators the problem needs and which tests
 the test-script assembles from them, CLAUDE.md, "Role of each generative step", item 3.
 
-The substantive part of test preparation — implementing what the author ordered and
-designing adversarial tests for `known_wrong_approaches` — is done here, in a
+The substantive part of test preparation — implementing what the author ordered
+(`generator_ideas`, `specific_test_ideas`) and edge cases of the input — is done here, in a
 small response: `authoring/tests_plan.yaml` in the
 `templates/tests_plan_format.yaml` format. The code from the plan is written by the next steps —
 `generators_draft` (generators) and `test_script_draft` (the script); they don't see
 the spec, so the plan is self-contained. Parsing the plan (`parse_tests_plan`) is
 shared by all three steps.
+
+The plan is the base one: tests aimed at particular wrong solutions
+(`solutions.known_wrong_approaches`) aren't designed here — they are added only for
+a wrong solution that the base tests don't catch, once the solutions are run on them.
+Blocks of the current plan that cover wrong approaches are kept in revision mode.
 """
 
 from __future__ import annotations
@@ -48,11 +53,12 @@ TESTS_PLAN_ARTIFACT = TESTS_PLAN_FILENAME
 # Optional[list[...]] fields of the generation section over which user.md.j2 does
 # {% for %} without a null check (see base.with_default_lists).
 _LIST_FIELDS = ["generator_ideas", "specific_test_ideas"]
-_SOLUTIONS_LIST_FIELDS = ["known_wrong_approaches"]
 
-# The spec items the plan must cover with tests (`tests[].covers`).
-COVERED_LISTS = ("specific_test_ideas", "known_wrong_approaches")
-_COVERS_RE = re.compile(r"^(specific_test_ideas|known_wrong_approaches)\[(\d+)\]$")
+# The spec items the plan must cover with tests (`tests[].covers`). `covers` may also
+# refer to `known_wrong_approaches[i]` (blocks for wrong solutions), these aren't
+# reconciled: not every wrong approach needs a test of its own.
+COVERED_LISTS = ("specific_test_ideas",)
+_COVERS_RE = re.compile(r"^(specific_test_ideas)\[(\d+)\]$")
 
 GENERATOR_NAME_RE = re.compile(r"^(?:gen|upd)_[A-Za-z0-9_]+$")
 PARAM_TYPES = ("int", "ll", "bool", "string")
@@ -190,16 +196,12 @@ def dump_plan_part(value: Any) -> str:
 
 
 def uncovered_notes(plan: dict[str, Any], spec: ProblemSpec) -> list[dict[str, Any]]:
-    """`uncovered` notes: the spec's `specific_test_ideas` and
-    `known_wrong_approaches` items that no test of the plan refers to
-    (`tests[].covers`), and references to non-existent items — a mechanical
+    """`uncovered` notes: the spec's `specific_test_ideas` items that no test
+    of the plan refers to (`tests[].covers`), and references to non-existent items — a mechanical
     reconciliation the author would otherwise have to do by eye; and also
     generators no test calls."""
     sizes = {
         "specific_test_ideas": len(spec.generation.specific_test_ideas or []),
-        "known_wrong_approaches": len(
-            (spec.solutions.known_wrong_approaches if spec.solutions else None) or []
-        ),
     }
     covered: set[tuple[str, int]] = set()
     notes: list[dict[str, Any]] = []
@@ -267,29 +269,19 @@ def load_tests_plan(
 
 
 def _solutions_section_data(spec: ProblemSpec) -> dict[str, Any]:
-    """From the `solutions` section — what's needed for test design:
-    `known_wrong_approaches` — the source of adversarial tests, `algorithm_hint`
-    — the idea of the author solution, from which the model may propose its own tests
-    (`kind: suggestion`). The `solutions` section is optional: without it — an empty
-    list and `None`, the step runs anyway. The other fields of the section aren't
-    taken: an edit of, e.g., `languages` mustn't invalidate the plan.
+    """From the `solutions` section — only `algorithm_hint`: the idea of the author
+    solution, from which the model may propose its own edge cases (`kind: suggestion`).
+    The section is optional: without it — `None`, the step runs anyway. The other
+    fields aren't taken: an edit of `known_wrong_approaches` or `languages` mustn't
+    invalidate the base plan.
     """
-    if spec.solutions is None:
-        return {"algorithm_hint": None, "known_wrong_approaches": []}
-    section_data = with_default_lists(
-        spec.solutions.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD),
-        _SOLUTIONS_LIST_FIELDS,
-    )
-    return {
-        "algorithm_hint": section_data["algorithm_hint"],
-        "known_wrong_approaches": section_data["known_wrong_approaches"],
-    }
+    return {"algorithm_hint": spec.solutions.algorithm_hint if spec.solutions else None}
 
 
 def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
     """The spec sections for rendering the prompt AND for the cache hash input — a single
     assembly point (CLAUDE.md, "Caching by spec hash"): the `generation` section,
-    `solutions.known_wrong_approaches` and `algorithm_hint`, the input format from
+    `solutions.algorithm_hint`, the input format from
     `statement_draft` (`base.statement_io_section`) and the legend — without the problem's essence
     the model can't propose its own tests for likely mistakes.
     """
@@ -382,7 +374,7 @@ def run_step(
     """Runs the `tests_plan` step for `problem_id`.
 
     Input: the `generation` section (generator ideas, concrete tests, the script
-    style), `solutions.known_wrong_approaches`/`algorithm_hint`, the input
+    style), `solutions.algorithm_hint`, the input
     format and the legend from `statement_draft`, `constraints.yaml` without TL/ML —
     the only source of ranges and groups. Output —
     `authoring/tests_plan.yaml`; a plan that doesn't parse
