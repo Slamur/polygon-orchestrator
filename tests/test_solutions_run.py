@@ -7,7 +7,10 @@ import yaml
 from orchestrator import cli
 from orchestrator.checks.solutions_run import (
     ALLOWED_VERDICTS,
+    STATUS_EXPECTED,
+    STATUS_SURVIVED,
     _java_class_name,
+    _over_time,
     run_solutions,
 )
 from orchestrator.spec import _ALLOWED_VERDICTS
@@ -50,6 +53,7 @@ def _problem(
     examples: list[tuple[str, str | None]] = (("1 2\n", "3\n"), ("10 20\n", "30\n")),
     checker: dict | None = None,
     time_limit: float = 1,
+    memory_limit_mb: int = 256,
     extra_spec: dict | None = None,
 ) -> Path:
     problem_dir = tmp_path / "problems" / PROBLEM_ID
@@ -68,7 +72,8 @@ def _problem(
     (problem_dir / "authoring").mkdir()
     (problem_dir / "authoring" / "spec.yaml").write_text(yaml.safe_dump(spec), encoding="utf-8")
     (problem_dir / "limits.yaml").write_text(
-        f"time_limit_seconds: {time_limit}\nmemory_limit_mb: 256\n", encoding="utf-8"
+        f"time_limit_seconds: {time_limit}\nmemory_limit_mb: {memory_limit_mb}\n",
+        encoding="utf-8",
     )
     if solutions:
         (problem_dir / "solutions").mkdir()
@@ -459,15 +464,93 @@ def test_without_full_wa_passing_everything_is_fine(tmp_path):
     assert len(_by_name(result)["wa_py_seven_draft.py"].tests) == 2
 
 
-def test_full_wa_caught_on_example_skips_generated_tests(tmp_path):
+def test_full_wa_caught_on_example_still_runs_generated_tests(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
         {"ok_py_main_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
         "gen_pair 3 1 > $\n",
     )
     wa = _by_name(run_solutions(problem_dir, TEMPLATES_DIR, full=True))["wa_py_minus_draft.py"]
-    assert len(wa.tests) == 2
+    assert [t.verdict for t in wa.tests] == ["WA", "WA", "WA"]
     assert wa.stopped_early
+    assert wa.status == STATUS_EXPECTED
+
+
+def test_full_wa_caught_only_on_examples_survives_with_a_warning(tmp_path):
+    # a - b == a + b with b = 0: the generated test doesn't catch the mistake.
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ok_py_main_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
+        "gen_pair 3 0 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    wa = _by_name(result)["wa_py_minus_draft.py"]
+    assert wa.status == STATUS_SURVIVED
+    assert not wa.stopped_early
+    assert not result.failed
+    assert any("got WA only on examples" in line for line in result.warnings)
+
+
+def test_full_summary(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {
+            "ok_py_main_draft.py": OK_PY,
+            "wa_py_seven_draft.py": WA_ON_SEVEN_PY,
+            "wa_py_minus_draft.py": WA_PY,
+        },
+        "gen_pair 7 0 > $\n",
+    )
+    summary = run_solutions(problem_dir, TEMPLATES_DIR, full=True).summary()
+    assert summary["full"] is True
+    assert summary["memory_limit_mb"] == 256
+    solutions = {s["name"]: s for s in summary["solutions"]}
+    assert solutions["ok_py_main_draft.py"]["status"] == STATUS_EXPECTED
+    caught = solutions["wa_py_seven_draft.py"]
+    assert caught["status"] == STATUS_EXPECTED
+    assert caught["caught_by"]["command"] == "gen_pair 7 0"
+    assert caught["caught_by"]["verdict"] == "WA"
+    survived = solutions["wa_py_minus_draft.py"]
+    assert survived["status"] == STATUS_SURVIVED
+    assert survived["caught_by"] is None
+    assert survived["caught_on_example"] is True
+    yaml.safe_dump(summary)
+
+
+def test_summary_without_full_has_no_survivors(tmp_path):
+    problem_dir = _problem(
+        tmp_path, {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY}
+    )
+    summary = run_solutions(problem_dir, TEMPLATES_DIR).summary()
+    assert summary["full"] is False
+    assert {s["status"] for s in summary["solutions"]} == {STATUS_EXPECTED}
+
+
+# Touches 128 MB: over an ML of 64 MB.
+GREEDY_CPP = (
+    "#include <iostream>\n#include <vector>\n"
+    "int main() { long long a, b; std::cin >> a >> b;\n"
+    "  std::vector<char> v(128 << 20, 1); std::cout << a + b + v[a] - 1 << '\\n'; }\n"
+)
+
+
+def test_memory_over_the_cap_is_a_runtime_error(tmp_path):
+    problem_dir = _problem(
+        tmp_path,
+        {
+            "ok_py_main_draft.py": OK_PY,
+            "ok_cpp_greedy_draft.cpp": GREEDY_CPP,
+            "ml_cpp_greedy_draft.cpp": GREEDY_CPP,
+        },
+        memory_limit_mb=64,
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    solutions = _by_name(result)
+    greedy_ok = solutions["ok_cpp_greedy_draft.cpp"]
+    assert {t.verdict for t in greedy_ok.tests} == {"RE"}
+    assert "capped at 128 MB" in greedy_ok.tests[0].comment
+    assert not solutions["ml_cpp_greedy_draft.cpp"].failed
+    assert not solutions["ok_py_main_draft.py"].failed
 
 
 def test_full_ok_failing_generated_test_reports_its_command(tmp_path):
@@ -519,3 +602,11 @@ def test_local_run_full_flag_reaches_generated_tests(tmp_path, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "tests: 1 (1 generated" in out
+
+
+def test_crashed_process_is_timed_by_cpu():
+    # Killed by a signal: the elapsed time includes the crash handler.
+    assert not _over_time(1.6, 0.05, -6, 1.0)
+    assert _over_time(1.6, 1.2, -6, 1.0)
+    assert _over_time(1.6, 0.05, 1, 1.0)
+    assert not _over_time(0.5, 0.5, 0, 1.0)

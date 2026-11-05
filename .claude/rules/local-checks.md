@@ -47,7 +47,11 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   Building: C++ — g++, Java — `javac` (without
   it — the same compiler from the `jdk.compiler` module via `java -m`), Python
   — `python3`; TL — from `limits.yaml` (without it — from `constraints.yaml`),
-  the time — local wall-clock; the answer — the example's `output` in the spec, without it —
+  the time — local wall-clock (a process killed by a signal — its CPU time: the
+  elapsed one includes the system crash handler, apport takes over a second); ML —
+  only a cap: the address space of C++ and Python — the ML plus 64 MB, Java —
+  `-Xmx`, a solution over it gets RE (memory isn't measured: `ru_maxrss` of a
+  child includes the orchestrator's own memory); the answer — the example's `output` in the spec, without it —
   the output of Main correct; the verdict is given by the problem's checker (`checker.cpp` or
   the standard one from `checker.standard`, sources — in
   `orchestrator/checks/std_checkers/`). A solution with verdict X in its name may
@@ -65,14 +69,18 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   the interactor (its answers — token-wise as the input for statements, the verdict
   OK, `tout` passes the checker). A mismatch — in `errors`.
   With `--full`, tests from the script are added to the examples (as in `local check
-  --full`) with answers from Main correct. The declared verdict is required here:
-  `wa`, `re`, `il` that never got it — an error (the tests don't catch them),
-  `tl` — a warning (the time is local), `ml` isn't checked. These solutions
-  stop at the first declared verdict, `ok` and `tl_ok` go to the end.
+  --full`) with answers from Main correct. The declared verdict is required here,
+  and on the generated tests — the examples don't count: `wa`, `re`, `il` that
+  never got it — an error (the tests don't catch them), got it only on the examples —
+  a warning; `tl`, `ml` (RE) — a warning (the time and memory are local). These solutions
+  stop at the first declared verdict on a generated test, `ok` and `tl_ok` go to the end.
+  `SolutionsRunResult.summary()` — the same outcome as plain data (per solution: a status
+  `expected` / `unexpected` / `survived` / `not_run` and the test that caught it) for
+  the steps that act on the run.
   The output — as in `polygon push`: notes along the way and a line per
   each solution being run, at the end the groups `expected verdicts`,
   `unexpected verdicts`, `not run`, `warnings`, `errors`. This is a check, not
-  a judging loop: only examples, without distinguishing MLE. Details — in the
+  a judging loop: without distinguishing MLE from RE. Details — in the
   docstring of `orchestrator/checks/solutions_run.py`.
 - `orchestrator <problem> local fix` — without the model and without the network:
   fixes in the statement what `local check` found that can be fixed

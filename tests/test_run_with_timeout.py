@@ -37,3 +37,16 @@ def test_run_with_timeout_passes_stdin_data():
     assert result.timed_out is False
     assert result.exit_code == 0
     assert result.stdout == "ping\n"
+
+
+def test_run_with_timeout_caps_address_space():
+    python = shutil.which("python3")
+    assert python is not None
+    allocate = ["-c", "x = bytearray(256 << 20); print(len(x))"]
+
+    capped = run_with_timeout(Path(python), allocate, timeout_seconds=10.0, memory_cap_mb=128)
+    uncapped = run_with_timeout(Path(python), allocate, timeout_seconds=10.0)
+
+    assert capped.exit_code != 0
+    assert "MemoryError" in capped.stderr
+    assert uncapped.exit_code == 0
