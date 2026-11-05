@@ -1812,16 +1812,23 @@ a note in `notes`.
 Not a pipeline step: after `spec_from_draft` writes or changes the spec,
 `init --draft` runs the critic (`orchestrator/spec_critic.py`,
 `.claude/rules/step-roles/8-spec_critic.md`; `--no-critic` turns it off). The
-critic gets only the spec, with the `# PROPOSED, REVIEW ME` / `# SUGGESTION` marks
-stripped — no draft, no notes; attached are `docs/SPEC_FORMAT.md`, the sample
-specs from `examples/` and the rules of the steps that read the spec
-(`tutorials/{statement,limits,tests,solutions,checker}.md`, plus
-`tutorials/interactive.md` for an interactive problem). The response is
-`critique.yaml` — findings that only remove, simplify or merge values; what to do
-with each is decided by the orchestrator by the marks, not by the critic.
-`previous_findings` — only in the second round (`--critic-rounds 2`).
-`llm critic` uses the same prompt over the spec as it is, in one round: its
-findings only go to the report.
+critic is several narrow calls, one per lens (`spec_critic.LENSES`: `statement`,
+`limits`, `tests`, `solutions`; `--critic-lens` / `llm critic --lens` runs only
+the named ones). Each gets the whole spec, with the `# PROPOSED, REVIEW ME` /
+`# SUGGESTION` marks stripped — no draft, no notes — and judges only the fields of
+its lens: the lens's focus (`lenses/<lens>.md`, below) and its fields go into
+`user.md.j2` (`lens_focus`, `lens_fields`, `lens_excluded`, `lens_gap_fields`). Attached are
+`docs/SPEC_FORMAT.md`, the sample specs from `examples/` and the rules of the
+steps that read the lens's fields (`tutorials/statement.md`;
+`tutorials/{limits,validator}.md`; `tutorials/{tests,limits}.md`;
+`tutorials/{solutions,checker}.md`; plus `tutorials/interactive.md` for the
+statement and solutions lenses of an interactive problem). The response is
+`critique.yaml` — findings that only remove, simplify or merge values (and `gap`
+on the statement examples, report only); what to do with each is decided by the
+orchestrator by the marks, not by the critic.
+`previous_findings` — only in the second round (`--critic-rounds 2`), the lens's
+own findings. `llm critic` uses the same prompts over the spec as it is, in one
+round: its findings only go to the report.
 
 ### system.md
 
@@ -1838,26 +1845,22 @@ You are given:
 - examples/<path>/spec.yaml — specs of sample problems: a calibration of the
   normal amount of detail. These are other problems: compare the manner, not
   the content.
-- templates/tutorials/*.md — the rules the later steps follow: what they need
-  from the spec.
+- templates/tutorials/*.md — the rules followed by the later steps that read
+  your fields: what they need from the spec.
+
+You review the spec through one lens, given in the user message: its question
+and its fields. Read the whole spec — the other fields are the context your
+fields are judged in — but write findings only about the fields of your lens;
+the other fields are reviewed by other reviewers.
 
 You see only the spec: you don't know who wrote which part or why, and you
-don't need to. Read it as a fresh reader and ask of every value: why is this
-here? can it be simpler? why so much?
-
-What to look for:
-- values that nothing in the spec needs: a test group, a generator, a test, a
-  wrong approach, a solution that doesn't check anything the others don't;
-- duplicates: two generators or tests that target the same thing, two wrong
-  approaches that fail on the same tests — propose merging;
-- wordy text: sketches and notes that say the same thing twice, retell the
-  format, explain the obvious — propose the shorter wording;
-- complexity without a reason: extra variables, extra limits, test groups
-  or a custom checker where a simpler setup does the same job.
+don't need to. Read it as a fresh reader and ask of every value of your lens:
+why is this here? can it be simpler? why so much?
 
 What not to do:
 - Don't propose additions. If something seems missing — that's not your job;
-  say nothing about it.
+  say nothing about it. The only exception is `gap`, where your lens allows it
+  (the user message names the fields) — and only as the lens describes.
 - Don't change the problem: the objects, the rules, the question, the limits
   and the asymptotics are given. You may ask (`question`) whether a detail of
   them is needed, but not propose another problem.
@@ -1867,13 +1870,16 @@ What not to do:
 
 Each finding:
 - `field` — the path to the spec field, as in `constraints.variables[0].max`,
-  `tests.groups[2]`, `solutions.known_wrong_approaches[1]`; the narrowest path
-  the finding is about;
+  `generation.generator_ideas[2]`, `solutions.known_wrong_approaches[1]`; the
+  narrowest path the finding is about, inside the fields of your lens;
 - `severity` — `must` (clearly unnecessary or harmful for the later steps),
   `should` (likely simpler without it), `nit` (a matter of taste);
 - `action` — `remove`, `simplify` (`proposal` — the replacement text or
   value), `merge` (name the other fields in `why`; `proposal` — the merged
-  value), `question` (unclear why it's here; `why` — the question);
+  value), `question` (unclear why it's here; `why` — the question), `gap`
+  (only where your lens allows it: something important is missing; `why` —
+  what exactly, `proposal` — optionally, what would cover it; a `gap` is never
+  applied, it's for the author);
 - `why` — one or two concrete sentences: what exactly is unnecessary and what
   covers it instead. Write it in the language of the spec's free-text fields.
 
@@ -1890,15 +1896,39 @@ Respond in the JSON format from the contract. `artifacts` — one file
 ### user.md.j2
 
 ```
+## The lens: {{ lens }}
+
+{{ lens_focus }}
+
+Your fields — write findings only about them and their parts:
+{% for field in lens_fields %}
+- `{{ field }}`
+{% endfor %}
+{% if lens_excluded %}
+
+except (other reviewers judge these):
+{% for field in lens_excluded %}
+- `{{ field }}`
+{% endfor %}
+{% endif %}
+{% if lens_gap_fields %}
+
+`gap` is allowed only for:
+{% for field in lens_gap_fields %}
+- `{{ field }}`
+{% endfor %}
+{% endif %}
+
 ## The spec
 
 ~~~yaml
 {{ spec }}
 ~~~
 
-The task: review this spec by the rules from the system message and return
-`critique.yaml` — the list of findings (`field`, `severity`, `action`, `why`,
-`proposal` when needed), or `[]` if there is nothing to remove or simplify.
+The task: review the fields of your lens in this spec by the rules from the
+system message and return `critique.yaml` — the list of findings (`field`,
+`severity`, `action`, `why`, `proposal` when needed), or `[]` if there is
+nothing to remove or simplify.
 {% if previous_findings %}
 
 ## Findings of the previous round
@@ -1911,6 +1941,102 @@ only if the reason doesn't hold, and say why.
 {{ previous_findings }}
 ~~~
 {% endif %}
+```
+
+### lenses/statement.md
+
+```
+The wordiness of the statement sketches. The statement step turns
+them into the statement, and the solutions step reads them as the problem's
+model: every extra sentence is a sentence the statement may carry over.
+
+What to look for:
+- a sketch that says the same thing twice, or repeats another sketch: the
+  legend retelling the input format, the output sketch repeating the question
+  of the legend;
+- explanations of the obvious, a justification of the setting, asides that
+  don't define the objects, the rules or the question;
+- the limits on the numbers in `formal_input_sketch` (the constraints section
+  holds them);
+- examples that show nothing the other examples don't, an example note that
+  retells the example;
+- `known_ambiguities` that the sketches already resolve.
+
+Propose the shorter wording in `proposal`, keeping every rule and fact: the
+lens is the wording, not the problem.
+
+The one place you may name something missing — `gap` on
+`statement_draft.sample_examples`. The examples are there to make the
+statement clear, not to test solutions: a gap is a rule or an answer a
+contestant is likely to misread that no example shows — no example with the
+"impossible" answer ("NO", "-1") when the problem has one, a tie rule or an
+order of moves that the examples never exercise, a corner of the format
+(an empty list, a single element) that changes the answer. Extreme limits,
+stress and the special cases a solution must handle are the tests' job, not a
+gap. A gap is rare: most specs have none, and an empty answer is normal.
+```
+
+### lenses/limits.md
+
+```
+Extra limits. The limits step turns this section into the
+constraints of the statement and the validator: every variable, guarantee and
+limit is a check in the validator and a line in the statement.
+
+What to look for:
+- variables nothing depends on: a limit no algorithm and no test needs;
+- `special_guarantees` that follow from the other limits or from the format,
+  or restate a variable's min/max;
+- a `complexity_reasoning` that retells the algorithm instead of saying why
+  these limits separate the intended asymptotics from the slower ones;
+- `uncertain_points` the spec already answers.
+
+The limits themselves and the asymptotics are set by the author: you may ask
+(`question`) whether a limit is needed, but don't propose other numbers.
+```
+
+### lenses/tests.md
+
+```
+Test excess. The tests plan step makes generators and tests from
+these fields: every idea is a generator to write and tests to run on every
+solution.
+
+What to look for:
+- a generator or a test idea that targets what another one already covers —
+  propose merging;
+- a test idea that no wrong approach of the spec, no limit and no special case
+  of the setting needs;
+- generator parameters or modes that no test uses;
+- test groups where the limits don't need them, or more groups than the
+  subtasks the limits define.
+
+A test that kills a wrong approach of the spec, hits a limit or a special case
+of the setting is needed: don't propose to remove it.
+```
+
+### lenses/solutions.md
+
+```
+Extra solutions and extra machinery. Every wrong approach is a
+solution to write and a test to kill it, every alternative approach is
+another correct solution, a custom checker or interactor is code to write and
+check.
+
+What to look for:
+- wrong approaches that fail for the same reason, on the same tests — propose
+  merging;
+- alternative approaches that don't differ from the main one in what they
+  check;
+- verdicts or languages that the other solutions already cover;
+- a custom checker where a standard one compares the same answer;
+- an `algorithm_hint` or behavior notes that retell the statement instead of
+  the idea.
+
+Don't propose to merge or remove tl solutions of different approaches, even
+with the same asymptotics, or borderline ones that might fit the TL: they show
+whether the TL separates them, and that's what they are for. Don't remove a
+wrong approach because the examples already catch it: it checks that they do.
 ```
 
 ---

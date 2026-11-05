@@ -49,7 +49,7 @@ from orchestrator.llm_client import LLMCallError
 from orchestrator.llm_report import (
     note_counts,
     write_accept_report,
-    write_spec_critic_report,
+    write_spec_critic_reports,
     write_spec_from_draft_report,
     write_step_report,
 )
@@ -372,7 +372,7 @@ def cmd_llm_tutorial(args: argparse.Namespace) -> int:
 
 def cmd_llm_critic(args: argparse.Namespace) -> int:
     """`llm critic`: the critic over the spec as it is (`spec_critic.review_spec`) —
-    the findings go to `llm_reports/spec_critic.md`, the spec isn't changed. No cache:
+    the findings go to `llm_reports/spec_critic/<lens>.md`, the spec isn't changed. No cache:
     every run calls the model."""
     import yaml
 
@@ -396,6 +396,7 @@ def cmd_llm_critic(args: argparse.Namespace) -> int:
         try:
             outcome = review_spec(
                 spec_text,
+                lenses=args.lens,
                 prompts_dir=args.prompts_dir,
                 templates_dir=args.templates_dir,
                 examples_dir=args.base_dir / EXAMPLES_DIR,
@@ -409,26 +410,29 @@ def cmd_llm_critic(args: argparse.Namespace) -> int:
             )
             raise
         label = f"{len(outcome.findings)} finding(s)" if outcome.findings else "no findings"
-        logger.info(f"=== {args.problem_id}: spec critic — {label} ===")
-        report = write_spec_critic_report(
+        logger.info(
+            f"=== {args.problem_id}: spec critic ({', '.join(outcome.lenses)}) — {label} ==="
+        )
+        reports = write_spec_critic_reports(
             Path(args.problems_dir) / args.problem_id,
             outcome,
             spec_path=path,
-            status_label=label,
             command_line=args.command_line,
         )
-        logger.info(f"      report: {report}")
+        for report in reports:
+            logger.info(f"      report: {report}")
         for finding in outcome.findings:
             owner = finding.owner or "unresolved"
             _log_to_file(
                 file_handler,
-                f"      [{finding.severity} {finding.action}] {finding.field} ({owner}): "
+                f"      [{finding.lens} {finding.severity} {finding.action}] {finding.field} "
+                f"({owner}): "
                 f"{finding.why}",
             )
         for line in _note_lines(outcome.notes):
             logger.warning(line)
-    # The notes are problems of the run itself (an invalid critique): the call was
-    # spent, but the review is incomplete.
+    # The notes are problems of the run itself (an invalid critique, a failed lens):
+    # the calls were spent, but the review is incomplete.
     return 1 if outcome.notes else 0
 
 
@@ -1035,6 +1039,10 @@ def _init_from_draft(args: argparse.Namespace, init, draft_path: Path, *, revisi
         if _should_run_critic(args, result):
             try:
                 _run_critic(args, init, draft_path, result)
+                if result.critique.failed_lenses:
+                    critic_failed = True
+                    failed = ", ".join(result.critique.failed_lenses)
+                    logger.error(f"the critic call failed for the lens(es) {failed}")
             except LLMCallError as exc:
                 critic_failed = True
                 logger.error(f"the critic call failed: {exc} — the spec is kept without review")
@@ -1099,6 +1107,7 @@ def _run_critic(args: argparse.Namespace, init, draft_path: Path, result) -> Non
         result.path.read_text(encoding="utf-8"),
         generator_notes=result.notes,
         rounds=args.critic_rounds,
+        lenses=args.critic_lens,
         prompts_dir=args.prompts_dir,
         templates_dir=args.templates_dir,
         examples_dir=args.base_dir / EXAMPLES_DIR,

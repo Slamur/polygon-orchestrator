@@ -48,9 +48,11 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   `--fresh` — from scratch. No draft — an error before calling the model; `--ref` with a problem
   group — an argument parsing error. Calls the model — the same restrictions on
   running without an explicit command as for `llm generate`.
-- `orchestrator <problem> llm critic` — the spec critic
+- `orchestrator <problem> llm critic [--lens LENS ...]` — the spec critic
   (`.claude/rules/step-roles/8-spec_critic.md`, "`llm critic`") over the spec as it is:
-  one call, the findings — in `llm_reports/spec_critic.md`, the spec isn't changed.
+  one round, a call per lens (`--lens` — only the named ones, all by default), the
+  findings — in `llm_reports/spec_critic/<lens>.md` (the reports of lenses that
+  didn't run are kept), the spec isn't changed.
   No cache, no `--force`: every run calls the model — the same restrictions on
   running without an explicit command as for `llm generate`. No spec or the spec
   isn't valid YAML — an error before calling the model; a failed call or an invalid
@@ -94,4 +96,5 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
 `llm_generation.log` — the log of `llm generate` (and `init --draft`, `llm critic`), appended to;
 each run starts with `===== run started: orchestrator <command> =====`.
 `llm_reports/<step>.md` — the report of the step's last run (`spec_from_draft.md`
-from `init --draft`, `spec_critic.md` from `llm critic`, `accept.md` from `llm accept`).
+from `init --draft`, `spec_critic/<lens>.md` from `llm critic` — one per lens, `accept.md`
+from `llm accept`).

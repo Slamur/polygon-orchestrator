@@ -2,8 +2,13 @@
 
 A second model (`STEP_NAME` in `model_router.py`) reads the spec without the draft
 and without the review marks — as a fresh reader — and proposes only to remove,
-simplify or merge values (`prompts/spec_critic/`). What to do with a finding is
-decided here, by the marks in the spec, not by the critic:
+simplify or merge values (`prompts/spec_critic/`). It runs once per lens (`LENSES`):
+each call sees the whole spec but judges only its lens's fields, with the rules of
+the steps that read them; a finding outside them — the report only. What to do with
+a finding is decided here, by the marks in the spec, not by the critic:
+- a `gap` (something important is missing; only where a lens allows it — the
+  statement examples) — the report only, whoever wrote the value: the critic
+  doesn't make the spec grow;
 - an author value (no `# PROPOSED, REVIEW ME` / `# SUGGESTION` mark on the value or
   its ancestors) or a `nit` — the report only;
 - a `remove` of a `SUGGESTION` list item — removed mechanically, by editing lines
@@ -12,7 +17,9 @@ decided here, by the marks in the spec, not by the critic:
   generator (`spec_from_draft.revise_spec_by_findings`). The revision may not
   change an unmarked value: if it does, it's rejected as a whole.
 
-At most `rounds` rounds; the second one only if the critic has new findings.
+At most `rounds` rounds; the second one — only the lenses that had findings to act
+on, and only if they have new ones. A failed call of a lens is a note of the run, the
+other lenses go on.
 
 `llm critic` reviews the spec as it is (`review_spec`): one call, every finding goes
 to the report only, the spec isn't changed.
@@ -28,6 +35,7 @@ from typing import Any
 import yaml
 
 from orchestrator import model_router
+from orchestrator.llm_client import LLMCallError
 from orchestrator.problem_paths import EXAMPLES_DIR
 from orchestrator.spec import _REVIEW_MARK, SPEC_TEMPLATE, spec_validation_errors
 from orchestrator.spec_from_draft import context_documents as spec_context_documents
@@ -55,17 +63,71 @@ DEFAULT_ROUNDS = 1
 MAX_ROUNDS = 2
 
 SEVERITIES = ("must", "should", "nit")
-ACTIONS = ("remove", "simplify", "merge", "question")
+ACTIONS = ("remove", "simplify", "merge", "question", "gap")
+# The only action that names something missing: never acted on, the report only.
+GAP = "gap"
 
-# The rules of the steps that read the spec: "simpler" must not drop what a step
-# needs. The interactive rules — only for an interactive problem.
-CRITIC_TUTORIALS = [
-    "tutorials/statement.md",
-    "tutorials/limits.md",
-    "tutorials/tests.md",
-    "tutorials/solutions.md",
-    "tutorials/checker.md",
-]
+LENSES_DIRNAME = "lenses"
+INTERACTIVE_LENS_TUTORIALS = ("statement", "solutions")
+
+FieldPath = tuple[str | int, ...]
+
+
+@dataclass(frozen=True)
+class Lens:
+    """One narrow critic: the spec fields it judges (`fields` without `excluded`; the
+    lenses' fields don't overlap) and the rules of the steps that read them — "simpler"
+    must not drop what a step needs. `gap_fields` — where it may name a `GAP`. Its
+    focus — `prompts/spec_critic/lenses/<name>.md`."""
+
+    name: str
+    fields: tuple[str, ...]
+    tutorials: tuple[str, ...]
+    excluded: tuple[str, ...] = ()
+    gap_fields: tuple[str, ...] = ()
+
+    def covers(self, path: FieldPath, action: str = "") -> bool:
+        def under(prefix: str) -> bool:
+            parts = tuple(prefix.split("."))
+            return path[: len(parts)] == parts
+
+        if action == GAP:
+            return any(under(f) for f in self.gap_fields)
+        return any(under(f) for f in self.fields) and not any(under(f) for f in self.excluded)
+
+
+_TEST_GROUP_FIELDS = ("constraints.test_groups_hint", "constraints.test_groups_needed")
+
+# In the order of the spec's sections. `tutorials/interactive.md` is added to the
+# `INTERACTIVE_LENS_TUTORIALS` lenses of an interactive problem.
+LENSES: dict[str, Lens] = {
+    lens.name: lens
+    for lens in (
+        Lens(
+            "statement",
+            ("title", "statement_draft"),
+            ("tutorials/statement.md",),
+            gap_fields=("statement_draft.sample_examples",),
+        ),
+        Lens(
+            "limits",
+            ("constraints",),
+            ("tutorials/limits.md", "tutorials/validator.md"),
+            excluded=_TEST_GROUP_FIELDS,
+        ),
+        Lens(
+            "tests",
+            ("generation", *_TEST_GROUP_FIELDS),
+            ("tutorials/tests.md", "tutorials/limits.md"),
+        ),
+        Lens(
+            "solutions",
+            ("solutions", "checker", "interactor"),
+            ("tutorials/solutions.md", "tutorials/checker.md"),
+        ),
+    )
+}
+LENS_NAMES = list(LENSES)
 
 # Who wrote the value the finding is about.
 AUTHOR = "author"
@@ -80,18 +142,18 @@ NOT_CHANGED = "not changed"
 REJECTED = "revision rejected"
 REPEATED = "repeated"
 UNRESOLVED = "unresolved"
+OUT_OF_LENS = "outside the lens"
 
 _VALID_STATUSES = {STATUS_CONFIRMED, STATUS_PROPOSED, STATUS_UNCERTAIN}
 _MARK_COMMENT = re.compile(r"\s*#\s*(?:PROPOSED, REVIEW ME|SUGGESTION)\b.*$")
 _PATH_TOKEN = re.compile(r"\[(\d+)\]|([^.\[\]]+)")
 
-FieldPath = tuple[str | int, ...]
-
 
 @dataclass
 class Finding:
-    """One finding of the critic. `path` — the resolved path (sequence indices as
-    `int`), `None` — `field` doesn't resolve in the spec. `owner` — `AUTHOR`/`MODEL`,
+    """One finding of the critic. `lens` — the lens that found it. `path` — the
+    resolved path (sequence indices as `int`), `None` — `field` doesn't resolve in the
+    spec. `owner` — `AUTHOR`/`MODEL`,
     `mark` — "SUGGESTION"/"PROPOSED" for a model value. `outcome` — what was done
     with it, `detail` — the generator's reason to keep it or the rejection reason."""
 
@@ -100,6 +162,7 @@ class Finding:
     action: str
     why: str
     proposal: str = ""
+    lens: str = ""
     round: int = 1
     path: FieldPath | None = None
     owner: str | None = None
@@ -123,18 +186,33 @@ class Finding:
 class CritiqueOutcome:
     """The critic's run over a spec. `spec_text` — the spec after all rounds,
     `before_text` — before the critic. `notes` — problems of the run itself
-    (an invalid critique, a rejected revision) and the generator's notes from the
-    revision rounds."""
+    (an invalid critique, a failed lens, a rejected revision) and the generator's notes
+    from the revision rounds. `lenses` — the lenses that ran, `failed_lenses` — those
+    whose call failed."""
 
     before_text: str
     spec_text: str
     findings: list[Finding] = field(default_factory=list)
     notes: list[dict[str, Any]] = field(default_factory=list)
     rounds: int = 0
+    lenses: list[str] = field(default_factory=list)
+    failed_lenses: list[str] = field(default_factory=list)
 
     @property
     def changed(self) -> bool:
         return self.spec_text != self.before_text
+
+    def of_lens(self, name: str) -> CritiqueOutcome:
+        """The findings and notes of one lens (`llm critic` writes a report per lens)."""
+        return CritiqueOutcome(
+            before_text=self.before_text,
+            spec_text=self.spec_text,
+            findings=[f for f in self.findings if f.lens == name],
+            notes=[n for n in self.notes if n.get("lens") == name],
+            rounds=self.rounds,
+            lenses=[name] if name in self.lenses else [],
+            failed_lenses=[name] if name in self.failed_lenses else [],
+        )
 
 
 def _note(field_name: str, kind: str, explanation: str) -> dict[str, Any]:
@@ -316,22 +394,27 @@ def author_values(text: str) -> Any:
 
 def critic_documents(
     spec_text: str,
+    lens: Lens,
     *,
     templates_dir: Path = TEMPLATES_DIR,
     examples_dir: Path = EXAMPLES_DIR,
 ) -> dict[str, str]:
-    """The critic's documents: the spec format and the sample specs (from
+    """The documents of the `lens` critic: the spec format and the sample specs (from
     `spec_from_draft.context_documents`, without the template) and the rules of the
-    steps that read the spec."""
+    steps that read the lens's fields."""
     templates_dir = Path(templates_dir)
     documents = spec_context_documents(templates_dir=templates_dir, examples_dir=examples_dir)
     del documents[SPEC_TEMPLATE]
-    tutorials = list(CRITIC_TUTORIALS)
+    tutorials = list(lens.tutorials)
     try:
         data = yaml.safe_load(spec_text)
     except yaml.YAMLError:
         data = None
-    if isinstance(data, dict) and data.get("interactor"):
+    if (
+        isinstance(data, dict)
+        and data.get("interactor")
+        and lens.name in INTERACTIVE_LENS_TUTORIALS
+    ):
         tutorials.append(INTERACTIVE_TUTORIAL)
     for name in tutorials:
         documents[name] = (templates_dir / name).read_text(encoding="utf-8")
@@ -381,6 +464,7 @@ def parse_critique(text: str | None) -> tuple[list[dict[str, str]], list[dict[st
 
 def _call_critic(
     spec_text: str,
+    lens: Lens,
     previous: list[Finding],
     *,
     prompts_dir: Path,
@@ -403,6 +487,11 @@ def _call_critic(
     user_prompt = render_user_prompt(
         STEP_NAME,
         {
+            "lens": lens.name,
+            "lens_focus": lens_focus(lens, prompts_dir=prompts_dir),
+            "lens_fields": lens.fields,
+            "lens_excluded": lens.excluded,
+            "lens_gap_fields": lens.gap_fields,
             "spec": strip_review_marks(spec_text).rstrip("\n"),
             "previous_findings": previous_findings,
         },
@@ -413,7 +502,7 @@ def _call_critic(
         read_system_prompt(STEP_NAME, prompts_dir=prompts_dir),
         user_prompt,
         context_documents=critic_documents(
-            spec_text, templates_dir=templates_dir, examples_dir=examples_dir
+            spec_text, lens, templates_dir=templates_dir, examples_dir=examples_dir
         ),
     )
     if response.status not in _VALID_STATUSES:
@@ -424,7 +513,88 @@ def _call_critic(
     items, notes = parse_critique(response.artifacts.get(CRITIQUE_ARTIFACT))
     for filename in sorted(set(response.artifacts) - {CRITIQUE_ARTIFACT}):
         notes.append(_note(filename, "uncertain", "unexpected file in the critique, ignored"))
+    for note in notes:
+        note["explanation"] = f"({lens.name}) {note['explanation']}"
+        note["lens"] = lens.name
     return items, notes
+
+
+def lens_focus(lens: Lens, *, prompts_dir: Path = PROMPTS_DIR) -> str:
+    path = Path(prompts_dir) / STEP_NAME / LENSES_DIRNAME / f"{lens.name}.md"
+    return path.read_text(encoding="utf-8").rstrip("\n")
+
+
+def _lenses(names: list[str] | None) -> list[Lens]:
+    """The lenses to run, in the order of `LENSES`; `None` — all of them."""
+    if names is None:
+        return list(LENSES.values())
+    unknown = sorted(set(names) - set(LENSES))
+    if unknown:
+        raise ValueError(f"unknown critic lens(es) {unknown}, expected some of {LENS_NAMES}")
+    return [lens for name, lens in LENSES.items() if name in names]
+
+
+def _critique_round(
+    text: str,
+    lenses: list[Lens],
+    outcome: CritiqueOutcome,
+    number: int,
+    *,
+    prompts_dir: Path,
+    templates_dir: Path,
+    examples_dir: Path,
+) -> list[Finding]:
+    """One call per lens over `text`, the findings classified by the marks. A finding
+    outside its lens's fields — `OUT_OF_LENS`; one with the same field + action as
+    another of this round is dropped, as in a previous round — `REPEATED`. A failed
+    lens is a note; if every lens of the first round failed, the error is raised: there
+    is no review at all."""
+    seen = {(f.field, f.action) for f in outcome.findings}
+    in_lens: list[Finding] = []
+    outside: list[Finding] = []
+    error: LLMCallError | None = None
+    for lens in lenses:
+        previous = [f for f in outcome.findings if f.lens == lens.name]
+        try:
+            items, notes = _call_critic(
+                text,
+                lens,
+                previous,
+                prompts_dir=prompts_dir,
+                templates_dir=templates_dir,
+                examples_dir=examples_dir,
+            )
+        except LLMCallError as exc:
+            error = exc
+            outcome.failed_lenses.append(lens.name)
+            note = _note(f"{STEP_NAME}.{lens.name}", "uncertain", f"failed: {exc}")
+            outcome.notes.append({**note, "lens": lens.name})
+            continue
+        if lens.name not in outcome.lenses:
+            outcome.lenses.append(lens.name)
+        outcome.notes.extend(notes)
+        for item in items:
+            finding = Finding(**item, lens=lens.name, round=number)
+            classify(finding, text)
+            tokens = finding.path or _parse_note_path({"field": finding.field}) or ()
+            (in_lens if lens.covers(tokens, finding.action) else outside).append(finding)
+    if error is not None and number == 1 and len(outcome.failed_lenses) == len(lenses):
+        raise error
+    outside_ids = {id(f) for f in outside}
+    findings = []
+    round_keys: set[tuple[str, str]] = set()
+    for finding in in_lens + outside:
+        key = (finding.field, finding.action)
+        if key in round_keys:
+            continue
+        round_keys.add(key)
+        if key in seen:
+            finding.outcome = REPEATED
+        elif id(finding) in outside_ids and finding.outcome == FOR_REVIEW:
+            finding.outcome = OUT_OF_LENS
+        findings.append(finding)
+    outcome.findings.extend(findings)
+    return findings
 
 
 def _remove_mechanically(
@@ -480,6 +650,7 @@ def critique_spec(
     *,
     generator_notes: list[dict[str, Any]] | None = None,
     rounds: int = DEFAULT_ROUNDS,
+    lenses: list[str] | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
     examples_dir: Path = EXAMPLES_DIR,
@@ -487,35 +658,32 @@ def critique_spec(
     """Runs the critic over `spec_text` (the spec just written from `draft_text`)
     for at most `rounds` rounds (see the module docstring). `generator_notes` — the
     notes of `spec_from_draft`: their paths are remapped after mechanical removals,
-    the notes of the removed values are dropped. Nothing is written to disk."""
+    the notes of the removed values are dropped. `lenses` — the names of the lenses to
+    run, `None` — all. Nothing is written to disk."""
     rounds = max(1, min(rounds, MAX_ROUNDS))
     outcome = CritiqueOutcome(before_text=spec_text, spec_text=spec_text)
     generator_notes = generator_notes if generator_notes is not None else []
     text = spec_text
+    round_lenses = _lenses(lenses)
     for number in range(1, rounds + 1):
-        items, notes = _call_critic(
+        findings = _critique_round(
             text,
-            outcome.findings,
+            round_lenses,
+            outcome,
+            number,
             prompts_dir=prompts_dir,
             templates_dir=templates_dir,
             examples_dir=examples_dir,
         )
         outcome.rounds = number
-        outcome.notes.extend(notes)
-        seen = {(f.field, f.action) for f in outcome.findings}
-        findings = []
-        for item in items:
-            finding = Finding(**item, round=number)
-            classify(finding, text)
-            if (finding.field, finding.action) in seen:
-                finding.outcome = REPEATED
-            findings.append(finding)
-        outcome.findings.extend(findings)
 
         actionable = [
             f
             for f in findings
-            if f.outcome == FOR_REVIEW and f.owner == MODEL and f.severity != "nit"
+            if f.outcome == FOR_REVIEW
+            and f.owner == MODEL
+            and f.severity != "nit"
+            and f.action != GAP
         ]
         if not actionable:
             break
@@ -536,6 +704,8 @@ def critique_spec(
             )
         if number == rounds:
             break
+        acted_on = {f.lens for f in actionable}
+        round_lenses = [lens for lens in round_lenses if lens.name in acted_on]
     outcome.spec_text = text
     return outcome
 
@@ -543,25 +713,24 @@ def critique_spec(
 def review_spec(
     spec_text: str,
     *,
+    lenses: list[str] | None = None,
     prompts_dir: Path = PROMPTS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
     examples_dir: Path = EXAMPLES_DIR,
 ) -> CritiqueOutcome:
-    """`llm critic`: one critic call over `spec_text`, the findings classified by the
-    marks but not acted on — all of them are for the author's review. Nothing is
-    written to disk."""
-    items, notes = _call_critic(
+    """`llm critic`: one round of the `lenses` (`None` — all) over `spec_text`, the
+    findings classified by the marks but not acted on — all of them are for the
+    author's review. Nothing is written to disk."""
+    outcome = CritiqueOutcome(before_text=spec_text, spec_text=spec_text, rounds=1)
+    _critique_round(
         spec_text,
-        [],
+        _lenses(lenses),
+        outcome,
+        1,
         prompts_dir=prompts_dir,
         templates_dir=templates_dir,
         examples_dir=examples_dir,
     )
-    outcome = CritiqueOutcome(before_text=spec_text, spec_text=spec_text, notes=notes, rounds=1)
-    for item in items:
-        finding = Finding(**item)
-        classify(finding, spec_text)
-        outcome.findings.append(finding)
     return outcome
 
 

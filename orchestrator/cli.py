@@ -57,7 +57,7 @@ from orchestrator.problem_paths import (
     problem_paths,
     problems_under,
 )
-from orchestrator.step_order import LLM_STEPS, POLYGON_STEP_ORDER, STEP_ORDER
+from orchestrator.step_order import CRITIC_LENSES, LLM_STEPS, POLYGON_STEP_ORDER, STEP_ORDER
 
 # Commands applied to a problem group without confirmation: they only
 # show the state, don't touch the model or the network.
@@ -166,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-critic",
         action="store_true",
         help="with --draft: don't run the critic over the written spec (it calls the model "
-        "once more and may send the model's own values back for one revision)",
+        "once per lens and may send the model's own values back for one revision)",
     )
     init_parser.add_argument(
         "--critic-rounds",
@@ -175,6 +175,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help="with --draft: rounds of critic + revision (default 1; the second round runs "
         "only if the critic has new findings)",
+    )
+    init_parser.add_argument(
+        "--critic-lens",
+        metavar="LENS",
+        choices=CRITIC_LENSES,
+        action="append",
+        default=None,
+        help="with --draft: run only this critic lens, repeat for several (default — all: "
+        f"{', '.join(CRITIC_LENSES)}; one model call each)",
     )
     init_parser.add_argument(
         "--ref",
@@ -243,8 +252,17 @@ def build_parser() -> argparse.ArgumentParser:
     critic_parser = llm_commands.add_parser(
         "critic",
         help="review the spec as it is with the critic model: what to remove or simplify, "
-        "into llm_reports/spec_critic.md; the spec is not changed (calls the model, no cache; "
+        "into llm_reports/spec_critic/<lens>.md; the spec is not changed (calls the model, no cache; "
         "not a part of 'llm generate')",
+    )
+    critic_parser.add_argument(
+        "--lens",
+        metavar="LENS",
+        choices=CRITIC_LENSES,
+        action="append",
+        default=None,
+        help="run only this lens, repeat for several (default — all: "
+        f"{', '.join(CRITIC_LENSES)}; one model call each)",
     )
     critic_parser.set_defaults(handler="cmd_llm_critic")
 

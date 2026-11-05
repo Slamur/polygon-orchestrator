@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from orchestrator.step_order import LLM_STEPS, MECHANICAL_STEPS
+from orchestrator.step_order import CRITIC_LENSES, LLM_STEPS, MECHANICAL_STEPS
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -70,4 +70,17 @@ def test_prompts_doc_matches_missing_artifacts_prompt():
     prompt_text = (PROMPTS_DIR / "missing_artifacts.md.j2").read_text(encoding="utf-8")
     assert block.group(1) == prompt_text.rstrip("\n"), (
         "docs/PROMPTS.md is out of sync with prompts/missing_artifacts.md.j2"
+    )
+
+
+@pytest.mark.parametrize("lens", CRITIC_LENSES)
+def test_prompts_doc_matches_critic_lens(lens):
+    section = PROMPTS_DOC.read_text(encoding="utf-8").split("## Spec critic", 1)
+    assert len(section) == 2, "docs/PROMPTS.md has no 'Spec critic' section"
+    filename = f"lenses/{lens}.md"
+    block = re.search(r"### " + re.escape(filename) + r"\n\n```\n(.*?)\n```\n", section[1], re.S)
+    assert block, f"docs/PROMPTS.md has no '{filename}' block in 'Spec critic'"
+    prompt_text = (PROMPTS_DIR / "spec_critic" / filename).read_text(encoding="utf-8")
+    assert block.group(1) == prompt_text.rstrip("\n"), (
+        f"docs/PROMPTS.md is out of sync with prompts/spec_critic/{filename}"
     )

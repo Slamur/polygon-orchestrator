@@ -67,3 +67,7 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_solutions",
     "upload_test_script",
 ]
+
+# The lenses of the spec critic (`spec_critic.LENSES`), in their order: `choices` of
+# `init --critic-lens` and `llm critic --lens`.
+CRITIC_LENSES: list[str] = ["statement", "limits", "tests", "solutions"]

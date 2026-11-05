@@ -1,12 +1,36 @@
+## The lens: {{ lens }}
+
+{{ lens_focus }}
+
+Your fields — write findings only about them and their parts:
+{% for field in lens_fields %}
+- `{{ field }}`
+{% endfor %}
+{% if lens_excluded %}
+
+except (other reviewers judge these):
+{% for field in lens_excluded %}
+- `{{ field }}`
+{% endfor %}
+{% endif %}
+{% if lens_gap_fields %}
+
+`gap` is allowed only for:
+{% for field in lens_gap_fields %}
+- `{{ field }}`
+{% endfor %}
+{% endif %}
+
 ## The spec
 
 ~~~yaml
 {{ spec }}
 ~~~
 
-The task: review this spec by the rules from the system message and return
-`critique.yaml` — the list of findings (`field`, `severity`, `action`, `why`,
-`proposal` when needed), or `[]` if there is nothing to remove or simplify.
+The task: review the fields of your lens in this spec by the rules from the
+system message and return `critique.yaml` — the list of findings (`field`,
+`severity`, `action`, `why`, `proposal` when needed), or `[]` if there is
+nothing to remove or simplify.
 {% if previous_findings %}
 
 ## Findings of the previous round
