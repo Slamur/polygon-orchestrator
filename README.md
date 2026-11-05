@@ -270,7 +270,9 @@ Then a second model — the critic — reads the spec without the draft and asks
 "why is this here? can it be simpler?". It does that through four narrow lenses,
 one model call each: `statement` (wordy sketches), `limits` (extra variables and
 guarantees), `tests` (extra generators, test ideas, groups) and `solutions` (extra
-solutions, wrong approaches, a custom checker). `--critic-lens NAME` (repeatable)
+solutions, wrong approaches, a custom checker; the statement lens may also note an
+important case the examples don't show — that's never applied, only listed for you
+under "Possibly missing"). `--critic-lens NAME` (repeatable)
 runs only the named ones. Its findings on what the model added
 itself are applied right away (a suggested item is removed, the rest goes back to
 the model for one revision); its findings on what you wrote are only listed in the
@@ -371,7 +373,7 @@ plan) → `generators_draft` (generators from the plan) → `test_script_draft`
 | `llm generate --force` | Ignore the cache, revise the current files again | **yes** |
 | `llm generate --fresh` | From scratch, without showing the model the current files | **yes** |
 | `llm tutorial [--ref SOLUTION ...]` | `statement/<language>/tutorial.tex` from `authoring/draft-tutorial.md`: the model expands your thoughts and adds only what you explicitly ask for ("prove", "spell out"). `--ref` (can be repeated) — files from `solutions/` as context; the list is remembered, new `--ref`s replace it, `--no-ref` clears it. Has `--force` and `--fresh` | **yes** |
-| `llm critic [--lens NAME ...]` | The critic reviews the spec as it is: what to remove, simplify or merge — into `llm_reports/spec_critic/<lens>.md`, a report per lens (`--lens` rewrites only the reports of the lenses it runs); the spec isn't changed, every finding is for you (values still marked `PROPOSED` / `SUGGESTION` are listed separately). One model call per lens (`statement`, `limits`, `tests`, `solutions`; `--lens` — only the named ones). No cache: every run calls the model | **yes** |
+| `llm critic [--lens NAME ...]` | The critic reviews the spec as it is: what to remove, simplify or merge (and what the statement examples may be missing) — into `llm_reports/spec_critic/<lens>.md`, a report per lens (`--lens` rewrites only the reports of the lenses it runs); the spec isn't changed, every finding is for you (values still marked `PROPOSED` / `SUGGESTION` are listed separately). One model call per lens (`statement`, `limits`, `tests`, `solutions`; `--lens` — only the named ones). No cache: every run calls the model | **yes** |
 | `llm apply [--step NAME]` | Apply a saved but unapplied model response (e.g. after a conflict or an error) | no |
 | `llm accept [--step NAME]` | Mark the current files of `stale` steps up to date (if the edit shouldn't change the result, or you've already fixed the files by hand); what exactly changed for each step — in `llm_reports/accept.md` | no |
 

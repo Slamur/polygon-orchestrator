@@ -13,6 +13,13 @@ except (other reviewers judge these):
 - `{{ field }}`
 {% endfor %}
 {% endif %}
+{% if lens_gap_fields %}
+
+`gap` is allowed only for:
+{% for field in lens_gap_fields %}
+- `{{ field }}`
+{% endfor %}
+{% endif %}
 
 ## The spec
 

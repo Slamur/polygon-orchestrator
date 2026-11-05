@@ -23,7 +23,9 @@ for every later step, so the excess multiplies. The critic is a second model
 call that reads the finished spec as a fresh reader and asks "why is this
 here? can it be simpler? why so much?". It only reduces: it never proposes
 additions (completeness is the generator's job; a critic that may add makes
-the spec grow with every round).
+the spec grow with every round). The one exception is `gap` on the statement
+examples (below): it names what's missing, but is never acted on — the report
+only.
 
 The critic is not one call but several narrow ones — one **lens** each
 (`spec_critic.LENSES`). A general critic spreads its attention over the whole
@@ -79,12 +81,17 @@ Each finding:
 ```yaml
 - field: tests.groups[2]          # path in the spec, as in `notes`
   severity: must | should | nit
-  action: remove | simplify | merge | question
+  action: remove | simplify | merge | question | gap
   why: "..."                      # one or two sentences, concrete
   proposal: "..."                 # for simplify/merge: the replacement; optional otherwise
 ```
 
-`merge` names the other field(s) in `why`. No `add` action.
+`merge` names the other field(s) in `why`. No `add` action. `gap` — something
+important is missing, only on a lens's `gap_fields` (`Lens.gap_fields`; now only
+the `statement` lens, on `statement_draft.sample_examples`: the examples must
+show the rules and answers a contestant is likely to misread — an "impossible"
+answer, a tie rule; not the extreme limits or the stress, that's the tests). A
+`gap` elsewhere is `outside the lens`.
 
 ## Routing — by the orchestrator, not the model
 
@@ -104,6 +111,7 @@ Then:
 |---|---|---|---|
 | author | any | any | report only — the author decides |
 | any | `nit` | any | report only |
+| any | any | `gap` | report only, in its own group "Possibly missing" |
 | model, `SUGGESTION` list item | `must`/`should` | `remove` | removed mechanically (text-level: the marked line and its deeper-indented continuation; PyYAML doesn't keep comments), with its entry in `notes`; if the block can't be cut unambiguously — goes to revision |
 | model | `must`/`should` | other | revision |
 

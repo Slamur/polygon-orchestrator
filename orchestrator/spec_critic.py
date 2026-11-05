@@ -6,6 +6,9 @@ simplify or merge values (`prompts/spec_critic/`). It runs once per lens (`LENSE
 each call sees the whole spec but judges only its lens's fields, with the rules of
 the steps that read them; a finding outside them — the report only. What to do with
 a finding is decided here, by the marks in the spec, not by the critic:
+- a `gap` (something important is missing; only where a lens allows it — the
+  statement examples) — the report only, whoever wrote the value: the critic
+  doesn't make the spec grow;
 - an author value (no `# PROPOSED, REVIEW ME` / `# SUGGESTION` mark on the value or
   its ancestors) or a `nit` — the report only;
 - a `remove` of a `SUGGESTION` list item — removed mechanically, by editing lines
@@ -60,7 +63,9 @@ DEFAULT_ROUNDS = 1
 MAX_ROUNDS = 2
 
 SEVERITIES = ("must", "should", "nit")
-ACTIONS = ("remove", "simplify", "merge", "question")
+ACTIONS = ("remove", "simplify", "merge", "question", "gap")
+# The only action that names something missing: never acted on, the report only.
+GAP = "gap"
 
 LENSES_DIRNAME = "lenses"
 INTERACTIVE_LENS_TUTORIALS = ("statement", "solutions")
@@ -72,18 +77,22 @@ FieldPath = tuple[str | int, ...]
 class Lens:
     """One narrow critic: the spec fields it judges (`fields` without `excluded`; the
     lenses' fields don't overlap) and the rules of the steps that read them — "simpler"
-    must not drop what a step needs. Its focus — `prompts/spec_critic/lenses/<name>.md`."""
+    must not drop what a step needs. `gap_fields` — where it may name a `GAP`. Its
+    focus — `prompts/spec_critic/lenses/<name>.md`."""
 
     name: str
     fields: tuple[str, ...]
     tutorials: tuple[str, ...]
     excluded: tuple[str, ...] = ()
+    gap_fields: tuple[str, ...] = ()
 
-    def covers(self, path: FieldPath) -> bool:
+    def covers(self, path: FieldPath, action: str = "") -> bool:
         def under(prefix: str) -> bool:
             parts = tuple(prefix.split("."))
             return path[: len(parts)] == parts
 
+        if action == GAP:
+            return any(under(f) for f in self.gap_fields)
         return any(under(f) for f in self.fields) and not any(under(f) for f in self.excluded)
 
 
@@ -94,7 +103,12 @@ _TEST_GROUP_FIELDS = ("constraints.test_groups_hint", "constraints.test_groups_n
 LENSES: dict[str, Lens] = {
     lens.name: lens
     for lens in (
-        Lens("statement", ("title", "statement_draft"), ("tutorials/statement.md",)),
+        Lens(
+            "statement",
+            ("title", "statement_draft"),
+            ("tutorials/statement.md",),
+            gap_fields=("statement_draft.sample_examples",),
+        ),
         Lens(
             "limits",
             ("constraints",),
@@ -477,6 +491,7 @@ def _call_critic(
             "lens_focus": lens_focus(lens, prompts_dir=prompts_dir),
             "lens_fields": lens.fields,
             "lens_excluded": lens.excluded,
+            "lens_gap_fields": lens.gap_fields,
             "spec": strip_review_marks(spec_text).rstrip("\n"),
             "previous_findings": previous_findings,
         },
@@ -562,7 +577,7 @@ def _critique_round(
             finding = Finding(**item, lens=lens.name, round=number)
             classify(finding, text)
             tokens = finding.path or _parse_note_path({"field": finding.field}) or ()
-            (in_lens if lens.covers(tokens) else outside).append(finding)
+            (in_lens if lens.covers(tokens, finding.action) else outside).append(finding)
     if error is not None and number == 1 and len(outcome.failed_lenses) == len(lenses):
         raise error
     outside_ids = {id(f) for f in outside}
@@ -665,7 +680,10 @@ def critique_spec(
         actionable = [
             f
             for f in findings
-            if f.outcome == FOR_REVIEW and f.owner == MODEL and f.severity != "nit"
+            if f.outcome == FOR_REVIEW
+            and f.owner == MODEL
+            and f.severity != "nit"
+            and f.action != GAP
         ]
         if not actionable:
             break

@@ -1817,14 +1817,15 @@ critic is several narrow calls, one per lens (`spec_critic.LENSES`: `statement`,
 the named ones). Each gets the whole spec, with the `# PROPOSED, REVIEW ME` /
 `# SUGGESTION` marks stripped — no draft, no notes — and judges only the fields of
 its lens: the lens's focus (`lenses/<lens>.md`, below) and its fields go into
-`user.md.j2` (`lens_focus`, `lens_fields`, `lens_excluded`). Attached are
+`user.md.j2` (`lens_focus`, `lens_fields`, `lens_excluded`, `lens_gap_fields`). Attached are
 `docs/SPEC_FORMAT.md`, the sample specs from `examples/` and the rules of the
 steps that read the lens's fields (`tutorials/statement.md`;
 `tutorials/{limits,validator}.md`; `tutorials/{tests,limits}.md`;
 `tutorials/{solutions,checker}.md`; plus `tutorials/interactive.md` for the
 statement and solutions lenses of an interactive problem). The response is
-`critique.yaml` — findings that only remove, simplify or merge values; what to do
-with each is decided by the orchestrator by the marks, not by the critic.
+`critique.yaml` — findings that only remove, simplify or merge values (and `gap`
+on the statement examples, report only); what to do with each is decided by the
+orchestrator by the marks, not by the critic.
 `previous_findings` — only in the second round (`--critic-rounds 2`), the lens's
 own findings. `llm critic` uses the same prompts over the spec as it is, in one
 round: its findings only go to the report.
@@ -1858,7 +1859,8 @@ why is this here? can it be simpler? why so much?
 
 What not to do:
 - Don't propose additions. If something seems missing — that's not your job;
-  say nothing about it.
+  say nothing about it. The only exception is `gap`, where your lens allows it
+  (the user message names the fields) — and only as the lens describes.
 - Don't change the problem: the objects, the rules, the question, the limits
   and the asymptotics are given. You may ask (`question`) whether a detail of
   them is needed, but not propose another problem.
@@ -1874,7 +1876,10 @@ Each finding:
   `should` (likely simpler without it), `nit` (a matter of taste);
 - `action` — `remove`, `simplify` (`proposal` — the replacement text or
   value), `merge` (name the other fields in `why`; `proposal` — the merged
-  value), `question` (unclear why it's here; `why` — the question);
+  value), `question` (unclear why it's here; `why` — the question), `gap`
+  (only where your lens allows it: something important is missing; `why` —
+  what exactly, `proposal` — optionally, what would cover it; a `gap` is never
+  applied, it's for the author);
 - `why` — one or two concrete sentences: what exactly is unnecessary and what
   covers it instead. Write it in the language of the spec's free-text fields.
 
@@ -1903,6 +1908,13 @@ Your fields — write findings only about them and their parts:
 
 except (other reviewers judge these):
 {% for field in lens_excluded %}
+- `{{ field }}`
+{% endfor %}
+{% endif %}
+{% if lens_gap_fields %}
+
+`gap` is allowed only for:
+{% for field in lens_gap_fields %}
 - `{{ field }}`
 {% endfor %}
 {% endif %}
@@ -1952,6 +1964,16 @@ What to look for:
 
 Propose the shorter wording in `proposal`, keeping every rule and fact: the
 lens is the wording, not the problem.
+
+The one place you may name something missing — `gap` on
+`statement_draft.sample_examples`. The examples are there to make the
+statement clear, not to test solutions: a gap is a rule or an answer a
+contestant is likely to misread that no example shows — no example with the
+"impossible" answer ("NO", "-1") when the problem has one, a tie rule or an
+order of moves that the examples never exercise, a corner of the format
+(an empty list, a single element) that changes the answer. Extreme limits,
+stress and the special cases a solution must handle are the tests' job, not a
+gap. A gap is rare: most specs have none, and an empty answer is normal.
 ```
 
 ### lenses/limits.md

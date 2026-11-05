@@ -216,7 +216,7 @@ def _critique_section(critique: Any, *, review_only: bool = False) -> list[str]:
     what was done with them, then the rest (nits, repeats, unresolved paths).
     `review_only` (`llm critic`) — nothing was done with any finding: the model's
     values are the ones still marked in the spec."""
-    from orchestrator.spec_critic import AUTHOR, FOR_REVIEW, MODEL
+    from orchestrator.spec_critic import AUTHOR, FOR_REVIEW, GAP, MODEL
 
     rounds = f", {critique.rounds} round(s)" if critique.rounds > 1 else ""
     lenses = f" · lenses: {', '.join(critique.lenses)}" if critique.lenses else ""
@@ -232,11 +232,19 @@ def _critique_section(critique: Any, *, review_only: bool = False) -> list[str]:
         model_values = [
             f for f in critique.findings if f.owner == MODEL and f.outcome != FOR_REVIEW
         ]
+    gaps = [f for f in critique.findings if f.action == GAP and f.outcome == FOR_REVIEW]
+    gap_ids = {id(f) for f in gaps}
+    model_values = [f for f in model_values if id(f) not in gap_ids]
     groups = (
         (
             "Your values — for your review",
-            [f for f in critique.findings if f.owner == AUTHOR and f.outcome == FOR_REVIEW],
+            [
+                f
+                for f in critique.findings
+                if f.owner == AUTHOR and f.outcome == FOR_REVIEW and id(f) not in gap_ids
+            ],
         ),
+        ("Possibly missing — for your review, never applied", gaps),
         (model_title, model_values),
     )
     listed = {id(f) for _, group in groups for f in group}

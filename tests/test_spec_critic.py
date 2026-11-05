@@ -9,6 +9,7 @@ import yaml
 
 from orchestrator import cli, model_router
 from orchestrator.llm_client import LLMCallError
+from orchestrator.llm_report import _critique_section
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import AUTHORING_DIRNAME
 from orchestrator.spec import SPEC_FILENAME, SpecInit
@@ -504,6 +505,45 @@ def _review(tmp_path, **kwargs):
         examples_dir=tmp_path / "examples",
         **kwargs,
     )
+
+
+def test_gaps_are_never_acted_on(tmp_path, fake_model):
+    spec = SPEC + (
+        "statement_draft:\n"
+        "  sample_examples:  # SUGGESTION: one example\n"
+        '    - input: "1"\n'
+        '      output: "1"\n'
+    )
+    fake = fake_model(
+        critiques={
+            "statement": [
+                _critique(
+                    _item("statement_draft.sample_examples", "must", "gap", "no NO answer"),
+                    # A gap only on the examples.
+                    _item("statement_draft", "should", "gap"),
+                )
+            ],
+            # Only the statement lens may name a gap.
+            "tests": [_critique(_item("generation.generator_ideas", "must", "gap"))],
+        }
+    )
+    outcome = _run(tmp_path, spec=spec)
+
+    # A gap on a model value with `must` still isn't sent to the revision.
+    assert fake.steps() == ALL_CRITICS
+    assert [(f.field, f.owner, f.outcome) for f in outcome.findings] == [
+        ("statement_draft.sample_examples", MODEL, FOR_REVIEW),
+        ("statement_draft", AUTHOR, OUT_OF_LENS),
+        ("generation.generator_ideas", AUTHOR, OUT_OF_LENS),
+    ]
+    assert not outcome.changed
+    statement_prompt = fake.calls[LENS_NAMES.index("statement")]["user"]
+    assert "`gap` is allowed only for:\n- `statement_draft.sample_examples`" in statement_prompt
+    assert "`gap` is allowed" not in fake.calls[LENS_NAMES.index("tests")]["user"]
+
+    report = "\n".join(_critique_section(outcome))
+    assert "### Possibly missing — for your review, never applied (1)" in report
+    assert "**statement_draft.sample_examples** · statement · must · gap — no NO answer" in report
 
 
 def test_findings_outside_the_lens_are_not_acted_on(tmp_path, fake_model):

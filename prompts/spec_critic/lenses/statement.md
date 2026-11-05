@@ -16,3 +16,13 @@ What to look for:
 
 Propose the shorter wording in `proposal`, keeping every rule and fact: the
 lens is the wording, not the problem.
+
+The one place you may name something missing — `gap` on
+`statement_draft.sample_examples`. The examples are there to make the
+statement clear, not to test solutions: a gap is a rule or an answer a
+contestant is likely to misread that no example shows — no example with the
+"impossible" answer ("NO", "-1") when the problem has one, a tie rule or an
+order of moves that the examples never exercise, a corner of the format
+(an empty list, a single element) that changes the answer. Extreme limits,
+stress and the special cases a solution must handle are the tests' job, not a
+gap. A gap is rare: most specs have none, and an empty answer is normal.

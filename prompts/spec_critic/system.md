@@ -24,7 +24,8 @@ why is this here? can it be simpler? why so much?
 
 What not to do:
 - Don't propose additions. If something seems missing — that's not your job;
-  say nothing about it.
+  say nothing about it. The only exception is `gap`, where your lens allows it
+  (the user message names the fields) — and only as the lens describes.
 - Don't change the problem: the objects, the rules, the question, the limits
   and the asymptotics are given. You may ask (`question`) whether a detail of
   them is needed, but not propose another problem.
@@ -40,7 +41,10 @@ Each finding:
   `should` (likely simpler without it), `nit` (a matter of taste);
 - `action` — `remove`, `simplify` (`proposal` — the replacement text or
   value), `merge` (name the other fields in `why`; `proposal` — the merged
-  value), `question` (unclear why it's here; `why` — the question);
+  value), `question` (unclear why it's here; `why` — the question), `gap`
+  (only where your lens allows it: something important is missing; `why` —
+  what exactly, `proposal` — optionally, what would cover it; a `gap` is never
+  applied, it's for the author);
 - `why` — one or two concrete sentences: what exactly is unnecessary and what
   covers it instead. Write it in the language of the spec's free-text fields.
 
