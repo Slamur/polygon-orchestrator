@@ -5,7 +5,9 @@ import pytest
 from orchestrator.spec import (
     ProblemSpec,
     SpecValidationError,
+    WrongApproach,
     load_spec,
+    parse_wrong_approach,
     split_solution_stem,
 )
 
@@ -365,3 +367,31 @@ def test_russian_needs_russian_title(tmp_path):
 def test_unknown_language_is_rejected(tmp_path):
     with pytest.raises(SpecValidationError, match="language"):
         load_spec(_write_with_title(tmp_path, 'title:\n  ru: "Название"', "kk"))
+
+
+@pytest.mark.parametrize(
+    "item, expected",
+    [
+        ("wa: off-by-one", WrongApproach("wa", (), "off-by-one")),
+        ("tl_ok (java/py): slow io", WrongApproach("tl_ok", ("java", "py"), "slow io")),
+        ("TL (cpp):  O(N^2)", WrongApproach("tl", ("cpp",), "O(N^2)")),
+        ("off-by-one in the right bound", None),
+        ("ok: a correct one", None),
+        ("note: not a verdict", None),
+        ("wa:", None),
+    ],
+)
+def test_parse_wrong_approach(item, expected):
+    assert parse_wrong_approach(item) == expected
+
+
+def test_wrong_approach_without_verdict_raises(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace('"tl: O(N^2) without a heap', '"O(N^2) without a heap')
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert "known_wrong_approaches[0] must start with the verdict" in str(exc_info.value)

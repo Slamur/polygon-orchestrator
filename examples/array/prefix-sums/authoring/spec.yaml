@@ -100,9 +100,9 @@ solutions:
     Compute the prefix sums in a 64-bit type and find the first index at
     which the sum is strictly greater than K. If there's none — the answer is NO.
   known_wrong_approaches:
-    - "prefix sums in a 32-bit type — overflow with large A_i"
-    - "a non-strict comparison of the prefix sum with K (>= instead of >)"
-    - "O(N^2): the sum of each prefix is recomputed anew"
+    - "wa (cpp): prefix sums in a 32-bit type — overflow with large A_i"
+    - "wa (py): a non-strict comparison of the prefix sum with K (>= instead of >)"
+    - "tl (cpp): O(N^2) — the sum of each prefix is recomputed anew"
     - "tl_ok (java): the correct algorithm with unbuffered input/output"
 
 checker:

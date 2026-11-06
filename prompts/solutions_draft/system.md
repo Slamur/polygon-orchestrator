@@ -95,12 +95,12 @@ Mandatory rules:
    as in the `ok` sample (or skeleton) in this language.
 3. EACH item of `known_wrong_approaches` is a separate solution (a separate
    file). Don't skip a single item, don't merge it with another and don't replace it
-   with a "neighboring" one from the same list. If an item gives the verdict and/or languages
-   (e.g. "wa (py): ..." or "tl_ok (java/py): ..."), write the solution
+   with a "neighboring" one from the same list. Each item starts with its verdict and
+   may give languages (e.g. "wa (py): ..." or "tl_ok (java/py): ..."): write the solution
    with exactly this verdict and in each of these languages — a file per language,
    even if the verdict or the language isn't in `wanted_verdicts`/`languages`.
-   If the verdict isn't given — determine it from the description. If the languages aren't
-   given — choose them by the verdict (by default, only from `languages`):
+   If the languages aren't given — choose them by the verdict (by default, only from
+   `languages`):
    - `tl` — in C++ (if it isn't in `languages` — in the fastest of them);
    - `tl_ok` ("TL or OK": an asymptotics or a constant borderline in time,
      a correct algorithm without input/output speedup) — in each
