@@ -98,9 +98,9 @@ used in `orchestrator/pipeline.py` before calling
   input format in the statement must invalidate the plan, even if
   the `generation` section didn't change) + `legend_sketch` +
   `problems/<problem path>/authoring/constraints.yaml` from step 2 without TL/ML +
-  `solutions.known_wrong_approaches` and `solutions.algorithm_hint` (if
-  the `solutions` section is set — editing them must invalidate the plan too,
-  not only an edit of `generation`); `generators_draft` → the input format +
+  `solutions.algorithm_hint` (if the `solutions` section is set — editing it must
+  invalidate the plan too, not only an edit of `generation`; `known_wrong_approaches`
+  isn't part of it: the base plan doesn't design tests for wrong approaches); `generators_draft` → the input format +
   `constraints.yaml` without TL/ML + each generator of `tests_plan.yaml`
   as a separate part; `test_script_draft` → `generation.script_style` +
   `constraints.yaml` without TL/ML + `constants`, `tests` and the plan's generator
@@ -188,7 +188,7 @@ the model may propose its own — with `kind: suggestion` in `notes` (and no low
   `intended_complexity` — with a remark on whether to reconsider the limits;
   noticeably simpler) and likely contestant mistakes that aren't in
   `known_wrong_approaches` — as separate files;
-- `tests_plan` — tests for mistakes and edge cases not covered by
+- `tests_plan` — edge cases of the input not covered by
   those ordered by the author — as separate generators and plan blocks with
   `status: suggestion` (`generators_draft` and `test_script_draft` carry
   them into code with a `SUGGESTION: ...` comment, they don't add their own);
