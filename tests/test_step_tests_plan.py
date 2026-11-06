@@ -124,15 +124,19 @@ def test_parse_tests_plan_rejects_invalid_yaml():
 def test_uncovered_notes_name_spec_items_without_tests_and_unused_generators(spec):
     plan = _plan()
     plan["generators"].append({"name": "upd_shuffle", "status": "proposed", "params": []})
-    plan["tests"][0]["covers"] = ["specific_test_ideas[1]", "known_wrong_approaches[5]"]
+    plan["tests"][0]["covers"] = [
+        "specific_test_ideas[1]",
+        "specific_test_ideas[5]",
+        "known_wrong_approaches[5]",
+    ]
 
     notes = uncovered_notes(plan, spec)
 
+    # Wrong approaches aren't reconciled: not every one needs a test of its own.
     assert {note["kind"] for note in notes} == {"uncovered"}
     assert [note["field"] for note in notes] == [
-        "known_wrong_approaches[5]",
+        "specific_test_ideas[5]",
         "specific_test_ideas[0]",
-        "known_wrong_approaches[0]",
         "generators/upd_shuffle",
     ]
 
@@ -161,7 +165,8 @@ def test_confirmed_writes_plan_to_authoring_with_problem_id_from_spec(spec, tmp_
     # The plan doesn't need TL/ML.
     assert "time_limit_seconds" not in user_prompt
     assert "- [0] N = 1 (the minimal case)" in user_prompt
-    assert "- [0] O(N^2) without a heap — TLE on large N" in user_prompt
+    # The base plan: tests for wrong approaches are made only for survivors.
+    assert "O(N^2) without a heap" not in user_prompt
     assert "tests_plan_format.yaml" in mock_call.call_args.kwargs["context_documents"]
 
 
@@ -194,19 +199,16 @@ def test_renders_without_optional_lists_and_solutions(spec, tmp_path):
 
     assert result.status == "confirmed"
     user_prompt = mock_call.call_args.args[2]
-    assert "known_wrong_approaches is empty" in user_prompt
+    assert "there's no solutions section — the solution idea isn't given" in user_prompt
     assert "the author gave no concrete test scenarios" in user_prompt
 
 
-def test_build_context_sections_takes_input_format_hint_and_wrong_approaches(spec):
+def test_build_context_sections_takes_input_format_hint_and_algorithm_hint(spec):
     sections = _build_context_sections(spec)
 
     assert sections["statement"]["formal_input_sketch"] == spec.statement_draft.formal_input_sketch
     assert sections["statement"]["legend_sketch"] == spec.statement_draft.legend_sketch
-    assert sections["solutions"] == {
-        "algorithm_hint": spec.solutions.algorithm_hint,
-        "known_wrong_approaches": spec.solutions.known_wrong_approaches,
-    }
+    assert sections["solutions"] == {"algorithm_hint": spec.solutions.algorithm_hint}
 
 
 def _hash(spec, upstream=UPSTREAM):
@@ -216,7 +218,6 @@ def _hash(spec, upstream=UPSTREAM):
 @pytest.mark.parametrize(
     "section, update",
     [
-        ("solutions", {"known_wrong_approaches": ["another"]}),
         ("solutions", {"algorithm_hint": "another idea"}),
         ("generation", {"specific_test_ideas": ["N = 2"]}),
         ("statement_draft", {"formal_input_sketch": "another format"}),
@@ -225,6 +226,15 @@ def _hash(spec, upstream=UPSTREAM):
 def test_compute_input_hash_changes_with_inputs_of_the_plan(spec, section, update):
     changed = spec.model_copy(update={section: getattr(spec, section).model_copy(update=update)})
     assert _hash(changed) != _hash(spec)
+
+
+def test_compute_input_hash_ignores_wrong_approaches(spec):
+    other = spec.model_copy(
+        update={
+            "solutions": spec.solutions.model_copy(update={"known_wrong_approaches": ["another"]})
+        }
+    )
+    assert _hash(other) == _hash(spec)
 
 
 def test_compute_input_hash_ignores_languages_and_limits(spec):

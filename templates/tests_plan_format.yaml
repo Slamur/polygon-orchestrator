@@ -8,9 +8,9 @@
 # Each decision is marked with status:
 #   confirmed  — set by the author in the spec (a generator from generation.generator_ideas,
 #                a test from generation.specific_test_ideas on the author's generators);
-#   proposed   — invented by the model at the author's order (a test or a generator for
-#                known_wrong_approaches, an implementation of specific_test_ideas for
-#                which the author has no generator, the choice of parameters) —
+#   proposed   — invented by the model at the author's order (an implementation of
+#                specific_test_ideas for which the author has no generator, the choice of
+#                parameters, a test for a wrong solution the other tests don't catch) —
 #                with a justification in rationale;
 #   suggestion — the model's own idea beyond what the author ordered — with a justification
 #                in rationale.
@@ -46,6 +46,7 @@ tests:                          # the script's blocks in generation order (tests
     covers:                     # which spec items the block implements; none — [].
                                 # As a list, a line per item, as here: [a[0]] on one line isn't YAML
       - "<specific_test_ideas[<number from 0>] | known_wrong_approaches[<number from 0>]>"
+                                # known_wrong_approaches — only blocks for a wrong solution
     commands:                   # a line per test: a chain of generators joined with |,
                                 # the parameter values — numbers or names from constants
       - "<gen_x -n=maxN -k=1 | upd_y>"

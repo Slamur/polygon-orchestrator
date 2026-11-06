@@ -31,10 +31,10 @@ __all__ = [
 # The mapping of a step to a nominal model class. Steps critical in content
 # (constraints_pick, solutions_draft) — through the strong model.
 # Test preparation is split into three steps, so that the substantive part goes
-# separately from the voluminous one. tests_plan — test design, including
-# adversarial tests for `solutions.known_wrong_approaches`: independent
-# reasoning about how to break a particular wrong algorithm (see CLAUDE.md,
-# "Model routing by step criticality"), but the response is small — a plan, not
+# separately from the voluminous one. tests_plan — test design: generators
+# composed from the author's ideas and the edge cases of the input, with
+# independent reasoning about what the plan misses (see CLAUDE.md, "Model
+# routing by step criticality"), but the response is small — a plan, not
 # code; the medium model with high effort, the next escalation step — to the strong one.
 # generators_draft and test_script_draft — implementing a ready plan: a lot of
 # code, but little reasoning, so the medium model with medium effort — otherwise
@@ -83,7 +83,7 @@ STEP_TO_MODEL: dict[str, str] = {
 # The effort level per step (shared by the vendors that support such a knob;
 # those that don't are entitled to ignore it). constraints_pick/
 # solutions_draft — the riskiest by the cost of a mistake; tests_plan — high
-# because of designing adversarial tests, generators_draft/test_script_draft —
+# because of designing the tests, generators_draft/test_script_draft —
 # medium, it's implementing the plan; checker_draft — high for the same
 # reason as the model class: the cost of a mistake in comparing answers is high even
 # with a formally mechanical implementation; statement_draft — medium, it's

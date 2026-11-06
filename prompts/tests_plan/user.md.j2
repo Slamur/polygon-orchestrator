@@ -1,7 +1,7 @@
 The problem spec (problem_id: {{ problem_id }}):
 
 ## Legend (the author's sketch — for understanding the problem and your own test ideas, see
-## item D of the system message)
+## item C of the system message)
 {{ statement.legend_sketch }}
 
 ## The author's solution idea (from the solutions section, if it's set)
@@ -29,26 +29,14 @@ be printed in exactly the same form):
 {% endfor %}
 
 ## Concrete test scenarios ordered by the author (not generators, but
-## concrete tests — see item C of the system message; in `covers` —
+## concrete tests — see item B of the system message; in `covers` —
 ## specific_test_ideas[number])
 {% for t in generation.specific_test_ideas %}
 - [{{ loop.index0 }}] {{ t }}
 {% endfor %}
 {% if not generation.specific_test_ideas %}
 (the author gave no concrete test scenarios — act by the rule for
-this case from item C of the system message)
-{% endif %}
-
-## Known wrong approaches (from the solutions section, if it's set) —
-## the source for adversarial tests, see item B of the system message; in
-## `covers` — known_wrong_approaches[number]
-{% for w in solutions.known_wrong_approaches %}
-- [{{ loop.index0 }}] {{ w }}
-{% endfor %}
-{% if not solutions or not solutions.known_wrong_approaches %}
-(there's no solutions section or known_wrong_approaches is empty — adversarial
-tests aren't ordered explicitly, act by the rule for this case from the system
-message)
+this case from item B of the system message)
 {% endif %}
 
 ## Script style

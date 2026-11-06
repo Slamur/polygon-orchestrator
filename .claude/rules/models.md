@@ -25,7 +25,7 @@ stronger model; mechanical/boilerplate steps — through a faster/cheaper one.
 | `solutions_draft`           | high        | strong model             |
 | `checker_draft`              | high (with incomplete `custom_comparison_notes`) | medium model |
 | `statement_draft` (LaTeX)   | medium      | medium model              |
-| `tests_plan`                | medium — designing adversarial tests | medium model, high effort |
+| `tests_plan`                | medium — designing the base tests | medium model, high effort |
 | `generators_draft`          | low — implementing the plan | medium model, medium effort |
 | `test_script_draft`         | low — implementing the plan | medium model, medium effort |
 | `interactor_draft`          | high — the whole protocol, a mistake breaks all tests | strong model |
@@ -45,8 +45,8 @@ model, like `constraints_pick`/`solutions_draft`.
 
 Test preparation is split into `tests_plan` and `generators_draft`/`test_script_draft`
 for a reason: implementing a generator from a ready idea is mechanical, while
-**coming up with** adversarial tests — how to break a particular wrong
-algorithm — is no less substantive than `constraints_pick`; as one call with
+**coming up with** the tests — which cases of the input the plan must cover — is
+substantive; as one call with
 high effort and dozens of files in the response it didn't fit into the timeout.
 So the reasoning is in `tests_plan` (medium model, high effort, a small
 response), the code — in `generators_draft`/`test_script_draft` (medium model,
