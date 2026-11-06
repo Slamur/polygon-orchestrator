@@ -43,6 +43,16 @@ LLM_STEPS: list[str] = [*STEP_ORDER, *ON_DEMAND_STEPS]
 # mechanically from the files of the previous steps.
 MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints"})
 
+# Steps whose prompts lie in a directory shared with other steps (`prompts/<dir>/`), not in
+# `prompts/<step>/`; the user prompt tells the model which of them it is.
+PROMPT_DIRS: dict[str, str] = {}
+
+
+def prompt_dir_name(step_name: str) -> str:
+    """The directory of the step's prompts inside `prompts/`."""
+    return PROMPT_DIRS.get(step_name, step_name)
+
+
 # The list is extended as steps are added — append new names (as
 # a rule, at the end) and add an entry to `polygon.pipeline._POLYGON_STEPS`;
 # nothing else needs changing if the new step is the same kind of `PolygonStep`,

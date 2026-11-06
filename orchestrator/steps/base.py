@@ -86,6 +86,7 @@ from orchestrator.problem_paths import (
     is_removed_mark,
 )
 from orchestrator.statement_languages import DEFAULT_LANGUAGE
+from orchestrator.step_order import prompt_dir_name
 
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
@@ -441,9 +442,10 @@ def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[
 def render_user_prompt(
     step_name: str, context: dict[str, Any], *, prompts_dir: Path = PROMPTS_DIR
 ) -> str:
-    """Renders `prompts/<step_name>/user.md.j2` from `context`."""
+    """Renders `prompts/<step_name>/user.md.j2` from `context` (the directory —
+    `step_order.prompt_dir_name`)."""
     env = _jinja_env(prompts_dir)
-    template = env.get_template(f"{step_name}/user.md.j2")
+    template = env.get_template(f"{prompt_dir_name(step_name)}/user.md.j2")
     return template.render(**context)
 
 
@@ -507,8 +509,11 @@ def render_missing_artifacts_prompt(
 
 
 def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> str:
-    """Reads `prompts/<step_name>/system.md` as the system prompt."""
-    return (Path(prompts_dir) / step_name / "system.md").read_text(encoding="utf-8")
+    """Reads `prompts/<step_name>/system.md` as the system prompt (the directory —
+    `step_order.prompt_dir_name`)."""
+    return (Path(prompts_dir) / prompt_dir_name(step_name) / "system.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def _expand_context_entry(step_name: str, entry: str, templates_dir: Path) -> list[str]:

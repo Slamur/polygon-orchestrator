@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from orchestrator.problem_paths import PROBLEMS_DIR
+from orchestrator.step_order import prompt_dir_name
 
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
@@ -176,9 +177,10 @@ def compute_prompt_parts(
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents,
     )
+    prompt_dir = prompt_dir_name(step_name)
     parts = {
-        f"prompt: {step_name}/system.md": _sha256(system_text),
-        f"prompt: {step_name}/user.md.j2": _sha256(user_text),
+        f"prompt: {prompt_dir}/system.md": _sha256(system_text),
+        f"prompt: {prompt_dir}/user.md.j2": _sha256(user_text),
     }
     revise_text = _read_revise_prompt(prompts_dir)
     if revise_text is not None:
@@ -203,7 +205,7 @@ def _read_prompt_inputs(
     templates_dir: Path,
     extra_context_documents: list[str] | None,
 ) -> tuple[str, str, dict[str, str]]:
-    step_dir = Path(prompts_dir) / step_name
+    step_dir = Path(prompts_dir) / prompt_dir_name(step_name)
     system_text = (step_dir / "system.md").read_text(encoding="utf-8")
     user_text = (step_dir / "user.md.j2").read_text(encoding="utf-8")
 
