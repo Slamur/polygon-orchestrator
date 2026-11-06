@@ -174,6 +174,16 @@ def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
     }
 
 
+def test_main_prefers_the_main_description_within_a_language(problems_dir, spec):
+    link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "ok_cpp_main_draft.cpp": b""})
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "OK", "ok_cpp_main_draft.cpp": "MA"}
+
+
 def test_main_falls_back_to_java_without_cpp_ok(problems_dir, spec):
     link(problems_dir)
     _write_solutions(problems_dir, {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b""})
