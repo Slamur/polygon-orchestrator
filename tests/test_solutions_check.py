@@ -14,7 +14,7 @@ from orchestrator.steps.solutions import GATES, STAGES
 from orchestrator.steps.solutions_check import (
     STATUS_FAILED,
     GateFailedError,
-    load_failed_report,
+    load_run_report,
     read_author_comment,
 )
 
@@ -100,7 +100,7 @@ def test_failed_run_raises_and_its_report_stays_current_until_an_input_changes(
     assert "test 2: RE (gen_rand -n=5) — exit code 1" in failed[0]["explanation"]
     entry = load_cache_entry(PROBLEM_ID, "run_main", problems_dir=problem_dir.parent)
     assert entry.status == STATUS_FAILED
-    report = load_failed_report(PROBLEM_ID, "run_main", problems_dir=problem_dir.parent)
+    report = load_run_report(PROBLEM_ID, "run_main", problems_dir=problem_dir.parent)
     assert [f["name"] for f in report["failures"]] == [MAIN_NAME]
 
     current = RUN_MAIN.failed_report(PROBLEM_ID, spec, [MAIN_NAME], problems_dir=problem_dir.parent)
@@ -208,6 +208,6 @@ def test_real_run_fails_on_a_wrong_main_solution(real_local_runs, spec, problem_
     with pytest.raises(GateFailedError):
         _run_gate(RUN_MAIN, spec, problem_dir)
 
-    report = load_failed_report(PROBLEM_ID, "run_main", problems_dir=problem_dir.parent)
+    report = load_run_report(PROBLEM_ID, "run_main", problems_dir=problem_dir.parent)
     assert [f["name"] for f in report["failures"]] == [MAIN_NAME]
     assert report["failures"][0]["unexpected"][0]["verdict"] == "WA"

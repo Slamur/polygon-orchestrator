@@ -38,6 +38,8 @@ __all__ = [
 # independent reasoning about what the plan misses (see CLAUDE.md, "Model
 # routing by step criticality"), but the response is small — a plan, not
 # code; the medium model with high effort, the next escalation step — to the strong one.
+# tests_survivors — like tests_plan, a small response, but the reasoning is how to break a
+# particular wrong solution, given its code: the medium model with high effort.
 # generators_draft and test_script_draft — implementing a ready plan: a lot of
 # code, but little reasoning, so the medium model with medium effort — otherwise
 # one call would reason longer than the timeout.
@@ -78,6 +80,7 @@ STEP_TO_MODEL: dict[str, str] = {
     "solutions_ok": "medium-model",
     "solutions_slow": "medium-model",
     "solutions_wrong": "medium-model",
+    "tests_survivors": "medium-model",
     "checker_draft": "medium-model",
     "interactor_draft": "strong-model",
     "spec_from_draft": "strong-model",
@@ -106,6 +109,7 @@ STEP_TO_EFFORT: dict[str, str] = {
     "solutions_ok": "high",
     "solutions_slow": "high",
     "solutions_wrong": "high",
+    "tests_survivors": "high",
     "checker_draft": "high",
     "interactor_draft": "high",
     "spec_from_draft": "high",

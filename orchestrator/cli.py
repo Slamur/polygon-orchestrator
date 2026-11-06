@@ -106,6 +106,13 @@ def _complete_solution_names(prefix: str, parsed_args: argparse.Namespace, **kwa
     )
 
 
+def _non_negative_int(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError(f"must be 0 or more, got {value}")
+    return number
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="orchestrator",
@@ -212,6 +219,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="generate from scratch without showing the current files to the model "
         "(implies --force)",
+    )
+    generate_parser.add_argument(
+        "--survivor-rounds",
+        type=_non_negative_int,
+        default=1,
+        metavar="N",
+        help="how many times tests_survivors may add tests for wrong solutions the tests "
+        "don't catch, rerunning the solutions after each (default 1; 0 — don't add)",
     )
     generate_parser.set_defaults(handler="cmd_llm_generate")
 

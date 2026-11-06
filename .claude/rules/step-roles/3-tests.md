@@ -7,6 +7,9 @@ paths:
   - "prompts/generators_draft/**"
   - "tests/test_step_generators_draft.py"
   - "orchestrator/steps/test_script_draft.py"
+  - "orchestrator/steps/tests_survivors.py"
+  - "prompts/tests_survivors/**"
+  - "tests/test_step_tests_survivors.py"
   - "prompts/test_script_draft/**"
   - "tests/test_step_test_script_draft.py"
   - "templates/tests_plan_format.yaml"
@@ -15,7 +18,7 @@ paths:
   - "tests/test_prompts_doc_sync.py"
 ---
 
-# Role of each generative step, item 3: `tests_plan`, `generators_draft`, `test_script_draft`
+# Role of each generative step, item 3: `tests_plan`, `generators_draft`, `test_script_draft`, `tests_survivors`
 
 Common to all steps (revision mode, conflicts, cache, escalation,
 suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
@@ -46,12 +49,11 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      suggestion`) — see "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
      Tests aimed at particular wrong solutions (`known_wrong_approaches`) aren't
      designed here: the solutions are run on the base tests first, and a test of its own
-     is added only for a wrong solution the base tests don't catch (a separate step,
-     in progress). So `known_wrong_approaches` isn't part of the step's input — editing it
+     is added only for a wrong solution the base tests don't catch (`tests_survivors`
+     below). So `known_wrong_approaches` isn't part of the step's input — editing it
      doesn't invalidate the plan; blocks whose `covers` refer to
-     `known_wrong_approaches[i]` are kept in revision mode and aren't reconciled with
-     the spec. Until that separate step exists, wrong approaches get no tests of their
-     own unless the author adds them to the plan by hand.
+     `known_wrong_approaches[i]` or to a solution (`solutions/<name>`) are kept in
+     revision mode and aren't reconciled with the spec.
    - **`generators_draft`** — input: the plan's generators (each a separate
      input part: editing one plan entry — editing one generator in
      revision mode, editing the plan's tests doesn't touch the step) + the input format from
@@ -68,3 +70,24 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      Output: a FreeMarker test-script (`flat` — `test_script` following the sample from the
      references; `groups` — `test_script_groups` by the `group`s of the plan's
      blocks, on the same structure if there is no sample).
+   - **`tests_survivors`** — after the solution stages (`STEP_ORDER`, last): tests for the
+     wrong solutions that the local runs `run_slow`/`run_wrong` report as surviving — no
+     test from the script gets their declared verdict, the examples don't count
+     (`solutions_check.Gate.current_survivors`: only of a passed run whose input is still
+     the same). No survivors — `skipped`. Input: the survivors (name, verdict, code), the
+     main solution, the input format and the legend, `algorithm_hint`, `constraints.yaml`
+     without TL/ML. The current plan, the survivors' local times and the TL are the
+     context of the call, not its input: the plan this step itself extends doesn't make it
+     `stale`, and the same survivors after it — a cache hit, the model isn't called for
+     them again; some of them caught — the rest are a new input. Output: the same
+     `authoring/tests_plan.yaml` with new blocks (`covers: solutions/<name>`, `status:
+     proposed`) and new generators; the current plan must stay as is
+     (`tests_plan.check_plan_extends`, otherwise nothing is applied), and its entries are
+     written back exactly as they were (`keep_current_entries`), so that the kept
+     generators stay cache hits of `generators_draft`. A survivor no block refers to — an
+     `uncovered` note; a solution the model can't catch (it may be correct) — an
+     `uncertain` note, the author decides. After the step `llm generate` runs
+     `SURVIVOR_RECHECK_STEPS` (`generators_draft` … `run_wrong`) again; with
+     `--survivor-rounds N` (1 by default, `0` — the step doesn't run) the step runs up
+     to N times in one run, again even with the same survivors
+     (`pipeline._survivor_rounds`).

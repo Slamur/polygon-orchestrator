@@ -1,0 +1,53 @@
+The problem (problem_id: {{ problem_id }}):
+
+## Legend (the author's sketch — for understanding the problem)
+{{ statement.legend_sketch }}
+
+## The author's solution idea
+{% if solutions.algorithm_hint %}
+{{ solutions.algorithm_hint }}
+{% else %}
+(not given)
+{% endif %}
+
+## Input format
+{{ statement.formal_input_sketch }}
+
+Indexing: {{ statement.indexing }}
+
+The inputs of the statement's examples (the generated tests are printed in exactly the same form):
+{% for ex in statement.sample_examples %}
+### Example {{ loop.index }}
+{{ ex.input }}
+{% endfor %}
+
+## Fixed limits and test groups (without TL/ML)
+{{ constraints_yaml }}
+{% if time_limit_seconds is not none %}
+
+The problem's TL (limits.yaml): {{ time_limit_seconds }}s.
+{% endif %}
+
+## The current plan (authoring/tests_plan.yaml) — keep it, only add
+~~~yaml
+{{ plan }}
+~~~
+{% for name, code in main.items() %}
+
+## The main solution — {{ name }}
+~~~
+{{ code }}
+~~~
+{% endfor %}
+
+## Surviving solutions — no test from the script gets their verdict
+{% for survivor in survivors %}
+
+### {{ survivor.name }} (declared verdict: {{ survivor.verdict }}{% if survivor.max_seconds is not none %}; the longest local time on the current tests: {{ survivor.max_seconds }}s{% endif %}{% if survivor.caught_on_example %}; only a statement example catches it{% endif %})
+~~~
+{{ survivor.code }}
+~~~
+{% endfor %}
+
+The task: return `tests_plan.yaml` — the current plan with tests that catch each
+surviving solution, by the rules from the system message.

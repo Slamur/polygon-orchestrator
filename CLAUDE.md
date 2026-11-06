@@ -47,7 +47,8 @@ In scope:
   asymptotics given explicitly by the author in the spec**, without deriving
   complexity from the legend text on its own;
 - a test plan (which generators and tests are needed), then generators from it
-  (C++/testlib) and a FreeMarker test-script;
+  (C++/testlib) and a FreeMarker test-script; tests for particular wrong solutions — only
+  for those the local runs of the solutions report as not caught (`tests_survivors`);
 - optional drafts of author solutions (ok/wa/tl/ml/...) for later
   manual review by the author — in stages (the main `ok`, the other `ok`, time/memory,
   wrong answers), each stage checked by a local run of its solutions before the next one;

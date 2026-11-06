@@ -61,6 +61,7 @@ from orchestrator.pipeline import (
     OUTCOME_FAILED,
     OUTCOME_NO_PENDING,
     OUTCOME_PROPOSED,
+    OUTCOME_RECHECK,
     OUTCOME_SKIPPED_OPTIONAL,
     OUTCOME_UNCERTAIN,
     STATUS_ACCEPTED,
@@ -112,6 +113,7 @@ _OUTCOME_LABELS = {
     OUTCOME_ERROR: "error",
     OUTCOME_CONFLICT: "conflict",
     OUTCOME_FAILED: "failed",
+    OUTCOME_RECHECK: "rechecking",
 }
 
 # The package's logger — both the console output (see
@@ -358,7 +360,9 @@ def _review_marks_warning(args: argparse.Namespace) -> list[str]:
 
 
 def cmd_llm_generate(args: argparse.Namespace) -> int:
-    return _run_llm_pipeline(args, force=args.force, fresh=args.fresh)
+    return _run_llm_pipeline(
+        args, force=args.force, fresh=args.fresh, survivor_rounds=args.survivor_rounds
+    )
 
 
 def cmd_llm_tutorial(args: argparse.Namespace) -> int:

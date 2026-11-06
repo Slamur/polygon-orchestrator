@@ -189,7 +189,7 @@ class Stage:
 
     # --- whether the stage is needed ----------------------------------------------
 
-    def skip_detail(self, spec: ProblemSpec) -> str | None:
+    def skip_detail(self, spec: ProblemSpec, **_: Any) -> str | None:
         """Why the stage isn't needed for this problem; `None` — it is."""
         solutions = spec.solutions
         if solutions is None:
