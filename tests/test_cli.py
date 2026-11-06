@@ -38,8 +38,14 @@ _RESPONSES = {
     "test_script_draft": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
     ),
-    "solutions_draft": ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[]
+    "solutions_main": ModelResponse(
+        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}, notes=[]
+    ),
+    "solutions_slow": ModelResponse(
+        status="confirmed", artifacts={"tl_cpp_n2_draft.cpp": "int main(){}"}, notes=[]
+    ),
+    "solutions_wrong": ModelResponse(
+        status="confirmed", artifacts={"wa_cpp_off_draft.cpp": "int main(){}"}, notes=[]
     ),
     "checker_draft": ModelResponse(
         status="confirmed", artifacts={"checker.cpp": "int main(){}"}, notes=[]
@@ -80,7 +86,8 @@ def test_run_single_problem_prints_step_outcomes_and_exits_zero(problems_dir, tm
     out = capsys.readouterr().out
     assert "=== p1 ===" in out
     assert "statement_draft: confirmed" in out
-    assert "solutions_draft: confirmed" in out
+    assert "solutions_main: confirmed" in out
+    assert "run_main: confirmed" in out
 
 
 def test_run_writes_llm_generation_log(problems_dir, tmp_path, capsys):
@@ -243,7 +250,8 @@ def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    assert out.count("cache hit") == 7
+    # The six steps up to the solutions, three solution stages and their three local runs.
+    assert out.count("cache hit") == 12
 
 
 def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
@@ -271,7 +279,10 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     assert "upstream: constraints.yaml" in report_text
 
     cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
-    assert capsys.readouterr().out.count("cache hit") == 7
+    out = capsys.readouterr().out
+    # The local runs read constraints.yaml too: they aren't accepted, 'llm generate' runs them.
+    assert out.count("cache hit") == 9
+    assert "run_main: stale" in out
 
 
 def test_accept_before_any_run_exits_nonzero(problems_dir, tmp_path, capsys):

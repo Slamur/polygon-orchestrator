@@ -33,6 +33,28 @@ def _skip_test_script_check(monkeypatch):
     monkeypatch.setenv(SKIP_CHECK_ENV, "1")
 
 
+@pytest.fixture
+def real_local_runs():
+    """Requested by the tests of the solution stages' local runs: without it the runs are
+    a stub (`_stub_local_runs`)."""
+
+
+@pytest.fixture(autouse=True)
+def _stub_local_runs(request, monkeypatch):
+    """The local runs between the solution stages (`steps.solutions_check`) build and run
+    every solution on every test — in the pipeline tests they pass without running anything;
+    the tests of the runs themselves request `real_local_runs`."""
+    if "real_local_runs" in request.fixturenames:
+        return
+    from orchestrator.steps import solutions_check
+
+    monkeypatch.setattr(
+        solutions_check,
+        "run_solutions",
+        lambda *args, full=False, **kwargs: solutions_run.SolutionsRunResult(full=full),
+    )
+
+
 # How many days to keep a build in the cache that no test requested.
 _COMPILE_CACHE_MAX_AGE_DAYS = 14
 

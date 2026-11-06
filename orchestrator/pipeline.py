@@ -50,6 +50,8 @@ from orchestrator.problem_paths import (
 from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import (
+    ADOPTED_STEPS,
+    GATE_STEPS,
     LLM_STEPS,
     MECHANICAL_STEPS,
     ON_DEMAND_STEPS,
@@ -61,7 +63,6 @@ from orchestrator.steps import (
     generators_draft,
     interactor_draft,
     limits_from_constraints,
-    solutions_draft,
     statement_draft,
     test_script_draft,
     tests_plan,
@@ -76,10 +77,15 @@ from orchestrator.steps.base import (
     StepRevision,
     StepUncertainError,
 )
+from orchestrator.steps.solutions import SOLUTION_STEPS, STAGES
+from orchestrator.steps.solutions_check import STATUS_FAILED as GATE_FAILED
+from orchestrator.steps.solutions_check import GateFailedError
 
 logger = logging.getLogger(__name__)
 
-_STEP_MODULES: dict[str, ModuleType] = {
+# A step module or an object with the same interface (the solution stages and their local
+# runs, `steps.solutions`).
+_STEP_MODULES: dict[str, ModuleType | Any] = {
     "statement_draft": statement_draft,
     "constraints_pick": constraints_pick,
     "limits_from_constraints": limits_from_constraints,
@@ -88,7 +94,7 @@ _STEP_MODULES: dict[str, ModuleType] = {
     "test_script_draft": test_script_draft,
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
-    "solutions_draft": solutions_draft,
+    **SOLUTION_STEPS,
     "tutorial_draft": tutorial_draft,
 }
 
@@ -104,7 +110,7 @@ _STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
     "tests_plan": ("constraints_pick",),
     "generators_draft": ("constraints_pick", "tests_plan"),
     "test_script_draft": ("constraints_pick", "tests_plan"),
-    "solutions_draft": ("constraints_pick",),
+    **{stage.STEP_NAME: ("constraints_pick",) for stage in STAGES.values()},
 }
 
 # StepOutcome.status statuses:
@@ -116,6 +122,8 @@ OUTCOME_SKIPPED_OPTIONAL = "skipped_optional"
 OUTCOME_ERROR = "error"
 OUTCOME_CONFLICT = "conflict"
 OUTCOME_NO_PENDING = "no_pending_response"
+# A local run of solutions (`GATE_STEPS`) found solutions that don't behave as named.
+OUTCOME_FAILED = "failed"
 
 
 @dataclass
@@ -164,14 +172,23 @@ class PipelineResult:
 def _artifact_present(path: Path) -> bool:
     """Checks that the file/directory expected by the step is actually in place.
 
-    For the `solutions_draft` step `path` is a directory with an arbitrary set of
-    files (the model names the solutions itself), so "in place" means
-    "exists and has something in it besides what's marked `.removed`"; for
-    the other steps `path` is a particular file.
+    For a directory (`statement_draft`) "in place" means "exists and has something in
+    it besides what's marked `.removed`"; for the other steps `path` is a particular
+    file. Steps that know better say it themselves (`_step_artifact_present`).
     """
     if path.is_dir():
         return any(not is_removed_mark(child) for child in path.iterdir())
     return path.exists()
+
+
+def _step_artifact_present(
+    module: Any, problem_id: str, spec: Any, primary_path: Path, problems_dir: Path
+) -> bool:
+    """The step's files are in place: by the step itself (`artifact_present` of the
+    solution stages and their local runs), otherwise — by its primary artifact."""
+    if hasattr(module, "artifact_present"):
+        return module.artifact_present(problem_id, spec, problems_dir=problems_dir)
+    return _artifact_present(primary_path)
 
 
 @dataclass
@@ -184,6 +201,9 @@ class _StepHashes:
     prompt_parts: dict[str, str]
     model: str
     input_values: dict[str, Any]
+    # Why the step reruns even with a valid cache (`forced_rerun_reason` of a solution
+    # stage whose local run failed); `None` — the cache decides.
+    forced_reason: str | None = None
 
 
 def _generate_command(step_name: str) -> str:
@@ -204,8 +224,11 @@ def _optional_skip_detail(
         return (
             f"no authoring/{TUTORIAL_DRAFT_FILENAME} — the tutorial was not requested by the author"
         )
-    if step_name == "solutions_draft" and spec.solutions is None:
-        return "spec has no 'solutions' section — solution drafts were not requested by the author"
+    module = _STEP_MODULES[step_name]
+    if hasattr(module, "skip_detail"):
+        detail = module.skip_detail(spec)
+        if detail is not None:
+            return detail
     if step_name == "checker_draft" and spec.checker.custom_needed is False:
         return "checker.custom_needed=false — a standard checker is used, no draft requested"
     if step_name == "interactor_draft" and not spec.interactive:
@@ -251,6 +274,12 @@ def _load_upstream(
         )
         if path.exists():
             upstream_artifacts[name] = path.read_text(encoding="utf-8")
+    module = _STEP_MODULES[step_name]
+    if hasattr(module, "load_inputs"):
+        # Read anew before each step: the previous stage may have just written them.
+        upstream_artifacts[module.INPUTS_KEY] = module.load_inputs(
+            problem_id, spec, problems_dir=problems_dir
+        )
 
 
 def _remember_upstream(step_name: str, path: Path, upstream_artifacts: dict[str, Any]) -> None:
@@ -274,6 +303,11 @@ def _compute_step_hashes(
     module = _STEP_MODULES[step_name]
     input_hash = module.compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*module.hash_inputs(problem_id, spec, upstream_artifacts))
+    forced_reason = (
+        module.forced_rerun_reason(problem_id, spec, upstream_artifacts)
+        if hasattr(module, "forced_rerun_reason")
+        else None
+    )
     if step_name in MECHANICAL_STEPS:
         return _StepHashes(
             input_hash=input_hash,
@@ -296,6 +330,7 @@ def _compute_step_hashes(
         prompt_parts=compute_prompt_parts(step_name, **prompt_kwargs),
         model=model_router.STEP_TO_MODEL[step_name],
         input_values=input_values,
+        forced_reason=forced_reason,
     )
 
 
@@ -430,6 +465,13 @@ def _run_step_into(
             problems_dir=problems_dir,
             templates_dir=templates_dir,
         )
+    except GateFailedError as exc:
+        # The solutions don't behave as their names say: the report is in `llm_reports/`.
+        result.outcomes.append(
+            StepOutcome(step_name, OUTCOME_FAILED, exc.detail, notes=exc.notes, ran=True)
+        )
+        result.stopped_uncertain = True
+        return False
     except StepUncertainError as exc:
         # The text of the notes is in the step report (`llm_report`), only the fields here.
         fields = ", ".join(str(note.get("field", "?")) for note in exc.notes)
@@ -633,7 +675,9 @@ def run_pipeline(
 
         cache_entry = load_cache_entry(problem_id, step_name, problems_dir=problems_dir)
         primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
-        artifact_present = _artifact_present(primary_path)
+        artifact_present = _step_artifact_present(
+            module, problem_id, spec, primary_path, problems_dir
+        )
 
         if step_name == "tutorial_draft":
             names = tutorial_draft.solution_names(upstream_artifacts[tutorial_draft.INPUTS_KEY])
@@ -682,27 +726,41 @@ def run_pipeline(
             result.stopped_uncertain = True
             return result
         elif (
-            step_name in MECHANICAL_STEPS
+            step_name in ADOPTED_STEPS
             and cache_entry is None
             and artifact_present
+            and hashes.forced_reason is None
             and not (force or fresh)
         ):
-            # The file didn't come from this step (e.g. `limits.yaml` was downloaded by
-            # `polygon pull`) — it's more up to date than what the step would derive.
+            # The files didn't come from this step (`limits.yaml` downloaded by `polygon
+            # pull`, solutions written by the author) — they are more up to date than what
+            # the step would write.
             _save_accepted_entry(problem_id, step_name, hashes, problems_dir)
             result.outcomes.append(
                 StepOutcome(
                     step_name,
                     OUTCOME_CACHE_HIT,
-                    f"{primary_path.name} already exists and the step has never run — kept as is "
-                    f"('llm generate --step {step_name} --force' derives it again)",
+                    "its files already exist and the step has never run — kept as is "
+                    f"('llm generate --step {step_name} --force' writes them again)",
                 )
             )
         elif (
             not (force or fresh)
             and is_cache_valid(cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model)
             and artifact_present
+            and hashes.forced_reason is None
         ):
+            if step_name in GATE_STEPS and cache_entry.status == GATE_FAILED:
+                result.outcomes.append(
+                    StepOutcome(
+                        step_name,
+                        OUTCOME_FAILED,
+                        "the last local run failed and nothing it reads has changed — see "
+                        f"{primary_path.relative_to(Path(problems_dir) / problem_id)}",
+                    )
+                )
+                result.stopped_uncertain = True
+                return result
             result.outcomes.append(
                 StepOutcome(
                     step_name,
@@ -715,6 +773,8 @@ def run_pipeline(
                 rerun_reason = "from scratch (--fresh)"
             elif force:
                 rerun_reason = "forced (--force)"
+            elif hashes.forced_reason is not None:
+                rerun_reason = hashes.forced_reason
             elif cache_entry is None or cache_entry.status == UNCERTAIN_STATUS:
                 rerun_reason = ""
             elif not artifact_present:
@@ -761,6 +821,7 @@ STATUS_UNCERTAIN = "uncertain"
 STATUS_CONFLICT = "conflict"
 STATUS_SKIPPED_OPTIONAL = "skipped (optional)"
 STATUS_BLOCKED = "blocked"
+STATUS_FAILED = "failed"
 
 # Additional StepStatus.state states for `orchestrator <problem> llm accept`.
 STATUS_ACCEPTED = "accepted"
@@ -901,7 +962,7 @@ def _walk_steps(
                     step_name,
                     cache_entry,
                     hashes,
-                    _artifact_present(primary_path),
+                    _step_artifact_present(module, problem_id, spec, primary_path, problems_dir),
                     problems_dir,
                 )
             )
@@ -964,9 +1025,11 @@ def _cache_status_of_step(
     artifact_present: bool,
 ) -> StepStatus:
     if cache_entry is None:
-        if step_name in MECHANICAL_STEPS and artifact_present:
+        if step_name in ADOPTED_STEPS and artifact_present and hashes.forced_reason is None:
             return StepStatus(
-                step_name, STATUS_NOT_RUN, "the file already exists — 'llm generate' keeps it as is"
+                step_name,
+                STATUS_NOT_RUN,
+                "its files already exist — 'llm generate' keeps them as is",
             )
         return StepStatus(step_name, STATUS_NOT_RUN)
     if cache_entry.status == UNCERTAIN_STATUS:
@@ -977,7 +1040,13 @@ def _cache_status_of_step(
         )
     if not artifact_present:
         return StepStatus(step_name, STATUS_STALE, "artifact is missing on disk")
+    if hashes.forced_reason is not None:
+        return StepStatus(step_name, STATUS_STALE, hashes.forced_reason)
     if is_cache_valid(cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model):
+        if step_name in GATE_STEPS and cache_entry.status == GATE_FAILED:
+            return StepStatus(
+                step_name, STATUS_FAILED, "the last local run failed — see its report"
+            )
         return StepStatus(step_name, STATUS_CACHE_HIT)
     return StepStatus(step_name, STATUS_STALE, _stale_reason(cache_entry, hashes))
 
@@ -995,6 +1064,17 @@ def _accept_step(
     )
     if current.state == STATUS_CACHE_HIT:
         return current
+    if step_name in GATE_STEPS:
+        # A local run is a check, not files to accept: 'llm generate' runs it.
+        return current
+    if hashes.forced_reason is not None:
+        # The local run of the stage failed — accepted, it would fail again.
+        return StepStatus(
+            step_name,
+            STATUS_NOT_ACCEPTED,
+            f"{hashes.forced_reason} — fix the files or run "
+            f"'orchestrator {problem_address(problems_dir, problem_id)} llm generate'",
+        )
     if current.state == STATUS_CONFLICT:
         assert cache_entry is not None
         if not _conflicts_resolved(problem_id, cache_entry, problems_dir):

@@ -64,7 +64,7 @@ def hash_inputs(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """The path to the step's primary artifact — unlike `solutions_draft`
+    """The path to the step's primary artifact — unlike the solution stages
     (a directory with an arbitrary set of files), `checker_draft` has exactly one
     file with a fixed name, see `constraints_pick.primary_artifact_path`.
     """
@@ -114,7 +114,7 @@ def run_step(
 
     Requires `spec.checker.custom_needed is True` — with a standard
     checker (`custom_needed: false`) no draft was ordered, and running the step makes no
-    sense (unlike `solutions_draft`, where a whole
+    sense (unlike the solution stages, where a whole
     optional section is absent, here the `checker` section is always mandatory, and
     "the step isn't needed" is expressed by the concrete value `custom_needed: false`).
 

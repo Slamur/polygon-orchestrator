@@ -73,7 +73,7 @@ generation:
   references: []                     # [optional] samples only for this step
 
 # ---------------------------------------------------------------------------
-# 4. SOLUTION DRAFTS — the solutions_draft step
+# 4. SOLUTION DRAFTS — the solution stages solutions_*
 # The section is optional: if solutions don't need generating, delete it entirely.
 # ---------------------------------------------------------------------------
 solutions:

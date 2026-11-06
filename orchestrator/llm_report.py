@@ -23,7 +23,17 @@ import re
 from pathlib import Path
 from typing import Any
 
+from orchestrator.step_order import GATE_STEPS
 from orchestrator.steps.base import CONFLICTS_REPORT
+
+# `pipeline.OUTCOME_FAILED` (the pipeline isn't imported here).
+GATE_FAILED_OUTCOME = "failed"
+# The line of a failed local run's report after which the author writes a comment for
+# the model (`steps.solutions_check.read_author_comment`).
+COMMENT_MARKER = (
+    "<!-- Write below what the model should know when it revises the solutions; "
+    "the next 'llm generate' passes it together with this report. -->"
+)
 
 REPORTS_DIRNAME = "llm_reports"
 SPEC_FROM_DRAFT_REPORT = "spec_from_draft"
@@ -33,12 +43,17 @@ ACCEPT_REPORT = "accept"
 # The order and titles of the note groups; notes of other `kind`s — at the end, in
 # `_OTHER_NOTES_TITLE`.
 _NOTE_SECTIONS = (
+    ("error", "Errors of the problem — fix the tests, the checker or the spec"),
+    ("failed", "Solutions that don't behave as their names say"),
     ("uncertain", "Uncertain — the spec needs fixing"),
     ("proposed", "Proposed — review"),
     ("suggestion", "Suggestions beyond the spec"),
     ("uncovered", "Not covered by the tests plan — review"),
     ("plan_mismatch", "Differs from the tests plan — review"),
     ("changed", "Changed"),
+    ("survived", "Not caught by the tests from the script"),
+    ("warning", "Warnings"),
+    ("passed", "Passed"),
 )
 _OTHER_NOTES_TITLE = "Other notes"
 
@@ -91,6 +106,8 @@ def write_step_report(
     lines += _notes_sections(outcome.notes)
     lines += _files_section(problem_dir, outcome)
     lines += _diffs_section(problem_dir, outcome)
+    if outcome.step_name in GATE_STEPS and outcome.status == GATE_FAILED_OUTCOME:
+        lines += ["## Your comment for the model", "", COMMENT_MARKER, ""]
     return _write(report_path(problem_dir, outcome.step_name), lines)
 
 

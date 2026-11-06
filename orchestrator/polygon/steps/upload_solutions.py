@@ -1,11 +1,11 @@
 """A Polygon step — uploading all files from `problems/<problem_id>/solutions/`
-(the result of the `solutions_draft` generative step) to Polygon
+(the result of the solution stages `solutions_*`) to Polygon
 (`problem.saveSolution`) with a verdict tag for each.
 
 A solution that already exists on Polygon is uploaded with its current tag:
 the author sets the tags there, and push doesn't change them. A new solution's tag is derived
 from the file name by the `<verdict>_<language>_<description>_<author>.<ext>` scheme
-(`prompts/solutions_draft/system.md`, rule 5):
+(`prompts/solutions/system.md`, rule 5):
 
 - `MA` (Main correct — the reference for generating the tests' answers,
   `templates/tutorials/solutions.md`, "Solutions in Polygon") is assigned only
@@ -104,7 +104,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Uploads each solution that differs from the sync base, with the tag
     from `_tag_to_send` (`ctx.spec` isn't used).
 
-    Both dependencies (`create_problem`, `solutions_draft`), parsing the names and
+    Both dependencies (`create_problem`, the solution stages), parsing the names and
     the presence of an `ok` file — over the whole set and before the first network call.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
@@ -168,8 +168,8 @@ def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, byte
         address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': directory {solutions_dir} not found — first "
-            f"run the generative step solutions_draft (`orchestrator {address} llm generate "
-            f"--step solutions_draft`)"
+            f"run the solution stages (`orchestrator {address} llm generate`, "
+            "starting with `--step solutions_main`)"
         )
     paths = sorted(
         (p for p in solutions_dir.iterdir() if p.is_file() and not is_removed_mark(p)),

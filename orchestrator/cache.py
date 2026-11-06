@@ -51,7 +51,7 @@ def compute_input_hash(
     `spec_section` — the part of the spec the step depends on (see CLAUDE.md:
     `statement_draft` -> the `statement_draft` section, `constraints_pick` ->
     the `constraints` section, `tests_plan` -> the `generation` section,
-    `solutions_draft` -> the `solutions` section).
+    `solutions_main` -> its part of the `solutions` section).
     `upstream_artifacts` — the artifacts of previous steps the current one
     depends on (e.g. the contents of `constraints.yaml` for steps 3 and 4);
     `None` for steps without such a dependency.

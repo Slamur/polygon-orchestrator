@@ -76,11 +76,11 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
     client.call.assert_not_called()
 
 
-def test_missing_solutions_dir_points_to_solutions_draft(problems_dir, spec):
+def test_missing_solutions_dir_points_to_the_solution_stages(problems_dir, spec):
     link(problems_dir)
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="solutions_draft"):
+    with pytest.raises(PolygonStepError, match="solutions_main"):
         _run(spec, problems_dir, client)
 
     client.call.assert_not_called()

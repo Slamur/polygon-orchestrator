@@ -29,7 +29,9 @@ __all__ = [
 ]
 
 # The mapping of a step to a nominal model class. Steps critical in content
-# (constraints_pick, solutions_draft) — through the strong model.
+# (constraints_pick, solutions_main) — through the strong model. The other solution
+# stages build on the code of the main solution (a translation to another language, a
+# minimal change of an ok solution) — the medium model with high effort.
 # Test preparation is split into three steps, so that the substantive part goes
 # separately from the voluminous one. tests_plan — test design: generators
 # composed from the author's ideas and the edge cases of the input, with
@@ -50,7 +52,7 @@ __all__ = [
 # "Model routing by step criticality"). The medium model is a compromise;
 # if in practice `custom_comparison_notes` often turns out not precise
 # enough and the step goes to uncertain too often, the next escalation step is
-# to the strong model, like constraints_pick/solutions_draft.
+# to the strong model, like constraints_pick/solutions_main.
 # interactor_draft — an optional step (only interactive problems): unlike
 # the checker it isn't translating one comparison rule into code, but
 # implementing the whole protocol — reading queries in distrust mode, limits,
@@ -72,7 +74,10 @@ STEP_TO_MODEL: dict[str, str] = {
     "tests_plan": "medium-model",
     "generators_draft": "medium-model",
     "test_script_draft": "medium-model",
-    "solutions_draft": "strong-model",
+    "solutions_main": "strong-model",
+    "solutions_ok": "medium-model",
+    "solutions_slow": "medium-model",
+    "solutions_wrong": "medium-model",
     "checker_draft": "medium-model",
     "interactor_draft": "strong-model",
     "spec_from_draft": "strong-model",
@@ -82,7 +87,8 @@ STEP_TO_MODEL: dict[str, str] = {
 
 # The effort level per step (shared by the vendors that support such a knob;
 # those that don't are entitled to ignore it). constraints_pick/
-# solutions_draft — the riskiest by the cost of a mistake; tests_plan — high
+# solutions_main — the riskiest by the cost of a mistake (the other solution stages —
+# high too: a wrong solution must differ from ok in exactly the declared mistake); tests_plan — high
 # because of designing the tests, generators_draft/test_script_draft —
 # medium, it's implementing the plan; checker_draft — high for the same
 # reason as the model class: the cost of a mistake in comparing answers is high even
@@ -96,7 +102,10 @@ STEP_TO_EFFORT: dict[str, str] = {
     "tests_plan": "high",
     "generators_draft": "medium",
     "test_script_draft": "medium",
-    "solutions_draft": "high",
+    "solutions_main": "high",
+    "solutions_ok": "high",
+    "solutions_slow": "high",
+    "solutions_wrong": "high",
     "checker_draft": "high",
     "interactor_draft": "high",
     "spec_from_draft": "high",

@@ -55,10 +55,10 @@ paths:
 - `templates/solutions/<verdict>_<description>.<language>` — solution
   skeletons (`ok.cpp`, `tl_ok_slowio.java`): the author's input/output method,
   `solve()`, separate answer computation and an entry point, without an algorithm;
-  the skeleton's language is its extension. `solutions_draft` attaches all
+  the skeleton's language is its extension. The solution stages attach all
   skeletons of each language from `solutions.languages` for which the references
   gave no `ok` solution (`extra_context_documents` in
-  `orchestrator/steps/solutions_draft.py`) — so input/output is set even without
+  `orchestrator/steps/solutions.py`) — so input/output is set even without
   references. A new language or verdict — a new file with the extension the language
   is named with in solution names (`ok.kt`), no code changes needed.
 - Samples (files of other problems) are attached to the model call only as

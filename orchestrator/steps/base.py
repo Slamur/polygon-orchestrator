@@ -1,7 +1,7 @@
 """The shared loop of one generative step.
 
 Each of the steps (`statement_draft`, `constraints_pick`, `tests_plan`,
-`generators_draft`, `test_script_draft`, `solutions_draft`, `checker_draft`,
+`generators_draft`, `test_script_draft`, the solution stages (`solutions_*`), `checker_draft`,
 `interactor_draft`, see CLAUDE.md,
 "Role of each generative step") is the same sequence of
 actions over different data:
@@ -129,7 +129,7 @@ INVALID_NAMES_SUBDIR = "invalid_names"
 PROBLEM_LIB_FILENAME = "problem_lib.h"
 
 # The rules for interactive problems (`spec.interactive`): `interactor_draft`
-# always gets them, `statement_draft` and `solutions_draft` — only for an
+# always gets them, `statement_draft` and the solution stages — only for an
 # interactive problem (via `extra_context_documents`), so that editing them doesn't
 # invalidate the cache of these steps for normal problems.
 INTERACTIVE_TUTORIAL = "tutorials/interactive.md"
@@ -174,7 +174,16 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         "tutorials/freemarker.md",
         "test_script_functions.ftl",
     ],
-    "solutions_draft": [
+    "solutions_main": [
+        "tutorials/solutions.md",
+    ],
+    "solutions_ok": [
+        "tutorials/solutions.md",
+    ],
+    "solutions_slow": [
+        "tutorials/solutions.md",
+    ],
+    "solutions_wrong": [
         "tutorials/solutions.md",
     ],
     "checker_draft": [

@@ -62,7 +62,7 @@ a rename to an occupied or duplicate name: the problem file stays as it
 was, the model's version is set aside in `.llm_conflicts/<step>-<time>/` (at
 its own path in the problem directory) with a `CONFLICTS.md` report — what wasn't
 applied and why. The files of `generators_draft`, `test_script_draft` and
-`solutions_draft` are independent and are applied one by one (`partial_apply`);
+the solution stages are independent and are applied one by one (`partial_apply`);
 `statement_draft`, `constraints_pick` (`constraints.yaml` and `validator.cpp`
 — 1-to-1), `tests_plan` and `checker_draft` on any conflict aren't applied at all — just like a response
 that didn't pass the step's file-set check (`validate_artifacts`). A step with
@@ -104,8 +104,8 @@ used in `orchestrator/pipeline.py` before calling
   `constraints.yaml` without TL/ML + each generator of `tests_plan.yaml`
   as a separate part; `test_script_draft` → `generation.script_style` +
   `constraints.yaml` without TL/ML + `constants`, `tests` and the plan's generator
-  signatures; `solutions_draft` → the
-  `solutions` section + `constraints.intended_complexity` + input/output from
+  signatures; a solution stage → its part of the
+  `solutions` section (and the code of the solutions of the earlier stages it builds on) + `constraints.intended_complexity` + input/output from
   `statement_draft` (input and output format, `indexing`, examples with answers,
   legend, for an interactive problem — the protocol) + `constraints.yaml` without TL/ML;
   `interactor_draft` → the `interactor` section + the input format and protocol from
@@ -184,7 +184,7 @@ that isn't in the spec, the author wants to know about it, so beyond what was or
 the model may propose its own — with `kind: suggestion` in `notes` (and no lower than
 `status: proposed` for the response, if files were added):
 
-- `solutions_draft` — another correct solution (better asymptotics than
+- the solution stages — another correct solution (`solutions_ok`; better asymptotics than
   `intended_complexity` — with a remark on whether to reconsider the limits;
   noticeably simpler) and likely contestant mistakes that aren't in
   `known_wrong_approaches` — as separate files;

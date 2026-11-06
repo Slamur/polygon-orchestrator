@@ -103,7 +103,7 @@ def test_files_marked_removed_are_not_references(spec, tmp_path):
     assert str(directory / "generators" / "gen_old.cpp.removed") not in reference_documents(
         "generators_draft", common
     )
-    assert reference_documents("solutions_draft", common) == [
+    assert reference_documents("solutions_main", common) == [
         str(directory / "authoring" / "spec.yaml"),
         str(directory / "solutions" / "ok_cpp_main_draft.cpp"),
     ]

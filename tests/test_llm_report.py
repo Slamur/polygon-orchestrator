@@ -101,7 +101,7 @@ def test_renamed_file_is_diffed_against_its_old_name(tmp_path):
     new_path = problem_dir / "solutions" / "wa.cpp"
     new_path.write_text("new\n", encoding="utf-8")
     outcome = StepOutcome(
-        "solutions_draft",
+        "solutions_wrong",
         "confirmed",
         ran=True,
         artifact_paths={"wa.cpp": new_path},
@@ -122,7 +122,7 @@ def test_renamed_file_is_diffed_against_its_old_name(tmp_path):
 def test_compile_errors_and_fences_longer_than_backticks_inside(tmp_path):
     problem_dir = _problem(tmp_path)
     outcome = StepOutcome(
-        "solutions_draft",
+        "solutions_wrong",
         "confirmed",
         ran=True,
         compile_errors={"ok.cpp": "error: ```bad```"},
@@ -137,7 +137,7 @@ def test_compile_errors_and_fences_longer_than_backticks_inside(tmp_path):
 def test_charset_errors_section(tmp_path):
     problem_dir = _problem(tmp_path)
     outcome = StepOutcome(
-        "solutions_draft",
+        "solutions_wrong",
         "confirmed",
         ran=True,
         charset_errors={"ok.cpp": "non-ASCII characters:\nline 1: // ответ"},

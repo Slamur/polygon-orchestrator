@@ -69,7 +69,7 @@ references:                        # [optional] shared references — samples fo
 # The input/output format from here is also passed to the following steps:
 # formal_input_sketch, indexing and the examples' input — to constraints_pick
 # (the reading order for the validator), tests_plan and generators_draft; all of this plus
-# formal_output_sketch, the examples' output and legend_sketch — to solutions_draft.
+# formal_output_sketch, the examples' output and legend_sketch — to the solution stages.
 statement_draft:
   legend_sketch: |                 # [required]
     The author's free text: the plot, the idea, what happens in the problem.
@@ -92,7 +92,7 @@ statement_draft:
         # If not filled in — the author considers the exact value unimportant for
         # the problem's formulation; the field is used as a hint when
         # writing the note (note_hint) and as a sample of the output format for
-        # solutions_draft, but it isn't translated into Polygon tests. input
+        # the solution stages, but it isn't translated into Polygon tests. input
         # is mandatory: it is carried over into the real Polygon tests.
       note_hint: "What must be explained in the example's note (not the text itself)"
   known_ambiguities:               # [optional]
@@ -199,7 +199,7 @@ generation:
     - "my_examples/gen_tree.cpp"
 
 # ---------------------------------------------------------------------------
-# 4. AUTHOR SOLUTIONS (optional, drafts) — input for the solutions_draft step
+# 4. AUTHOR SOLUTIONS (optional, drafts) — input for the solution stages solutions_*
 # ---------------------------------------------------------------------------
 solutions:
   wanted_verdicts: ["ok", "wa", "tl"]  # [required if the section is on] which drafts are needed: ok, wa, tl, tl_ok, ml, re, il (il — only for an interactive problem)
@@ -215,7 +215,8 @@ solutions:
     - "wa: off-by-one in the right boundary of the range"
     - "tl (cpp/java): O(N^2) brute force without optimization"
     - "tl_ok: the correct algorithm with unbuffered input/output"
-    # Each item is a separate solutions_draft solution, items aren't
+    # Each item is a separate solution of the stage of its verdict (solutions_slow
+    # for tl/tl_ok/tle/ml/mle, solutions_wrong for wa/re/il), items aren't
     # skipped or replaced by others; one item — one mistake (two
     # independent mistakes — two items). The prefix "<verdict>: " or
     # "<verdict> (<languages separated by />): " is mandatory (the spec doesn't
@@ -230,7 +231,7 @@ solutions:
     # input or output of the order of 10^5 values or more, the model itself adds
     # a "tl_ok" solution with slow input/output in Java and Python from
     # languages, if there's no such item for the language (as proposed).
-  references: []                       # [optional] references only for solutions_draft (see "References")
+  references: []                       # [optional] references only for the solution stages (see "References")
 
 # ---------------------------------------------------------------------------
 # 5. CHECKER (only with custom_needed: true) — input for the checker_draft step
@@ -325,7 +326,7 @@ root — for all steps) and per-step (in a step's section — only for it):
 | `statement_draft.references` | `statement_draft` |
 | `constraints.references` | `constraints_pick` (and the validator) |
 | `generation.references` | `tests_plan`, `generators_draft`, `test_script_draft` |
-| `solutions.references` | `solutions_draft` |
+| `solutions.references` | the solution stages `solutions_*` |
 | `checker.references` | `checker_draft` |
 | `interactor.references` | `interactor_draft` |
 
@@ -344,7 +345,7 @@ part from the directory (`REFERENCE_DOCUMENTS` in `orchestrator/references.py`):
 | `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `authoring/tests_plan.yaml`, `generators/*.cpp` (without the spec — a "plan → generators" pair) |
 | `test_script_draft` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` (without the spec) |
-| `solutions_draft` | `solutions/*` in the languages from `solutions.languages` |
+| the solution stages `solutions_*` | `solutions/*` in the languages from `solutions.languages` |
 | `checker_draft` | `checker.cpp` |
 | `interactor_draft` | `interactor.cpp` |
 

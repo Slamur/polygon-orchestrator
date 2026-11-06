@@ -58,6 +58,7 @@ from orchestrator.pipeline import (
     OUTCOME_CONFIRMED,
     OUTCOME_CONFLICT,
     OUTCOME_ERROR,
+    OUTCOME_FAILED,
     OUTCOME_NO_PENDING,
     OUTCOME_PROPOSED,
     OUTCOME_SKIPPED_OPTIONAL,
@@ -110,6 +111,7 @@ _OUTCOME_LABELS = {
     OUTCOME_NO_PENDING: "nothing to apply",
     OUTCOME_ERROR: "error",
     OUTCOME_CONFLICT: "conflict",
+    OUTCOME_FAILED: "failed",
 }
 
 # The package's logger — both the console output (see
