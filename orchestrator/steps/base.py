@@ -169,6 +169,10 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         "tutorials/tests.md",
         "problem_lib.h",
     ],
+    "tests_survivors": [
+        "tutorials/tests.md",
+        "tests_plan_format.yaml",
+    ],
     "test_script_draft": [
         "tutorials/tests.md",
         "tutorials/freemarker.md",

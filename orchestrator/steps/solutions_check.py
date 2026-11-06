@@ -14,9 +14,10 @@ The step's input is the contents of everything the run reads (the judged solutio
 generators, the test-script, the validator, the checker, the interactor, the limits,
 the examples) and the spec parts it takes (the checker, the examples' outputs), so
 an unchanged input doesn't run the tests again: a run that failed fails again at once,
-pointing to its report. The failure — `.cache/<step>.report.json`
-(`load_failed_report`): while the input is the same, the stage before reads it and
-revises its solutions with it (and with the author's comment from the report
+pointing to its report. The failures and the survivors — `.cache/<step>.report.json`
+(`load_run_report`); the survivors of a passed run — the input of `tests_survivors`
+(`current_survivors`). While the input is the same, the stage before reads the failures and
+revises its solutions with them (and with the author's comment from the report
 `llm_reports/<step>.md`, `read_author_comment`); a changed input — the report is
 outdated and nobody reads it.
 """
@@ -111,7 +112,7 @@ class Gate:
     def INPUTS_KEY(self) -> str:  # noqa: N802
         return f"{self.step_name}: inputs"
 
-    def skip_detail(self, spec: ProblemSpec) -> str | None:
+    def skip_detail(self, spec: ProblemSpec, **_: Any) -> str | None:
         return self.skip(spec)
 
     def load_inputs(
@@ -179,6 +180,20 @@ class Gate:
         # The run has no artifact: an unchanged input is enough to reuse its result.
         return True
 
+    def current_survivors(
+        self, problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
+    ) -> list[dict[str, Any]]:
+        """The solutions no test from the script caught in the last run — if the run
+        passed and its input is still the same; otherwise none."""
+        entry = load_cache_entry(problem_id, self.step_name, problems_dir=problems_dir)
+        if entry is None or entry.status == STATUS_FAILED:
+            return []
+        upstream = {self.INPUTS_KEY: self.load_inputs(problem_id, spec, problems_dir=problems_dir)}
+        if self.compute_input_hash(problem_id, spec, upstream) != entry.input_hash:
+            return []
+        report = load_run_report(problem_id, self.step_name, problems_dir=problems_dir)
+        return list((report or {}).get("survivors", []))
+
     def failed_report(
         self,
         problem_id: str,
@@ -195,7 +210,7 @@ class Gate:
         upstream = {self.INPUTS_KEY: self.load_inputs(problem_id, spec, problems_dir=problems_dir)}
         if self.compute_input_hash(problem_id, spec, upstream) != entry.input_hash:
             return None
-        report = load_failed_report(problem_id, self.step_name, problems_dir=problems_dir)
+        report = load_run_report(problem_id, self.step_name, problems_dir=problems_dir)
         failures = [f for f in (report or {}).get("failures", []) if f.get("name") in names]
         if not failures:
             return None
@@ -238,7 +253,7 @@ class Gate:
         ]
         survivors = [s for s in judged_outcomes if s["status"] == STATUS_SURVIVED]
         failed = bool(failures or result.errors)
-        _save_failed_report(
+        _save_run_report(
             problem_id,
             self.step_name,
             {
@@ -312,14 +327,14 @@ def read_author_comment(problem_dir: Path, step_name: str) -> str | None:
     return comment.strip() or None
 
 
-def _failed_report_path(problem_id: str, step_name: str, *, problems_dir: Path) -> Path:
+def _run_report_path(problem_id: str, step_name: str, *, problems_dir: Path) -> Path:
     return Path(problems_dir) / problem_id / ".cache" / f"{step_name}.report.json"
 
 
-def load_failed_report(
+def load_run_report(
     problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Any] | None:
-    path = _failed_report_path(problem_id, step_name, problems_dir=problems_dir)
+    path = _run_report_path(problem_id, step_name, problems_dir=problems_dir)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -327,10 +342,10 @@ def load_failed_report(
     return data if isinstance(data, dict) else None
 
 
-def _save_failed_report(
+def _save_run_report(
     problem_id: str, step_name: str, report: dict[str, Any], *, problems_dir: Path
 ) -> None:
-    path = _failed_report_path(problem_id, step_name, problems_dir=problems_dir)
+    path = _run_report_path(problem_id, step_name, problems_dir=problems_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 

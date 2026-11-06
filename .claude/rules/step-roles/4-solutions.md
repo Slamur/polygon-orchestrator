@@ -63,7 +63,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    the pipeline if a judged solution got a verdict its name doesn't allow or didn't
    build, or the problem itself has errors (the validator rejects a test, the checker
    fails). A wrong solution that no test from the script catches (`survived`, the
-   examples don't count) isn't a failure — it's in the report. The run's input is the
+   examples don't count) isn't a failure — it's in the report, and `tests_survivors`
+   adds tests for it (`.claude/rules/step-roles/3-tests.md`). The run's input is the
    contents of everything it reads, so an unchanged input doesn't run the tests again:
    a run that failed fails again at once. Its report — `llm_reports/<run>.md`, with a
    section for the author's comment for the model at the end; the failures —

@@ -365,7 +365,8 @@ plan) → `generators_draft` (generators from the plan) → `test_script_draft`
 → the solutions in stages, each checked by a local run of its solutions on the
 examples and the tests from the script: `solutions_main` → `run_main` →
 `solutions_ok` → `run_ok` → `solutions_slow` → `run_slow` → `solutions_wrong` →
-`run_wrong`. Separately, only via the `llm tutorial` command, —
+`run_wrong` → `tests_survivors` (tests for the wrong solutions no test catches; after it
+the generators, the script and the runs again). Separately, only via the `llm tutorial` command, —
 `tutorial_draft` (the tutorial from a draft).
 
 | Command | What it does | Model |
@@ -375,6 +376,7 @@ examples and the tests from the script: `solutions_main` → `run_main` →
 | `llm generate --step NAME` | Only one step | **yes** |
 | `llm generate --force` | Ignore the cache, revise the current files again | **yes** |
 | `llm generate --fresh` | From scratch, without showing the model the current files | **yes** |
+| `llm generate --survivor-rounds N` | Up to N rounds of tests for uncaught wrong solutions (default 1, 0 — none) | **yes** |
 | `llm tutorial [--ref SOLUTION ...]` | `statement/<language>/tutorial.tex` from `authoring/draft-tutorial.md`: the model expands your thoughts and adds only what you explicitly ask for ("prove", "spell out"). `--ref` (can be repeated) — files from `solutions/` as context; the list is remembered, new `--ref`s replace it, `--no-ref` clears it. Has `--force` and `--fresh` | **yes** |
 | `llm critic [--lens NAME ...]` | The critic reviews the spec as it is: what to remove, simplify or merge (and what the statement examples may be missing) — into `llm_reports/spec_critic/<lens>.md`, a report per lens (`--lens` rewrites only the reports of the lenses it runs); the spec isn't changed, every finding is for you (values still marked `PROPOSED` / `SUGGESTION` are listed separately). One model call per lens (`statement`, `limits`, `tests`, `solutions`; `--lens` — only the named ones). No cache: every run calls the model | **yes** |
 | `llm apply [--step NAME]` | Apply a saved but unapplied model response (e.g. after a conflict or an error) | no |
