@@ -18,6 +18,9 @@ from __future__ import annotations
 # not of the solutions (CLAUDE.md, item 5). `interactor_draft` — there too and for
 # the same reason (CLAUDE.md, item 6). `limits_from_constraints` — right
 # after `constraints_pick`, from whose TL/ML it derives `limits.yaml`.
+# The solutions — in stages, after everything they are run with (tests, checker,
+# interactor): each stage is checked by a local run (`run_*`) before the next one,
+# which builds on its solutions (CLAUDE.md, item 4).
 STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
@@ -27,8 +30,26 @@ STEP_ORDER: list[str] = [
     "test_script_draft",
     "checker_draft",
     "interactor_draft",
-    "solutions_draft",
+    "solutions_main",
+    "run_main",
+    "solutions_ok",
+    "run_ok",
+    "solutions_slow",
+    "run_slow",
+    "solutions_wrong",
+    "run_wrong",
 ]
+
+# The solution stages -> the local run that checks the stage's solutions.
+SOLUTION_STAGES: dict[str, str] = {
+    "solutions_main": "run_main",
+    "solutions_ok": "run_ok",
+    "solutions_slow": "run_slow",
+    "solutions_wrong": "run_wrong",
+}
+# The local runs of the solutions: mechanical steps that stop the pipeline when the
+# stage's solutions don't behave as their names say.
+GATE_STEPS: frozenset[str] = frozenset(SOLUTION_STAGES.values())
 
 # Steps by a separate command, outside `STEP_ORDER`: `llm generate` doesn't run them,
 # but `llm status|apply|accept` see them. The tutorial is written last and at the explicit
@@ -41,7 +62,22 @@ LLM_STEPS: list[str] = [*STEP_ORDER, *ON_DEMAND_STEPS]
 
 # Steps from `STEP_ORDER` without a model call and without prompts: the result is derived
 # mechanically from the files of the previous steps.
-MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints"})
+MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints", *GATE_STEPS})
+
+# Steps whose files, if they exist while the step has never run, are kept as is
+# (an entry accepting them is recorded): `limits.yaml` downloaded by `polygon pull`,
+# solutions written by the author or by an earlier version of the orchestrator.
+ADOPTED_STEPS: frozenset[str] = frozenset({"limits_from_constraints", *SOLUTION_STAGES})
+
+# Steps whose prompts lie in a directory shared with other steps (`prompts/<dir>/`), not in
+# `prompts/<step>/`; the user prompt tells the model which of them it is.
+PROMPT_DIRS: dict[str, str] = {stage: "solutions" for stage in SOLUTION_STAGES}
+
+
+def prompt_dir_name(step_name: str) -> str:
+    """The directory of the step's prompts inside `prompts/`."""
+    return PROMPT_DIRS.get(step_name, step_name)
+
 
 # The list is extended as steps are added — append new names (as
 # a rule, at the end) and add an entry to `polygon.pipeline._POLYGON_STEPS`;

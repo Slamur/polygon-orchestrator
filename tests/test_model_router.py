@@ -46,7 +46,10 @@ def test_step_to_model_covers_all_steps_and_init_draft_calls():
         "tests_plan",
         "generators_draft",
         "test_script_draft",
-        "solutions_draft",
+        "solutions_main",
+        "solutions_ok",
+        "solutions_slow",
+        "solutions_wrong",
         "checker_draft",
         "interactor_draft",
         "spec_from_draft",
@@ -57,7 +60,7 @@ def test_step_to_model_covers_all_steps_and_init_draft_calls():
 
 def test_critical_steps_use_strong_model():
     assert STEP_TO_MODEL["constraints_pick"] == "strong-model"
-    assert STEP_TO_MODEL["solutions_draft"] == "strong-model"
+    assert STEP_TO_MODEL["solutions_main"] == "strong-model"
     assert STEP_TO_MODEL["spec_from_draft"] == "strong-model"
     assert STEP_TO_MODEL["interactor_draft"] == "strong-model"
 
@@ -79,7 +82,7 @@ def test_checker_draft_uses_medium_model():
 def test_step_to_effort_covers_all_five_steps():
     assert set(STEP_TO_EFFORT) == set(STEP_TO_MODEL)
     assert STEP_TO_EFFORT["constraints_pick"] == "high"
-    assert STEP_TO_EFFORT["solutions_draft"] == "high"
+    assert STEP_TO_EFFORT["solutions_main"] == "high"
     assert STEP_TO_EFFORT["tests_plan"] == "high"
     assert STEP_TO_EFFORT["generators_draft"] == "medium"
     assert STEP_TO_EFFORT["test_script_draft"] == "medium"
@@ -131,7 +134,7 @@ def test_set_client_lets_a_different_vendor_replace_the_default(monkeypatch):
     fake_client = _FakeLLMClient(ModelResponse(status="proposed"))
     model_router.set_client(fake_client)
 
-    result = call_model("solutions_draft", "sys", "usr")
+    result = call_model("solutions_main", "sys", "usr")
 
     assert result.status == "proposed"
     assert len(fake_client.calls) == 1

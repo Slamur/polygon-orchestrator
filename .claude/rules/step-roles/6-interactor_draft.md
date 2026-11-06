@@ -26,5 +26,5 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    interactive problem is also given to `statement_draft` (it writes
    `interaction.tex` and the dialogue of each example — what the solution read and
    what it printed, for the "input/output for statements" on Polygon) and
-   `solutions_draft`; the rules — `templates/tutorials/interactive.md`,
+   the solution stages; the rules — `templates/tutorials/interactive.md`,
    which these two steps get only for an interactive problem.

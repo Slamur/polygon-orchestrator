@@ -48,8 +48,11 @@ In scope:
   complexity from the legend text on its own;
 - a test plan (which generators and tests are needed), then generators from it
   (C++/testlib) and a FreeMarker test-script;
-- optional drafts of author solutions (ok/wa/tle) for later
-  manual review by the author;
+- optional drafts of author solutions (ok/wa/tl/ml/...) for later
+  manual review by the author — in stages (the main `ok`, the other `ok`, time/memory,
+  wrong answers), each stage checked by a local run of its solutions before the next one;
+  a failed run stops the pipeline, and the next `llm generate` lets the stage revise its
+  solutions with the run's report (`.claude/rules/step-roles/4-solutions.md`);
 - an optional custom checker draft (C++/testlib, following the
   read_and_check pattern — see `checker.cpp` of the sample problem in `examples/`), only if
   `checker.custom_needed: true` in the spec; if a standard
@@ -87,6 +90,8 @@ The minimal safety net instead of a judging loop at this stage:
   tests from the script, the validator on them, finding identical tests and running
   solutions, checking that the declared verdict is reached; local timing,
   without distinguishing MLE and without comparing solutions against each other;
+  the same run, limited to a stage's solutions, — between the solution stages of
+  `llm generate` (`run_main`, `run_ok`, `run_slow`, `run_wrong`);
 - a **timeout wrapper** around any run of a generated binary
   (e.g. running a generator for a smoke test) — just kill the process on
   timeout, without analyzing TLE/MLE separately.

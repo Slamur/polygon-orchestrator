@@ -163,7 +163,7 @@ def hash_inputs(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """Like for `solutions_draft` — a directory, not a file: `pipeline.py` considers the
+    """Like for the solution stages — a directory, not a file: `pipeline.py` considers the
     cache valid if the directory exists and isn't empty. Previously this was the path to
     the single `statement.tex` — now the step has several files in the
     statement language's directory `statement/<code>/`.

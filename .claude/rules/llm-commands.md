@@ -24,7 +24,10 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   if they exist (see "Revision mode" there).
   `--force` ignores the cache and calls the model again — also in revision
   mode; `--fresh` — again and from scratch, without the current files (implies
-  `--force`). To the console — a line per step and, for a step that worked (called
+  `--force`). Between the solution stages `llm generate` runs the stage's solutions
+  locally (`run_*`, without the model, `.claude/rules/step-roles/4-solutions.md`): a
+  failed run stops the pipeline, its report `llm_reports/<run>.md` ends with a section
+  for the author's comment, and the next run lets the stage revise with the report. To the console — a line per step and, for a step that worked (called
   the model or applied a saved response), the path to its report
   `llm_reports/<step>.md` with a counter of notes by kind. The report
   (`orchestrator/llm_report.py`) is the step's current state, not a history:

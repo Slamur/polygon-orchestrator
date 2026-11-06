@@ -1,11 +1,11 @@
 """A Polygon step — uploading all files from `problems/<problem_id>/solutions/`
-(the result of the `solutions_draft` generative step) to Polygon
+(the result of the solution stages `solutions_*`) to Polygon
 (`problem.saveSolution`) with a verdict tag for each.
 
 A solution that already exists on Polygon is uploaded with its current tag:
 the author sets the tags there, and push doesn't change them. A new solution's tag is derived
 from the file name by the `<verdict>_<language>_<description>_<author>.<ext>` scheme
-(`prompts/solutions_draft/system.md`, rule 5):
+(`prompts/solutions/system.md`, rule 5):
 
 - `MA` (Main correct — the reference for generating the tests' answers,
   `templates/tutorials/solutions.md`, "Solutions in Polygon") is assigned only
@@ -76,6 +76,8 @@ STEP_NAME = "upload_solutions"
 # The Main correct choice priority — exactly in this order. The values are languages
 # after normalization via `_LANGUAGE_ALIASES`.
 _MAIN_LANGUAGE_PRIORITY = ["cpp", "java", "py"]
+# The description of the main `ok` solution (`ok_<language>_main_<author>`), see `_choose_main`.
+MAIN_DESCRIPTION = "main"
 
 # Spellings of a language in a file name -> the name from `_MAIN_LANGUAGE_PRIORITY`.
 _LANGUAGE_ALIASES = {
@@ -95,13 +97,14 @@ class _ParsedSolution:
     path: Path
     verdict: str
     language: str
+    description: str = ""
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Uploads each solution that differs from the sync base, with the tag
     from `_tag_to_send` (`ctx.spec` isn't used).
 
-    Both dependencies (`create_problem`, `solutions_draft`), parsing the names and
+    Both dependencies (`create_problem`, the solution stages), parsing the names and
     the presence of an `ok` file — over the whole set and before the first network call.
     """
     polygon_id = require_polygon_state(ctx).polygon_id
@@ -165,8 +168,8 @@ def _read_solutions(problem_id: str, problems_dir: Path) -> list[tuple[str, byte
         address = problem_address(problems_dir, problem_id)
         raise PolygonStepError(
             f"'{problem_id}': directory {solutions_dir} not found — first "
-            f"run the generative step solutions_draft (`orchestrator {address} llm generate "
-            f"--step solutions_draft`)"
+            f"run the solution stages (`orchestrator {address} llm generate`, "
+            "starting with `--step solutions_main`)"
         )
     paths = sorted(
         (p for p in solutions_dir.iterdir() if p.is_file() and not is_removed_mark(p)),
@@ -197,7 +200,7 @@ def _parse_solution_filename(path: Path) -> _ParsedSolution:
             f"'{path.name}': verdict '{verdict}' is not in the allowed set "
             f"{sorted(_VALID_VERDICTS)} — check the file name manually"
         )
-    return _ParsedSolution(path=path, verdict=verdict, language=language)
+    return _ParsedSolution(path=path, verdict=verdict, language=language, description=parts[2])
 
 
 def _require_ok_solution(parsed: list[_ParsedSolution]) -> None:
@@ -216,16 +219,23 @@ def _tags_on_polygon(client: PolygonClient, polygon_id: int) -> dict[str, str]:
 
 def _choose_main(parsed: list[_ParsedSolution]) -> str:
     """The Main correct file name — the alphabetically first `ok` file of the first language from
-    `_MAIN_LANGUAGE_PRIORITY` for which such a file exists. If no
+    `_MAIN_LANGUAGE_PRIORITY` for which such a file exists, and among them — one with the
+    `MAIN_DESCRIPTION` description first (`ok_cpp_main_draft.cpp`: the main solution
+    of the `solutions_main` step, so that another `ok` doesn't take its place by
+    the alphabet). If no
     language from the priority occurred — a WARNING and the alphabetically first
     `ok` file (risk 1 in the module docstring), not an error."""
     _require_ok_solution(parsed)
     ok_names = sorted(p.path.name for p in parsed if p.verdict == "ok")
 
     for lang in _MAIN_LANGUAGE_PRIORITY:
-        candidates = sorted(p.path.name for p in parsed if p.verdict == "ok" and p.language == lang)
+        candidates = sorted(
+            (p.description.lower() != MAIN_DESCRIPTION, p.path.name)
+            for p in parsed
+            if p.verdict == "ok" and p.language == lang
+        )
         if candidates:
-            return candidates[0]
+            return candidates[0][1]
 
     logger.warning(
         "none of the priority languages %s found among ok solutions %s — "

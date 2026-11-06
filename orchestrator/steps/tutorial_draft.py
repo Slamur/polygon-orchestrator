@@ -44,7 +44,7 @@ from orchestrator.steps.base import (
     language_input,
     run_generative_step,
 )
-from orchestrator.steps.solutions_draft import SOLUTIONS_SUBDIR
+from orchestrator.steps.solutions import SOLUTIONS_SUBDIR
 from orchestrator.steps.statement_draft import STATEMENT_SUBDIR, language_dir
 
 STEP_NAME = "tutorial_draft"

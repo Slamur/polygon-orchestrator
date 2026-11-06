@@ -362,7 +362,10 @@ The steps in order: `statement_draft` → `constraints_pick` →
 plan) → `generators_draft` (generators from the plan) → `test_script_draft`
 (the test-script from the plan) → `checker_draft` (only with
 `checker.custom_needed: true`) → `interactor_draft` (only for interactive problems)
-→ `solutions_draft`. Separately, only via the `llm tutorial` command, —
+→ the solutions in stages, each checked by a local run of its solutions on the
+examples and the tests from the script: `solutions_main` → `run_main` →
+`solutions_ok` → `run_ok` → `solutions_slow` → `run_slow` → `solutions_wrong` →
+`run_wrong`. Separately, only via the `llm tutorial` command, —
 `tutorial_draft` (the tutorial from a draft).
 
 | Command | What it does | Model |
@@ -390,6 +393,14 @@ What's important to know:
   directory and run `llm accept` (or `llm generate --force`).
 - **Subscription limit exhausted** — `llm generate` stops at the current
   step; after the limit resets just run it again.
+- **A local run of the solutions failed** (`run_main`, `run_ok`, `run_slow`,
+  `run_wrong` — after each solution stage, `local run --full` over its solutions).
+  The pipeline stops; `llm_reports/<run>.md` says which solution got which verdict
+  on which test. Either fix the files by hand, or write what the model should know at
+  the end of the report and run `llm generate` again: the stage revises its solutions
+  with the report. An error of the problem itself (the validator rejects a test, the
+  checker fails) isn't given to the model — fix the tests, the checker or the spec.
+  A wrong solution no test from the script catches is only reported.
 
 ### `local` — checks without the model and the network
 

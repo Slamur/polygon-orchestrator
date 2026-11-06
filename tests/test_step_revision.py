@@ -36,7 +36,7 @@ _TESTS_PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8"
 @pytest.fixture
 def prompts_dir(tmp_path):
     directory = tmp_path / "prompts"
-    step_dir = directory / "solutions_draft"
+    step_dir = directory / "solutions"
     step_dir.mkdir(parents=True)
     (step_dir / "system.md").write_text("system rules", encoding="utf-8")
     (step_dir / "user.md.j2").write_text("context: {{ problem_id }}", encoding="utf-8")
@@ -69,7 +69,7 @@ def _run(problem_dir, prompts_dir, response, revision=None, **kwargs):
 
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = run_generative_step(
-            step_name="solutions_draft",
+            step_name="solutions_wrong",
             problem_id="p1",
             context={"problem_id": "p1"},
             input_hash="hash",
@@ -96,7 +96,7 @@ def test_revision_prompt_contains_current_files_and_input_changes(problem_dir, p
     revision = StepRevision(
         current_paths=paths,
         previous_input_values={"spec: algorithm_hint": "old", "spec: languages": ["py"]},
-        other_changes=["prompt: solutions_draft/system.md"],
+        other_changes=["prompt: solutions/system.md"],
     )
 
     _, mock_call = _run(
@@ -114,7 +114,7 @@ def test_revision_prompt_contains_current_files_and_input_changes(problem_dir, p
     assert "Before:\n````\nold\n````" in user_prompt
     assert "After:\n````\nnew\n````" in user_prompt
     assert "spec: languages" not in user_prompt
-    assert "prompt: solutions_draft/system.md" in user_prompt
+    assert "prompt: solutions/system.md" in user_prompt
 
 
 def test_revision_prompt_says_changes_are_unknown_without_previous_values(problem_dir, prompts_dir):
@@ -212,7 +212,7 @@ def test_unchanged_only_revision_writes_nothing_and_makes_no_backup(problem_dir,
 
     assert result.artifact_paths == {}
     assert result.backup_dir is None
-    assert load_cache_entry("p1", "solutions_draft", problems_dir=problem_dir.parent) is not None
+    assert load_cache_entry("p1", "solutions_wrong", problems_dir=problem_dir.parent) is not None
 
 
 def test_existing_removed_mark_is_backed_up_before_being_replaced(problem_dir, prompts_dir):
@@ -360,12 +360,12 @@ def test_file_in_several_places_is_a_conflict_and_the_rest_is_applied(problem_di
     assert _conflict_files(result) == {"solutions/a.py": "x"}
     report = (result.conflicts_dir / CONFLICTS_REPORT).read_text(encoding="utf-8")
     assert "`a.py`" in report and "model version: `solutions/a.py`" in report
-    assert "llm accept --step solutions_draft" in report
-    entry = load_cache_entry("p1", "solutions_draft", problems_dir=problem_dir.parent)
+    assert "llm accept --step solutions_wrong" in report
+    entry = load_cache_entry("p1", "solutions_wrong", problems_dir=problem_dir.parent)
     assert entry.conflicts == result.conflicts_dir.relative_to(problem_dir).as_posix()
-    assert entry.conflicts.startswith(LLM_CONFLICTS_DIRNAME + "/solutions_draft-")
+    assert entry.conflicts.startswith(LLM_CONFLICTS_DIRNAME + "/solutions_wrong-")
     # The response was applied partially — the saved response is no longer needed.
-    assert load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is None
+    assert load_pending_response("p1", "solutions_wrong", problems_dir=problem_dir.parent) is None
 
 
 def test_rename_to_taken_name_is_a_conflict(problem_dir, prompts_dir):
@@ -444,7 +444,7 @@ def test_step_applied_only_as_a_whole_applies_nothing_on_conflict(problem_dir, p
     )
     # Nothing was applied — the response stays for `llm apply`.
     assert (
-        load_pending_response("p1", "solutions_draft", problems_dir=problem_dir.parent) is not None
+        load_pending_response("p1", "solutions_wrong", problems_dir=problem_dir.parent) is not None
     )
 
 
@@ -459,7 +459,7 @@ def test_input_values_are_saved_in_cache(problem_dir, prompts_dir):
         input_values={"spec: algorithm_hint": "hint"},
     )
 
-    entry = load_cache_entry("p1", "solutions_draft", problems_dir=problem_dir.parent)
+    entry = load_cache_entry("p1", "solutions_wrong", problems_dir=problem_dir.parent)
     assert entry.input_values == {"spec: algorithm_hint": "hint"}
     assert set(entry.input_parts) == {"spec: algorithm_hint"}
 
@@ -505,8 +505,14 @@ _PIPELINE_RESPONSES = {
     "test_script_draft": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}
     ),
-    "solutions_draft": ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}
+    "solutions_main": ModelResponse(
+        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}
+    ),
+    "solutions_slow": ModelResponse(
+        status="confirmed", artifacts={"tl_cpp_n2_draft.cpp": "int main(){}"}
+    ),
+    "solutions_wrong": ModelResponse(
+        status="confirmed", artifacts={"wa_cpp_off_draft.cpp": "int main(){}"}
     ),
 }
 
@@ -566,12 +572,14 @@ def test_pipeline_revises_stale_step_with_spec_diff(spec_file, tmp_path):
     result, mock_call = _run_pipeline(problems_dir, responses)
 
     assert result.ok
-    # The legend is the input of statement_draft, tests_plan and solutions_draft; the plan didn't
-    # change, so generators_draft and test_script_draft come from the cache.
+    # The legend is the input of statement_draft, tests_plan and the solution stages; the plan
+    # didn't change, so generators_draft and test_script_draft come from the cache.
     assert [c.args[0] for c in mock_call.call_args_list] == [
         "statement_draft",
         "tests_plan",
-        "solutions_draft",
+        "solutions_main",
+        "solutions_slow",
+        "solutions_wrong",
     ]
     assert result.outcomes[0].detail.endswith("; revising 4 current file(s)")
     prompt = _user_prompt(mock_call, "statement_draft")
@@ -585,23 +593,23 @@ def test_pipeline_fresh_ignores_cache_and_current_files(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     _run_pipeline(problems_dir)
 
-    result, mock_call = _run_pipeline(problems_dir, fresh=True, only_step="solutions_draft")
+    result, mock_call = _run_pipeline(problems_dir, fresh=True, only_step="solutions_main")
 
-    assert [c.args[0] for c in mock_call.call_args_list] == ["solutions_draft"]
+    assert [c.args[0] for c in mock_call.call_args_list] == ["solutions_main"]
     assert result.outcomes[0].detail == "from scratch (--fresh)"
-    assert "Revision mode" not in _user_prompt(mock_call, "solutions_draft")
+    assert "Revision mode" not in _user_prompt(mock_call, "solutions_main")
 
 
 def test_pipeline_force_revises_current_files(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     _run_pipeline(problems_dir)
 
-    result, mock_call = _run_pipeline(problems_dir, force=True, only_step="solutions_draft")
+    result, mock_call = _run_pipeline(problems_dir, force=True, only_step="solutions_main")
 
     assert result.outcomes[0].detail == "forced (--force); revising 1 current file(s)"
-    prompt = _user_prompt(mock_call, "solutions_draft")
+    prompt = _user_prompt(mock_call, "solutions_main")
     assert "The step's input didn't change" in prompt
-    assert "#### `ok_cpp_draft.cpp`" in prompt
+    assert "#### `ok_cpp_main_draft.cpp`" in prompt
 
 
 def test_pipeline_does_not_show_removed_marks_as_current_files(spec_file, tmp_path):
@@ -609,22 +617,22 @@ def test_pipeline_does_not_show_removed_marks_as_current_files(spec_file, tmp_pa
     _run_pipeline(problems_dir)
     (problems_dir / "p1" / "solutions" / "wa_cpp_old.cpp.removed").write_text("old")
 
-    _, mock_call = _run_pipeline(problems_dir, force=True, only_step="solutions_draft")
+    _, mock_call = _run_pipeline(problems_dir, force=True, only_step="solutions_main")
 
-    assert "wa_cpp_old" not in _user_prompt(mock_call, "solutions_draft")
+    assert "wa_cpp_old" not in _user_prompt(mock_call, "solutions_main")
 
 
 def test_solutions_dir_with_only_removed_marks_is_missing_artifact(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     _run_pipeline(problems_dir)
     solutions = problems_dir / "p1" / "solutions"
-    (solutions / "ok_cpp_draft.cpp").rename(solutions / "ok_cpp_draft.cpp.removed")
+    (solutions / "ok_cpp_main_draft.cpp").rename(solutions / "ok_cpp_main_draft.cpp.removed")
 
     statuses, _ = pipeline.compute_step_statuses(
         "p1", prompts_dir=PROMPTS_DIR, problems_dir=problems_dir, templates_dir=TEMPLATES_DIR
     )
 
-    assert {s.step_name: s.state for s in statuses}["solutions_draft"] == pipeline.STATUS_STALE
+    assert {s.step_name: s.state for s in statuses}["solutions_main"] == pipeline.STATUS_STALE
 
 
 # --- the steps' current files -------------------------------------------------
@@ -721,9 +729,11 @@ def test_cli_fresh_flag_and_revision_report(spec_file, tmp_path, capsys):
     problems_dir = tmp_path / "problems"
     _run_pipeline(problems_dir)
     responses = dict(_PIPELINE_RESPONSES)
-    responses["solutions_draft"] = ModelResponse(
+    responses["solutions_wrong"] = ModelResponse(
         status="confirmed",
-        renamed=[{"from": "ok_cpp_draft.cpp", "to": "wa_cpp_draft.cpp", "reason": "now wrong"}],
+        renamed=[
+            {"from": "wa_cpp_off_draft.cpp", "to": "wa_cpp_bound_draft.cpp", "reason": "now wrong"}
+        ],
     )
     base = [
         "--prompts-dir",
@@ -736,7 +746,7 @@ def test_cli_fresh_flag_and_revision_report(spec_file, tmp_path, capsys):
         "llm",
         "generate",
         "--step",
-        "solutions_draft",
+        "solutions_wrong",
     ]
 
     with patch(
@@ -745,10 +755,13 @@ def test_cli_fresh_flag_and_revision_report(spec_file, tmp_path, capsys):
     ):
         assert cli.main(base + ["--force"]) == 0
     assert "(1 removed/renamed)" in capsys.readouterr().out
-    report = (problems_dir / "p1" / "llm_reports" / "solutions_draft.md").read_text(
+    report = (problems_dir / "p1" / "llm_reports" / "solutions_wrong.md").read_text(
         encoding="utf-8"
     )
-    assert "- renamed: `solutions/ok_cpp_draft.cpp` -> [solutions/wa_cpp_draft.cpp]" in report
+    assert (
+        "- renamed: `solutions/wa_cpp_off_draft.cpp` -> [solutions/wa_cpp_bound_draft.cpp]"
+        in report
+    )
     assert "— now wrong" in report
     assert "- previous versions: `.llm_backup/" in report
 
@@ -765,14 +778,14 @@ def test_revise_prompt_is_part_of_every_step_prompt_hash(prompts_dir):
     from orchestrator.cache import compute_prompt_hash, compute_prompt_parts
 
     before = compute_prompt_hash(
-        "solutions_draft", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
+        "solutions_wrong", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
     )
     (prompts_dir / REVISE_PROMPT).write_text("edited", encoding="utf-8")
     after = compute_prompt_hash(
-        "solutions_draft", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
+        "solutions_wrong", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
     )
 
     assert before != after
     assert f"prompt: {REVISE_PROMPT}" in compute_prompt_parts(
-        "solutions_draft", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
+        "solutions_wrong", prompts_dir=prompts_dir, templates_dir=TEMPLATES_DIR
     )

@@ -14,7 +14,7 @@ Common to all steps (revision mode, conflicts, cache, escalation,
 suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
 `.claude/rules/models.md`, `llm` commands — in `.claude/rules/llm-commands.md`.
 
-5. **`checker_draft`** (optional, like `solutions_draft`) — runs
+5. **`checker_draft`** (optional, like the solution stages) — runs
    only if `checker.custom_needed: true` in the spec; if a
    standard checker is used (`checker.standard`, e.g. `ncmp`) — the step doesn't
    run at all, there is nothing to generate. Input: `checker.custom_comparison_notes`

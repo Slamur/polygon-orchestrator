@@ -6,6 +6,9 @@ import pytest
 from orchestrator import pipeline
 from orchestrator.llm_client import LLMCallError
 from orchestrator.model_router import ModelResponse
+from orchestrator.step_order import SOLUTION_STAGES
+
+STAGE_AND_GATE_STEPS = [step for pair in SOLUTION_STAGES.items() for step in pair]
 
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
@@ -39,8 +42,14 @@ _RESPONSES = {
     "test_script_draft": ModelResponse(
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
     ),
-    "solutions_draft": ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_draft.cpp": "int main(){}"}, notes=[]
+    "solutions_main": ModelResponse(
+        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}, notes=[]
+    ),
+    "solutions_slow": ModelResponse(
+        status="confirmed", artifacts={"tl_cpp_n2_draft.cpp": "int main(){}"}, notes=[]
+    ),
+    "solutions_wrong": ModelResponse(
+        status="confirmed", artifacts={"wa_cpp_off_draft.cpp": "int main(){}"}, notes=[]
     ),
     "checker_draft": ModelResponse(
         status="confirmed", artifacts={"checker.cpp": "int main(){}"}, notes=[]
@@ -51,10 +60,11 @@ _RESPONSES = {
 }
 
 # Optional steps the spec fixture doesn't order: a standard checker
-# (checker.custom_needed: false) and a normal, non-interactive problem.
-_SKIPPED_STEPS = {"checker_draft", "interactor_draft"}
-# Steps without a model call.
-_MECHANICAL_STEPS = {"limits_from_constraints"}
+# (checker.custom_needed: false), a normal, non-interactive problem, and one solution
+# language without alternative approaches (no other ok solutions).
+_SKIPPED_STEPS = {"checker_draft", "interactor_draft", "solutions_ok", "run_ok"}
+# Steps without a model call (the local runs are a stub in the tests, see conftest.py).
+_MECHANICAL_STEPS = {"limits_from_constraints", "run_main", "run_slow", "run_wrong"}
 
 
 def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
@@ -201,7 +211,7 @@ def test_missing_spec_yields_spec_error_without_raising(spec_file, tmp_path):
     assert result.outcomes == []
 
 
-def test_solutions_draft_skipped_when_spec_has_no_solutions_section(spec_file, tmp_path):
+def test_solution_stages_skipped_when_spec_has_no_solutions_section(spec_file, tmp_path):
     problems_dir = tmp_path / "problems"
     content = (spec_file).read_text(encoding="utf-8")
     lines = content.splitlines(keepends=True)
@@ -215,7 +225,11 @@ def test_solutions_draft_skipped_when_spec_has_no_solutions_section(spec_file, t
 
     assert result.ok
     statuses = {o.step_name: o.status for o in result.outcomes}
-    assert statuses["solutions_draft"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    assert {
+        name: status
+        for name, status in statuses.items()
+        if name.startswith("solutions_") or name.startswith("run_")
+    } == {name: pipeline.OUTCOME_SKIPPED_OPTIONAL for name in STAGE_AND_GATE_STEPS}
     assert not (problems_dir / "p1" / "solutions").exists()
 
 
@@ -661,10 +675,10 @@ def test_accept_after_hand_edited_constraints_yaml_accepts_downstream_steps(spec
 
     accepted = _accept(problems_dir)
     assert accepted["tests_plan"].state == pipeline.STATUS_ACCEPTED
-    assert accepted["solutions_draft"].state == pipeline.STATUS_ACCEPTED
+    assert accepted["solutions_main"].state == pipeline.STATUS_ACCEPTED
     after = _statuses(problems_dir)
     assert after["tests_plan"].state == pipeline.STATUS_CACHE_HIT
-    assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
+    assert after["solutions_main"].state == pipeline.STATUS_CACHE_HIT
 
 
 def test_accept_only_step_leaves_other_steps_stale(spec_file, tmp_path):
@@ -675,10 +689,10 @@ def test_accept_only_step_leaves_other_steps_stale(spec_file, tmp_path):
         _CONSTRAINTS_YAML.replace("100000", "200000"), encoding="utf-8"
     )
 
-    accepted = _accept(problems_dir, only_step="solutions_draft")
-    assert list(accepted) == ["solutions_draft"]
+    accepted = _accept(problems_dir, only_step="solutions_main")
+    assert list(accepted) == ["solutions_main"]
     after = _statuses(problems_dir)
-    assert after["solutions_draft"].state == pipeline.STATUS_CACHE_HIT
+    assert after["solutions_main"].state == pipeline.STATUS_CACHE_HIT
     assert after["tests_plan"].state == pipeline.STATUS_STALE
 
 
@@ -917,3 +931,85 @@ def test_apply_without_saved_responses_has_nothing_to_do(spec_file, tmp_path):
         pipeline.OUTCOME_NO_PENDING,
         pipeline.OUTCOME_SKIPPED_OPTIONAL,
     }
+
+
+def test_failed_local_run_stops_then_its_stage_revises_with_the_report(
+    spec_file, tmp_path, monkeypatch
+):
+    from orchestrator.checks.solutions_run import SolutionOutcome, SolutionsRunResult
+    from orchestrator.checks.solutions_run import TestOutcome as Outcome
+    from orchestrator.llm_report import COMMENT_MARKER
+    from orchestrator.steps import solutions_check
+
+    main = "ok_cpp_main_draft.cpp"
+    failing = SolutionsRunResult(
+        full=True,
+        solutions=[
+            SolutionOutcome(
+                main, "ok", frozenset({"OK"}), tests=[Outcome("test 2", "TL", 3.0, generated=True)]
+            )
+        ],
+    )
+    monkeypatch.setattr(solutions_check, "run_solutions", lambda *a, **kw: failing)
+    problems_dir = tmp_path / "problems"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        result = _run(problems_dir)
+
+    assert not result.ok
+    assert (result.outcomes[-1].step_name, result.outcomes[-1].status) == (
+        "run_main",
+        pipeline.OUTCOME_FAILED,
+    )
+
+    # Nothing changed: the run isn't repeated, the stage revises with the report — and the
+    # author's comment from it.
+    report = problems_dir / "p1" / "llm_reports" / "run_main.md"
+    report.parent.mkdir(exist_ok=True)
+    report.write_text(f"# run_main\n\n{COMMENT_MARKER}\nuse a heap\n", encoding="utf-8")
+    statuses = _statuses(problems_dir)
+    assert statuses["solutions_main"].state == pipeline.STATUS_STALE
+    assert statuses["run_main"].state == pipeline.STATUS_FAILED
+    responses = dict(_RESPONSES)
+    responses["solutions_main"] = ModelResponse(
+        status="confirmed", artifacts={main: "int main() { /* faster */ }"}
+    )
+    monkeypatch.setattr(
+        solutions_check, "run_solutions", lambda *a, full=False, **kw: SolutionsRunResult(full=full)
+    )
+    with patch(
+        "orchestrator.model_router.call_model", side_effect=lambda step, *a, **kw: responses[step]
+    ) as mock_call:
+        result = _run(problems_dir)
+
+    assert result.ok
+    first = mock_call.call_args_list[0]
+    assert first.args[0] == "solutions_main"
+    assert "test 2: TL" in first.args[2] and "use a heap" in first.args[2]
+    main_outcome = next(o for o in result.outcomes if o.step_name == "solutions_main")
+    assert main_outcome.detail.startswith("the local run 'run_main' failed on " + main)
+
+    # After the revision the stage is a cache hit again.
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        _run(problems_dir)
+    mock_call.assert_not_called()
+
+
+def test_existing_solutions_of_a_stage_that_never_ran_are_kept(spec_file, tmp_path):
+    # Solutions written by the author (or before the stages): no model call for them.
+    problems_dir = tmp_path / "problems"
+    solutions = problems_dir / "p1" / "solutions"
+    solutions.mkdir(parents=True)
+    (solutions / "ok_cpp_prefs_draft.cpp").write_text("int main(){}", encoding="utf-8")
+    (solutions / "wa_cpp_off_draft.cpp").write_text("int main(){}", encoding="utf-8")
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        result = _run(problems_dir)
+
+    assert result.ok
+    called = [c.args[0] for c in mock_call.call_args_list]
+    assert "solutions_main" not in called and "solutions_wrong" not in called
+    # No tl solution yet: the slow stage writes it.
+    assert "solutions_slow" in called
+    outcomes = {o.step_name: o for o in result.outcomes}
+    assert outcomes["solutions_main"].status == pipeline.OUTCOME_CACHE_HIT
+    assert "kept as is" in outcomes["solutions_main"].detail

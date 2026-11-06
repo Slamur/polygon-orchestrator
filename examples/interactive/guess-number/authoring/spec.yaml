@@ -166,7 +166,7 @@ generation:
   references: []
 
 # ---------------------------------------------------------------------------
-# 4. SOLUTION DRAFTS — the solutions_draft step
+# 4. SOLUTION DRAFTS — the solution stages solutions_*
 # ---------------------------------------------------------------------------
 solutions:
   wanted_verdicts: ["ok", "wa", "il"]

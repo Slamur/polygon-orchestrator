@@ -1,7 +1,7 @@
 """The shared loop of one generative step.
 
 Each of the steps (`statement_draft`, `constraints_pick`, `tests_plan`,
-`generators_draft`, `test_script_draft`, `solutions_draft`, `checker_draft`,
+`generators_draft`, `test_script_draft`, the solution stages (`solutions_*`), `checker_draft`,
 `interactor_draft`, see CLAUDE.md,
 "Role of each generative step") is the same sequence of
 actions over different data:
@@ -86,6 +86,7 @@ from orchestrator.problem_paths import (
     is_removed_mark,
 )
 from orchestrator.statement_languages import DEFAULT_LANGUAGE
+from orchestrator.step_order import prompt_dir_name
 
 PROMPTS_DIR = Path("prompts")
 TEMPLATES_DIR = Path("templates")
@@ -128,7 +129,7 @@ INVALID_NAMES_SUBDIR = "invalid_names"
 PROBLEM_LIB_FILENAME = "problem_lib.h"
 
 # The rules for interactive problems (`spec.interactive`): `interactor_draft`
-# always gets them, `statement_draft` and `solutions_draft` — only for an
+# always gets them, `statement_draft` and the solution stages — only for an
 # interactive problem (via `extra_context_documents`), so that editing them doesn't
 # invalidate the cache of these steps for normal problems.
 INTERACTIVE_TUTORIAL = "tutorials/interactive.md"
@@ -173,7 +174,16 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         "tutorials/freemarker.md",
         "test_script_functions.ftl",
     ],
-    "solutions_draft": [
+    "solutions_main": [
+        "tutorials/solutions.md",
+    ],
+    "solutions_ok": [
+        "tutorials/solutions.md",
+    ],
+    "solutions_slow": [
+        "tutorials/solutions.md",
+    ],
+    "solutions_wrong": [
         "tutorials/solutions.md",
     ],
     "checker_draft": [
@@ -441,9 +451,10 @@ def statement_io_section(spec: Any, *, include_output_and_legend: bool) -> dict[
 def render_user_prompt(
     step_name: str, context: dict[str, Any], *, prompts_dir: Path = PROMPTS_DIR
 ) -> str:
-    """Renders `prompts/<step_name>/user.md.j2` from `context`."""
+    """Renders `prompts/<step_name>/user.md.j2` from `context` (the directory —
+    `step_order.prompt_dir_name`)."""
     env = _jinja_env(prompts_dir)
-    template = env.get_template(f"{step_name}/user.md.j2")
+    template = env.get_template(f"{prompt_dir_name(step_name)}/user.md.j2")
     return template.render(**context)
 
 
@@ -507,8 +518,11 @@ def render_missing_artifacts_prompt(
 
 
 def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> str:
-    """Reads `prompts/<step_name>/system.md` as the system prompt."""
-    return (Path(prompts_dir) / step_name / "system.md").read_text(encoding="utf-8")
+    """Reads `prompts/<step_name>/system.md` as the system prompt (the directory —
+    `step_order.prompt_dir_name`)."""
+    return (Path(prompts_dir) / prompt_dir_name(step_name) / "system.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def _expand_context_entry(step_name: str, entry: str, templates_dir: Path) -> list[str]:

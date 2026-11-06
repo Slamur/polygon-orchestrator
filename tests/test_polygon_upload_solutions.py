@@ -76,11 +76,11 @@ def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):
     client.call.assert_not_called()
 
 
-def test_missing_solutions_dir_points_to_solutions_draft(problems_dir, spec):
+def test_missing_solutions_dir_points_to_the_solution_stages(problems_dir, spec):
     link(problems_dir)
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="solutions_draft"):
+    with pytest.raises(PolygonStepError, match="solutions_main"):
         _run(spec, problems_dir, client)
 
     client.call.assert_not_called()
@@ -172,6 +172,16 @@ def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
         "ok_java_main_draft.java": "OK",
         "ok_py_main_draft.py": "OK",
     }
+
+
+def test_main_prefers_the_main_description_within_a_language(problems_dir, spec):
+    link(problems_dir)
+    _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "ok_cpp_main_draft.cpp": b""})
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "OK", "ok_cpp_main_draft.cpp": "MA"}
 
 
 def test_main_falls_back_to_java_without_cpp_ok(problems_dir, spec):

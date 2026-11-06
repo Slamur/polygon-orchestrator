@@ -22,7 +22,8 @@ stronger model; mechanical/boilerplate steps — through a faster/cheaper one.
 | Step                        | Criticality | Proposed model class |
 |-----------------------------|-------------|----------------------------|
 | `constraints_pick`          | high        | strong model             |
-| `solutions_draft`           | high        | strong model             |
+| `solutions_main`            | high        | strong model             |
+| `solutions_ok`, `solutions_slow`, `solutions_wrong` | medium — built on the code of the checked ok solutions | medium model, high effort |
 | `checker_draft`              | high (with incomplete `custom_comparison_notes`) | medium model |
 | `statement_draft` (LaTeX)   | medium      | medium model              |
 | `tests_plan`                | medium — designing the base tests | medium model, high effort |
@@ -41,7 +42,7 @@ reject correct ones, and this may go unnoticed for a long time. The medium model
 a compromise: if in practice `custom_comparison_notes` often turns out to be
 not precise enough and the step goes to `uncertain` too often
 (which by itself isn't bad — that's by design), the step can be raised to the strong
-model, like `constraints_pick`/`solutions_draft`.
+model, like `constraints_pick`/`solutions_main`.
 
 Test preparation is split into `tests_plan` and `generators_draft`/`test_script_draft`
 for a reason: implementing a generator from a ready idea is mechanical, while
@@ -52,7 +53,7 @@ So the reasoning is in `tests_plan` (medium model, high effort, a small
 response), the code — in `generators_draft`/`test_script_draft` (medium model,
 medium effort). If the quality of the proposed tests turns out weak, the next
 escalation step is `tests_plan` to the strong model, like
-`constraints_pick`/`solutions_draft`.
+`constraints_pick`/`solutions_main`.
 
 Model classes ("strong-model"/"medium-model"/"fast-model") and the `effort` per
 step live in `orchestrator/model_router.py` — this module is vendor-independent,

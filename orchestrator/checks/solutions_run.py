@@ -91,7 +91,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -483,11 +483,13 @@ def run_solutions(
     progress: Progress | None = None,
     *,
     full: bool = False,
+    only: Collection[str] | None = None,
 ) -> SolutionsRunResult:
     """Runs the problem's validator and solutions on its examples, with `full` — also
     on the tests from the test-script (see the module docstring). In the problem directory it
     writes only the test cache (`full`). `progress` gets lines along the way:
-    notes and the start of each solution."""
+    notes and the start of each solution. `only` — the names of the solutions to run
+    (`None` — all); Main correct is run anyway: its output is the expected one."""
     problem_dir = Path(problem_dir)
     result = SolutionsRunResult(progress=progress, full=full)
     spec = _read_spec(problem_dir, result)
@@ -531,9 +533,12 @@ def run_solutions(
             try:
                 parsed[path.name] = _parse_solution_filename(path)
             except PolygonStepError as exc:
-                result.solutions.append(
-                    SolutionOutcome(path.name, "?", frozenset(), error=str(exc))
-                )
+                if only is None or path.name in only:
+                    result.solutions.append(
+                        SolutionOutcome(path.name, "?", frozenset(), error=str(exc))
+                    )
+        if only is not None:
+            parsed = _only_with_main(parsed, only)
 
         programs: dict[str, _Program | str] = {}
 
@@ -581,6 +586,14 @@ def run_solutions(
             )
     result.solutions.sort(key=lambda s: s.name)
     return result
+
+
+def _only_with_main(parsed: dict, only: Collection[str]) -> dict:
+    try:
+        main_name = _choose_main(list(parsed.values()))
+    except PolygonStepError:
+        main_name = None
+    return {name: p for name, p in parsed.items() if name in only or name == main_name}
 
 
 def _generated_tests(
