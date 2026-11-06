@@ -610,3 +610,16 @@ def test_crashed_process_is_timed_by_cpu():
     assert _over_time(1.6, 1.2, -6, 1.0)
     assert _over_time(1.6, 0.05, 1, 1.0)
     assert not _over_time(0.5, 0.5, 0, 1.0)
+
+
+def test_only_runs_the_named_solutions_and_main(tmp_path):
+    problem_dir = _problem(
+        tmp_path,
+        {
+            "ok_py_main_draft.py": OK_PY,
+            "wa_py_minus_draft.py": WA_PY,
+            "re_py_exit_draft.py": RE_PY,
+        },
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, only={"re_py_exit_draft.py"})
+    assert sorted(_by_name(result)) == ["ok_py_main_draft.py", "re_py_exit_draft.py"]
