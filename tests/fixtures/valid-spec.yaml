@@ -68,7 +68,7 @@ solutions:
   algorithm_hint: |
     Dijkstra with a priority queue, O((N+K) log N).
   known_wrong_approaches:
-    - "O(N^2) without a heap — TLE on large N"
+    - "tl: O(N^2) without a heap — TLE on large N"
 
 checker:
   standard: "ncmp"

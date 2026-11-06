@@ -81,7 +81,7 @@ solutions:
   languages: []                      # [required] e.g. ["cpp", "java", "python"]
   algorithm_hint: ""                 # [required] the idea of the main algorithm
   alternative_approaches: []         # [optional] other correct ideas — an ok solution for each
-  known_wrong_approaches: []         # [optional] "<verdict> (<languages separated by />): <mistake>", e.g.
+  known_wrong_approaches: []         # [optional] "<verdict> (<languages separated by />): <mistake>", the verdict is mandatory, e.g.
                                      #   - "wa: off-by-one in the right bound"
                                      #   - "tl (cpp): O(N^2) brute force"
   references: []                     # [optional] samples only for this step

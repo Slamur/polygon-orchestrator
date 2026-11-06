@@ -222,6 +222,31 @@ def split_solution_stem(stem: str) -> list[str]:
     return parts
 
 
+# The verdicts of a `known_wrong_approaches` item; its prefix is mandatory: by the verdict
+# the solution stages decide which of them writes the item.
+WRONG_APPROACH_VERDICTS = frozenset(_ALLOWED_VERDICTS - {"ok"})
+_WRONG_APPROACH_RE = re.compile(r"^\s*([A-Za-z_]+)\s*(?:\(([^)]*)\))?\s*:\s*(\S.*)$", re.S)
+
+
+@dataclass(frozen=True)
+class WrongApproach:
+    """A `known_wrong_approaches` item `<verdict> (<languages separated by />): <mistake>`;
+    `languages` — empty if the item doesn't give them."""
+
+    verdict: str
+    languages: tuple[str, ...]
+    mistake: str
+
+
+def parse_wrong_approach(item: str) -> WrongApproach | None:
+    """The item's prefix; `None` — there's no prefix with a known verdict."""
+    match = _WRONG_APPROACH_RE.match(item)
+    if match is None or match.group(1).lower() not in WRONG_APPROACH_VERDICTS:
+        return None
+    languages = tuple(lang.strip() for lang in (match.group(2) or "").split("/") if lang.strip())
+    return WrongApproach(match.group(1).lower(), languages, match.group(3).strip())
+
+
 class Solutions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -241,6 +266,13 @@ class Solutions(BaseModel):
                 "solutions.wanted_verdicts contains unknown verdicts: "
                 f"{unknown} (allowed: {sorted(_ALLOWED_VERDICTS)})"
             )
+        for index, item in enumerate(self.known_wrong_approaches or []):
+            if parse_wrong_approach(item) is None:
+                raise ValueError(
+                    f"solutions.known_wrong_approaches[{index}] must start with the verdict — "
+                    "'<verdict>: <mistake>' or '<verdict> (<languages separated by />): "
+                    f"<mistake>', verdict one of {sorted(WRONG_APPROACH_VERDICTS)}; got {item!r}"
+                )
         return self
 
 

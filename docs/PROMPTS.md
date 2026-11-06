@@ -1045,12 +1045,12 @@ Mandatory rules:
    as in the `ok` sample (or skeleton) in this language.
 3. EACH item of `known_wrong_approaches` is a separate solution (a separate
    file). Don't skip a single item, don't merge it with another and don't replace it
-   with a "neighboring" one from the same list. If an item gives the verdict and/or languages
-   (e.g. "wa (py): ..." or "tl_ok (java/py): ..."), write the solution
+   with a "neighboring" one from the same list. Each item starts with its verdict and
+   may give languages (e.g. "wa (py): ..." or "tl_ok (java/py): ..."): write the solution
    with exactly this verdict and in each of these languages — a file per language,
    even if the verdict or the language isn't in `wanted_verdicts`/`languages`.
-   If the verdict isn't given — determine it from the description. If the languages aren't
-   given — choose them by the verdict (by default, only from `languages`):
+   If the languages aren't given — choose them by the verdict (by default, only from
+   `languages`):
    - `tl` — in C++ (if it isn't in `languages` — in the fastest of them);
    - `tl_ok` ("TL or OK": an asymptotics or a constant borderline in time,
      a correct algorithm without input/output speedup) — in each
@@ -1614,6 +1614,12 @@ after `|`: `legend_sketch: |  # PROPOSED, REVIEW ME: ...`) or of a list
 item. Additionally — an entry in `notes` for each such value:
 `kind: proposed` or `kind: suggestion`, `field` — the path to the spec field
 (`constraints.variables[0].max`, `solutions.known_wrong_approaches[2]`).
+
+Each `solutions.known_wrong_approaches` item starts with its verdict —
+`<verdict>: <mistake>` or `<verdict> (<languages separated by />): <mistake>` (see
+SPEC_FORMAT.md): a spec without it doesn't validate. If the draft doesn't say which
+verdict a mistake gets — determine it from the description and mark the item
+`# PROPOSED, REVIEW ME`.
 
 What's not allowed:
 - Inventing another problem. The essence of the problem — the objects, the rules, the question —

@@ -217,8 +217,9 @@ solutions:
     - "tl_ok: the correct algorithm with unbuffered input/output"
     # Each item is a separate solutions_draft solution, items aren't
     # skipped or replaced by others; one item — one mistake (two
-    # independent mistakes — two items). The optional prefix
-    # "<verdict> (<languages separated by />): " sets the verdict and languages of the solution
+    # independent mistakes — two items). The prefix "<verdict>: " or
+    # "<verdict> (<languages separated by />): " is mandatory (the spec doesn't
+    # validate without it): the verdict — one of wa, tl, tl_ok, tle, ml, mle, re, il
     # (`tl_ok` — "TL or OK": a solution borderline in time or a solution
     # without input/output speedup). Without languages they are chosen by the verdict:
     # tl — C++; tl_ok — all languages from `languages` where it makes sense;

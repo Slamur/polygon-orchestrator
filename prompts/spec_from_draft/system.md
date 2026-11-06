@@ -45,6 +45,12 @@ item. Additionally — an entry in `notes` for each such value:
 `kind: proposed` or `kind: suggestion`, `field` — the path to the spec field
 (`constraints.variables[0].max`, `solutions.known_wrong_approaches[2]`).
 
+Each `solutions.known_wrong_approaches` item starts with its verdict —
+`<verdict>: <mistake>` or `<verdict> (<languages separated by />): <mistake>` (see
+SPEC_FORMAT.md): a spec without it doesn't validate. If the draft doesn't say which
+verdict a mistake gets — determine it from the description and mark the item
+`# PROPOSED, REVIEW ME`.
+
 What's not allowed:
 - Inventing another problem. The essence of the problem — the objects, the rules, the question —
   only from the draft (or from the base problem, if the draft doesn't change it).
