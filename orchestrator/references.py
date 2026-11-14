@@ -61,6 +61,8 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
         "test_script_groups",
     ],
     "generators_draft": [TESTS_PLAN_FILENAME, "generators/*.cpp"],
+    # A sample's plan with its tests for wrong solutions and the solutions themselves.
+    "tests_survivors": [TESTS_PLAN_FILENAME, "solutions/*"],
     "test_script_draft": [
         "constraints.yaml",
         TESTS_PLAN_FILENAME,
@@ -80,6 +82,7 @@ STEP_SECTIONS: dict[str, str] = {
     "statement_draft": "statement_draft",
     "constraints_pick": "constraints",
     "tests_plan": "generation",
+    "tests_survivors": "generation",
     "generators_draft": "generation",
     "test_script_draft": "generation",
     "solutions_main": "solutions",

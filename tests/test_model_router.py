@@ -50,6 +50,7 @@ def test_step_to_model_covers_all_steps_and_init_draft_calls():
         "solutions_ok",
         "solutions_slow",
         "solutions_wrong",
+        "tests_survivors",
         "checker_draft",
         "interactor_draft",
         "spec_from_draft",

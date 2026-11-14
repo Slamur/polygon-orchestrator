@@ -17,7 +17,7 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
 
 ## Running: `llm` commands
 
-- `orchestrator <problem> llm generate [--step NAME] [--force | --fresh]` —
+- `orchestrator <problem> llm generate [--step NAME] [--force | --fresh] [--survivor-rounds N]` —
   a run of the problem (all steps or one particular step); steps whose cache
   is valid are skipped automatically (see "Caching by spec hash" in
   `.claude/rules/steps.md`), the rest revise their current files
@@ -27,7 +27,11 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   `--force`). Between the solution stages `llm generate` runs the stage's solutions
   locally (`run_*`, without the model, `.claude/rules/step-roles/4-solutions.md`): a
   failed run stops the pipeline, its report `llm_reports/<run>.md` ends with a section
-  for the author's comment, and the next run lets the stage revise with the report. To the console — a line per step and, for a step that worked (called
+  for the author's comment, and the next run lets the stage revise with the report.
+  After them `tests_survivors` adds tests for the wrong solutions no test catches, and
+  the code of the plan and the local runs run again — up to `--survivor-rounds N`
+  times (1 by default, `0` — not at all; `.claude/rules/step-roles/3-tests.md`); the
+  console shows each repetition as a `round N: rechecking` line. To the console — a line per step and, for a step that worked (called
   the model or applied a saved response), the path to its report
   `llm_reports/<step>.md` with a counter of notes by kind. The report
   (`orchestrator/llm_report.py`) is the step's current state, not a history:

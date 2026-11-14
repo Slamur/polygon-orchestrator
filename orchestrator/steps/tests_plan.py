@@ -186,6 +186,30 @@ def _check_command(
                 errors.append(f"{where}: '{name}' has no parameter '{match.group(1)}'")
 
 
+def check_plan_extends(old: dict[str, Any], new: dict[str, Any]) -> None:
+    """`new` only adds to `old`: every generator, named value and test block of `old` is
+    in `new` unchanged, the test blocks in the same order. `TestsPlanError` — not so."""
+    errors: list[str] = []
+    for key, what in (("generators", "generator"), ("constants", "named value")):
+        new_entries = {e.get("name"): e for e in new.get(key) or [] if isinstance(e, dict)}
+        for entry in old.get(key) or []:
+            name = entry.get("name") if isinstance(entry, dict) else None
+            if new_entries.get(name) != entry:
+                errors.append(f"{what} '{name}' is removed or changed")
+    new_tests = list(new.get("tests") or [])
+    position = 0
+    for index, block in enumerate(old.get("tests") or []):
+        try:
+            position = new_tests.index(block, position) + 1
+        except ValueError:
+            errors.append(f"tests[{index}] ({block.get('description', '?')}) is removed or changed")
+    if errors:
+        raise TestsPlanError(
+            f"{TESTS_PLAN_ARTIFACT} must keep the current plan and only add to it: "
+            + "; ".join(errors)
+        )
+
+
 def plan_generators(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return list(plan.get("generators") or [])
 

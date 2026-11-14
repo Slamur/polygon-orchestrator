@@ -100,7 +100,10 @@ used in `orchestrator/pipeline.py` before calling
   `problems/<problem path>/authoring/constraints.yaml` from step 2 without TL/ML +
   `solutions.algorithm_hint` (if the `solutions` section is set — editing it must
   invalidate the plan too, not only an edit of `generation`; `known_wrong_approaches`
-  isn't part of it: the base plan doesn't design tests for wrong approaches); `generators_draft` → the input format +
+  isn't part of it: the base plan doesn't design tests for wrong approaches);
+  `tests_survivors` → the surviving solutions (name, verdict, code) + the main
+  solution + the input format and legend + `algorithm_hint` + `constraints.yaml` without
+  TL/ML (the current plan — only the context of the call); `generators_draft` → the input format +
   `constraints.yaml` without TL/ML + each generator of `tests_plan.yaml`
   as a separate part; `test_script_draft` → `generation.script_style` +
   `constraints.yaml` without TL/ML + `constants`, `tests` and the plan's generator

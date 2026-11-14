@@ -27,6 +27,7 @@ stronger model; mechanical/boilerplate steps — through a faster/cheaper one.
 | `checker_draft`              | high (with incomplete `custom_comparison_notes`) | medium model |
 | `statement_draft` (LaTeX)   | medium      | medium model              |
 | `tests_plan`                | medium — designing the base tests | medium model, high effort |
+| `tests_survivors`           | medium — a test that breaks a given wrong solution | medium model, high effort |
 | `generators_draft`          | low — implementing the plan | medium model, medium effort |
 | `test_script_draft`         | low — implementing the plan | medium model, medium effort |
 | `interactor_draft`          | high — the whole protocol, a mistake breaks all tests | strong model |

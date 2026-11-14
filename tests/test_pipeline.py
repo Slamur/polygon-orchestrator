@@ -61,8 +61,9 @@ _RESPONSES = {
 
 # Optional steps the spec fixture doesn't order: a standard checker
 # (checker.custom_needed: false), a normal, non-interactive problem, and one solution
-# language without alternative approaches (no other ok solutions).
-_SKIPPED_STEPS = {"checker_draft", "interactor_draft", "solutions_ok", "run_ok"}
+# language without alternative approaches (no other ok solutions); the local runs are a stub
+# without survivors, so no tests for them.
+_SKIPPED_STEPS = {"checker_draft", "interactor_draft", "solutions_ok", "run_ok", "tests_survivors"}
 # Steps without a model call (the local runs are a stub in the tests, see conftest.py).
 _MECHANICAL_STEPS = {"limits_from_constraints", "run_main", "run_slow", "run_wrong"}
 
@@ -1013,3 +1014,79 @@ def test_existing_solutions_of_a_stage_that_never_ran_are_kept(spec_file, tmp_pa
     outcomes = {o.step_name: o for o in result.outcomes}
     assert outcomes["solutions_main"].status == pipeline.OUTCOME_CACHE_HIT
     assert "kept as is" in outcomes["solutions_main"].detail
+
+
+def _survivor_responses():
+    import yaml
+
+    plan = yaml.safe_load(_TESTS_PLAN_YAML)
+    plan["tests"].append(
+        {
+            "description": "The bound",
+            "status": "proposed",
+            "covers": ["solutions/wa_cpp_off_draft.cpp"],
+            "commands": ["gen_rand -n=1"],
+            "repeat": None,
+        }
+    )
+    responses = dict(_RESPONSES)
+    # `safe_dump` sorts the keys — the step keeps the current entries as they are, so the
+    # generators stay cache hits of generators_draft.
+    responses["tests_survivors"] = ModelResponse(
+        status="proposed", artifacts={"tests_plan.yaml": yaml.safe_dump(plan)}
+    )
+    return responses
+
+
+def _stub_survivor(monkeypatch):
+    """The local runs: the wa solution survives every test."""
+    from orchestrator.checks.solutions_run import SolutionOutcome, SolutionsRunResult
+    from orchestrator.checks.solutions_run import TestOutcome as Outcome
+    from orchestrator.steps import solutions_check
+
+    survivor = SolutionOutcome(
+        "wa_cpp_off_draft.cpp",
+        "wa",
+        frozenset({"OK", "WA"}),
+        tests=[Outcome("test 1", "OK", generated=True)],
+        required=frozenset({"WA"}),
+    )
+    monkeypatch.setattr(
+        solutions_check,
+        "run_solutions",
+        lambda *a, **kw: SolutionsRunResult(full=True, solutions=[survivor]),
+    )
+
+
+@pytest.mark.parametrize("rounds, survivor_calls", [(1, 1), (2, 2), (0, 0)])
+def test_survivor_rounds_extend_the_plan_and_rerun_its_code(
+    spec_file, tmp_path, monkeypatch, rounds, survivor_calls
+):
+    _stub_survivor(monkeypatch)
+    responses = _survivor_responses()
+    problems_dir = tmp_path / "problems"
+    with patch(
+        "orchestrator.model_router.call_model", side_effect=lambda step, *a, **kw: responses[step]
+    ) as mock_call:
+        result = _run(problems_dir, survivor_rounds=rounds)
+
+    assert result.ok
+    called = [c.args[0] for c in mock_call.call_args_list]
+    assert called.count("tests_survivors") == survivor_calls
+    rechecks = [o for o in result.outcomes if o.status == pipeline.OUTCOME_RECHECK]
+    assert len(rechecks) == survivor_calls
+    if survivor_calls:
+        # The extended plan: the script is written again, the solutions run again.
+        assert called[called.index("tests_survivors") + 1] == "test_script_draft"
+        plan = (problems_dir / "p1" / "authoring" / "tests_plan.yaml").read_text()
+        assert "solutions/wa_cpp_off_draft.cpp" in plan
+    else:
+        outcome = next(o for o in result.outcomes if o.step_name == "tests_survivors")
+        assert outcome.status == pipeline.OUTCOME_SKIPPED_OPTIONAL
+
+    # The survivors are the same: the next run doesn't call the model for them again.
+    with patch(
+        "orchestrator.model_router.call_model", side_effect=lambda step, *a, **kw: responses[step]
+    ) as mock_call:
+        _run(problems_dir, survivor_rounds=1 if rounds else 0)
+    assert "tests_survivors" not in [c.args[0] for c in mock_call.call_args_list]

@@ -30,8 +30,9 @@ the result is attached.
 Match the `generation` section of the sample's spec against its plan (and without
 a plan — against its script) to see how `generator_ideas` and `specific_test_ideas`
 turn into generators and tests — and transform your problem's spec the same way.
-Blocks of a sample plan whose `covers` refer to `known_wrong_approaches` were made
-for particular wrong solutions by a separate step — they aren't a sample for you. From the samples
+Blocks of a sample plan whose `covers` refer to `known_wrong_approaches` or to a
+solution (`solutions/<file name>`) were made for particular wrong solutions by a separate
+step — they aren't a sample for you. From the samples
 take the approach and the level of detail, but not the content: the input data
 format of the sample problem, the names of its variables and parameters, the values of its
 limits and the very ideas of its tests — all of this is determined by your
@@ -92,8 +93,9 @@ This is the base plan of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
 on the base tests first, and a test of its own is added later, by a separate step,
 only for a wrong solution that the base tests don't catch. If the current plan
-(revision mode) has blocks whose `covers` refer to `known_wrong_approaches[i]` —
-they are such tests: keep them and the generators they call unchanged.
+(revision mode) has blocks whose `covers` refer to `known_wrong_approaches[i]` or to a
+solution (`solutions/<file name>`) — they are such tests: keep them and the generators
+they call unchanged.
 
 Important: the plan's tests come from three sources (A, B, C). These are NOT
 mutually exclusive modes and not alternatives to each other — they are three DIFFERENT

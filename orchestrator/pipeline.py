@@ -56,6 +56,8 @@ from orchestrator.step_order import (
     MECHANICAL_STEPS,
     ON_DEMAND_STEPS,
     STEP_ORDER,
+    SURVIVOR_RECHECK_STEPS,
+    SURVIVORS_STEP,
 )
 from orchestrator.steps import (
     checker_draft,
@@ -66,6 +68,7 @@ from orchestrator.steps import (
     statement_draft,
     test_script_draft,
     tests_plan,
+    tests_survivors,
     tutorial_draft,
 )
 from orchestrator.steps.base import (
@@ -95,6 +98,7 @@ _STEP_MODULES: dict[str, ModuleType | Any] = {
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
     **SOLUTION_STEPS,
+    "tests_survivors": tests_survivors,
     "tutorial_draft": tutorial_draft,
 }
 
@@ -104,6 +108,8 @@ _STEP_MODULES: dict[str, ModuleType | Any] = {
 _UPSTREAM_PRODUCERS: dict[str, str] = {
     "constraints_pick": CONSTRAINTS_ARTIFACT,
     "tests_plan": tests_plan.TESTS_PLAN_ARTIFACT,
+    # It extends the plan: the steps after it read the extended one.
+    "tests_survivors": tests_plan.TESTS_PLAN_ARTIFACT,
 }
 _STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
     "limits_from_constraints": ("constraints_pick",),
@@ -111,6 +117,7 @@ _STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
     "generators_draft": ("constraints_pick", "tests_plan"),
     "test_script_draft": ("constraints_pick", "tests_plan"),
     **{stage.STEP_NAME: ("constraints_pick",) for stage in STAGES.values()},
+    "tests_survivors": ("constraints_pick",),
 }
 
 # StepOutcome.status statuses:
@@ -124,6 +131,8 @@ OUTCOME_CONFLICT = "conflict"
 OUTCOME_NO_PENDING = "no_pending_response"
 # A local run of solutions (`GATE_STEPS`) found solutions that don't behave as named.
 OUTCOME_FAILED = "failed"
+# Not a step: the steps after `tests_survivors` run again (`_survivor_rounds`).
+OUTCOME_RECHECK = "recheck"
 
 
 @dataclass
@@ -226,7 +235,7 @@ def _optional_skip_detail(
         )
     module = _STEP_MODULES[step_name]
     if hasattr(module, "skip_detail"):
-        detail = module.skip_detail(spec)
+        detail = module.skip_detail(spec, problem_id=problem_id, problems_dir=problems_dir)
         if detail is not None:
             return detail
     if step_name == "checker_draft" and spec.checker.custom_needed is False:
@@ -575,6 +584,7 @@ def run_pipeline(
     apply_pending: bool = False,
     only_step: str | None = None,
     tutorial_refs: list[str] | None = None,
+    survivor_rounds: int = 1,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -606,6 +616,9 @@ def run_pipeline(
 
     `tutorial_refs` — the solutions from `--ref` for `tutorial_draft` (`_load_upstream`).
 
+    `survivor_rounds` — how many times `tests_survivors` may extend the plan in one run
+    (`_survivor_rounds`); `0` — it doesn't run.
+
     It stops (without raising an exception) at the first `StepUncertainError` —
     `result.stopped_uncertain=True`, `result.outcomes` contains everything that
     managed to work. Likewise — on a model response that failed the check
@@ -627,189 +640,238 @@ def run_pipeline(
     else:
         steps_to_run = LLM_STEPS if apply_pending else STEP_ORDER
 
-    for step_name in steps_to_run:
-        module = _STEP_MODULES[step_name]
-        logger.info("[%s] step started", step_name)
+    def run_steps(steps: list[str], round_reasons: dict[str, str]) -> bool:
+        """Runs `steps` into `result`; `False` — the pipeline is stopped. `round_reasons`
+        — steps rerun even with a valid cache, and why (a survivor round)."""
+        for step_name in steps_to_run:
+            module = _STEP_MODULES[step_name]
+            logger.info("[%s] step started", step_name)
 
-        skip_detail = _optional_skip_detail(step_name, spec, problem_id, problems_dir)
-        if skip_detail is not None:
-            result.outcomes.append(StepOutcome(step_name, OUTCOME_SKIPPED_OPTIONAL, skip_detail))
-            continue
-
-        pending = None
-        if apply_pending:
-            pending = load_pending_response(problem_id, step_name, problems_dir=problems_dir)
-            if pending is None:
+            skip_detail = _optional_skip_detail(step_name, spec, problem_id, problems_dir)
+            if skip_detail is None and step_name == SURVIVORS_STEP and survivor_rounds == 0:
+                skip_detail = "--survivor-rounds 0 — no tests for surviving solutions"
+            if skip_detail is not None:
                 result.outcomes.append(
-                    StepOutcome(
-                        step_name, OUTCOME_NO_PENDING, "no saved model response — nothing to apply"
-                    )
+                    StepOutcome(step_name, OUTCOME_SKIPPED_OPTIONAL, skip_detail)
                 )
                 continue
 
-        try:
-            _load_upstream(
-                step_name,
-                problem_id,
-                spec,
-                upstream_artifacts,
-                problems_dir,
-                tutorial_refs=tutorial_refs,
-            )
-            hashes = _compute_step_hashes(
-                problem_id,
-                step_name,
-                spec,
-                upstream_artifacts,
-                prompts_dir=prompts_dir,
-                templates_dir=templates_dir,
-            )
-        except (ValueError, SpecReferenceError) as exc:
-            # ValueError — there's no constraints.yaml (constraints_pick hasn't
-            # run successfully yet) or no step input, SpecReferenceError — a spec reference isn't
-            # found: the spec or the run needs fixing. It isn't uncertain, but the
-            # pipeline stops the same way — with a message, not a traceback.
-            result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, str(exc)))
-            result.stopped_uncertain = True
-            return result
-
-        cache_entry = load_cache_entry(problem_id, step_name, problems_dir=problems_dir)
-        primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
-        artifact_present = _step_artifact_present(
-            module, problem_id, spec, primary_path, problems_dir
-        )
-
-        if step_name == "tutorial_draft":
-            names = tutorial_draft.solution_names(upstream_artifacts[tutorial_draft.INPUTS_KEY])
-            logger.info("[%s] solutions as context: %s", step_name, ", ".join(names) or "none")
-
-        if pending is not None:
-            revision, problem = _pending_revision(
-                pending, module, problem_id, spec, cache_entry, hashes, problems_dir
-            )
-            if problem is not None:
-                result.outcomes.append(
-                    StepOutcome(
-                        step_name,
-                        OUTCOME_ERROR,
-                        f"{problem} — run "
-                        f"'orchestrator {problem_address(problems_dir, problem_id)} "
-                        f"{_generate_command(step_name)}'",
+            pending = None
+            if apply_pending:
+                pending = load_pending_response(problem_id, step_name, problems_dir=problems_dir)
+                if pending is None:
+                    result.outcomes.append(
+                        StepOutcome(
+                            step_name,
+                            OUTCOME_NO_PENDING,
+                            "no saved model response — nothing to apply",
+                        )
                     )
+                    continue
+
+            try:
+                _load_upstream(
+                    step_name,
+                    problem_id,
+                    spec,
+                    upstream_artifacts,
+                    problems_dir,
+                    tutorial_refs=tutorial_refs,
                 )
+                hashes = _compute_step_hashes(
+                    problem_id,
+                    step_name,
+                    spec,
+                    upstream_artifacts,
+                    prompts_dir=prompts_dir,
+                    templates_dir=templates_dir,
+                )
+                if step_name in round_reasons:
+                    hashes.forced_reason = round_reasons[step_name]
+            except (ValueError, SpecReferenceError) as exc:
+                # ValueError — there's no constraints.yaml (constraints_pick hasn't
+                # run successfully yet) or no step input, SpecReferenceError — a spec reference isn't
+                # found: the spec or the run needs fixing. It isn't uncertain, but the
+                # pipeline stops the same way — with a message, not a traceback.
+                result.outcomes.append(StepOutcome(step_name, OUTCOME_ERROR, str(exc)))
                 result.stopped_uncertain = True
-                return result
-            if not _run_step_into(
-                result,
-                module,
-                step_name,
-                problem_id,
-                spec,
-                upstream_artifacts,
-                revision=revision,
-                saved_response=ModelResponse(**pending.response),
-                detail="saved model response applied, model not called",
-                prompts_dir=prompts_dir,
-                problems_dir=problems_dir,
-                templates_dir=templates_dir,
+                return False
+
+            cache_entry = load_cache_entry(problem_id, step_name, problems_dir=problems_dir)
+            primary_path = module.primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
+            artifact_present = _step_artifact_present(
+                module, problem_id, spec, primary_path, problems_dir
+            )
+
+            if step_name == "tutorial_draft":
+                names = tutorial_draft.solution_names(upstream_artifacts[tutorial_draft.INPUTS_KEY])
+                logger.info("[%s] solutions as context: %s", step_name, ", ".join(names) or "none")
+
+            if pending is not None:
+                revision, problem = _pending_revision(
+                    pending, module, problem_id, spec, cache_entry, hashes, problems_dir
+                )
+                if problem is not None:
+                    result.outcomes.append(
+                        StepOutcome(
+                            step_name,
+                            OUTCOME_ERROR,
+                            f"{problem} — run "
+                            f"'orchestrator {problem_address(problems_dir, problem_id)} "
+                            f"{_generate_command(step_name)}'",
+                        )
+                    )
+                    result.stopped_uncertain = True
+                    return False
+                if not _run_step_into(
+                    result,
+                    module,
+                    step_name,
+                    problem_id,
+                    spec,
+                    upstream_artifacts,
+                    revision=revision,
+                    saved_response=ModelResponse(**pending.response),
+                    detail="saved model response applied, model not called",
+                    prompts_dir=prompts_dir,
+                    problems_dir=problems_dir,
+                    templates_dir=templates_dir,
+                ):
+                    return False
+            elif (
+                cache_entry is not None
+                and cache_entry.conflicts is not None
+                and not (force or fresh)
             ):
-                return result
-        elif cache_entry is not None and cache_entry.conflicts is not None and not (force or fresh):
-            result.outcomes.append(
-                StepOutcome(
-                    step_name,
-                    OUTCOME_CONFLICT,
-                    _conflicts_detail(problem_id, step_name, cache_entry, problems_dir)
-                    + f" (or '{_generate_command(step_name)} --force' to call the model again)",
-                )
-            )
-            result.stopped_uncertain = True
-            return result
-        elif (
-            step_name in ADOPTED_STEPS
-            and cache_entry is None
-            and artifact_present
-            and hashes.forced_reason is None
-            and not (force or fresh)
-        ):
-            # The files didn't come from this step (`limits.yaml` downloaded by `polygon
-            # pull`, solutions written by the author) — they are more up to date than what
-            # the step would write.
-            _save_accepted_entry(problem_id, step_name, hashes, problems_dir)
-            result.outcomes.append(
-                StepOutcome(
-                    step_name,
-                    OUTCOME_CACHE_HIT,
-                    "its files already exist and the step has never run — kept as is "
-                    f"('llm generate --step {step_name} --force' writes them again)",
-                )
-            )
-        elif (
-            not (force or fresh)
-            and is_cache_valid(cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model)
-            and artifact_present
-            and hashes.forced_reason is None
-        ):
-            if step_name in GATE_STEPS and cache_entry.status == GATE_FAILED:
                 result.outcomes.append(
                     StepOutcome(
                         step_name,
-                        OUTCOME_FAILED,
-                        "the last local run failed and nothing it reads has changed — see "
-                        f"{primary_path.relative_to(Path(problems_dir) / problem_id)}",
+                        OUTCOME_CONFLICT,
+                        _conflicts_detail(problem_id, step_name, cache_entry, problems_dir)
+                        + f" (or '{_generate_command(step_name)} --force' to call the model again)",
                     )
                 )
                 result.stopped_uncertain = True
-                return result
-            result.outcomes.append(
-                StepOutcome(
-                    step_name,
-                    OUTCOME_CACHE_HIT,
-                    f"input unchanged (input_hash={hashes.input_hash[:12]}…) — model not called",
+                return False
+            elif (
+                step_name in ADOPTED_STEPS
+                and cache_entry is None
+                and artifact_present
+                and hashes.forced_reason is None
+                and not (force or fresh)
+            ):
+                # The files didn't come from this step (`limits.yaml` downloaded by `polygon
+                # pull`, solutions written by the author) — they are more up to date than what
+                # the step would write.
+                _save_accepted_entry(problem_id, step_name, hashes, problems_dir)
+                result.outcomes.append(
+                    StepOutcome(
+                        step_name,
+                        OUTCOME_CACHE_HIT,
+                        "its files already exist and the step has never run — kept as is "
+                        f"('llm generate --step {step_name} --force' writes them again)",
+                    )
                 )
-            )
-        else:
-            if fresh:
-                rerun_reason = "from scratch (--fresh)"
-            elif force:
-                rerun_reason = "forced (--force)"
-            elif hashes.forced_reason is not None:
-                rerun_reason = hashes.forced_reason
-            elif cache_entry is None or cache_entry.status == UNCERTAIN_STATUS:
-                rerun_reason = ""
-            elif not artifact_present:
-                rerun_reason = "regenerated: artifact is missing on disk"
+            elif (
+                not (force or fresh)
+                and is_cache_valid(cache_entry, hashes.input_hash, hashes.prompt_hash, hashes.model)
+                and artifact_present
+                and hashes.forced_reason is None
+            ):
+                if step_name in GATE_STEPS and cache_entry.status == GATE_FAILED:
+                    result.outcomes.append(
+                        StepOutcome(
+                            step_name,
+                            OUTCOME_FAILED,
+                            "the last local run failed and nothing it reads has changed — see "
+                            f"{primary_path.relative_to(Path(problems_dir) / problem_id)}",
+                        )
+                    )
+                    result.stopped_uncertain = True
+                    return False
+                result.outcomes.append(
+                    StepOutcome(
+                        step_name,
+                        OUTCOME_CACHE_HIT,
+                        f"input unchanged (input_hash={hashes.input_hash[:12]}…) — model not called",
+                    )
+                )
             else:
-                rerun_reason = f"regenerated: {_stale_reason(cache_entry, hashes)}"
-            revision = (
-                None
-                if fresh or step_name in MECHANICAL_STEPS
-                else _revision_for_step(module, problem_id, spec, cache_entry, hashes, problems_dir)
-            )
-            if revision is not None:
-                mode = f"revising {len(revision.current_paths)} current file(s)"
-                rerun_reason = f"{rerun_reason}; {mode}" if rerun_reason else mode
-            if rerun_reason:
-                logger.info("[%s] %s", step_name, rerun_reason)
-            if not _run_step_into(
-                result,
-                module,
-                step_name,
-                problem_id,
-                spec,
-                upstream_artifacts,
-                revision=revision,
-                saved_response=None,
-                detail=rerun_reason,
-                prompts_dir=prompts_dir,
-                problems_dir=problems_dir,
-                templates_dir=templates_dir,
-            ):
-                return result
+                if fresh:
+                    rerun_reason = "from scratch (--fresh)"
+                elif force:
+                    rerun_reason = "forced (--force)"
+                elif hashes.forced_reason is not None:
+                    rerun_reason = hashes.forced_reason
+                elif cache_entry is None or cache_entry.status == UNCERTAIN_STATUS:
+                    rerun_reason = ""
+                elif not artifact_present:
+                    rerun_reason = "regenerated: artifact is missing on disk"
+                else:
+                    rerun_reason = f"regenerated: {_stale_reason(cache_entry, hashes)}"
+                revision = (
+                    None
+                    if fresh or step_name in MECHANICAL_STEPS
+                    else _revision_for_step(
+                        module, problem_id, spec, cache_entry, hashes, problems_dir
+                    )
+                )
+                if revision is not None:
+                    mode = f"revising {len(revision.current_paths)} current file(s)"
+                    rerun_reason = f"{rerun_reason}; {mode}" if rerun_reason else mode
+                if rerun_reason:
+                    logger.info("[%s] %s", step_name, rerun_reason)
+                if not _run_step_into(
+                    result,
+                    module,
+                    step_name,
+                    problem_id,
+                    spec,
+                    upstream_artifacts,
+                    revision=revision,
+                    saved_response=None,
+                    detail=rerun_reason,
+                    prompts_dir=prompts_dir,
+                    problems_dir=problems_dir,
+                    templates_dir=templates_dir,
+                ):
+                    return False
 
-        _remember_upstream(step_name, primary_path, upstream_artifacts)
+            _remember_upstream(step_name, primary_path, upstream_artifacts)
 
+        return True
+
+    if not run_steps(steps_to_run, {}) or only_step is not None or apply_pending:
+        return result
+    _survivor_rounds(result, run_steps, survivor_rounds)
     return result
+
+
+def _survivor_rounds(result: PipelineResult, run_steps, survivor_rounds: int) -> None:
+    """After `tests_survivors` extended the plan: the code of the plan and the local runs
+    again (`SURVIVOR_RECHECK_STEPS`), and while solutions still survive and rounds remain —
+    `tests_survivors` again, even if the survivors are the same (the tests it added
+    didn't catch them)."""
+    for round_number in range(1, survivor_rounds + 1):
+        survivors_outcome = result.outcomes[-1]
+        if survivors_outcome.step_name != SURVIVORS_STEP or not survivors_outcome.artifact_paths:
+            return
+        result.outcomes.append(
+            StepOutcome(
+                f"round {round_number}",
+                OUTCOME_RECHECK,
+                "the plan got tests for surviving solutions — writing their code and "
+                "running the solutions again",
+            )
+        )
+        if not run_steps(SURVIVOR_RECHECK_STEPS, {}) or round_number == survivor_rounds:
+            return
+        reason = (
+            f"survivor round {round_number + 1} of {survivor_rounds}: the tests of round "
+            f"{round_number} didn't catch every wrong solution"
+        )
+        if not run_steps([SURVIVORS_STEP], {SURVIVORS_STEP: reason}):
+            return
 
 
 # StepStatus.state states for `orchestrator <problem> llm status` (CLAUDE.md, "Running":

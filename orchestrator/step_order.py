@@ -20,7 +20,9 @@ from __future__ import annotations
 # after `constraints_pick`, from whose TL/ML it derives `limits.yaml`.
 # The solutions — in stages, after everything they are run with (tests, checker,
 # interactor): each stage is checked by a local run (`run_*`) before the next one,
-# which builds on its solutions (CLAUDE.md, item 4).
+# which builds on its solutions (CLAUDE.md, item 4). `tests_survivors` — last: tests
+# for the wrong solutions the local runs report as uncaught; after it the pipeline
+# runs `SURVIVOR_RECHECK_STEPS` again (CLAUDE.md, item 3).
 STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
@@ -38,6 +40,7 @@ STEP_ORDER: list[str] = [
     "run_slow",
     "solutions_wrong",
     "run_wrong",
+    "tests_survivors",
 ]
 
 # The solution stages -> the local run that checks the stage's solutions.
@@ -50,6 +53,13 @@ SOLUTION_STAGES: dict[str, str] = {
 # The local runs of the solutions: mechanical steps that stop the pipeline when the
 # stage's solutions don't behave as their names say.
 GATE_STEPS: frozenset[str] = frozenset(SOLUTION_STAGES.values())
+
+SURVIVORS_STEP = "tests_survivors"
+# What `tests_survivors` changes and what checks it: the code of the extended plan and the
+# local runs over the new tests (the rest of these steps are cache hits).
+SURVIVOR_RECHECK_STEPS: list[str] = STEP_ORDER[
+    STEP_ORDER.index("generators_draft") : STEP_ORDER.index("run_wrong") + 1
+]
 
 # Steps by a separate command, outside `STEP_ORDER`: `llm generate` doesn't run them,
 # but `llm status|apply|accept` see them. The tutorial is written last and at the explicit
