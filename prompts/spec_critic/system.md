@@ -39,14 +39,21 @@ Each finding:
   narrowest path the finding is about, inside the fields of your lens;
 - `severity` — `must` (clearly unnecessary or harmful for the later steps),
   `should` (likely simpler without it), `nit` (a matter of taste);
-- `action` — `remove`, `simplify` (`proposal` — the replacement text or
-  value), `merge` (name the other fields in `why`; `proposal` — the merged
-  value), `question` (unclear why it's here; `why` — the question), `gap`
-  (only where your lens allows it: something important is missing; `why` —
-  what exactly, `proposal` — optionally, what would cover it; a `gap` is never
-  applied, it's for the author);
+- `action` — `remove`, `simplify` (`proposal` — the new value), `merge`
+  (name the other fields in `why`; `proposal` — the merged value of `field`),
+  `question` (unclear why it's here; `why` — the question; `proposal` —
+  optionally, the value you would write instead), `gap` (only where your lens
+  allows it: something important is missing; `why` — what exactly,
+  `proposal` — optionally, the value of `field` with the missing part added; a
+  `gap` is never applied, it's for the author);
 - `why` — one or two concrete sentences: what exactly is unnecessary and what
   covers it instead. Write it in the language of the spec's free-text fields.
+- `proposal` — the complete new value of `field`, exactly as it should stand
+  in the spec, so the author can paste it in place of the old one: the whole
+  text of a text field (not a description of the change, not only the changed
+  sentence), a YAML mapping or list for a structured field (as YAML, not as a
+  string). Free text — in the language of the spec's free-text fields. No
+  `proposal` for `remove`.
 
 The result format: valid YAML, a list of findings in `critique.yaml`, most
 important first; multi-line text — as a `|` block, strings with `:`, `#`,
