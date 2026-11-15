@@ -1,0 +1,27 @@
+First read the number $N$.
+
+To make a query, print ``? x'' $(1 \le x \le N)$ and read the answer:
+
+\begin{itemize}
+\item \texttt{YES} if the number $x$ is favourite;
+\item \texttt{NO} if the number $x$ is not favourite.
+\end{itemize}
+
+Each number may be asked about at most once, the order of queries is arbitrary. To give the final answer, print ``! F'', where $F$ is the number of favourite numbers, and terminate the program.
+
+Your program will get the ``Wrong answer'' verdict in case of:
+
+\begin{itemize}
+\item violating the output format;
+\item querying a number outside the range $[1; N]$;
+\item querying the same number twice;
+\item a wrong final answer.
+\end{itemize}
+
+\textbf{After each printed query be sure to flush the output buffer}, otherwise your program will get the ``Idleness Limit Exceeded'' verdict:
+
+\begin{itemize}
+\item C++: \texttt{std::endl} when printing via \texttt{iostream} (\texttt{cout << ... << endl}), \texttt{fflush(stdout)} after printing via \texttt{stdio} (\texttt{printf});
+\item Java: \texttt{System.out.println(...)}, and when printing via another stream (\texttt{PrintWriter}, \texttt{BufferedWriter}) --- its \texttt{flush()} after each line;
+\item Python: \texttt{print(..., flush=True)}, and read the subsystem's answers via \texttt{input()}.
+\end{itemize}

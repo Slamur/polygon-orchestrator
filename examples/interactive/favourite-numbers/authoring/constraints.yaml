@@ -1,0 +1,63 @@
+problem_id: interactive--favourite-numbers
+intended_complexity: "O(N) queries (at most N queries), O(1) time per query"
+complexity_reasoning: |
+  Whether a number is favourite can't be found out other than by asking
+  about it, and each number can be asked about at most once, so the only
+  solution is to go over all numbers from 1 to N, ask N queries and count
+  how many times the answer "YES" came. That's at most N <= 100 queries and
+  O(1) work per query; at most 102 lines of input/output in total, no
+  computational load.
+
+variables:
+  - name: "N"
+    min: 1
+    max: 100
+    description: "the numbers that can be asked about are 1..N"
+    status: confirmed
+  - name: "f_i"
+    min: 0
+    max: 1
+    description: "whether the number i is favourite (the test's hidden data): 1 — favourite, 0 — not"
+    status: confirmed
+  - name: "Q"
+    min: 0
+    max: "N"
+    description: "the number of the solution's queries: at most N (each number at most once); a constant of the statement, absent from the input file"
+    status: confirmed
+
+limits:
+  time_limit_seconds: 1
+  memory_limit_mb: 256
+  status: confirmed
+  rationale: |
+    TL and ML are set by the author explicitly (1 second, 256 MB) and are used as is.
+    Consistency with the declared complexity of O(N) queries and O(1) per query:
+    with N <= 100 that's at most 100 queries, i.e. hundreds of operations
+    and at most 102 lines of exchange with the interactor — microseconds of work, 1
+    second covers it with a huge margin in C++/Java (and in Python too),
+    the reference solution fits well under 0.5 * TL. Memory: the solution needs
+    a counter and a few variables, the interactor — an array of N <= 100 flags
+    (kilobytes), so 256 MB (the minimal recommended multiple) is taken as the
+    author's value.
+
+validator:
+  constants:
+    - name: "N"
+      cpp_type: int
+      min: 1
+      max: 100
+    - name: "f_i"
+      cpp_type: int
+      min: 0
+      max: 1
+    - name: "Q"
+      cpp_type: int
+      min: 0
+      max: "N"            # a constant of the statement; there's no Q token in the input file, so it isn't read
+  checks:
+    - "the first line: one integer N, then readEoln"
+    - "the second line: exactly N integers f_1..f_N, read by one readInts(n, minF, maxF, \"f\") — this checks the guarantee f_i in {0, 1}; then readEoln"
+    - "after the second line — readEof: no extra data at the end of the file (and no trailing spaces — ensured by readSpace/readEoln inside readInts and by readEoln)"
+    - "the guarantee 'each number of the range 1..N may be asked about at most once, the order of queries is arbitrary': a property of the interaction protocol, not represented in the input file; the test file has exactly N flags f_i — one for each number 1..N, which is checked by reading exactly n values"
+    - "the guarantee 'the interactor isn't adaptive: the set of favourite numbers is fixed by the test file before the interaction starts': ensured by the file format — exactly n values f_i are written in advance, and readEof forbids any additional (alternative) data"
+    - "the guarantee 'any subset of the range 1..N may be favourite, including the empty one and all numbers at once': the validator puts NO restrictions on the sum f_1 + ... + f_N — all zeros and all ones are allowed (the check is exactly the absence of additional restrictions)"

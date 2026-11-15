@@ -1,0 +1,235 @@
+# A problem spec draft. Created by the `orchestrator <problem> init` command
+# from templates/spec_template.yaml.
+#
+# The full format with examples and explanations — docs/SPEC_FORMAT.md.
+
+problem_id: interactive--favourite-numbers
+title:
+  ru: "Интерактивная статистика"
+  en: "Interactive statistics"
+references: ["examples/interactive/guess-number"]
+
+# ---------------------------------------------------------------------------
+# 1. STATEMENT DRAFT — the statement_draft step
+# ---------------------------------------------------------------------------
+statement_draft:
+  legend_sketch: |
+    An interactive problem.
+
+    The jury has a capricious subsystem that likes some numbers more
+    than others.
+
+    Your goal is to find out how many favourite numbers there are in the range 1..N.
+
+    Your program prints one number and gets "YES" (favourite) or "NO"
+    (not favourite) in response.
+
+    In the end you have to print the number of favourite numbers found.
+
+    You may ask about each number at most once, but you may ask in any
+    order.
+  formal_input_sketch: |
+    The test file (the interactor reads it, the solution doesn't see this data in full):
+
+    The first line has one integer N (1 <= N <= 100) — the numbers that can
+    be asked about are 1, 2, ..., N.
+    The second line has N integers f_1, ..., f_N, each equal to 0 or 1:
+    f_i = 1 if the number i is favourite, and f_i = 0 otherwise.
+  formal_output_sketch: |
+    The whole output of the solution is queries of the form "? x" (each number
+    from 1..N at most once, in any order) and at the end the final answer
+    "! F" — the number of favourite numbers found.
+
+    The solution is considered to have given a correct answer if all its queries
+    are valid (x in [1, N], no number is asked about twice) and F equals the
+    actual number of favourite numbers in the range 1..N. The answer always
+    exists and is unique.
+  indexing: "1-indexed"
+  sample_examples:
+    - input: |
+        6
+        1 0 1 1 0 1
+      output: |
+        ? 1
+        ? 2
+        ? 3
+        ? 4
+        ? 5
+        ? 6
+        ! 4
+      note_hint: |
+        Show the whole dialogue: the solution reads N = 6 (it doesn't know
+        which numbers are favourite) and asks about the numbers in order:
+          - "? 1" -> "YES", "? 2" -> "NO", "? 3" -> "YES", "? 4" -> "YES",
+            "? 5" -> "NO", "? 6" -> "YES";
+          - 4 numbers turned out to be favourite (1, 3, 4, 6), 2 — not,
+            so the solution prints "! 4" and terminates.
+    - input: |
+        3
+        0 0 0
+      output: |
+        ? 3
+        ? 1
+        ? 2
+        ! 0
+      note_hint: "The numbers may be asked about in any order"
+  known_ambiguities:
+    - "the draft doesn't say how many numbers may be favourite; it's accepted that any subset of the range 1..N may be favourite, including the empty and the full one"
+    - "the draft doesn't say whether the solution must terminate right after printing the answer; it's accepted that it must"
+  preserve_legend_verbatim: false
+  interaction_sketch: |
+    At the start of the interaction the solution reads one integer N.
+
+    Then the solution asks queries one by one. A query about a number x
+    (1 <= x <= N) is a line "? x". In response the solution reads one line:
+      - "YES" — the number x is favourite;
+      - "NO" — the number x is not favourite.
+
+    Each number may be asked about at most once, the order of queries is
+    arbitrary.
+
+    Let the number of favourite numbers be F. The program must print it as
+    "! F" and terminate. The final answer isn't counted as a query.
+
+    The program gets the "wrong answer" verdict in case of:
+      - a final answer different from the expected one;
+      - violating the output format;
+      - asking about the same number twice;
+      - asking about a number outside the range 1..N.
+
+    After each printed query the output buffer must be flushed, otherwise
+    the program gets the "Idleness Limit Exceeded" verdict:
+
+      - C++: \texttt{std::endl} when printing via \texttt{iostream} (\texttt{cout << ... << endl}), \texttt{fflush(stdout)} after printing via \texttt{stdio} (\texttt{printf});
+      - Java: \texttt{System.out.println(...)}, and when printing via another stream (\texttt{PrintWriter}, \texttt{BufferedWriter}) --- its \texttt{flush()} after each line;
+      - Python: \texttt{print(..., flush=True)}, and read the interactor's answers via \texttt{input()}.
+  references: []
+
+# ---------------------------------------------------------------------------
+# 2. LIMITS — the constraints_pick step (+ the validator)
+# ---------------------------------------------------------------------------
+constraints:
+  intended_complexity: "O(N) queries (at most N queries), O(1) time per query"
+  complexity_reasoning: |
+    Whether a number is favourite can't be found out other than by asking
+    about it, and each number can be asked about at most once, so the only
+    solution is to go over all numbers from 1 to N, ask N queries and count
+    how many times the answer "YES" came. That's at most N <= 100 queries and
+    O(1) work per query; at most 102 lines of input/output in total, no
+    computational load.
+  variables:
+    - name: "N"
+      min: 1
+      max: 100
+      description: "the numbers that can be asked about are 1..N"
+    - name: "f_i"
+      min: 0
+      max: 1
+      description: "whether the number i is favourite (the test's hidden data): 1 — favourite, 0 — not"
+    - name: "Q"
+      min: 0
+      max: "N"
+      description: "the number of the solution's queries: at most N (each number at most once)"
+  special_guarantees:
+    - "each number of the range 1..N may be asked about at most once, the order of queries is arbitrary"
+    - "the interactor isn't adaptive: the set of favourite numbers is fixed by the test file before the interaction starts"
+    - "any subset of the range 1..N may be favourite, including the empty one and all numbers at once"
+  test_groups_hint: []
+  test_groups_needed: false
+  time_limit_seconds: 1
+  memory_limit_mb: 256
+  references: []
+
+# ---------------------------------------------------------------------------
+# 3. GENERATORS AND TEST-SCRIPT — the tests_plan, generators_draft, test_script_draft steps
+# ---------------------------------------------------------------------------
+generation:
+  generator_ideas:
+    - name: "gen_rand"
+      params: ["n", "cnt"]
+      purpose: |
+        N = n; exactly cnt random distinct numbers of the range [1, n] are
+        declared favourite (f_i = 1), the rest — not. Fails if cnt doesn't
+        lie in [0, n].
+    - name: "gen_fixed"
+      params: ["f_1 ... f_N"]
+      purpose: |
+        A test with explicitly listed favourite flags: N is the number of the
+        given values, f_i — the next value (0 or 1). Fails if some value
+        isn't 0 or 1.
+        Remember that a generator parameter can't contain quotes and the greater sign.
+  specific_test_ideas:
+    - "about 10 different tests, including N = 1, N = 10, N = 100"
+    - "N = 1 with a favourite number and N = 1 without favourite numbers"
+    - "N = 100, all numbers are favourite (the answer is 100)"
+    - "N = 100, no favourite numbers (the answer is 0)"
+    - "N = 100 with a random set of favourite numbers (e.g. about a half)"
+    - "N = 10 with a random set of favourite numbers"
+    - "tests where the favourite numbers are only the edges of the range (1 and N) and only the middle — catch an off-by-one in the loop"
+  script_style: "flat"
+  references: []
+
+# ---------------------------------------------------------------------------
+# 4. SOLUTION DRAFTS — the solution stages solutions_*
+# ---------------------------------------------------------------------------
+solutions:
+  wanted_verdicts: ["ok", "wa", "il"]
+  languages: ["cpp", "java", "py"]
+  algorithm_hint: |
+    Read N. For each i from 1 to N print "? i", flush the output buffer
+    and read the answer: if it's "YES", increase the counter. After all N
+    queries print "! " and the counter value and terminate.
+  alternative_approaches:
+    - "ask about the numbers in a random order (a permutation of 1..N) — the answer is the same, the order of queries is arbitrary by the statement"
+  known_wrong_approaches:
+    - "wa: ask about a number twice (e.g. to recheck a doubtful answer) — a repeated query is forbidden"
+    - "wa: an off-by-one in the loop — a query about the number 0 or N + 1 (a loop from 0 to N)"
+    - "wa: skip the last number (a loop from 1 to N - 1) and print the count over N - 1 answers"
+    - "wa: count the answers \"NO\" instead of \"YES\" (the answer is the number of non-favourite numbers)"
+    - "wa: compare the interactor's answer with \"Yes\"/\"yes\" instead of \"YES\" — the counter always stays zero"
+    - "wa: print the answer right after the first query (without asking about the other numbers)"
+    - "il (cpp/java/py): a correct solution without flushing the output buffer — the interactor doesn't get the query, the interaction hangs (Idleness limit exceeded); in Python — print without flush=True and reading via sys.stdin.readline()"
+  references: []
+
+# ---------------------------------------------------------------------------
+# 5. CHECKER — the checker_draft step (only with custom_needed: true)
+# ---------------------------------------------------------------------------
+checker:
+  standard: "ncmp"
+  custom_needed: false
+  custom_comparison_notes: null
+  references: []
+
+# ---------------------------------------------------------------------------
+# 6. INTERACTOR — the interactor_draft step (only for an interactive problem)
+# ---------------------------------------------------------------------------
+interactor:
+  behavior_notes: |
+    The interactor reads N and the favourite flags f_1, ..., f_N (0 or 1)
+    from the test file and prints N to the solution. The interactor isn't
+    adaptive: the set of favourite numbers is fixed by the test file. It keeps
+    an array of "this number has already been asked about" marks.
+
+    Then it reads the solution's lines. A query is the character "?" and an
+    integer x:
+      - if x is outside [1, N] — _wa ("number outside the range");
+      - if x has already been asked about — _wa ("number already asked about");
+      - otherwise the number is marked as asked and the interactor prints
+        "YES" if f_x = 1, and "NO" otherwise.
+
+    The final answer is the character "!" and an integer F, it isn't counted
+    as a query. If F equals f_1 + ... + f_N — _ok (the test is passed),
+    otherwise _wa ("the final answer differs from the expected one"). After
+    that the interactor exits and doesn't check the solution's further output.
+
+    Solution errors (all — _wa):
+      - an invalid line format (neither "?" nor "!", not an integer);
+      - a number outside the range [1, N];
+      - a repeated query about an already asked number;
+      - a wrong final answer;
+      - the solution terminated (end of stream) without printing the final answer.
+
+    The interactor writes one number to tout — the number of favourite numbers
+    named by the solution (which is f_1 + ... + f_N); the ncmp checker
+    compares it with the tout of the reference run.
+  references: []
