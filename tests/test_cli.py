@@ -39,7 +39,7 @@ _RESPONSES = {
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
     ),
     "solutions_main": ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}, notes=[]
+        status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}, notes=[]
     ),
     "solutions_slow": ModelResponse(
         status="confirmed", artifacts={"tl_cpp_n2_draft.cpp": "int main(){}"}, notes=[]

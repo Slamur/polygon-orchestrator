@@ -5,7 +5,7 @@ The stages (`STAGES`), each a separate model call over the shared prompts
 `prompts/solutions/` and checked by its local run (`solutions_check.Gate`) before
 the next one:
 
-- `solutions_main` — the main `ok` solution `ok_<language>_main_<author>` in the first
+- `solutions_main` — the main correct solution `ma_<language>_<idea>_<author>` in the first
   of `MAIN_LANGUAGES` among `solutions.languages`: Main correct, whose output the other
   solutions are judged by;
 - `solutions_ok` — the other `ok` solutions (the other languages, `alternative_approaches`),
@@ -15,8 +15,8 @@ the next one:
   verdicts (the item's verdict prefix is mandatory, `spec.parse_wrong_approach`).
 
 A stage owns the solutions by their names (`Stage.owned`): `solutions_main` — Main correct
-(`upload_solutions._choose_main`, a solution with the `main` description first),
-`solutions_ok` — the other `ok` ones, the others — by the verdict. Revision mode shows the
+(`upload_solutions._choose_main`, the solution with the `ma` verdict first),
+`solutions_ok` — the other correct ones, the others — by the verdict. Revision mode shows the
 model only the stage's files, and a response with a file of another stage isn't applied.
 If its local run failed and nothing it read has changed since, the stage reruns
 (`forced_rerun_reason`) and revises its solutions with the run's report: the report is
@@ -35,7 +35,8 @@ from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_solutions import (
-    MAIN_DESCRIPTION,
+    CORRECT_VERDICTS,
+    MAIN_VERDICT,
     _choose_main,
     _parse_solution_filename,
 )
@@ -110,11 +111,6 @@ def _verdict(name: str) -> str | None:
     return parts[0].lower() if len(parts) >= 3 else None
 
 
-def _description(name: str) -> str | None:
-    parts = split_solution_stem(Path(name).stem)
-    return parts[2].lower() if len(parts) >= 3 else None
-
-
 def solution_files(problem_dir: Path) -> dict[str, Path]:
     return directory_artifacts(Path(problem_dir) / SOLUTIONS_SUBDIR)
 
@@ -164,18 +160,18 @@ class Stage:
         if self.key == "main":
             return name == main
         if self.key == "ok":
-            return verdict == "ok" and name != main
+            return verdict in CORRECT_VERDICTS and name != main
         return verdict in (SLOW_VERDICTS if self.key == "slow" else WRONG_VERDICTS)
 
     def _may_write(self, name: str, current: set[str]) -> bool:
         """Whether the model may return `name` in this stage: a file of the stage's own."""
         if name in current:
             return True
-        verdict, description = _verdict(name), _description(name)
+        verdict = _verdict(name)
         if self.key == "main":
-            return verdict == "ok" and description == MAIN_DESCRIPTION
+            return verdict == MAIN_VERDICT
         if self.key == "ok":
-            return verdict == "ok" and description != MAIN_DESCRIPTION
+            return verdict == "ok"
         return verdict in (SLOW_VERDICTS if self.key == "slow" else WRONG_VERDICTS)
 
     def judged(self, problem_dir: Path) -> list[str]:
@@ -450,8 +446,8 @@ class Stage:
 
 
 _STAGE_FILES = {
-    "main": f"ok_<language>_{MAIN_DESCRIPTION}_<author>",
-    "ok": f"ok_* without the '{MAIN_DESCRIPTION}' description",
+    "main": f"{MAIN_VERDICT}_<language>_<idea>_<author>",
+    "ok": "ok_<language>_<idea>_<author>",
     "slow": "/".join(sorted(SLOW_VERDICTS)),
     "wrong": "/".join(sorted(WRONG_VERDICTS)),
 }
@@ -512,7 +508,7 @@ def extra_context_documents(
     covered = {
         language
         for verdict, language in map(_solution_parts, map(Path, references))
-        if verdict == "ok"
+        if verdict in CORRECT_VERDICTS
     }
     templates = [
         str(path)

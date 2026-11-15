@@ -21,7 +21,7 @@ PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8")
 PROBLEM_ID = "example-problem"
 CONSTRAINTS = {"constraints.yaml": "n_max: 100000\n"}
 
-MAIN = "ok_cpp_main_draft.cpp"
+MAIN = "ma_cpp_sum_draft.cpp"
 WRONG = "wa_cpp_off_draft.cpp"
 
 

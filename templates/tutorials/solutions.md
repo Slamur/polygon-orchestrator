@@ -61,7 +61,8 @@
 - The name template: <verdict><language><description>_<author>.<extension>:
 
   - verdict — ok / tl / wa / re / il or combinations (tl_ok — "TL or OK";
-    il — Idleness limit exceeded, happens only in an interactive problem);
+    il — Idleness limit exceeded, happens only in an interactive problem;
+    ma — Main correct, a correct solution like ok);
 
   - language — usually duplicates the extension;
 

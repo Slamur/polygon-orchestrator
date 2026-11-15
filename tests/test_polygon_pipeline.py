@@ -787,7 +787,7 @@ def _write_generated_outputs(problems_dir: Path) -> None:
     (problem_dir / "test_script").write_text("gen_random 1 > $\n", encoding="utf-8")
     solutions_dir = problem_dir / "solutions"
     solutions_dir.mkdir(parents=True, exist_ok=True)
-    (solutions_dir / "ok_cpp_main_draft.cpp").write_text("int main() {}\n", encoding="utf-8")
+    (solutions_dir / "ma_cpp_sum_draft.cpp").write_text("int main() {}\n", encoding="utf-8")
 
 
 def test_cli_polygon_run_prints_outcomes(problems_dir, capsys):

@@ -116,6 +116,8 @@ from orchestrator.checks.statement_check import STATEMENT_DIRNAME
 from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_solutions import (
+    CORRECT_VERDICTS,
+    MAIN_VERDICT,
     _choose_main,
     _parse_solution_filename,
 )
@@ -145,9 +147,10 @@ VERDICT_FAIL = "FAIL"
 # The verdict from the solution's name -> what's allowed on the examples. `ml`: memory isn't
 # measured here, a shortage shows up as RE (OutOfMemoryError in Java, a failed
 # allocation over the address space cap in C++ and Python). `il` (Idleness limit)
-# happens only in an interactive problem.
+# happens only in an interactive problem. `ma` — the main correct solution, as `ok`.
 ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "ok": frozenset({VERDICT_OK}),
+    MAIN_VERDICT: frozenset({VERDICT_OK}),
     "wa": frozenset({VERDICT_OK, VERDICT_WA}),
     "tl": frozenset({VERDICT_OK, VERDICT_TL}),
     "tle": frozenset({VERDICT_OK, VERDICT_TL}),
@@ -1292,7 +1295,9 @@ def _check_dialogue(
 def _note_suspicious_answers(tests: list[SampleTest], result: SolutionsRunResult) -> None:
     """If on an example with an answer from the spec all `ok` solutions get WA — more likely
     the answer in the spec is wrong than all the solutions at once."""
-    ok_solutions = [s for s in result.solutions if s.verdict == "ok" and s.error is None]
+    ok_solutions = [
+        s for s in result.solutions if s.verdict in CORRECT_VERDICTS and s.error is None
+    ]
     if len(ok_solutions) < 2:
         return
     for index, test in enumerate(tests):

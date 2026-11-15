@@ -4,8 +4,8 @@ your task is to give a reasonable starting point, not final code.
 
 The solutions are written in stages, one call per stage, and the request names your
 stage (the "Stage" section):
-- `main` — the main `ok` solution (Main correct): by its output all other solutions
-  are judged;
+- `main` — the main correct solution (Main correct, the `ma` verdict): by its output all
+  other solutions are judged;
 - `ok` — the other `ok` solutions: the main idea in the other languages and the
   alternative correct approaches;
 - `slow` — the solutions with the `tl`, `tl_ok`, `tle`, `ml`, `mle` verdicts;
@@ -22,7 +22,8 @@ You are given mandatory rules:
   input/output speedup).
   There, in the "Solutions in Polygon" section, is the naming scheme
   `<verdict><language><description>_<author>.<extension>`.
-  The "TL or OK" verdict is written as `tl_ok` in file names.
+  The "TL or OK" verdict is written as `tl_ok` in file names, Main correct — as `ma`
+  (a correct solution like `ok`, Polygon's `MA` tag).
 Besides them, samples may be attached — files of other problems that the author
 listed in the spec as references; there may be no samples at all. For this step
 these are solutions/* — solutions in the ordered languages (only those that
@@ -99,13 +100,15 @@ reading/computing/output, buffered input/output), and mark this in
 Mandatory rules (each item says which stages it is about):
 1. (`main`, `ok`) Take the algorithm of the main `ok` solution ONLY from
    `solutions.algorithm_hint` given by the author. Stage `main` writes exactly one file —
-   `ok_<language>_main_<author>.<ext>` in the language from the request (the description
-   is `main`). Stage `ok` writes the same idea in each other language from `languages`
-   — the main solution from the request carried over to the language (the same algorithm and
-   structure, the input/output of that language), — and each item of
-   `solutions.alternative_approaches` (if any) as a separate additional `ok` solution on
-   the idea described there; the description `main` isn't used in stage `ok`, and the main
-   solution itself isn't returned.
+   `ma_<language>_<idea>_<author>.<ext>` in the language from the request (the `ma`
+   verdict; `<idea>` — a short name of the algorithm, e.g. `bfs`). Stage `ok` writes the
+   same idea in each other language from `languages` — the main solution from the request
+   carried over to the language (the same algorithm and structure, the input/output of
+   that language), named `ok_<language>_<idea>_<author>.<ext>` with the main solution's
+   `<idea>` and `<author>` (`ma_cpp_bfs_draft.cpp` -> `ok_java_bfs_draft.java`), — and
+   each item of `solutions.alternative_approaches` (if any) as a separate additional `ok`
+   solution on the idea described there, with its own `<idea>`; the `ma` verdict isn't
+   used in stage `ok`, and the main solution itself isn't returned.
    In these solutions don't substitute the author's idea with your own and don't change the declared
    asymptotics — it was already fixed at the `constraints_pick` step and
    must match `intended_complexity`. Your own algorithms — only as
@@ -175,7 +178,9 @@ Mandatory rules (each item says which stages it is about):
    `notes` the estimate of the input/output volume because of which it was added.
 5. File names — by the scheme `<verdict>_<language>_<description>_<author>.<ext>`
    (author may be left as `draft` if not set explicitly); the "TL or
-   OK" verdict — `tl_ok`: `tl_ok_cpp_slowio_draft.cpp`.
+   OK" verdict — `tl_ok`: `tl_ok_cpp_slowio_draft.cpp`; Main correct — `ma`:
+   `ma_cpp_bfs_draft.cpp`. `<description>` is about the solution's idea or mistake,
+   never its role: no `main` in it.
 6. Take the input and output format ONLY from the request's "Input
    format", "Output format", "Indexing" and "Statement examples" sections:
    the solution must read the input of each example in exactly the form it's

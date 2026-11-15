@@ -91,7 +91,7 @@ def _group(result, title):
 
 
 def test_allowed_verdicts_cover_every_spec_verdict():
-    assert set(ALLOWED_VERDICTS) == _ALLOWED_VERDICTS
+    assert set(ALLOWED_VERDICTS) == _ALLOWED_VERDICTS | {"ma"}
     assert all("OK" in allowed for allowed in ALLOWED_VERDICTS.values())
 
 
@@ -99,7 +99,7 @@ def test_verdicts_checked_against_solution_names(tmp_path):
     problem_dir = _problem(
         tmp_path,
         {
-            "ok_cpp_main_draft.cpp": OK_CPP,
+            "ma_cpp_sum_draft.cpp": OK_CPP,
             "ok_py_wrong_draft.py": WA_PY,
             "wa_py_minus_draft.py": WA_PY,
             "wa_py_crash_draft.py": RE_PY,
@@ -113,8 +113,8 @@ def test_verdicts_checked_against_solution_names(tmp_path):
     solutions = _by_name(result)
 
     assert "ok_py_old_draft.py.removed" not in solutions
-    assert [t.verdict for t in solutions["ok_cpp_main_draft.cpp"].tests] == ["OK", "OK"]
-    assert not solutions["ok_cpp_main_draft.cpp"].failed
+    assert [t.verdict for t in solutions["ma_cpp_sum_draft.cpp"].tests] == ["OK", "OK"]
+    assert not solutions["ma_cpp_sum_draft.cpp"].failed
     assert solutions["ok_py_wrong_draft.py"].failed
     assert not solutions["wa_py_minus_draft.py"].failed
     assert [t.verdict for t in solutions["wa_py_crash_draft.py"].tests] == ["RE", "RE"]
@@ -151,7 +151,7 @@ def test_missing_outputs_come_from_main_solution(tmp_path):
     problem_dir = _problem(
         tmp_path,
         {
-            "ok_py_main_draft.py": OK_PY,
+            "ma_py_sum_draft.py": OK_PY,
             "wa_py_minus_draft.py": WA_PY,
             "ok_py_wrong_draft.py": WA_PY,
         },
@@ -161,7 +161,7 @@ def test_missing_outputs_come_from_main_solution(tmp_path):
     result = run_solutions(problem_dir, TEMPLATES_DIR)
 
     assert (
-        "expected outputs for example_1: from the main solution ok_py_main_draft.py" in result.notes
+        "expected outputs for example_1: from the main solution ma_py_sum_draft.py" in result.notes
     )
     assert [t.verdict for t in _by_name(result)["ok_py_wrong_draft.py"].tests] == ["WA", "WA"]
 
@@ -183,7 +183,7 @@ def test_wrong_output_in_spec_is_reported(tmp_path):
 
 def test_validator_rejecting_example(tmp_path):
     problem_dir = _problem(
-        tmp_path, {"ok_py_main_draft.py": OK_PY}, examples=[("1 2\n", "3\n"), ("0 2\n", "2\n")]
+        tmp_path, {"ma_py_sum_draft.py": OK_PY}, examples=[("1 2\n", "3\n"), ("0 2\n", "2\n")]
     )
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
 
@@ -202,7 +202,7 @@ def test_validator_rejecting_example(tmp_path):
     ],
 )
 def test_checker_problems_stop_solution_runs(tmp_path, checker, message):
-    problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, checker=checker)
+    problem_dir = _problem(tmp_path, {"ma_py_sum_draft.py": OK_PY}, checker=checker)
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
 
@@ -252,7 +252,7 @@ def test_interactive_verdicts(tmp_path):
     problem_dir = _interactive_problem(
         tmp_path,
         {
-            "ok_py_main_draft.py": INTERACTIVE_OK_PY,
+            "ma_py_sum_draft.py": INTERACTIVE_OK_PY,
             "wa_py_echo_draft.py": INTERACTIVE_WA_PY,
             "il_py_noflush_draft.py": INTERACTIVE_NOFLUSH_PY,
             "re_py_exit_draft.py": INTERACTIVE_RE_PY,
@@ -265,12 +265,12 @@ def test_interactive_verdicts(tmp_path):
 
     assert verdicts == {
         "il_py_noflush_draft.py": ["IL"],
-        "ok_py_main_draft.py": ["OK"],
+        "ma_py_sum_draft.py": ["OK"],
         "ok_py_wrong_draft.py": ["WA"],
         "re_py_exit_draft.py": ["RE"],
         "wa_py_echo_draft.py": ["WA"],
     }
-    assert "expected outputs: tout of the main solution ok_py_main_draft.py" in result.notes
+    assert "expected outputs: tout of the main solution ma_py_sum_draft.py" in result.notes
     assert [s.name for s in result.solutions if s.failed] == ["ok_py_wrong_draft.py"]
     assert "expected 10, got 5" in _by_name(result)["ok_py_wrong_draft.py"].tests[0].comment
     assert result.warnings == []
@@ -278,7 +278,7 @@ def test_interactive_verdicts(tmp_path):
 
 def test_interactive_problem_without_interactor(tmp_path):
     problem_dir = _interactive_problem(
-        tmp_path, {"ok_py_main_draft.py": INTERACTIVE_OK_PY}, interactor=False
+        tmp_path, {"ma_py_sum_draft.py": INTERACTIVE_OK_PY}, interactor=False
     )
 
     result = run_solutions(problem_dir, TEMPLATES_DIR)
@@ -300,7 +300,7 @@ def _statement_io_errors(result) -> list[str]:
 
 
 def test_statement_io_of_plain_problem_is_validated_and_checked(tmp_path):
-    problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY})
+    problem_dir = _problem(tmp_path, {"ma_py_sum_draft.py": OK_PY})
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
     # Its own input and a correct output for it.
     _write_statement_io(problem_dir, 1, input="5 6\n", output="11\n")
@@ -316,7 +316,7 @@ def test_statement_io_of_plain_problem_is_validated_and_checked(tmp_path):
 
 
 def test_statement_input_rejected_by_validator(tmp_path):
-    problem_dir = _problem(tmp_path, {"ok_py_main_draft.py": OK_PY})
+    problem_dir = _problem(tmp_path, {"ma_py_sum_draft.py": OK_PY})
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
     # The example's answer (3) doesn't fit its own input — an error too.
     _write_statement_io(problem_dir, 1, input="0 4\n")
@@ -331,7 +331,7 @@ def test_statement_input_rejected_by_validator(tmp_path):
 
 
 def test_interactive_dialogue_is_replayed(tmp_path):
-    problem_dir = _interactive_problem(tmp_path, {"ok_py_main_draft.py": INTERACTIVE_OK_PY})
+    problem_dir = _interactive_problem(tmp_path, {"ma_py_sum_draft.py": INTERACTIVE_OK_PY})
     examples_dir = problem_dir / "statement" / "examples"
     (examples_dir / "example_2.txt").write_text("7\n", encoding="utf-8")
     (examples_dir / "example_3.txt").write_text("8\n", encoding="utf-8")
@@ -359,9 +359,9 @@ def test_java_class_name():
 
 @pytest.mark.skipif(shutil.which("java") is None, reason="java is not installed")
 def test_java_solution_compiled_under_its_class_name(tmp_path):
-    problem_dir = _problem(tmp_path, {"ok_java_main_draft.java": OK_JAVA})
+    problem_dir = _problem(tmp_path, {"ma_java_sum_draft.java": OK_JAVA})
 
-    solution = _by_name(run_solutions(problem_dir, TEMPLATES_DIR))["ok_java_main_draft.java"]
+    solution = _by_name(run_solutions(problem_dir, TEMPLATES_DIR))["ma_java_sum_draft.java"]
 
     assert solution.error is None
     assert [t.verdict for t in solution.tests] == ["OK", "OK"]
@@ -388,13 +388,13 @@ def test_slow_non_tl_solutions_are_warned(tmp_path):
 
 
 def test_local_run_prints_progress_and_groups(tmp_path, capsys):
-    _problem(tmp_path, {"ok_py_main_draft.py": OK_PY, "ok_py_wrong_draft.py": WA_PY})
+    _problem(tmp_path, {"ma_py_sum_draft.py": OK_PY, "ok_py_wrong_draft.py": WA_PY})
 
     rc = cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "run"])
 
     out = capsys.readouterr().out
     assert rc == 1
-    assert "running ok_py_main_draft.py\nrunning ok_py_wrong_draft.py\n" in out
+    assert "running ma_py_sum_draft.py\nrunning ok_py_wrong_draft.py\n" in out
     assert out.index("=== expected verdicts ===") < out.index("=== unexpected verdicts ===")
     assert "\nok_py_wrong_draft.py: WA" in out.split("=== unexpected verdicts ===")[1]
 
@@ -428,7 +428,7 @@ def _full_problem(tmp_path: Path, solutions: dict[str, str], script: str, **kwar
 def test_full_wa_caught_by_generated_test_stops_there(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 7 1 > $\ngen_pair 7 2 > $\n",
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
@@ -438,13 +438,13 @@ def test_full_wa_caught_by_generated_test_stops_there(tmp_path):
     assert [t.verdict for t in wa.tests] == ["OK", "OK", "WA"]
     assert wa.stopped_early
     assert wa.tests[-1].command == "gen_pair 7 1"
-    assert len(_by_name(result)["ok_py_main_draft.py"].tests) == 4
+    assert len(_by_name(result)["ma_py_sum_draft.py"].tests) == 4
 
 
 def test_full_wa_not_caught_by_any_test_fails(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 3 1 > $\n",
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
@@ -456,7 +456,7 @@ def test_full_wa_not_caught_by_any_test_fails(tmp_path):
 def test_without_full_wa_passing_everything_is_fine(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 7 1 > $\n",
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR)
@@ -467,7 +467,7 @@ def test_without_full_wa_passing_everything_is_fine(tmp_path):
 def test_full_wa_caught_on_example_still_runs_generated_tests(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
         "gen_pair 3 1 > $\n",
     )
     wa = _by_name(run_solutions(problem_dir, TEMPLATES_DIR, full=True))["wa_py_minus_draft.py"]
@@ -480,7 +480,7 @@ def test_full_wa_caught_only_on_examples_survives_with_a_warning(tmp_path):
     # a - b == a + b with b = 0: the generated test doesn't catch the mistake.
     problem_dir = _full_problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
         "gen_pair 3 0 > $\n",
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
@@ -495,7 +495,7 @@ def test_full_summary(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
         {
-            "ok_py_main_draft.py": OK_PY,
+            "ma_py_sum_draft.py": OK_PY,
             "wa_py_seven_draft.py": WA_ON_SEVEN_PY,
             "wa_py_minus_draft.py": WA_PY,
         },
@@ -505,7 +505,7 @@ def test_full_summary(tmp_path):
     assert summary["full"] is True
     assert summary["memory_limit_mb"] == 256
     solutions = {s["name"]: s for s in summary["solutions"]}
-    assert solutions["ok_py_main_draft.py"]["status"] == STATUS_EXPECTED
+    assert solutions["ma_py_sum_draft.py"]["status"] == STATUS_EXPECTED
     caught = solutions["wa_py_seven_draft.py"]
     assert caught["status"] == STATUS_EXPECTED
     assert caught["caught_by"]["command"] == "gen_pair 7 0"
@@ -519,7 +519,7 @@ def test_full_summary(tmp_path):
 
 def test_summary_without_full_has_no_survivors(tmp_path):
     problem_dir = _problem(
-        tmp_path, {"ok_py_main_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY}
+        tmp_path, {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY}
     )
     summary = run_solutions(problem_dir, TEMPLATES_DIR).summary()
     assert summary["full"] is False
@@ -538,7 +538,7 @@ def test_memory_over_the_cap_is_a_runtime_error(tmp_path):
     problem_dir = _problem(
         tmp_path,
         {
-            "ok_py_main_draft.py": OK_PY,
+            "ma_py_sum_draft.py": OK_PY,
             "ok_cpp_greedy_draft.cpp": GREEDY_CPP,
             "ml_cpp_greedy_draft.cpp": GREEDY_CPP,
         },
@@ -550,13 +550,13 @@ def test_memory_over_the_cap_is_a_runtime_error(tmp_path):
     assert {t.verdict for t in greedy_ok.tests} == {"RE"}
     assert "capped at 128 MB" in greedy_ok.tests[0].comment
     assert not solutions["ml_cpp_greedy_draft.cpp"].failed
-    assert not solutions["ok_py_main_draft.py"].failed
+    assert not solutions["ma_py_sum_draft.py"].failed
 
 
 def test_full_ok_failing_generated_test_reports_its_command(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "ok_py_other_draft.py": WA_ON_SEVEN_PY},
+        {"ma_py_sum_draft.py": OK_PY, "ok_py_other_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 3 1 > $\ngen_pair 7 1 > $\n",
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
@@ -568,7 +568,7 @@ def test_full_ok_failing_generated_test_reports_its_command(tmp_path):
 def test_full_tl_never_reached_is_only_a_warning(tmp_path):
     problem_dir = _full_problem(
         tmp_path,
-        {"ok_py_main_draft.py": OK_PY, "tl_py_fast_draft.py": OK_PY},
+        {"ma_py_sum_draft.py": OK_PY, "tl_py_fast_draft.py": OK_PY},
         "gen_pair 3 1 > $\n",
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
@@ -583,7 +583,7 @@ def test_full_generated_tests_without_ok_solution_is_an_error(tmp_path):
 
 
 def test_full_validator_runs_on_generated_tests(tmp_path):
-    problem_dir = _full_problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, "gen_pair 500 1 > $\n")
+    problem_dir = _full_problem(tmp_path, {"ma_py_sum_draft.py": OK_PY}, "gen_pair 500 1 > $\n")
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
     assert any("rejects test 3" in error for error in result.errors)
@@ -591,13 +591,13 @@ def test_full_validator_runs_on_generated_tests(tmp_path):
 
 def test_runs_are_summarized_on_many_tests(tmp_path):
     script = "".join(f"gen_pair {i} 1 > $\n" for i in range(1, 11))
-    problem_dir = _full_problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, script)
+    problem_dir = _full_problem(tmp_path, {"ma_py_sum_draft.py": OK_PY}, script)
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
-    assert "OK x12, max " in _by_name(result)["ok_py_main_draft.py"].runs
+    assert "OK x12, max " in _by_name(result)["ma_py_sum_draft.py"].runs
 
 
 def test_local_run_full_flag_reaches_generated_tests(tmp_path, capsys):
-    _full_problem(tmp_path, {"ok_py_main_draft.py": OK_PY}, "gen_pair 3 1 > $\n")
+    _full_problem(tmp_path, {"ma_py_sum_draft.py": OK_PY}, "gen_pair 3 1 > $\n")
     rc = cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "run", "--full"])
     out = capsys.readouterr().out
     assert rc == 0
@@ -616,10 +616,10 @@ def test_only_runs_the_named_solutions_and_main(tmp_path):
     problem_dir = _problem(
         tmp_path,
         {
-            "ok_py_main_draft.py": OK_PY,
+            "ma_py_sum_draft.py": OK_PY,
             "wa_py_minus_draft.py": WA_PY,
             "re_py_exit_draft.py": RE_PY,
         },
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR, only={"re_py_exit_draft.py"})
-    assert sorted(_by_name(result)) == ["ok_py_main_draft.py", "re_py_exit_draft.py"]
+    assert sorted(_by_name(result)) == ["ma_py_sum_draft.py", "re_py_exit_draft.py"]

@@ -43,7 +43,7 @@ _RESPONSES = {
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
     ),
     "solutions_main": ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}, notes=[]
+        status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}, notes=[]
     ),
     "solutions_slow": ModelResponse(
         status="confirmed", artifacts={"tl_cpp_n2_draft.cpp": "int main(){}"}, notes=[]
@@ -942,7 +942,7 @@ def test_failed_local_run_stops_then_its_stage_revises_with_the_report(
     from orchestrator.llm_report import COMMENT_MARKER
     from orchestrator.steps import solutions_check
 
-    main = "ok_cpp_main_draft.cpp"
+    main = "ma_cpp_sum_draft.cpp"
     failing = SolutionsRunResult(
         full=True,
         solutions=[

@@ -25,8 +25,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
 
    | Stage | Writes | Builds on | Local run |
    |---|---|---|---|
-   | `solutions_main` | the main `ok` solution `ok_<language>_main_<author>` in the first of cpp/java/py among `solutions.languages` | — | `run_main`: the main solution |
-   | `solutions_ok` | the other `ok` solutions: the main idea in the other languages, `alternative_approaches` | the main solution | `run_ok`: all `ok` ones against the output of the main one |
+   | `solutions_main` | the main correct solution `ma_<language>_<idea>_<author>` (Polygon's `MA` tag) in the first of cpp/java/py among `solutions.languages` | — | `run_main`: the main solution |
+   | `solutions_ok` | the other `ok` solutions: the main idea in the other languages (`ok_<language>_<idea>_<author>` with the main one's `<idea>`), `alternative_approaches` | the main solution | `run_ok`: all `ok` ones against the output of the main one |
    | `solutions_slow` | `tl`, `tl_ok`, `tle`, `ml`, `mle` | all `ok` solutions | `run_slow` |
    | `solutions_wrong` | `wa`, `re`, `il` | all `ok` solutions | `run_wrong` |
 
@@ -50,8 +50,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
 
    A stage owns solutions by their names (`Stage.owned`): `main` — Main correct as
-   Polygon chooses it (`upload_solutions._choose_main`: a file with the `main`
-   description first), `ok` — the other `ok` ones, `slow`/`wrong` — by the verdict.
+   Polygon chooses it (`upload_solutions._choose_main`: the file with the `ma`
+   verdict first), `ok` — the other correct ones, `slow`/`wrong` — by the verdict.
    Revision mode shows the model only the stage's files; a response with a file of
    another stage isn't applied (a conflict). Solutions that exist while the stage has
    never run (written by the author or before the stages) are kept as is, like
