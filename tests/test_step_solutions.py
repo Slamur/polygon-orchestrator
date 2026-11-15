@@ -578,6 +578,7 @@ def test_stages_own_solutions_by_name(tmp_path):
             "ok_py_sum_draft.py",
             "tl_ok_java_slowio_draft.java",
             "ml_cpp_big_draft.cpp",
+            "tl_ml_cpp_grid_draft.cpp",
             "wa_py_bound_draft.py",
             "re_cpp_stack_draft.cpp",
             "notes.txt",
@@ -586,7 +587,11 @@ def test_stages_own_solutions_by_name(tmp_path):
     assert _owned(tmp_path) == {
         "main": ["ma_cpp_sum_draft.cpp"],
         "ok": ["ok_cpp_alt_draft.cpp", "ok_py_sum_draft.py"],
-        "slow": ["ml_cpp_big_draft.cpp", "tl_ok_java_slowio_draft.java"],
+        "slow": [
+            "ml_cpp_big_draft.cpp",
+            "tl_ml_cpp_grid_draft.cpp",
+            "tl_ok_java_slowio_draft.java",
+        ],
         "wrong": ["re_cpp_stack_draft.cpp", "wa_py_bound_draft.py"],
     }
 

@@ -202,7 +202,7 @@ generation:
 # 4. AUTHOR SOLUTIONS (optional, drafts) — input for the solution stages solutions_*
 # ---------------------------------------------------------------------------
 solutions:
-  wanted_verdicts: ["ok", "wa", "tl"]  # [required if the section is on] which drafts are needed: ok, wa, tl, tl_ok, ml, re, il (il — only for an interactive problem)
+  wanted_verdicts: ["ok", "wa", "tl"]  # [required if the section is on] which drafts are needed: ok, wa, tl, tl_ok, tl_ml, ml, re, il (il — only for an interactive problem)
   languages: ["cpp", "java"]           # [required if the section is on]
   algorithm_hint: |                    # [required if the section is on]
     The author explicitly describes the idea of the main algorithm (not full code, but
@@ -216,14 +216,17 @@ solutions:
     - "tl (cpp/java): O(N^2) brute force without optimization"
     - "tl_ok: the correct algorithm with unbuffered input/output"
     # Each item is a separate solution of the stage of its verdict (solutions_slow
-    # for tl/tl_ok/tle/ml/mle, solutions_wrong for wa/re/il), items aren't
+    # for tl/tl_ok/tl_ml/tle/ml/mle, solutions_wrong for wa/re/il), items aren't
     # skipped or replaced by others; one item — one mistake (two
     # independent mistakes — two items). The prefix "<verdict>: " or
     # "<verdict> (<languages separated by />): " is mandatory (the spec doesn't
-    # validate without it): the verdict — one of wa, tl, tl_ok, tle, ml, mle, re, il
+    # validate without it): the verdict — one of wa, tl, tl_ok, tl_ml, tle, ml, mle, re, il
     # (`tl_ok` — "TL or OK": a solution borderline in time or a solution
-    # without input/output speedup). Without languages they are chosen by the verdict:
-    # tl — C++; tl_ok — all languages from `languages` where it makes sense;
+    # without input/output speedup; `tl_ml` — "TL or ML", Polygon's TM tag: a solution
+    # too slow and too memory-hungry at once — the model itself writes a tl/ml item
+    # as tl_ml if by its estimate of the solution's memory at the maximal values
+    # it's far above 256 MB). Without languages they are chosen by the verdict:
+    # tl, tl_ml — C++; tl_ok — all languages from `languages` where it makes sense;
     # wa due to overflow — one of C++/Java; other wa — one language where
     # the mistake is more natural. If a verdict from wanted_verdicts has no
     # items, the model proposes one approach itself (as proposed);

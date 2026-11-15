@@ -14,7 +14,7 @@ from the file name by the `<verdict>_<language>_<description>_<author>.<ext>` sc
   `solutions_main` step); without one — an `ok` file chosen by the language priority
   `_MAIN_LANGUAGE_PRIORITY`, within a language — alphabetically by name; this is the only
   case when the tag of a solution that already exists on Polygon changes;
-- `ma` when Polygon already has a Main correct and the other `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL or OK"),
+- `ma` when Polygon already has a Main correct and the other `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL or OK"), `tl_ml` -> `TM` ("TL or ML"),
   `wa` -> `WA`, `ml`/`mle` -> `ML`;
 - everything else allowed (`re`, `il` — Idleness limit exceeded in an
   interactive problem) -> `RJ` ("Incorrect").
@@ -93,7 +93,19 @@ _LANGUAGE_ALIASES = {
 
 # `orchestrator.spec._ALLOWED_VERDICTS` (the allowed `solutions.wanted_verdicts`) and the
 # main correct one.
-_VALID_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il", MAIN_VERDICT}
+_VALID_VERDICTS = {
+    "ok",
+    "wa",
+    "tl",
+    "tl_ok",
+    "tl_ml",
+    "tle",
+    "ml",
+    "mle",
+    "re",
+    "il",
+    MAIN_VERDICT,
+}
 
 
 @dataclass(frozen=True)
@@ -269,6 +281,8 @@ def _tag_for(parsed: _ParsedSolution, main_name: str | None) -> str:
         return "TL"
     if parsed.verdict == "tl_ok":
         return "TO"
+    if parsed.verdict == "tl_ml":
+        return "TM"
     if parsed.verdict == "wa":
         return "WA"
     if parsed.verdict in ("ml", "mle"):

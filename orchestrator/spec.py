@@ -206,15 +206,17 @@ class Generation(BaseModel):
 
 
 # `tl_ok` — "TL or OK": a solution borderline in time or a solution without
-# input/output speedup (`templates/tutorials/solutions.md`); `il` —
+# input/output speedup (`templates/tutorials/solutions.md`); `tl_ml` — "TL or ML": a
+# solution too slow and too memory-hungry at once (which limit it hits first isn't
+# known in advance; locally a memory shortage shows up as RE); `il` —
 # Idleness limit exceeded in an interactive problem (a solution without flushing the buffer,
 # `templates/tutorials/interactive.md`).
-_ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il"}
+_ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tl_ml", "tle", "ml", "mle", "re", "il"}
 
 
 def split_solution_stem(stem: str) -> list[str]:
     """The tokens of a solution name `<verdict>_<language>_<description>_<author>`
-    (`stem` — without the extension). The verdict itself may contain `_` (`tl_ok`) —
+    (`stem` — without the extension). The verdict itself may contain `_` (`tl_ok`, `tl_ml`) —
     such a one is glued back into one first token."""
     parts = stem.split("_")
     if len(parts) >= 2 and f"{parts[0]}_{parts[1]}".lower() in _ALLOWED_VERDICTS:

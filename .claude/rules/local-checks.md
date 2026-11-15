@@ -55,7 +55,7 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   the output of Main correct; the verdict is given by the problem's checker (`checker.cpp` or
   the standard one from `checker.standard`, sources — in
   `orchestrator/checks/std_checkers/`). A solution with verdict X in its name may
-  get OK or X on an example (`tl_ok` — OK or TL), anything else is an error
+  get OK or X on an example (`tl_ok` — OK or TL, `tl_ml` — OK, TL or RE), anything else is an error
   (`ALLOWED_VERDICTS`); a solution without the `tl` verdict that ran on an example
   longer than half the TL (and fit into it) — a warning. For an
   interactive problem the solution and `interactor.cpp` are connected with pipes,
@@ -72,7 +72,7 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   --full`) with answers from Main correct. The declared verdict is required here,
   and on the generated tests — the examples don't count: `wa`, `re`, `il` that
   never got it — an error (the tests don't catch them), got it only on the examples —
-  a warning; `tl`, `ml` (RE) — a warning (the time and memory are local). These solutions
+  a warning; `tl`, `ml` (RE), `tl_ml` (TL or RE) — a warning (the time and memory are local). These solutions
   stop at the first declared verdict on a generated test, `ok` and `tl_ok` go to the end.
   `SolutionsRunResult.summary()` — the same outcome as plain data (per solution: a status
   `expected` / `unexpected` / `survived` / `not_run` and the test that caught it) for

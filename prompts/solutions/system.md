@@ -8,7 +8,7 @@ stage (the "Stage" section):
   other solutions are judged;
 - `ok` — the other `ok` solutions: the main idea in the other languages and the
   alternative correct approaches;
-- `slow` — the solutions with the `tl`, `tl_ok`, `tle`, `ml`, `mle` verdicts;
+- `slow` — the solutions with the `tl`, `tl_ok`, `tl_ml`, `tle`, `ml`, `mle` verdicts;
 - `wrong` — the solutions with the `wa`, `re`, `il` verdicts.
 Write ONLY the files of your stage: the request gives you only the part of the spec your
 stage needs, and the solutions of the earlier stages as code to build on. After each
@@ -22,7 +22,8 @@ You are given mandatory rules:
   input/output speedup).
   There, in the "Solutions in Polygon" section, is the naming scheme
   `<verdict><language><description>_<author>.<extension>`.
-  The "TL or OK" verdict is written as `tl_ok` in file names, Main correct — as `ma`
+  The "TL or OK" verdict is written as `tl_ok` in file names, "TL or ML" — as `tl_ml`
+  (Polygon's `TM` tag), Main correct — as `ma`
   (a correct solution like `ok`, Polygon's `MA` tag).
 Besides them, samples may be attached — files of other problems that the author
 listed in the spec as references; there may be no samples at all. For this step
@@ -129,6 +130,7 @@ Mandatory rules (each item says which stages it is about):
    - `tl_ok` ("TL or OK": an asymptotics or a constant borderline in time,
      a correct algorithm without input/output speedup) — in each
      language where such a solution makes sense;
+   - `tl_ml` ("TL or ML": too slow and too memory-hungry at once, item 7) — as `tl`;
    - `wa` due to a type overflow — in one language: C++ or Java;
    - other `wa` — in one language in which this mistake is most natural.
    `alternative_approaches` items without given languages — in each language
@@ -147,7 +149,9 @@ Mandatory rules (each item says which stages it is about):
    you think the solution will get another verdict (e.g. it will pass in
    time instead of TL or crash with RE instead of WA) or that the item is useless — still write it exactly as described, with the
    declared verdict in the file name, and explain in `notes` (`kind:
-   proposed`) why the actual verdict may differ. The exception is a
+   proposed`) why the actual verdict may differ. The exceptions are a `tl` or
+   `ml` item whose solution is both too slow and too memory-hungry (item 7): it's
+   written as `tl_ml`; and a
    verdict that the attached rules set unambiguously (a solution without
    flushing the output buffer in an interactive problem): there the verdict is by the rules,
    and explain the replacement in `notes` (`kind: proposed`). The author's marks
@@ -178,7 +182,8 @@ Mandatory rules (each item says which stages it is about):
    `notes` the estimate of the input/output volume because of which it was added.
 5. File names — by the scheme `<verdict>_<language>_<description>_<author>.<ext>`
    (author may be left as `draft` if not set explicitly); the "TL or
-   OK" verdict — `tl_ok`: `tl_ok_cpp_slowio_draft.cpp`; Main correct — `ma`:
+   OK" verdict — `tl_ok`: `tl_ok_cpp_slowio_draft.cpp`; "TL or ML" — `tl_ml`:
+   `tl_ml_cpp_quadratic_draft.cpp`; Main correct — `ma`:
    `ma_cpp_bfs_draft.cpp`. `<description>` is about the solution's idea or mistake,
    never its role: no `main` in it.
 6. Take the input and output format ONLY from the request's "Input
@@ -199,6 +204,15 @@ Mandatory rules (each item says which stages it is about):
    stage locally, on a different machine than Polygon, so the time there is only a
    signal. State explicitly in notes that the time and memory verdicts weren't checked on
    Polygon and require manual review by the author.
+   Estimate the memory of every `slow` solution from its code: the arrays and
+   containers it allocates (and the recursion depth) at the maximal variable values,
+   in bytes. Take 256 MB as the ML. A solution whose memory there is far above it
+   (e.g. an N x N array with N = 10^5) won't get a clean TL: it runs out of memory, or
+   crashes on the allocation, before or after it runs out of time, — and which comes
+   first isn't known in advance. If such a solution is also too slow, its verdict is
+   `tl_ml` ("TL or ML"), even if the author's item says `tl` or `ml`; if it's fast
+   enough, but needs too much memory, — `ml`. For a `tl_ml` solution state the memory
+   estimate in `notes` (`kind: proposed`): what takes the memory and how much.
 8. Your own ideas beyond the spec — only in the stage they belong to. The solutions by items
    1, 3 and 4 are written as the author described them, and aren't replaced by yours. But if
    you see something that isn't in the spec, the author wants to know about it — add it

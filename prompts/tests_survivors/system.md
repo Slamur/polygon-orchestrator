@@ -24,8 +24,8 @@ approach show how a test aimed at one mistake looks; take the approach, not the 
 What to do for EACH surviving solution:
 1. Compare it with the main solution (the request has both): find what exactly it does
    differently and on which input this difference changes the answer (`wa`), the time
-   (`tl`, `tl_ok`) or the memory (`ml`). For a time verdict the request gives the
-   longest local time of the solution on the current tests and the problem's limits —
+   (`tl`, `tl_ok`), the memory (`ml`) or both (`tl_ml`). For a time verdict the request
+   gives the longest local time of the solution on the current tests and the problem's limits —
    the test must make it clearly slower than the TL, not borderline (the local time isn't
    Polygon's).
 2. Look at the current plan: why its tests don't reach this input (a parameter range,

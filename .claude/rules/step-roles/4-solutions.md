@@ -16,7 +16,7 @@ Common to all steps (revision mode, conflicts, cache, escalation,
 suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
 `.claude/rules/models.md`, `llm` commands — in `.claude/rules/llm-commands.md`.
 
-4. **The solutions** — drafts with declared verdicts (ok/wa/tl/tl_ok/ml/re/il),
+4. **The solutions** — drafts with declared verdicts (ok/wa/tl/tl_ok/tl_ml/ml/re/il),
    which the author must double-check and probably rewrite themselves — these aren't
    final solutions. They are written in stages, one model call per stage over the
    shared prompts `prompts/solutions/` (`step_order.PROMPT_DIRS`), and each stage is
@@ -27,7 +27,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    |---|---|---|---|
    | `solutions_main` | the main correct solution `ma_<language>_<idea>_<author>` (Polygon's `MA` tag) in the first of cpp/java/py among `solutions.languages` | — | `run_main`: the main solution |
    | `solutions_ok` | the other `ok` solutions: the main idea in the other languages (`ok_<language>_<idea>_<author>` with the main one's `<idea>`), `alternative_approaches` | the main solution | `run_ok`: all `ok` ones against the output of the main one |
-   | `solutions_slow` | `tl`, `tl_ok`, `tle`, `ml`, `mle` | all `ok` solutions | `run_slow` |
+   | `solutions_slow` | `tl`, `tl_ok`, `tl_ml`, `tle`, `ml`, `mle` | all `ok` solutions | `run_slow` |
    | `solutions_wrong` | `wa`, `re`, `il` | all `ok` solutions | `run_wrong` |
 
    The input of every stage: its part of the `solutions` section
@@ -45,6 +45,11 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    A stage isn't needed — `skipped`: `ok` — one language and no `alternative_approaches`;
    `slow`/`wrong` — none of their verdicts in `wanted_verdicts` and the items (`slow`
    also runs for Java/Python in `languages`: a `tl_ok` with slow input/output).
+   The model isn't given the ML either: it estimates each slow solution's memory from
+   its code at the maximal values against 256 MB, and a solution both too slow and far
+   over that is named `tl_ml` ("TL or ML", Polygon's `TM` tag), even from a `tl`/`ml`
+   item — locally it's allowed OK, TL or RE (the address space cap turns a memory
+   shortage into RE), and missing both is only a warning, as for `tl` and `ml`.
    Beyond the solutions described in the spec, a stage may propose its own (another or
    a faster `ok` in `solutions_ok`, likely contestant mistakes in `slow`/`wrong`) — see
    "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
