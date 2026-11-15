@@ -1,0 +1,102 @@
+<#assign desc = "Functions"/>
+<#function div a b>
+    <#return (a / b)?long>
+</#function>
+<#function ceil a b>
+    <#return div(a - 1, b) + 1/>
+</#function>
+<#function min a b>
+    <#return [a, b]?sort?first>
+</#function>
+<#function max a b>
+    <#return [a, b]?sort?last>
+</#function>
+<#function pow base power>
+    <#assign res = 1/>
+    <#list 0..<power as it>
+        <#assign res = res * base/>
+    </#list>
+    <#return res>
+</#function>
+<#function fact n>
+    <#assign res = 1/>
+    <#list 0..<n as it>
+        <#assign res = res * (it + 1)/>
+    </#list>
+    <#return res>
+</#function>
+<#function contains items value>
+    <#list items as item>
+        <#if item == value>
+            <#return true/>
+        </#if>
+    </#list>
+    <#return false/>
+</#function>
+
+<#-- generator names -->
+<#assign genRand = "gen_rand"/>
+<#assign genFixed = "gen_fixed"/>
+<#assign genPositions = "gen_positions"/>
+
+<#-- fixed constraints (from constraints_pick) -->
+<#assign minN = 1/>
+<#assign maxN = 100/>
+
+<#-- constants from tests_plan.yaml -->
+<#assign halfMaxN = div(maxN, 2)/>
+<#assign lowImbalanceCnt = 1/>
+<#assign highImbalanceCnt = maxN - 1/>
+<#assign specificN10 = 10/>
+<#assign specificN10Cnt = 5/>
+<#assign edgePositionsIdx = "1," + maxN/>
+<#assign middlePositionIdxEven = 50/>
+<#assign middleOddN = 99/>
+<#assign middlePositionIdxOdd = 50/>
+<#assign exhaustivePatterns = ["0", "1", "0,0", "0,1", "1,0", "1,1", "0,0,0", "0,0,1", "0,1,0", "0,1,1", "1,0,0", "1,0,1", "1,1,0", "1,1,1"]/>
+<#assign smallSizeCases = [[2,1],[3,1],[4,2],[5,2],[7,3],[15,7],[20,0],[35,35],[50,25],[90,45]]/>
+
+<#-- SUGGESTION: author did not explicitly request an exhaustive enumeration
+     of all f_1..f_N combinations; this covers the elementary O(N) counting
+     logic completely for the trivial sizes N = 1, 2, 3, where the number of
+     combinations (2, 4, 8) is small enough to enumerate fully instead of
+     relying on random small tests that might miss a specific combination
+     by chance. -->
+<#assign description = "SUGGESTION: exhaustive enumeration of all possible f_1..f_N for N = 1, 2 and 3"/>
+<#list exhaustivePatterns as pattern>
+${genFixed} -f=${pattern} > $
+</#list>
+
+<#assign description = "Small tests: various N sizes with a random set of favourite numbers"/>
+<#list smallSizeCases as case>
+${genRand} -n=${case[0]} -cnt=${case[1]} > $
+</#list>
+
+<#assign description = "Edge case: N = 1 - the only number is either favourite or not"/>
+${genRand} -n=${minN} -cnt=0 > $
+${genRand} -n=${minN} -cnt=1 > $
+
+<#assign description = "Maximum tests: N = 100, all favourite / none favourite / about half"/>
+${genRand} -n=${maxN} -cnt=${maxN} > $
+${genRand} -n=${maxN} -cnt=0 > $
+${genRand} -n=${maxN} -cnt=${halfMaxN} > $
+
+<#assign description = "Adversarial: N = 100 with an extremely imbalanced favourite/non-favourite count, catches counting NO instead of YES"/>
+${genRand} -n=${maxN} -cnt=${lowImbalanceCnt} > $
+${genRand} -n=${maxN} -cnt=${highImbalanceCnt} > $
+
+<#assign description = "Specific test: N = 10 with a random set of favourite numbers"/>
+${genRand} -n=${specificN10} -cnt=${specificN10Cnt} > $
+
+<#assign description = "Specific test: favourite numbers only at the range edges and only in the middle (N = maxN)"/>
+${genPositions} -n=${maxN} -idx=${edgePositionsIdx} > $
+${genPositions} -n=${maxN} -idx=${middlePositionIdxEven} > $
+
+<#-- SUGGESTION: the "middle only" test above uses N = maxN = 100 (even),
+     where the middle of the range is ambiguous (candidates 50 and 51).
+     Adding an odd N = 99, whose middle position 50 is unambiguous, checks
+     off-by-one robustness independently of N's parity: a solution whose
+     middle-index computation is wrong only for one parity of N could pass
+     the N = 100 test above alone. -->
+<#assign description = "SUGGESTION: only the middle of the range at odd N = 99 (unambiguous middle)"/>
+${genPositions} -n=${middleOddN} -idx=${middlePositionIdxOdd} > $
