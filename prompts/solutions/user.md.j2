@@ -1,7 +1,7 @@
 The problem spec (problem_id: {{ problem_id }}):
 
 ## Stage
-{{ stage }}{% if stage == "main" %} — the main ok solution in {{ solutions.language }}{% elif stage == "ok" %} — the other ok solutions (the main one is in {{ solutions.main_language }}){% elif stage == "slow" %} — the tl/tl_ok/tle/ml/mle solutions{% else %} — the wa/re/il solutions{% endif %}
+{{ stage }}{% if stage == "main" %} — the main ok solution in {{ solutions.language }}{% elif stage == "ok" %} — the other ok solutions (the main one is in {{ solutions.main_language }}){% elif stage == "slow" %} — the tl/tl_ok/tl_ml/tle/ml/mle solutions{% else %} — the wa/re/il solutions{% endif %}
 
 ## Legend (the author's sketch — for understanding the terms, not a source of the author solution's algorithm)
 {{ statement.legend_sketch }}
