@@ -279,14 +279,44 @@ def _critique_section(critique: Any, *, review_only: bool = False) -> list[str]:
                 f"- **{finding.field}** · {finding.lens} · {finding.severity} · "
                 f"{finding.action} — {why}"
             )
-            if finding.proposal:
-                proposal = finding.proposal.replace("\n", "\n  ")
-                lines.append(f"  Proposal: {proposal}")
+            if finding.proposal not in ("", None):
+                snippet = _proposal_snippet(finding.field, finding.proposal)
+                lines += ["", "  Proposal:", "", "  ```yaml"]
+                lines += [f"  {line}".rstrip() for line in snippet.splitlines()]
+                lines += ["  ```"]
             if finding.outcome != FOR_REVIEW:
                 detail = f": {finding.detail}" if finding.detail else ""
                 lines.append(f"  → **{finding.outcome}**{detail}")
             lines.append("")
     return lines
+
+
+def _proposal_snippet(field: str, proposal: Any) -> str:
+    """The critic's proposal as YAML ready to paste into the spec in place of `field`:
+    `<key>: <value>` for a mapping key, `- <value>` for a list item (`...[N]`);
+    multi-line text — as a `|` block."""
+    import yaml
+
+    class _Dumper(yaml.SafeDumper):
+        pass
+
+    def _str(dumper: yaml.SafeDumper, data: str) -> yaml.ScalarNode:
+        style = "|" if "\n" in data else None
+        return dumper.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+    _Dumper.add_representer(str, _str)
+    if field.endswith("]"):
+        value: Any = [proposal]
+    else:
+        value = {field.rsplit(".", 1)[-1]: proposal}
+    return yaml.dump(
+        value,
+        Dumper=_Dumper,
+        allow_unicode=True,
+        sort_keys=False,
+        default_flow_style=False,
+        width=1_000_000,
+    ).rstrip("\n")
 
 
 def _notes_sections(notes: list[dict[str, Any]], *, title_prefix: str = "") -> list[str]:

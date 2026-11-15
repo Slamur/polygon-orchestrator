@@ -28,6 +28,7 @@ from orchestrator.spec_critic import (
     REPEATED,
     REVISED,
     UNRESOLVED,
+    CritiqueOutcome,
     Finding,
     author_values,
     classify,
@@ -257,6 +258,63 @@ def test_parse_critique_skips_invalid_items():
     assert len(notes) == 4 and all(n["kind"] == "uncertain" for n in notes)
     assert parse_critique("[]") == ([], [])
     assert parse_critique(None)[0] == [] and parse_critique("a: [")[1]
+
+
+def test_parse_critique_keeps_structured_proposal():
+    example = {"input": "3\n1 2 3\n", "output": "NO"}
+    text = yaml.safe_dump(
+        [
+            _item("statement_draft.legend_sketch", action="simplify", proposal="  shorter  "),
+            _item("statement_draft.sample_examples", action="gap", proposal=[example]),
+            _item("constraints.variables[0].max", action="simplify", proposal=1000),
+            _item("generation.generator_ideas[1]"),
+        ]
+    )
+    items, _ = parse_critique(text)
+    assert [i["proposal"] for i in items] == ["shorter", [example], 1000, ""]
+
+
+def test_report_shows_proposal_as_yaml_to_paste():
+    findings = [
+        Finding(
+            "statement_draft.legend_sketch",
+            "should",
+            "simplify",
+            "too long",
+            proposal="Two lines\nof text.",
+            lens="statement",
+            owner=AUTHOR,
+        ),
+        Finding(
+            "generation.generator_ideas[1]",
+            "should",
+            "simplify",
+            "too long",
+            proposal="random tree",
+            lens="tests",
+            owner=AUTHOR,
+        ),
+        Finding(
+            "statement_draft.sample_examples",
+            "should",
+            "gap",
+            "no NO answer",
+            proposal=[{"input": "1\n", "output": "NO"}],
+            lens="statement",
+            owner=AUTHOR,
+        ),
+        Finding("solutions.checker", "should", "remove", "not needed", lens="solutions"),
+    ]
+    outcome = CritiqueOutcome(before_text="", spec_text="", findings=findings)
+    report = "\n".join(_critique_section(outcome, review_only=True))
+    assert (
+        "  Proposal:\n\n  ```yaml\n  legend_sketch: |-\n    Two lines\n    of text.\n  ```"
+    ) in report
+    assert "  ```yaml\n  - random tree\n  ```" in report
+    assert (
+        "  ```yaml\n  sample_examples:\n  - input: |\n      1\n    output: 'NO'\n  ```"
+    ) in report
+    assert report.count("Proposal:") == 3
 
 
 # --- routing ----------------------------------------------------------------

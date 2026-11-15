@@ -155,13 +155,14 @@ class Finding:
     resolved path (sequence indices as `int`), `None` — `field` doesn't resolve in the
     spec. `owner` — `AUTHOR`/`MODEL`,
     `mark` — "SUGGESTION"/"PROPOSED" for a model value. `outcome` — what was done
-    with it, `detail` — the generator's reason to keep it or the rejection reason."""
+    with it, `detail` — the generator's reason to keep it or the rejection reason.
+    `proposal` — the new value of `field` (a string or a structured YAML value)."""
 
     field: str
     severity: str
     action: str
     why: str
-    proposal: str = ""
+    proposal: Any = ""
     lens: str = ""
     round: int = 1
     path: FieldPath | None = None
@@ -421,7 +422,17 @@ def critic_documents(
     return documents
 
 
-def parse_critique(text: str | None) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+def _proposal(value: Any) -> Any:
+    """The new value of the finding's field: a string (stripped) or, for a structured
+    field, the mapping/list as the model wrote it; nothing — `""`."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
+def parse_critique(text: str | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The findings from `critique.yaml` and notes about the items that were skipped."""
     notes: list[dict[str, Any]] = []
     if text is None:
@@ -456,7 +467,7 @@ def parse_critique(text: str | None) -> tuple[list[dict[str, str]], list[dict[st
                 "severity": item["severity"],
                 "action": item["action"],
                 "why": str(item.get("why") or "").strip(),
-                "proposal": str(item.get("proposal") or "").strip(),
+                "proposal": _proposal(item.get("proposal")),
             }
         )
     return items, notes
@@ -470,7 +481,7 @@ def _call_critic(
     prompts_dir: Path,
     templates_dir: Path,
     examples_dir: Path,
-) -> tuple[list[dict[str, str]], list[dict[str, Any]]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     previous_findings = None
     if previous:
         previous_findings = yaml.safe_dump(

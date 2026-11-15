@@ -83,8 +83,15 @@ Each finding:
   severity: must | should | nit
   action: remove | simplify | merge | question | gap
   why: "..."                      # one or two sentences, concrete
-  proposal: "..."                 # for simplify/merge: the replacement; optional otherwise
+  proposal: ...                   # the complete new value of `field`, ready to paste:
+                                  # text, or a YAML mapping/list; for simplify/merge —
+                                  # required, question/gap — optional, remove — none
 ```
+
+In the reports (`init --draft`, `llm critic`) a `proposal` is shown as a YAML
+block with the field's key (`<key>: <value>`, `- <value>` for a list item,
+multi-line text as `|`), so the author can copy it into the spec as is
+(`llm_report._proposal_snippet`).
 
 `merge` names the other field(s) in `why`. No `add` action. `gap` — something
 important is missing, only on a lens's `gap_fields` (`Lens.gap_fields`; now only

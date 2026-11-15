@@ -279,6 +279,8 @@ the model for one revision); its findings on what you wrote are only listed in t
 report, under "Your values — for your review". `--no-critic` skips it,
 `--critic-rounds 2` allows a second round. For a spec you wrote by hand (or
 edited a lot since), `llm critic [--lens NAME]` runs the same critic as a report only.
+Where the critic proposes a new value, the report shows it as a YAML block
+ready to paste into the spec.
 
 Without `--draft` an empty spec is created from the template (or a copy of the `--ref` spec),
 which is filled in by hand following [docs/SPEC_FORMAT.md](docs/SPEC_FORMAT.md).
