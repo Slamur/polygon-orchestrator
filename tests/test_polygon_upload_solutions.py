@@ -18,7 +18,7 @@ from orchestrator.polygon.steps.upload_solutions import STEP
 from orchestrator.spec import load_spec
 
 SOLUTIONS = {
-    "ok_py_main_draft.py": b"print(1)\n",
+    "ok_py_sum_draft.py": b"print(1)\n",
     "ok_cpp_alt_draft.cpp": b"int main() {}\n",
     "tl_py_slow_draft.py": b"print(2)\n",
     "tl_cpp_bad_draft.cpp": b"int main() { for(;;); }\n",
@@ -99,7 +99,7 @@ def test_empty_solutions_dir_is_an_error(problems_dir, spec):
 
 def test_filename_without_scheme_is_an_error(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(problems_dir, {"ok_cpp_main_draft.cpp": b"", "solution.cpp": b""})
+    _write_solutions(problems_dir, {"ok_cpp_sum_draft.cpp": b"", "solution.cpp": b""})
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match="<verdict>_<language>_<description>_<author>"):
@@ -110,7 +110,7 @@ def test_filename_without_scheme_is_an_error(problems_dir, spec):
 
 def test_unknown_verdict_is_an_error(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(problems_dir, {"ok_cpp_main_draft.cpp": b"", "xx_cpp_foo_bar.cpp": b""})
+    _write_solutions(problems_dir, {"ok_cpp_sum_draft.cpp": b"", "xx_cpp_foo_bar.cpp": b""})
     client = MagicMock()
 
     with pytest.raises(PolygonStepError, match=r"'xx'.*allowed set"):
@@ -128,7 +128,7 @@ def test_uploads_each_solution_with_its_tag(problems_dir, spec):
 
     expected = {
         "ok_cpp_alt_draft.cpp": "MA",
-        "ok_py_main_draft.py": "OK",
+        "ok_py_sum_draft.py": "OK",
         "tl_cpp_bad_draft.cpp": "TL",
         "tl_py_slow_draft.py": "TL",
         "wa_cpp_offbyone_draft.cpp": "WA",
@@ -161,7 +161,7 @@ def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
     link(problems_dir)
     _write_solutions(
         problems_dir,
-        {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b"", "ok_cpp_alt_draft.cpp": b""},
+        {"ok_py_sum_draft.py": b"", "ok_java_sum_draft.java": b"", "ok_cpp_alt_draft.cpp": b""},
     )
     client = MagicMock()
 
@@ -169,32 +169,52 @@ def test_main_prefers_cpp_over_java_and_py(problems_dir, spec):
 
     assert _tags(client) == {
         "ok_cpp_alt_draft.cpp": "MA",
-        "ok_java_main_draft.java": "OK",
-        "ok_py_main_draft.py": "OK",
+        "ok_java_sum_draft.java": "OK",
+        "ok_py_sum_draft.py": "OK",
     }
 
 
-def test_main_prefers_the_main_description_within_a_language(problems_dir, spec):
+def test_main_verdict_wins_over_language_priority(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(problems_dir, {"ok_cpp_alt_draft.cpp": b"", "ok_cpp_main_draft.cpp": b""})
+    _write_solutions(
+        problems_dir,
+        {"ok_cpp_alt_draft.cpp": b"", "ma_py_sum_draft.py": b"", "ok_java_sum_draft.java": b""},
+    )
     client = MagicMock()
 
     _run(spec, problems_dir, client)
 
-    assert _tags(client) == {"ok_cpp_alt_draft.cpp": "OK", "ok_cpp_main_draft.cpp": "MA"}
+    assert _tags(client) == {
+        "ok_cpp_alt_draft.cpp": "OK",
+        "ma_py_sum_draft.py": "MA",
+        "ok_java_sum_draft.java": "OK",
+    }
+
+
+def test_main_verdict_is_ok_when_polygon_has_main_correct(problems_dir, spec):
+    link(problems_dir)
+    _write_solutions(problems_dir, {"ma_cpp_sum_draft.cpp": b"", "ok_cpp_old_draft.cpp": b""})
+    client = MagicMock()
+    client.call.side_effect = lambda method, params: (
+        [{"name": "ok_cpp_old_draft.cpp", "tag": "MA"}] if method == "problem.solutions" else None
+    )
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client) == {"ma_cpp_sum_draft.cpp": "OK", "ok_cpp_old_draft.cpp": "MA"}
 
 
 def test_main_falls_back_to_java_without_cpp_ok(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(problems_dir, {"ok_py_main_draft.py": b"", "ok_java_main_draft.java": b""})
+    _write_solutions(problems_dir, {"ok_py_sum_draft.py": b"", "ok_java_sum_draft.java": b""})
     client = MagicMock()
 
     _run(spec, problems_dir, client)
 
-    assert _tags(client) == {"ok_java_main_draft.java": "MA", "ok_py_main_draft.py": "OK"}
+    assert _tags(client) == {"ok_java_sum_draft.java": "MA", "ok_py_sum_draft.py": "OK"}
 
 
-@pytest.mark.parametrize("py_name", ["ok_python_main_draft.py", "ok_python3_main_draft.py"])
+@pytest.mark.parametrize("py_name", ["ok_python_sum_draft.py", "ok_python3_sum_draft.py"])
 def test_python_language_aliases_win_main_over_unprioritized(problems_dir, spec, py_name):
     link(problems_dir)
     _write_solutions(problems_dir, {py_name: b"", "ok_pascal_alt_draft.pas": b""})
@@ -207,12 +227,12 @@ def test_python_language_aliases_win_main_over_unprioritized(problems_dir, spec,
 
 def test_cpp_language_alias_wins_main_over_java(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(problems_dir, {"ok_c++_main_draft.cpp": b"", "ok_java_alt_draft.java": b""})
+    _write_solutions(problems_dir, {"ok_c++_sum_draft.cpp": b"", "ok_java_alt_draft.java": b""})
     client = MagicMock()
 
     _run(spec, problems_dir, client)
 
-    assert _tags(client) == {"ok_c++_main_draft.cpp": "MA", "ok_java_alt_draft.java": "OK"}
+    assert _tags(client) == {"ok_c++_sum_draft.cpp": "MA", "ok_java_alt_draft.java": "OK"}
 
 
 def test_no_ok_solution_is_an_error(problems_dir, spec):
@@ -228,15 +248,13 @@ def test_no_ok_solution_is_an_error(problems_dir, spec):
 
 def test_unprioritized_language_falls_back_to_alphabetical_with_warning(problems_dir, spec, caplog):
     link(problems_dir)
-    _write_solutions(
-        problems_dir, {"ok_pascal_main_draft.pas": b"", "ok_pascal_alt_draft.pas": b""}
-    )
+    _write_solutions(problems_dir, {"ok_pascal_sum_draft.pas": b"", "ok_pascal_alt_draft.pas": b""})
     client = MagicMock()
 
     with caplog.at_level(logging.WARNING, logger="orchestrator.polygon.steps.upload_solutions"):
         _run(spec, problems_dir, client)
 
-    assert _tags(client) == {"ok_pascal_alt_draft.pas": "MA", "ok_pascal_main_draft.pas": "OK"}
+    assert _tags(client) == {"ok_pascal_alt_draft.pas": "MA", "ok_pascal_sum_draft.pas": "OK"}
     warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
     assert len(warnings) == 1
     assert "ok_pascal_alt_draft.pas" in warnings[0].getMessage()
@@ -278,11 +296,11 @@ def test_solution_on_polygon_keeps_its_tag_instead_of_verdict_in_name(problems_d
     link(problems_dir)
     _write_solutions(
         problems_dir,
-        {"ok_cpp_main_draft.cpp": b"", "wa_cpp_tagged_draft.cpp": b"", "wa_cpp_new_draft.cpp": b""},
+        {"ok_cpp_sum_draft.cpp": b"", "wa_cpp_tagged_draft.cpp": b"", "wa_cpp_new_draft.cpp": b""},
     )
     client = _client_with_solutions(
         [
-            {"name": "ok_cpp_main_draft.cpp", "tag": "MA"},
+            {"name": "ok_cpp_sum_draft.cpp", "tag": "MA"},
             {"name": "wa_cpp_tagged_draft.cpp", "tag": "TL"},
         ]
     )
@@ -290,7 +308,7 @@ def test_solution_on_polygon_keeps_its_tag_instead_of_verdict_in_name(problems_d
     _run(spec, problems_dir, client)
 
     assert _tags(client) == {
-        "ok_cpp_main_draft.cpp": "MA",
+        "ok_cpp_sum_draft.cpp": "MA",
         "wa_cpp_new_draft.cpp": "WA",
         "wa_cpp_tagged_draft.cpp": "TL",
     }
@@ -334,7 +352,7 @@ def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
     _write_solutions(
         problems_dir,
         {
-            "ok_cpp_main_draft.cpp": b"",
+            "ok_cpp_sum_draft.cpp": b"",
             "ml_cpp_bigarray_draft.cpp": b"",
             "mle_cpp_vectors_draft.cpp": b"",
             "re_cpp_overflow_draft.cpp": b"",
@@ -348,7 +366,7 @@ def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
     assert _tags(client) == {
         "ml_cpp_bigarray_draft.cpp": "ML",
         "mle_cpp_vectors_draft.cpp": "ML",
-        "ok_cpp_main_draft.cpp": "MA",
+        "ok_cpp_sum_draft.cpp": "MA",
         "re_cpp_overflow_draft.cpp": "RJ",
         "il_java_noflush_draft.java": "RJ",
     }
@@ -356,7 +374,7 @@ def test_ml_mle_are_tagged_ml_and_re_is_tagged_rj(problems_dir, spec):
 
 def test_tle_is_tagged_tl(problems_dir, spec):
     link(problems_dir)
-    _write_solutions(problems_dir, {"ok_cpp_main_draft.cpp": b"", "tle_java_slow_draft.java": b""})
+    _write_solutions(problems_dir, {"ok_cpp_sum_draft.cpp": b"", "tle_java_slow_draft.java": b""})
     client = MagicMock()
 
     _run(spec, problems_dir, client)
@@ -384,7 +402,7 @@ def test_upload_is_recorded_in_polygon_state(problems_dir, spec):
     _run(spec, problems_dir, MagicMock())
 
     synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
-    assert "solutions/ok_py_main_draft.py" in synced
+    assert "solutions/ok_py_sum_draft.py" in synced
     assert all(key.startswith("solutions/") for key in synced)
 
 
@@ -392,13 +410,13 @@ def test_incremental_run_uploads_only_changed_solution_with_its_tag(problems_dir
     link(problems_dir)
     _write_solutions(problems_dir)
     _run(spec, problems_dir, MagicMock())
-    (problems_dir / PROBLEM_ID / "solutions" / "ok_py_main_draft.py").write_bytes(b"# changed\n")
+    (problems_dir / PROBLEM_ID / "solutions" / "ok_py_sum_draft.py").write_bytes(b"# changed\n")
     client = MagicMock()
 
     _run(spec, problems_dir, client, incremental=True)
 
     assert [(c.args[1]["name"], c.args[1]["tag"]) for c in _uploads(client)] == [
-        ("ok_py_main_draft.py", "OK")
+        ("ok_py_sum_draft.py", "OK")
     ]
 
 
@@ -430,7 +448,7 @@ def test_status_stale_after_rename_or_removal(problems_dir, spec):
 def test_tl_ok_is_tagged_to(problems_dir, spec):
     link(problems_dir)
     _write_solutions(
-        problems_dir, {"ok_cpp_main_draft.cpp": b"", "tl_ok_java_slowio_draft.java": b""}
+        problems_dir, {"ok_cpp_sum_draft.cpp": b"", "tl_ok_java_slowio_draft.java": b""}
     )
     client = MagicMock()
 

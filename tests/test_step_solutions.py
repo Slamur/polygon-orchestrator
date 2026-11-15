@@ -14,7 +14,7 @@ from orchestrator.steps.solutions import STAGES
 from orchestrator.steps.solutions import extra_context_documents as _extra_context_documents
 
 MAIN = STAGES["main"]
-MAIN_CODE = {"ok_cpp_main_draft.cpp": "int main() { /* the main one */ }"}
+MAIN_CODE = {"ma_cpp_sum_draft.cpp": "int main() { /* the main one */ }"}
 
 
 def _with_inputs(upstream, stage=MAIN, references=None, local_run=None):
@@ -169,7 +169,7 @@ def test_extra_context_documents_attaches_template_for_language_without_ok_refer
 
 def test_run_step_attaches_language_template_under_templates_key(spec, tmp_path):
     response = ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}, notes=[]
+        status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}, notes=[]
     )
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -210,7 +210,7 @@ def test_python_solution_templates_compile(name, tmp_path):
 def test_run_step_attaches_reference_solutions_of_requested_languages(spec, tmp_path):
     spec = spec.model_copy(update={"references": [EXAMPLE_REF]})
     response = ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}, notes=[]
+        status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}, notes=[]
     )
     upstream = {"constraints.yaml": "n_max: 100000"}
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
@@ -261,7 +261,7 @@ def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):
 def test_confirmed_writes_solution_files(spec, tmp_path):
     response = ModelResponse(
         status="confirmed",
-        artifacts={"ok_cpp_main_draft.cpp": "int main(){}"},
+        artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"},
         notes=[],
     )
     upstream = {"constraints.yaml": "time_limit_seconds: 2"}
@@ -276,7 +276,7 @@ def test_confirmed_writes_solution_files(spec, tmp_path):
         )
 
     assert result.status == "confirmed"
-    written_path = tmp_path / "valid-spec" / "solutions" / "ok_cpp_main_draft.cpp"
+    written_path = tmp_path / "valid-spec" / "solutions" / "ma_cpp_sum_draft.cpp"
     assert written_path.exists()
 
     user_prompt = mock_call.call_args.args[2]
@@ -316,7 +316,7 @@ def test_renders_without_crashing_when_known_wrong_approaches_is_null(spec, tmp_
         update={"solutions": spec.solutions.model_copy(update={"known_wrong_approaches": None})}
     )
     response = ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}, notes=[]
+        status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}, notes=[]
     )
     upstream = {"constraints.yaml": "time_limit_seconds: 2"}
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -463,7 +463,7 @@ def test_user_prompt_includes_alternative_approaches(spec, tmp_path):
         spec_alt, tmp_path, upstream, stage=STAGES["ok"], references=MAIN_CODE
     )
     assert approach in user_prompt
-    assert MAIN_CODE["ok_cpp_main_draft.cpp"] in user_prompt
+    assert MAIN_CODE["ma_cpp_sum_draft.cpp"] in user_prompt
     # The main stage doesn't see the other approaches.
     assert approach not in _run_and_get_user_prompt(spec_alt, tmp_path, upstream)
 
@@ -488,7 +488,7 @@ def test_compute_input_hash_changes_when_alternative_approaches_change(spec):
 
 def test_solution_name_with_solutions_prefix_is_not_nested(spec, tmp_path):
     response = ModelResponse(
-        status="confirmed", artifacts={"solutions/ok_py_main_draft.py": "print(1)\n"}, notes=[]
+        status="confirmed", artifacts={"solutions/ma_py_sum_draft.py": "print(1)\n"}, notes=[]
     )
     with patch("orchestrator.model_router.call_model", return_value=response):
         run_step(
@@ -501,14 +501,14 @@ def test_solution_name_with_solutions_prefix_is_not_nested(spec, tmp_path):
         )
 
     solutions_dir = tmp_path / "valid-spec" / "solutions"
-    assert (solutions_dir / "ok_py_main_draft.py").exists()
+    assert (solutions_dir / "ma_py_sum_draft.py").exists()
     assert not (solutions_dir / "solutions").exists()
 
 
 def test_solution_name_with_foreign_path_is_set_aside_and_the_rest_applied(spec, tmp_path):
     response = ModelResponse(
         status="confirmed",
-        artifacts={"ok_py_main_draft.py": "print(1)\n", "generators/ok_cpp_x_draft.cpp": ""},
+        artifacts={"ma_py_sum_draft.py": "print(1)\n", "generators/ok_cpp_x_draft.cpp": ""},
         notes=[],
     )
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -522,7 +522,7 @@ def test_solution_name_with_foreign_path_is_set_aside_and_the_rest_applied(spec,
         )
 
     solutions_dir = tmp_path / "valid-spec" / "solutions"
-    assert [p.name for p in solutions_dir.iterdir()] == ["ok_py_main_draft.py"]
+    assert [p.name for p in solutions_dir.iterdir()] == ["ma_py_sum_draft.py"]
     [(filename, reason)] = result.conflicts
     assert filename == "generators/ok_cpp_x_draft.cpp"
     assert "not a plain file name" in reason
@@ -574,8 +574,8 @@ def test_stages_own_solutions_by_name(tmp_path):
         tmp_path,
         [
             "ok_cpp_alt_draft.cpp",
-            "ok_cpp_main_draft.cpp",
-            "ok_py_main_draft.py",
+            "ma_cpp_sum_draft.cpp",
+            "ok_py_sum_draft.py",
             "tl_ok_java_slowio_draft.java",
             "ml_cpp_big_draft.cpp",
             "wa_py_bound_draft.py",
@@ -584,14 +584,21 @@ def test_stages_own_solutions_by_name(tmp_path):
         ],
     )
     assert _owned(tmp_path) == {
-        "main": ["ok_cpp_main_draft.cpp"],
-        "ok": ["ok_cpp_alt_draft.cpp", "ok_py_main_draft.py"],
+        "main": ["ma_cpp_sum_draft.cpp"],
+        "ok": ["ok_cpp_alt_draft.cpp", "ok_py_sum_draft.py"],
         "slow": ["ml_cpp_big_draft.cpp", "tl_ok_java_slowio_draft.java"],
         "wrong": ["re_cpp_stack_draft.cpp", "wa_py_bound_draft.py"],
     }
 
 
-def test_main_stage_owns_main_correct_without_the_main_description(tmp_path):
+def test_stages_write_by_the_main_verdict():
+    assert STAGES["main"]._may_write("ma_cpp_bfs_draft.cpp", set())
+    assert not STAGES["main"]._may_write("ok_cpp_bfs_draft.cpp", set())
+    assert STAGES["ok"]._may_write("ok_java_bfs_draft.java", set())
+    assert not STAGES["ok"]._may_write("ma_java_bfs_draft.java", set())
+
+
+def test_main_stage_owns_main_correct_without_the_main_verdict(tmp_path):
     # Solutions written before the stages: Main correct is the main one.
     _write_solutions(tmp_path, ["ok_cpp_prefs_draft.cpp", "ok_py_prefs_draft.py"])
     assert _owned(tmp_path)["main"] == ["ok_cpp_prefs_draft.cpp"]
@@ -659,7 +666,7 @@ def test_hash_of_a_stage_changes_with_the_code_it_builds_on(spec):
     upstream = {"constraints.yaml": "n_max: 1"}
     wrong = STAGES["wrong"]
     before = compute_input_hash("valid-spec", spec, upstream, stage=wrong, references=MAIN_CODE)
-    edited = {"ok_cpp_main_draft.cpp": "int main() { /* fixed */ }"}
+    edited = {"ma_cpp_sum_draft.cpp": "int main() { /* fixed */ }"}
     after = compute_input_hash("valid-spec", spec, upstream, stage=wrong, references=edited)
     assert before != after
 
@@ -672,10 +679,10 @@ def test_load_inputs_needs_the_main_solution(spec, tmp_path):
 def test_load_inputs_of_wrong_stage_gives_all_ok_solutions(spec, tmp_path):
     _write_solutions(
         tmp_path / "valid-spec",
-        ["ok_cpp_main_draft.cpp", "ok_py_port_draft.py", "wa_cpp_off_draft.cpp"],
+        ["ma_cpp_sum_draft.cpp", "ok_py_port_draft.py", "wa_cpp_off_draft.cpp"],
     )
     inputs = STAGES["wrong"].load_inputs("valid-spec", spec, problems_dir=tmp_path)
-    assert sorted(inputs["references"]) == ["ok_cpp_main_draft.cpp", "ok_py_port_draft.py"]
+    assert sorted(inputs["references"]) == ["ma_cpp_sum_draft.cpp", "ok_py_port_draft.py"]
     assert inputs["local_run"] is None
 
 
@@ -683,7 +690,7 @@ _LOCAL_RUN = {
     "report": "llm_reports/run_main.md",
     "failures": [
         {
-            "name": "ok_cpp_main_draft.cpp",
+            "name": "ma_cpp_sum_draft.cpp",
             "status": "unexpected",
             "error": None,
             "unexpected": [
@@ -704,7 +711,7 @@ def test_failed_local_run_forces_a_revision_with_its_report(spec, tmp_path):
     upstream = {"constraints.yaml": "n_max: 1"}
     with_report = _with_inputs(upstream, local_run=_LOCAL_RUN)
     reason = MAIN.forced_rerun_reason("valid-spec", spec, with_report)
-    assert "run_main" in reason and "ok_cpp_main_draft.cpp" in reason
+    assert "run_main" in reason and "ma_cpp_sum_draft.cpp" in reason
     assert MAIN.forced_rerun_reason("valid-spec", spec, _with_inputs(upstream)) is None
     # The report isn't part of the input: after the revision the cache is valid again.
     assert compute_input_hash("valid-spec", spec, upstream) == MAIN.compute_input_hash(

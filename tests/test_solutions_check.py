@@ -24,7 +24,7 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PROBLEM_ID = "example-problem"
 
 RUN_MAIN = GATES["run_main"]
-MAIN_NAME = "ok_py_main_draft.py"
+MAIN_NAME = "ma_py_sum_draft.py"
 
 
 @pytest.fixture
@@ -153,7 +153,7 @@ def test_survivor_is_reported_but_does_not_fail_the_run(spec, problem_dir, monke
 
 def test_ok_run_judges_the_main_solution_too(problem_dir):
     (problem_dir / "solutions" / "ok_py_alt_draft.py").write_text("print(1)\n", encoding="utf-8")
-    assert sorted(GATES["run_ok"].judged(problem_dir)) == ["ok_py_alt_draft.py", MAIN_NAME]
+    assert sorted(GATES["run_ok"].judged(problem_dir)) == sorted(["ok_py_alt_draft.py", MAIN_NAME])
     assert GATES["run_main"].judged(problem_dir) == [MAIN_NAME]
 
 

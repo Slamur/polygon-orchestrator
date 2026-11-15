@@ -9,11 +9,12 @@ from the file name by the `<verdict>_<language>_<description>_<author>.<ext>` sc
 
 - `MA` (Main correct — the reference for generating the tests' answers,
   `templates/tutorials/solutions.md`, "Solutions in Polygon") is assigned only
-  if Polygon doesn't have one yet (Polygon rejects a second `MA`): then one `ok` file
-  gets it, chosen by the language priority
+  if Polygon doesn't have one yet (Polygon rejects a second `MA`): then the file with the
+  `ma` verdict gets it (`ma_cpp_bfs_draft.cpp`, the main solution of the
+  `solutions_main` step); without one — an `ok` file chosen by the language priority
   `_MAIN_LANGUAGE_PRIORITY`, within a language — alphabetically by name; this is the only
   case when the tag of a solution that already exists on Polygon changes;
-- the other `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL or OK"),
+- `ma` when Polygon already has a Main correct and the other `ok` -> `OK`, `tl`/`tle` -> `TL`, `tl_ok` -> `TO` ("TL or OK"),
   `wa` -> `WA`, `ml`/`mle` -> `ML`;
 - everything else allowed (`re`, `il` — Idleness limit exceeded in an
   interactive problem) -> `RJ` ("Incorrect").
@@ -76,8 +77,11 @@ STEP_NAME = "upload_solutions"
 # The Main correct choice priority — exactly in this order. The values are languages
 # after normalization via `_LANGUAGE_ALIASES`.
 _MAIN_LANGUAGE_PRIORITY = ["cpp", "java", "py"]
-# The description of the main `ok` solution (`ok_<language>_main_<author>`), see `_choose_main`.
-MAIN_DESCRIPTION = "main"
+# The verdict of the main correct solution in its name (`ma_<language>_<idea>_<author>`,
+# Polygon's `MA` tag), see `_choose_main`; otherwise it behaves as `ok`.
+MAIN_VERDICT = "ma"
+# The verdicts of correct solutions: `ok` and the main one.
+CORRECT_VERDICTS = frozenset({"ok", MAIN_VERDICT})
 
 # Spellings of a language in a file name -> the name from `_MAIN_LANGUAGE_PRIORITY`.
 _LANGUAGE_ALIASES = {
@@ -87,9 +91,9 @@ _LANGUAGE_ALIASES = {
     "c++": "cpp",
 }
 
-# Matches `orchestrator.spec._ALLOWED_VERDICTS` (the allowed
-# `solutions.wanted_verdicts`).
-_VALID_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il"}
+# `orchestrator.spec._ALLOWED_VERDICTS` (the allowed `solutions.wanted_verdicts`) and the
+# main correct one.
+_VALID_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tle", "ml", "mle", "re", "il", MAIN_VERDICT}
 
 
 @dataclass(frozen=True)
@@ -204,10 +208,10 @@ def _parse_solution_filename(path: Path) -> _ParsedSolution:
 
 
 def _require_ok_solution(parsed: list[_ParsedSolution]) -> None:
-    if not any(p.verdict == "ok" for p in parsed):
+    if not any(p.verdict in CORRECT_VERDICTS for p in parsed):
         raise PolygonStepError(
-            "no solution with verdict 'ok' — nothing to pick as Main "
-            "correct (expected at least one ok_* file)"
+            "no solution with verdict 'ma' or 'ok' — nothing to pick as Main "
+            "correct (expected a ma_* or at least one ok_* file)"
         )
 
 
@@ -218,24 +222,22 @@ def _tags_on_polygon(client: PolygonClient, polygon_id: int) -> dict[str, str]:
 
 
 def _choose_main(parsed: list[_ParsedSolution]) -> str:
-    """The Main correct file name — the alphabetically first `ok` file of the first language from
-    `_MAIN_LANGUAGE_PRIORITY` for which such a file exists, and among them — one with the
-    `MAIN_DESCRIPTION` description first (`ok_cpp_main_draft.cpp`: the main solution
-    of the `solutions_main` step, so that another `ok` doesn't take its place by
-    the alphabet). If no
-    language from the priority occurred — a WARNING and the alphabetically first
-    `ok` file (risk 1 in the module docstring), not an error."""
+    """The Main correct file name: the file with the `ma` verdict (the main solution of the
+    `solutions_main` step); without one — among the `ok` files. If there are several
+    candidates — the alphabetically first one of the first language from
+    `_MAIN_LANGUAGE_PRIORITY` for which one exists. If no language from the priority
+    occurred — a WARNING and the alphabetically first candidate (risk 1 in the module
+    docstring), not an error."""
     _require_ok_solution(parsed)
-    ok_names = sorted(p.path.name for p in parsed if p.verdict == "ok")
+    verdict = MAIN_VERDICT if any(p.verdict == MAIN_VERDICT for p in parsed) else "ok"
+    ok_names = sorted(p.path.name for p in parsed if p.verdict == verdict)
 
     for lang in _MAIN_LANGUAGE_PRIORITY:
         candidates = sorted(
-            (p.description.lower() != MAIN_DESCRIPTION, p.path.name)
-            for p in parsed
-            if p.verdict == "ok" and p.language == lang
+            p.path.name for p in parsed if p.verdict == verdict and p.language == lang
         )
         if candidates:
-            return candidates[0][1]
+            return candidates[0]
 
     logger.warning(
         "none of the priority languages %s found among ok solutions %s — "
@@ -261,7 +263,7 @@ def _tag_to_send(
 def _tag_for(parsed: _ParsedSolution, main_name: str | None) -> str:
     if parsed.path.name == main_name:
         return "MA"
-    if parsed.verdict == "ok":
+    if parsed.verdict in CORRECT_VERDICTS:
         return "OK"
     if parsed.verdict in ("tl", "tle"):
         return "TL"

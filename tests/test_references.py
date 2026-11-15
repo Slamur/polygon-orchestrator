@@ -94,7 +94,7 @@ def test_directory_in_layout_before_authoring_still_gives_spec_and_constraints(s
 
 def test_files_marked_removed_are_not_references(spec, tmp_path):
     directory = _reference_dir(tmp_path)
-    _write(directory / "solutions" / "ok_cpp_main_draft.cpp")
+    _write(directory / "solutions" / "ma_cpp_sum_draft.cpp")
     _write(directory / "solutions" / "wa_cpp_old_draft.cpp.removed")
     _write(directory / "generators" / "gen_old.cpp.removed")
 
@@ -105,7 +105,7 @@ def test_files_marked_removed_are_not_references(spec, tmp_path):
     )
     assert reference_documents("solutions_main", common) == [
         str(directory / "authoring" / "spec.yaml"),
-        str(directory / "solutions" / "ok_cpp_main_draft.cpp"),
+        str(directory / "solutions" / "ma_cpp_sum_draft.cpp"),
     ]
 
 

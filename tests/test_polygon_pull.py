@@ -74,7 +74,7 @@ class FakePolygon:
         self.resource_files = {"problem_lib.h": template_problem_lib_path().read_bytes()}
         self.aux_files = {"spec.yaml": b"problem_id: example-problem\n"}
         self.script = b"gen_rand 1 > $\n"
-        self.solutions = {"ok_cpp_main_author.cpp": ("MA", b"// ok\n")}
+        self.solutions = {"ma_cpp_sum_author.cpp": ("MA", b"// ok\n")}
         self.tests = [
             {"index": 1, "manual": True, "input": "1 2\n", "useInStatements": True},
             {"index": 2, "manual": False, "useInStatements": True},
@@ -201,7 +201,7 @@ def test_pull_into_missing_directory_downloads_everything(problems_dir, polygon)
     assert not (problem_dir / "checker.cpp").exists()
     assert [p.name for p in (problem_dir / "generators").iterdir()] == ["gen_rand.cpp"]
     assert (problem_dir / "test_script").read_bytes() == b"gen_rand 1 > $\n"
-    assert (problem_dir / "solutions" / "ok_cpp_main_author.cpp").read_bytes() == b"// ok\n"
+    assert (problem_dir / "solutions" / "ma_cpp_sum_author.cpp").read_bytes() == b"// ok\n"
     assert _statuses(result)["checker.cpp"] == ITEM_ABSENT
     assert (problem_dir / "problem_lib.h").read_bytes() == polygon.resource_files["problem_lib.h"]
     assert (problem_dir / "authoring" / "spec.yaml").read_bytes() == polygon.aux_files["spec.yaml"]
@@ -219,7 +219,7 @@ def test_pull_records_revision_and_baseline(problems_dir, polygon):
         "generators/gen_rand.cpp",
         "limits",
         "problem_lib.h",
-        "solutions/ok_cpp_main_author.cpp",
+        "solutions/ma_cpp_sum_author.cpp",
         "spec.yaml",
         "statement/examples/example_1.txt",
         "statement/examples/example_2.txt",
@@ -357,7 +357,7 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
     _write(problem_dir, "statement/examples/example_1.txt", "1 2\n")
     _write(problem_dir, "validator.cpp", "local validator")
     _write(problem_dir, "test_script_groups", "local script")
-    _write(problem_dir, "solutions/ok_cpp_main_author.cpp", "// ok\n")
+    _write(problem_dir, "solutions/ma_cpp_sum_author.cpp", "// ok\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
@@ -368,7 +368,7 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
     assert statuses["statement/examples/example_1.txt"] == ITEM_SAME
     assert statuses["validator.cpp"] == ITEM_DIFFERS
     assert statuses["test_script_groups"] == ITEM_DIFFERS
-    assert statuses["solutions/ok_cpp_main_author.cpp"] == ITEM_SAME
+    assert statuses["solutions/ma_cpp_sum_author.cpp"] == ITEM_SAME
     assert (problem_dir / "statement" / "ru" / "legend.tex").read_text() == "local legend"
     assert (problem_dir / "validator.cpp").read_text() == "local validator"
     assert not (problem_dir / "test_script").exists()
@@ -860,13 +860,13 @@ def test_failed_part_does_not_stop_the_others_but_keeps_old_revision(problems_di
     statuses = _statuses(result)
     assert not result.ok
     assert statuses["statement"] == ITEM_ERROR
-    assert statuses["solutions/ok_cpp_main_author.cpp"] == ITEM_ERROR
+    assert statuses["solutions/ma_cpp_sum_author.cpp"] == ITEM_ERROR
     assert statuses["validator.cpp"] == ITEM_DOWNLOADED
-    assert not (problems_dir / PROBLEM_ID / "solutions" / "ok_cpp_main_author.cpp").exists()
+    assert not (problems_dir / PROBLEM_ID / "solutions" / "ma_cpp_sum_author.cpp").exists()
     state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
     assert state.revision == 3
     assert "validator.cpp" in state.synced
-    assert "solutions/ok_cpp_main_author.cpp" not in state.synced
+    assert "solutions/ma_cpp_sum_author.cpp" not in state.synced
 
 
 def test_missing_parts_on_polygon_are_reported_as_absent(problems_dir, polygon):
@@ -1010,7 +1010,7 @@ _STAMPED_KEYS = {
     "problem_lib.h",
     "validator.cpp",
     "generators/gen_rand.cpp",
-    "solutions/ok_cpp_main_author.cpp",
+    "solutions/ma_cpp_sum_author.cpp",
     "spec.yaml",
 }
 
@@ -1051,7 +1051,7 @@ def test_pull_does_not_download_files_unchanged_on_polygon(problems_dir, polygon
 
     assert result.ok
     assert polygon.downloads() == []
-    for name in ("validator.cpp", "generators/gen_rand.cpp", "solutions/ok_cpp_main_author.cpp"):
+    for name in ("validator.cpp", "generators/gen_rand.cpp", "solutions/ma_cpp_sum_author.cpp"):
         item = next(item for item in result.items if item.name == name)
         assert item.status == ITEM_SAME, name
         assert "not downloaded" in item.detail
@@ -1062,18 +1062,18 @@ def test_pull_does_not_download_files_unchanged_on_polygon(problems_dir, polygon
 def test_pull_downloads_only_files_changed_on_polygon(problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     _bump_revision(polygon)
-    polygon.solutions["ok_cpp_main_author.cpp"] = ("MA", b"// ok, fixed on Polygon\n")
-    polygon.mtimes["ok_cpp_main_author.cpp"] = 200
+    polygon.solutions["ma_cpp_sum_author.cpp"] = ("MA", b"// ok, fixed on Polygon\n")
+    polygon.mtimes["ma_cpp_sum_author.cpp"] = 200
     polygon.calls.clear()
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
-    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_UPDATED
-    assert (result.backup_dir / "solutions" / "ok_cpp_main_author.cpp").read_bytes() == b"// ok\n"
-    solution = problems_dir / PROBLEM_ID / "solutions" / "ok_cpp_main_author.cpp"
+    assert polygon.downloads() == ["ma_cpp_sum_author.cpp"]
+    assert _statuses(result)["solutions/ma_cpp_sum_author.cpp"] == ITEM_UPDATED
+    assert (result.backup_dir / "solutions" / "ma_cpp_sum_author.cpp").read_bytes() == b"// ok\n"
+    solution = problems_dir / PROBLEM_ID / "solutions" / "ma_cpp_sum_author.cpp"
     assert solution.read_bytes() == b"// ok, fixed on Polygon\n"
-    assert _state(problems_dir).stamps["solutions/ok_cpp_main_author.cpp"].endswith(":200:24")
+    assert _state(problems_dir).stamps["solutions/ma_cpp_sum_author.cpp"].endswith(":200:24")
 
 
 def test_locally_changed_file_unchanged_on_polygon_is_kept_without_download(problems_dir, polygon):
@@ -1204,7 +1204,7 @@ def test_changed_revision_without_stamps_downloads_everything(problems_dir, poly
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert sorted(polygon.downloads()) == sorted(
-        ["problem_lib.h", "val.cpp", "gen_rand.cpp", "ok_cpp_main_author.cpp", "spec.yaml"]
+        ["problem_lib.h", "val.cpp", "gen_rand.cpp", "ma_cpp_sum_author.cpp", "spec.yaml"]
     )
 
 
@@ -1236,14 +1236,14 @@ class _FailingDownload(FakePolygon):
 
 def test_failed_download_drops_hash_and_stamp_and_is_retried(problems_dir):
     polygon = _FailingDownload()
-    polygon.failing_names = {"ok_cpp_main_author.cpp"}
+    polygon.failing_names = {"ma_cpp_sum_author.cpp"}
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
     assert not result.ok
     state = _state(problems_dir)
-    assert "solutions/ok_cpp_main_author.cpp" not in state.synced
-    assert "solutions/ok_cpp_main_author.cpp" not in state.stamps
+    assert "solutions/ma_cpp_sum_author.cpp" not in state.synced
+    assert "solutions/ma_cpp_sum_author.cpp" not in state.stamps
     assert state.revision is None
     _assert_stamps_paired(problems_dir)
 
@@ -1253,7 +1253,7 @@ def test_failed_download_drops_hash_and_stamp_and_is_retried(problems_dir):
 
     # The base's revision is unknown, the stamps decide: only what failed is downloaded.
     assert result.ok
-    assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
+    assert polygon.downloads() == ["ma_cpp_sum_author.cpp"]
     assert _state(problems_dir).revision == 5
 
 
@@ -1268,7 +1268,7 @@ def test_failed_listing_keeps_previous_pairs_valid(problems_dir, polygon):
     assert not result.ok
     after = _state(problems_dir)
     # The "solutions" part wasn't compared — its hash+stamp pair is from the previous pull.
-    key = "solutions/ok_cpp_main_author.cpp"
+    key = "solutions/ma_cpp_sum_author.cpp"
     assert after.synced[key] == before.synced[key]
     assert after.stamps[key] == before.stamps[key]
     assert after.revision == 5
@@ -1276,13 +1276,13 @@ def test_failed_listing_keeps_previous_pairs_valid(problems_dir, polygon):
 
     # A solution was changed on Polygon while the listing was failing — the stamp won't match.
     polygon.failing = set()
-    polygon.solutions["ok_cpp_main_author.cpp"] = ("MA", b"// changed\n")
-    polygon.mtimes["ok_cpp_main_author.cpp"] = 300
+    polygon.solutions["ma_cpp_sum_author.cpp"] = ("MA", b"// changed\n")
+    polygon.mtimes["ma_cpp_sum_author.cpp"] = 300
     polygon.calls.clear()
     result = pull_problem(PROBLEM_ID, overwrite=True, problems_dir=problems_dir, client=polygon)
 
-    assert polygon.downloads() == ["ok_cpp_main_author.cpp"]
-    assert _statuses(result)["solutions/ok_cpp_main_author.cpp"] == ITEM_UPDATED
+    assert polygon.downloads() == ["ma_cpp_sum_author.cpp"]
+    assert _statuses(result)["solutions/ma_cpp_sum_author.cpp"] == ITEM_UPDATED
 
 
 def _make_interactive(polygon: FakePolygon) -> None:

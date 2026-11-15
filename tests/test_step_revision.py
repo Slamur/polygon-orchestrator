@@ -506,7 +506,7 @@ _PIPELINE_RESPONSES = {
         status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}
     ),
     "solutions_main": ModelResponse(
-        status="confirmed", artifacts={"ok_cpp_main_draft.cpp": "int main(){}"}
+        status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}
     ),
     "solutions_slow": ModelResponse(
         status="confirmed", artifacts={"tl_cpp_n2_draft.cpp": "int main(){}"}
@@ -609,7 +609,7 @@ def test_pipeline_force_revises_current_files(spec_file, tmp_path):
     assert result.outcomes[0].detail == "forced (--force); revising 1 current file(s)"
     prompt = _user_prompt(mock_call, "solutions_main")
     assert "The step's input didn't change" in prompt
-    assert "#### `ok_cpp_main_draft.cpp`" in prompt
+    assert "#### `ma_cpp_sum_draft.cpp`" in prompt
 
 
 def test_pipeline_does_not_show_removed_marks_as_current_files(spec_file, tmp_path):
@@ -626,7 +626,7 @@ def test_solutions_dir_with_only_removed_marks_is_missing_artifact(spec_file, tm
     problems_dir = tmp_path / "problems"
     _run_pipeline(problems_dir)
     solutions = problems_dir / "p1" / "solutions"
-    (solutions / "ok_cpp_main_draft.cpp").rename(solutions / "ok_cpp_main_draft.cpp.removed")
+    (solutions / "ma_cpp_sum_draft.cpp").rename(solutions / "ma_cpp_sum_draft.cpp.removed")
 
     statuses, _ = pipeline.compute_step_statuses(
         "p1", prompts_dir=PROMPTS_DIR, problems_dir=problems_dir, templates_dir=TEMPLATES_DIR
