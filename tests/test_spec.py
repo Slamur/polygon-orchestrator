@@ -254,6 +254,7 @@ def test_sample_example_input_still_required(tmp_path):
 
 def test_split_solution_stem_keeps_combined_verdict_whole():
     assert split_solution_stem("tl_ok_cpp_linear_draft") == ["tl_ok", "cpp", "linear", "draft"]
+    assert split_solution_stem("tl_ml_cpp_grid_draft") == ["tl_ml", "cpp", "grid", "draft"]
     assert split_solution_stem("tl_cpp_linear_draft") == ["tl", "cpp", "linear", "draft"]
     assert split_solution_stem("ok_py_main_draft") == ["ok", "py", "main", "draft"]
 

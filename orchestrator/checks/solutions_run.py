@@ -71,7 +71,7 @@ On the full set the declared verdict is required, not only
 allowed (`REQUIRED_VERDICTS`), and only on the generated tests: the examples
 don't count — a mistake the examples catch still needs a test of its own.
 `wa`, `re`, `il` without it — an error (the tests don't catch the declared mistake),
-unless an example catches it — then a warning; `tl`, `ml` — only a warning (local
+unless an example catches it — then a warning; `tl`, `tl_ml`, `ml` — only a warning (local
 time and memory aren't Polygon's). Such solutions stop at the first declared
 verdict on a generated test: running to the end is needed only for `ok` and `tl_ok`,
 for which every test matters. A stray verdict after the stop therefore won't be
@@ -146,7 +146,8 @@ VERDICT_FAIL = "FAIL"
 
 # The verdict from the solution's name -> what's allowed on the examples. `ml`: memory isn't
 # measured here, a shortage shows up as RE (OutOfMemoryError in Java, a failed
-# allocation over the address space cap in C++ and Python). `il` (Idleness limit)
+# allocation over the address space cap in C++ and Python); `tl_ml` — whichever comes
+# first, TL or the memory shortage (RE). `il` (Idleness limit)
 # happens only in an interactive problem. `ma` — the main correct solution, as `ok`.
 ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "ok": frozenset({VERDICT_OK}),
@@ -155,6 +156,7 @@ ALLOWED_VERDICTS: dict[str, frozenset[str]] = {
     "tl": frozenset({VERDICT_OK, VERDICT_TL}),
     "tle": frozenset({VERDICT_OK, VERDICT_TL}),
     "tl_ok": frozenset({VERDICT_OK, VERDICT_TL}),
+    "tl_ml": frozenset({VERDICT_OK, VERDICT_TL, VERDICT_RE}),
     "re": frozenset({VERDICT_OK, VERDICT_RE}),
     "ml": frozenset({VERDICT_OK, VERDICT_RE}),
     "mle": frozenset({VERDICT_OK, VERDICT_RE}),
@@ -169,12 +171,13 @@ REQUIRED_VERDICTS: dict[str, frozenset[str]] = {
     "il": frozenset({VERDICT_IL}),
     "tl": frozenset({VERDICT_TL}),
     "tle": frozenset({VERDICT_TL}),
+    "tl_ml": frozenset({VERDICT_TL, VERDICT_RE}),
     "ml": frozenset({VERDICT_RE}),
     "mle": frozenset({VERDICT_RE}),
 }
 # Solutions for which a missed required verdict is only a warning: local time and
 # memory aren't Polygon's.
-_SOFT_REQUIRED = frozenset({"tl", "tle", "ml", "mle"})
+_SOFT_REQUIRED = frozenset({"tl", "tle", "tl_ml", "ml", "mle"})
 
 # `SolutionOutcome.status`.
 STATUS_EXPECTED = "expected"
@@ -188,7 +191,7 @@ _MAX_LISTED_UNEXPECTED = 10
 
 # The fraction of the TL above which a solution without the `tl` verdict gets a warning.
 SLOW_FRACTION = 0.5
-_TL_VERDICTS = frozenset({"tl", "tle"})
+_TL_VERDICTS = frozenset({"tl", "tle", "tl_ml"})
 
 STD_CHECKERS_DIR = Path(__file__).with_name("std_checkers")
 SOLUTIONS_DIRNAME = "solutions"

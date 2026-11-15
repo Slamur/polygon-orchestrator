@@ -455,3 +455,15 @@ def test_tl_ok_is_tagged_to(problems_dir, spec):
     _run(spec, problems_dir, client)
 
     assert _tags(client)["tl_ok_java_slowio_draft.java"] == "TO"
+
+
+def test_tl_ml_is_tagged_tm(problems_dir, spec):
+    link(problems_dir)
+    _write_solutions(
+        problems_dir, {"ok_cpp_sum_draft.cpp": b"", "tl_ml_cpp_quadratic_draft.cpp": b""}
+    )
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    assert _tags(client)["tl_ml_cpp_quadratic_draft.cpp"] == "TM"

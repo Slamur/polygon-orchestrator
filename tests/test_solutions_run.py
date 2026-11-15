@@ -541,6 +541,7 @@ def test_memory_over_the_cap_is_a_runtime_error(tmp_path):
             "ma_py_sum_draft.py": OK_PY,
             "ok_cpp_greedy_draft.cpp": GREEDY_CPP,
             "ml_cpp_greedy_draft.cpp": GREEDY_CPP,
+            "tl_ml_cpp_greedy_draft.cpp": GREEDY_CPP,
         },
         memory_limit_mb=64,
     )
@@ -550,6 +551,7 @@ def test_memory_over_the_cap_is_a_runtime_error(tmp_path):
     assert {t.verdict for t in greedy_ok.tests} == {"RE"}
     assert "capped at 128 MB" in greedy_ok.tests[0].comment
     assert not solutions["ml_cpp_greedy_draft.cpp"].failed
+    assert not solutions["tl_ml_cpp_greedy_draft.cpp"].failed
     assert not solutions["ma_py_sum_draft.py"].failed
 
 
@@ -574,6 +576,18 @@ def test_full_tl_never_reached_is_only_a_warning(tmp_path):
     result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
     assert not result.failed
     assert any("never got TL" in line for line in result.warnings)
+
+
+def test_full_tl_ml_never_reached_is_only_a_warning(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "tl_ml_py_fast_draft.py": OK_PY},
+        "gen_pair 3 1 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert not result.failed
+    assert _by_name(result)["tl_ml_py_fast_draft.py"].required == {"TL", "RE"}
+    assert any("never got RE/TL" in line for line in result.warnings)
 
 
 def test_full_generated_tests_without_ok_solution_is_an_error(tmp_path):

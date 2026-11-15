@@ -10,7 +10,7 @@ the next one:
   solutions are judged by;
 - `solutions_ok` — the other `ok` solutions (the other languages, `alternative_approaches`),
   from the code of the main one;
-- `solutions_slow` — `tl`, `tl_ok`, `ml` solutions; `solutions_wrong` — `wa`, `re`, `il`:
+- `solutions_slow` — `tl`, `tl_ok`, `tl_ml`, `ml` solutions; `solutions_wrong` — `wa`, `re`, `il`:
   from the code of the `ok` ones, the `known_wrong_approaches` items of the stage's
   verdicts (the item's verdict prefix is mandatory, `spec.parse_wrong_approach`).
 
@@ -81,7 +81,7 @@ _LANGUAGE_ALIASES = {"c++": "cpp", "python": "py", "python3": "py"}
 # (the same priority as Main correct on Polygon), otherwise the first ordered one.
 MAIN_LANGUAGES = ("cpp", "java", "py")
 
-SLOW_VERDICTS = frozenset({"tl", "tle", "tl_ok", "ml", "mle"})
+SLOW_VERDICTS = frozenset({"tl", "tle", "tl_ok", "tl_ml", "ml", "mle"})
 WRONG_VERDICTS = frozenset({"wa", "re", "il"})
 # Languages in which a `tl_ok` solution with slow input/output makes sense.
 _SLOWIO_LANGUAGES = frozenset({"java", "py"})
