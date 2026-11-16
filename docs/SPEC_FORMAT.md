@@ -146,13 +146,21 @@ constraints:
   special_guarantees:                # [optional] everything that doesn't reduce to min/max of one variable
     - "the graph is connected by definition"
     - "all S_i consist only of lowercase Latin letters"
-  test_groups_hint:                  # [optional] — if the author already has an idea about groups
-    - name: "small"
-      subset_of: null
-      max_n: 10
-    - name: "n is prime"
-      subset_of: "full"
-      special_property: "prime"
+  test_groups_hint:                  # [optional] — if the author already has an idea about groups (subtasks)
+    - name: "1"                      # names — positive numbers 1, 2, ...: the validator gets the group
+      max_n: 10                      # as a number; group 0 — the statement examples (the full limits,
+      points: 20                     # 0 points) — is implicit and isn't listed
+      feedback_policy: "points"      # what a contestant sees on the group: points | icpc (the first
+                                     # error) | complete | none
+    - name: "2"
+      special_property: "n is prime"
+      points: 30
+    - name: "3"                      # max_n absent — the full limits
+      points: 50
+      dependencies: ["1", "2"]       # the groups that must be passed for this group's points
+    # All fields but name are optional; subset_of — the group whose limits this one narrows.
+    # A group's points are given only if all its tests are passed (on Polygon — the
+    # COMPLETE_GROUP policy). The sample with groups — examples/number/roots-subtasks.
   test_groups_needed: false          # [optional] bool, default false — the author's explicit request for
     # a test group structure. If false and test_groups_hint isn't set — the
     # constraints_pick step doesn't propose groups at all. If
@@ -220,7 +228,9 @@ solutions:
     # skipped or replaced by others; one item — one mistake (two
     # independent mistakes — two items). The prefix "<verdict>: " or
     # "<verdict> (<languages separated by />): " is mandatory (the spec doesn't
-    # validate without it): the verdict — one of wa, tl, tl_ok, tl_ml, tle, ml, mle, re, il
+    # validate without it). With test groups the prefix may name the groups the
+    # solution passes completely: "wa (cpp) [1-3]: ...", "wa [1, 2, 4]: ...", "wa []: ..."
+    # (passes none); the verdict is the one on the whole test set. The verdict — one of wa, tl, tl_ok, tl_ml, tle, ml, mle, re, il
     # (`tl_ok` — "TL or OK": a solution borderline in time or a solution
     # without input/output speedup; `tl_ml` — "TL or ML", Polygon's TM tag: a solution
     # too slow and too memory-hungry at once — the model itself writes a tl/ml item
@@ -375,10 +385,3 @@ that get it.
 
 The `generation.base_template_refs` field from the previous version of the format was removed —
 it is replaced by `generation.references`.
-
-## What is missing and needs to be clarified with you
-
-1. Whether an explicit field is needed for grouping tests "how many points a group
-   is worth" (partial scoring) — in the attached `statement.md` scoring is
-   mentioned as an optional statement block. Not included yet, so as not to
-   bloat the MVP spec.

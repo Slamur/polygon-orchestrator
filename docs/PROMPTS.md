@@ -504,7 +504,7 @@ The inputs of the statement's examples (an illustration of the format — the va
 
 ## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
-- name={{ g.name }}, subset_of={{ g.subset_of }}, max_n={{ g.max_n }}, special_property={{ g.special_property }}
+- name={{ g.name }}, subset_of={{ g.subset_of }}, max_n={{ g.max_n }}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 

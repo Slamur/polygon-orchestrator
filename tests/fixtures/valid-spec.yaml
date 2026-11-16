@@ -42,7 +42,7 @@ constraints:
   special_guarantees:
     - "the graph is connected by definition"
   test_groups_hint:
-    - name: "small"
+    - name: "1"
       subset_of: null
       max_n: 10
   time_limit_seconds: 2.0

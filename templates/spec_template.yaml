@@ -49,11 +49,14 @@ constraints:
       max: null                      # null — the model proposes a value and marks it as proposed
       description: ""
   special_guarantees: []             # [optional] guarantees that don't reduce to the min/max of one variable
-  test_groups_hint: []               # [optional] test groups, if they're already invented:
-                                     #   - name: "small"
-                                     #     subset_of: null
+  test_groups_hint: []               # [optional] test groups (subtasks), if they're already invented;
+                                     # names — 1, 2, ... (group 0 — the examples — is implicit):
+                                     #   - name: "1"
                                      #     max_n: 10
                                      #     special_property: null
+                                     #     points: 30
+                                     #     dependencies: []
+                                     #     feedback_policy: "points"   # points | icpc | complete | none
   test_groups_needed: false          # [optional] true — the model proposes groups itself if the hint is empty
   time_limit_seconds: null           # [optional] null — the model proposes the TL
   memory_limit_mb: 256               # [optional] preferably a multiple of 256
@@ -84,6 +87,7 @@ solutions:
   known_wrong_approaches: []         # [optional] "<verdict> (<languages separated by />): <mistake>", the verdict is mandatory, e.g.
                                      #   - "wa: off-by-one in the right bound"
                                      #   - "tl (cpp): O(N^2) brute force"
+                                     #   - "wa (py) [1-2]: with test groups — the groups it passes"
   references: []                     # [optional] samples only for this step
 
 # ---------------------------------------------------------------------------
