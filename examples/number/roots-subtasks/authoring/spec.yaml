@@ -15,23 +15,25 @@ statement_draft:
     On one line, separated by a space, two integers: first floor(N^(1/3)) —
     the largest integer C for which C^3 <= N, then floor(sqrt(N)) —
     the largest integer S for which S^2 <= N.
-    The answer always exists and is unique.
   indexing: "irrelevant"
   sample_examples:
     - input: |
-        27
+        10
       output: |
-        3 5
+        2 3
       note_hint: |
-        3^3 = 27 <= 27 < 64 = 4^3, so the cube root is 3.
-        5^2 = 25 <= 27 < 36 = 6^2, so the square root, rounded down, is 5.
+        2^3 = 8 <= 10 < 27 = 3^3, so C = 2; 3^2 = 9 <= 10 < 16 = 4^2, so S = 3.
     - input: |
         63
       output: |
         3 7
       note_hint: |
-        3^3 = 27 <= 63 < 64 = 4^3; 7^2 = 49 <= 63 < 64 = 8^2.
-        The number is one less than an exact power: both roots are rounded down.
+        63 is one less than 64 = 4^3 = 8^2: the real roots are just below 4 and 8,
+        so their integer parts are 3 and 7, not 4 and 8.
+    - input: |
+        123456
+      output: |
+        49 351
 
 constraints:
   intended_complexity: "O(log N)"

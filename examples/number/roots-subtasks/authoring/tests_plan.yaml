@@ -77,6 +77,9 @@ constants:
     description: |
       test_groups of constraints.yaml: maxN — the group's max_n, prevN — the max_n of the group
       it depends on (0 for group 1), randomTests — how many random tests the group gets
+  - name: exampleNs
+    value: "[10, 63, 123456]"
+    description: the N of the statement examples — the script doesn't repeat them
   - name: deltas
     value: "[-1, 0, 1]"
     description: the shifts from an exact power
@@ -94,14 +97,14 @@ constants:
     description: powers of ten — squares, cubes and neither
 
 tests:
-  - description: "Group 1: all N from 1 to 10"
+  - description: "Group 1: all N from 1 to 10, except the examples"
     group: "1"
     status: confirmed
     covers:
       - specific_test_ideas[0]
     commands:
       - gen_n_rand -minN=n -maxN=n
-    repeat: n = 1..10
+    repeat: n = 1..10, skipping n from exampleNs (10 is example 1)
 
   - description: "Groups 2-5: random N from the group's own range"
     group: ["2", "3", "4", "5"]
