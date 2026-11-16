@@ -1,0 +1,182 @@
+<#assign desc = "Generators"/>
+<#assign randGen = "gen_n_rand"/>
+<#assign powerGen = "gen_n_power"/>
+<#assign baseGen = "gen_n_pow_of_base"/>
+
+<#assign desc = "Functions"/>
+<#function div a b>
+    <#return (a / b)?long>
+</#function>
+<#function ceil a b>
+    <#return div(a - 1, b) + 1/>
+</#function>
+<#function min a b>
+    <#return [a, b]?sort?first>
+</#function>
+<#function max a b>
+    <#return [a, b]?sort?last>
+</#function>
+<#function pow base power>
+    <#assign res = 1/>
+    <#list 0..<power as it>
+        <#assign res = res * base/>
+    </#list>
+    <#return res>
+</#function>
+<#function fact n>
+    <#assign res = 1/>
+    <#list 0..<n as it>
+        <#assign res = res * (it + 1)/>
+    </#list>
+    <#return res>
+</#function>
+<#function contains items value>
+    <#list items as item>
+        <#if item == value>
+            <#return true/>
+        </#if>
+    </#list>
+    <#return false/>
+</#function>
+
+<#assign desc = "Constraints"/>
+<#assign minN = 1/>
+<#assign maxNExp = 18/>
+<#assign maxN = pow(10, maxNExp)/>
+
+<#assign desc = "Test groups"/>
+<#-- Each line passes -group=<the test's group>: generators don't read it, it marks
+     which group the test belongs to (and keeps lines of different groups distinct).
+     A group's tests take N from its own range (prevN, maxN]: the smaller N are in the
+     groups it depends on. Group 0 - the statement examples - has no script tests. -->
+<#assign groups = [
+    {"id": 1, "prevN": 0, "maxN": 10},
+    {"id": 2, "prevN": 10, "maxN": pow(10, 3), "randomTests": 5},
+    {"id": 3, "prevN": pow(10, 3), "maxN": pow(10, 6), "randomTests": 5},
+    {"id": 4, "prevN": pow(10, 6), "maxN": pow(10, 12), "randomTests": 5},
+    {"id": 5, "prevN": pow(10, 12), "maxN": maxN, "randomTests": 5}
+]/>
+
+<#assign desc = "Generation"/>
+<#assign deltas = [-1, 0, 1]/>
+<#assign powerExps = [2, 3, 6]/>
+<#-- 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 - the int / unsigned int bounds, 2^48 = 65536^3,
+     2^53 / 2^54 - the double precision bound, 2^59 - the largest power of 2 <= 10^18;
+     not 2^6: 63 is an example of the statement -->
+<#assign pow2Exps = [9, 10, 15, 20, 30, 31, 32, 40, 48, 53, 54, 59]/>
+<#assign pow10Exps = [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17]/>
+
+<#-- All N of the group one by one: the group is small enough to check by hand -->
+<#macro all_n group>
+    <#list (group.prevN + 1)..group.maxN as n>
+        ${randGen} -minN=${n} -maxN=${n} -group=${group.id} > $
+    </#list>
+</#macro>
+
+<#-- Random N: the group's range split into randomTests equal parts, a test per part -->
+<#macro random_n group>
+    <#assign step = ceil(group.maxN - group.prevN, group.randomTests)/>
+    <#list 0..<group.randomTests as test>
+        <#assign fromN = group.prevN + 1 + step * test/>
+        <#assign toN = min(group.maxN, fromN + step - 1)/>
+        ${randGen} -minN=${fromN} -maxN=${toN} -group=${group.id} > $
+    </#list>
+</#macro>
+
+<#assign desc = "Script functions"/>
+<#-- the smallest B >= 1 for which B^k > limit (a binary search on the answer, B <= 10^9 + 1) -->
+<#function min_base k limit>
+    <#local lo = 1/>
+    <#local hi = pow(10, 9) + 1/>
+    <#list 1..40 as it>
+        <#if lo lt hi>
+            <#local mid = div(lo + hi, 2)/>
+            <#if pow(mid, k) gt limit>
+                <#local hi = mid/>
+            <#else>
+                <#local lo = mid + 1/>
+            </#if>
+        </#if>
+    </#list>
+    <#return lo/>
+</#function>
+
+<#-- B^k + delta for a random B, so that N is in the group's range (prevN, maxN]:
+     the smallest B - by min_base, the largest - the generator finds itself. Only if the
+     range has at least 4 bases: otherwise the tests repeat each other (k = 6, N <= 10^3) -->
+<#macro powers group>
+    <#list powerExps as k>
+        <#list deltas as delta>
+            <#assign minB = min_base(k, group.prevN - delta)/>
+            <#if pow(minB + 3, k) + delta lte group.maxN>
+                ${powerGen} -k=${k} -maxN=${group.maxN} -minB=${minB} -delta=${delta} -group=${group.id} > $
+            </#if>
+        </#list>
+    </#list>
+</#macro>
+
+<#-- b^p + a random delta from -1..1 (chosen by the generator), only the powers whose
+     b^p - 1 and b^p + 1 both are in the group's range -->
+<#macro powers_of_base group base exps>
+    <#list exps as p>
+        <#assign power = pow(base, p)/>
+        <#if (power - 1 gt group.prevN) && (power + 1 lte group.maxN)>
+            ${baseGen} -b=${base} -p=${p} -group=${group.id} > $
+        </#if>
+    </#list>
+</#macro>
+
+<#-- N = the group's largest N and one less -->
+<#macro largest_n group>
+    ${randGen} -minN=${group.maxN - 1} -maxN=${group.maxN - 1} -group=${group.id} > $
+    ${randGen} -minN=${group.maxN} -maxN=${group.maxN} -group=${group.id} > $
+</#macro>
+
+<#-- maxN = 10^maxNExp is the exact k-th power of topB = 10^(maxNExp / k) for k = 2, 3, 6;
+     B = topB - 1: the largest B for which any delta from -1..1 is allowed -->
+<#macro largest_bases group>
+    <#list powerExps as k>
+        <#assign topB = pow(10, div(maxNExp, k))/>
+        ${baseGen} -b=${topB - 1} -p=${k} -group=${group.id} > $
+    </#list>
+</#macro>
+
+<#macro script1 group>
+    <#assign desc = "N <= 10"/>
+    <@all_n group = group/>
+</#macro>
+
+<#macro script_range group>
+    <@random_n group = group/>
+    <@powers group = group/>
+    <@powers_of_base group = group base = 2 exps = pow2Exps/>
+    <@powers_of_base group = group base = 10 exps = pow10Exps/>
+    <@largest_n group = group/>
+</#macro>
+
+<#macro script2 group>
+    <#assign desc = "N <= 10^3"/>
+    <@script_range group = group/>
+</#macro>
+
+<#macro script3 group>
+    <#assign desc = "N <= 10^6"/>
+    <@script_range group = group/>
+</#macro>
+
+<#macro script4 group>
+    <#assign desc = "N <= 10^12"/>
+    <@script_range group = group/>
+</#macro>
+
+<#macro script5 group>
+    <#assign desc = "full: N <= 10^18"/>
+    <@script_range group = group/>
+    <@largest_bases group = group/>
+</#macro>
+
+<#assign scripts = [script1, script2, script3, script4, script5]/>
+<#list groups as group>
+    <#assign script = scripts[group?index]/>
+    <@script group = group/>
+</#list>

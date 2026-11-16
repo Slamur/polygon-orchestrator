@@ -194,6 +194,43 @@ def test_example_tests_plan_matches_spec_and_generators(example_dir):
     assert planned == actual
 
 
+@examples
+def test_example_test_groups_match_spec_and_plan(example_dir):
+    # With test groups the spec's hint, constraints.yaml, the plan and the scoring table
+    # describe the same groups; without them there is none of it.
+    spec = _example_spec(example_dir)
+    constraints = _example_constraints(example_dir)
+    hint = spec.constraints.test_groups_hint or []
+    groups = constraints.get("test_groups") or []
+    plan = yaml.safe_load(
+        (example_dir / AUTHORING_DIRNAME / "tests_plan.yaml").read_text(encoding="utf-8")
+    )
+    plan_groups = set()
+    for test in plan["tests"]:
+        group = test.get("group")
+        plan_groups.update([group] if isinstance(group, str) else group or [])
+    scoring = sorted(example_dir.glob("statement/*/scoring.tex"))
+    if not hint:
+        assert not groups and not plan_groups and not scoring
+        assert spec.generation.script_style == "flat"
+        return
+
+    fields = ("name", "max_n", "points", "dependencies", "feedback_policy")
+    assert [tuple(g.get(f) or None for f in fields) for g in groups] == [
+        tuple(getattr(h, f) or None for f in fields) for h in hint
+    ]
+    assert sum(g["points"] for g in groups) == 100
+    assert plan_groups == {g["name"] for g in groups}
+    assert spec.generation.script_style == "groups"
+    assert (example_dir / "test_script_groups").is_file()
+    validator_groups = {g["name"] for g in constraints["validator"].get("groups") or []}
+    assert validator_groups <= {g["name"] for g in groups}
+    assert scoring
+    for path in scoring:
+        rows = re.findall(r"^(\d+) & (\d+) &", path.read_text(encoding="utf-8"), re.M)
+        assert rows == [(g["name"], str(g["points"])) for g in groups], path
+
+
 # The sample build timeout: the pool builds in the background while the other tests
 # compile too, and on a busy machine the default 30 seconds isn't enough.
 _EXAMPLE_COMPILE_TIMEOUT_SECONDS = 120.0
