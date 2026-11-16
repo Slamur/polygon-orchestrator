@@ -15,7 +15,6 @@ statement_draft:
     On one line, separated by a space, two integers: first floor(N^(1/3)) —
     the largest integer C for which C^3 <= N, then floor(sqrt(N)) —
     the largest integer S for which S^2 <= N.
-    The answer always exists and is unique.
   indexing: "irrelevant"
   sample_examples:
     - input: |

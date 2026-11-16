@@ -144,7 +144,12 @@ One may consider using images in the notes, stating this explicitly in the state
 
 **Example**: if the problem requires constructing an answer and it can be proven that it always exists.
 
-There are two ways to describe this:
+This is only for an answer whose existence or uniqueness isn't obvious from its definition
+(a construction, a search that may fail, "any of the optimal answers"). If the answer is
+defined so that it obviously exists and is unique — "the largest integer C with C^3 <= N",
+"the sum of the array" — don't write that it exists or is unique: the sentence carries nothing.
+
+There are two ways to describe the non-obvious case:
 
 1. Write it directly: "It's guaranteed / it can be shown that (under the given limits) the answer always exists / is unique / doesn't exceed X / etc."
 
