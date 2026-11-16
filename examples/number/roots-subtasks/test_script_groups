@@ -58,8 +58,6 @@
 ]/>
 
 <#assign desc = "Generation"/>
-<#-- the N of the statement examples: the script doesn't repeat them -->
-<#assign exampleNs = [10, 63, 123456]/>
 <#assign deltas = [-1, 0, 1]/>
 <#assign powerExps = [2, 3, 6]/>
 <#-- 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 - the int / unsigned int bounds, 2^48 = 65536^3,
@@ -68,13 +66,10 @@
 <#assign pow2Exps = [9, 10, 15, 20, 30, 31, 32, 40, 48, 53, 54, 59]/>
 <#assign pow10Exps = [2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17]/>
 
-<#-- All N of the group one by one, except the examples: the group is small enough
-     to check by hand -->
+<#-- All N of the group one by one: the group is small enough to check by hand -->
 <#macro all_n group>
     <#list (group.prevN + 1)..group.maxN as n>
-        <#if !contains(exampleNs, n)>
-            ${randGen} -minN=${n} -maxN=${n} -group=${group.id} > $
-        </#if>
+        ${randGen} -minN=${n} -maxN=${n} -group=${group.id} > $
     </#list>
 </#macro>
 
