@@ -151,8 +151,10 @@ class Variable(BaseModel):
 
 # How Polygon shows a contestant the result on a test group (`feedbackPolicy` of
 # `problem.saveTestGroup`): `points` — only the points, `icpc` — the verdict of the first
-# failed test, `complete` — the verdicts of all tests, `none` — nothing.
+# failed test (the default: "the first error" in the scoring table), `complete` — the
+# verdicts of all tests, `none` — nothing.
 FEEDBACK_POLICIES = ("points", "icpc", "complete", "none")
+DEFAULT_FEEDBACK_POLICY = "icpc"
 
 
 class TestGroupHint(BaseModel):
@@ -169,7 +171,7 @@ class TestGroupHint(BaseModel):
     special_property: str | None = None
     points: int | None = None
     dependencies: list[str] | None = None
-    feedback_policy: Literal[FEEDBACK_POLICIES] | None = None  # type: ignore[valid-type]
+    feedback_policy: Literal[FEEDBACK_POLICIES] = DEFAULT_FEEDBACK_POLICY  # type: ignore[valid-type]
 
 
 class Constraints(BaseModel):

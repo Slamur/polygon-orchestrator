@@ -418,12 +418,13 @@ def test_test_groups_with_points_and_dependencies_are_loaded(tmp_path):
             tmp_path,
             '    - name: "1"\n      max_n: 10\n      points: 30\n'
             '    - name: "2"\n      points: 70\n      dependencies: ["1"]\n'
-            '      feedback_policy: "icpc"\n',
+            '      feedback_policy: "points"\n',
         )
     )
 
-    second = spec.constraints.test_groups_hint[1]
-    assert (second.points, second.dependencies, second.feedback_policy) == (70, ["1"], "icpc")
+    first, second = spec.constraints.test_groups_hint
+    assert first.feedback_policy == "icpc"
+    assert (second.points, second.dependencies, second.feedback_policy) == (70, ["1"], "points")
 
 
 @pytest.mark.parametrize(

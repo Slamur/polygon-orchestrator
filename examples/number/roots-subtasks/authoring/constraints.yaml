@@ -37,7 +37,7 @@ test_groups:
     special_property: null
     points: 10
     dependencies: []
-    feedback_policy: points
+    feedback_policy: icpc
     status: confirmed
   - name: "2"
     subset_of: null
@@ -45,7 +45,7 @@ test_groups:
     special_property: null
     points: 15
     dependencies: ["1"]
-    feedback_policy: points
+    feedback_policy: icpc
     status: confirmed
   - name: "3"
     subset_of: null
@@ -53,7 +53,7 @@ test_groups:
     special_property: null
     points: 15
     dependencies: ["2"]
-    feedback_policy: points
+    feedback_policy: icpc
     status: confirmed
   - name: "4"
     subset_of: null
@@ -61,7 +61,7 @@ test_groups:
     special_property: null
     points: 20
     dependencies: ["3"]
-    feedback_policy: points
+    feedback_policy: icpc
     status: confirmed
   - name: "5"
     subset_of: null
@@ -69,7 +69,7 @@ test_groups:
     special_property: null
     points: 40
     dependencies: ["4"]
-    feedback_policy: points
+    feedback_policy: icpc
     status: confirmed
 
 validator:

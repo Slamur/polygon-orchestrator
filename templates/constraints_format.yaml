@@ -38,7 +38,8 @@ test_groups:                    # only if groups are needed; otherwise there's n
     special_property: "<the special property of the group's tests | null>"
     points: <points for passing all tests of the group; all groups sum to 100>
     dependencies: [<names of the groups that must be passed for this group's points>]
-    feedback_policy: <points | icpc | complete | none>   # what a contestant sees on the group
+    feedback_policy: <points | icpc | complete | none>   # what a contestant sees on the group;
+                                # icpc (the first error) unless the spec sets another
     status: <confirmed | proposed>
 
 validator:                      # validator.cpp implements this section 1-to-1

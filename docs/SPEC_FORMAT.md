@@ -150,8 +150,8 @@ constraints:
     - name: "1"                      # names — positive numbers 1, 2, ...: the validator gets the group
       max_n: 10                      # as a number; group 0 — the statement examples (the full limits,
       points: 20                     # 0 points) — is implicit and isn't listed
-      feedback_policy: "points"      # what a contestant sees on the group: points | icpc (the first
-                                     # error) | complete | none
+      feedback_policy: "icpc"        # what a contestant sees on the group: icpc (the first failed
+                                     # test, the default) | points (only the points) | complete | none
     - name: "2"
       special_property: "n is prime"
       points: 30

@@ -56,7 +56,7 @@ constraints:
                                      #     special_property: null
                                      #     points: 30
                                      #     dependencies: []
-                                     #     feedback_policy: "points"   # points | icpc | complete | none
+                                     #     feedback_policy: "icpc"     # icpc (the first error, default) | points | complete | none
   test_groups_needed: false          # [optional] true — the model proposes groups itself if the hint is empty
   time_limit_seconds: null           # [optional] null — the model proposes the TL
   memory_limit_mb: 256               # [optional] preferably a multiple of 256

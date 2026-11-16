@@ -51,26 +51,26 @@ constraints:
     - name: "1"
       max_n: 10
       points: 10
-      feedback_policy: "points"
+      feedback_policy: "icpc"
     - name: "2"
       max_n: 1000
       points: 15
       dependencies: ["1"]
-      feedback_policy: "points"
+      feedback_policy: "icpc"
     - name: "3"
       max_n: 1000000
       points: 15
       dependencies: ["2"]
-      feedback_policy: "points"
+      feedback_policy: "icpc"
     - name: "4"
       max_n: 1000000000000
       points: 20
       dependencies: ["3"]
-      feedback_policy: "points"
+      feedback_policy: "icpc"
     - name: "5"
       points: 40
       dependencies: ["4"]
-      feedback_policy: "points"
+      feedback_policy: "icpc"
   time_limit_seconds: 1
   memory_limit_mb: 256
 
