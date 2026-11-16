@@ -41,7 +41,11 @@ constants:                      # named values for the commands in tests (in the
 
 tests:                          # the script's blocks in generation order (tests.md, "The standard order of tests")
   - description: "<what the block checks — the description line in the script>"
-    group: "<a group name from the test_groups of constraints.yaml>"   # only if constraints.yaml has test_groups
+    group: "<a group name from the test_groups of constraints.yaml>"   # only if constraints.yaml has test_groups;
+                                # a list of names — the same block repeats in each of these groups,
+                                # with the group's own values (its range of N). Group 0 — the
+                                # statement examples — has no script tests. The commands don't carry
+                                # -group: the script adds -group=<the group> to each line itself
     status: <confirmed | proposed | suggestion>
     covers:                     # which spec items the block implements; none — [].
                                 # As a list, a line per item, as here: [a[0]] on one line isn't YAML

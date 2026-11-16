@@ -1,0 +1,105 @@
+problem_id: number--roots-subtasks
+intended_complexity: "O(log N)"
+complexity_reasoning: |
+  Each root is found by a binary search on the answer: for the square one — on
+  [0, 10^9], for the cube one — on [0, 10^6]; the check mid^k <= N
+  is done without overflowing a 64-bit type (the binary search bounds
+  are chosen so that mid^k <= 10^18, or the comparison is done via
+  division). An alternative is a floating-point root (sqrtl/cbrtl) with
+  an integer correction of the result by +-1 in both directions.
+
+variables:
+  - name: "N"
+    min: 1
+    max: 1000000000000000000
+    description: "the number the roots are extracted from"
+    status: confirmed
+
+limits:
+  time_limit_seconds: 1
+  memory_limit_mb: 256
+  status: confirmed
+  rationale: |
+    Set by the author explicitly (1 second, 256 MB) and are used as is.
+    Consistency with O(log N): with N = 10^18 the binary search makes of the order of
+    60 iterations (log2(10^9) ~ 30 for the square root and log2(10^6) ~ 20
+    for the cube one), that is, tens of operations — many orders of magnitude less than
+    the budget of 1 second even in interpreted languages. Memory required is
+    O(1) (a few 64-bit variables), 256 MB with a huge margin.
+    At the same time a naive search for the root up to 10^9 (~10^9 iterations with
+    multiplications) doesn't fit into 1 second, that is, the limit cuts off
+    inefficient solutions.
+
+test_groups:
+  - name: "1"
+    subset_of: null
+    max_n: 10
+    special_property: null
+    points: 10
+    dependencies: []
+    feedback_policy: icpc
+    status: confirmed
+  - name: "2"
+    subset_of: null
+    max_n: 1000
+    special_property: null
+    points: 15
+    dependencies: ["1"]
+    feedback_policy: icpc
+    status: confirmed
+  - name: "3"
+    subset_of: null
+    max_n: 1000000
+    special_property: null
+    points: 15
+    dependencies: ["2"]
+    feedback_policy: icpc
+    status: confirmed
+  - name: "4"
+    subset_of: null
+    max_n: 1000000000000
+    special_property: null
+    points: 20
+    dependencies: ["3"]
+    feedback_policy: icpc
+    status: confirmed
+  - name: "5"
+    subset_of: null
+    max_n: null
+    special_property: null
+    points: 40
+    dependencies: ["4"]
+    feedback_policy: icpc
+    status: confirmed
+
+validator:
+  constants:
+    - name: "N"
+      cpp_type: ll
+      min: 1
+      max: 1000000000000000000
+  checks:
+    - "the only line: one number N, end of line"
+    - "after the only line — end of file"
+    - "the test group is a known one: 0 (the statement examples) or a name from test_groups"
+  groups:                       # groups 0 and 5 — the full limits
+    - name: "1"
+      constants:
+        - name: "N"
+          max: 10
+      checks: []
+    - name: "2"
+      constants:
+        - name: "N"
+          max: 1000
+      checks: []
+    - name: "3"
+      constants:
+        - name: "N"
+          max: 1000000
+      checks: []
+    - name: "4"
+      constants:
+        - name: "N"
+          max: 1000000000000
+      checks: []

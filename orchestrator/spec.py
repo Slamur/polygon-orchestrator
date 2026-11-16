@@ -149,13 +149,29 @@ class Variable(BaseModel):
         return self
 
 
+# How Polygon shows a contestant the result on a test group (`feedbackPolicy` of
+# `problem.saveTestGroup`): `points` — only the points, `icpc` — the verdict of the first
+# failed test (the default: "the first error" in the scoring table), `complete` — the
+# verdicts of all tests, `none` — nothing.
+FEEDBACK_POLICIES = ("points", "icpc", "complete", "none")
+DEFAULT_FEEDBACK_POLICY = "icpc"
+
+
 class TestGroupHint(BaseModel):
+    """A test group (subtask) the author already has in mind. The names are numbers
+    `1`, `2`, ...: the validator gets the group as a number (`group_index()` in
+    `problem_lib.h`); group `0` — the statement examples with the full limits and
+    0 points — is implicit and isn't listed."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str
     subset_of: str | None = None
     max_n: int | None = None
     special_property: str | None = None
+    points: int | None = None
+    dependencies: list[str] | None = None
+    feedback_policy: Literal[FEEDBACK_POLICIES] = DEFAULT_FEEDBACK_POLICY  # type: ignore[valid-type]
 
 
 class Constraints(BaseModel):
@@ -179,7 +195,35 @@ class Constraints(BaseModel):
         # right to run and must fail with a clear error.
         _non_blank(self.intended_complexity, "constraints.intended_complexity")
         _non_blank(self.complexity_reasoning, "constraints.complexity_reasoning")
+        _check_test_groups(self.test_groups_hint or [])
         return self
+
+
+def _check_test_groups(groups: list[TestGroupHint]) -> None:
+    """Group names — distinct positive numbers (`0` — the statement examples, implicit),
+    `dependencies` and `subset_of` — names of the listed groups, other than the group itself."""
+    names = [group.name for group in groups]
+    for index, name in enumerate(names):
+        if not name.isdigit() or int(name) == 0 or name != str(int(name)):
+            raise ValueError(
+                f"constraints.test_groups_hint[{index}].name must be a positive number "
+                f"(1, 2, ...; group 0 — the statement examples — is implicit), got {name!r}"
+            )
+    if len(set(names)) != len(names):
+        raise ValueError(f"constraints.test_groups_hint: group names repeat: {names}")
+    for index, group in enumerate(groups):
+        if group.points is not None and group.points < 0:
+            raise ValueError(f"constraints.test_groups_hint[{index}].points must be >= 0")
+        for field, refs in (
+            ("dependencies", group.dependencies or []),
+            ("subset_of", [group.subset_of] if group.subset_of is not None else []),
+        ):
+            for ref in refs:
+                if ref == group.name or ref not in names:
+                    raise ValueError(
+                        f"constraints.test_groups_hint[{index}].{field}: {ref!r} must name "
+                        f"another listed group (one of {names})"
+                    )
 
 
 class GeneratorIdea(BaseModel):
@@ -227,26 +271,57 @@ def split_solution_stem(stem: str) -> list[str]:
 # The verdicts of a `known_wrong_approaches` item; its prefix is mandatory: by the verdict
 # the solution stages decide which of them writes the item.
 WRONG_APPROACH_VERDICTS = frozenset(_ALLOWED_VERDICTS - {"ok"})
-_WRONG_APPROACH_RE = re.compile(r"^\s*([A-Za-z_]+)\s*(?:\(([^)]*)\))?\s*:\s*(\S.*)$", re.S)
+_WRONG_APPROACH_RE = re.compile(
+    r"^\s*([A-Za-z_]+)\s*(?:\(([^)]*)\))?\s*(?:\[([^\]]*)\])?\s*:\s*(\S.*)$", re.S
+)
+_GROUP_RANGE_RE = re.compile(r"^(\d+)\s*-\s*(\d+)$")
 
 
 @dataclass(frozen=True)
 class WrongApproach:
-    """A `known_wrong_approaches` item `<verdict> (<languages separated by />): <mistake>`;
-    `languages` — empty if the item doesn't give them."""
+    """A `known_wrong_approaches` item
+    `<verdict> (<languages separated by />) [<test groups>]: <mistake>`;
+    `languages` — empty if the item doesn't give them; `passed_groups` — the test groups
+    (subtasks) the solution passes completely, `None` if the item doesn't give them
+    (`[]` — an explicit "passes none"). The verdict is the one on the whole test set."""
 
     verdict: str
     languages: tuple[str, ...]
     mistake: str
+    passed_groups: tuple[str, ...] | None = None
+
+
+def _parse_groups(text: str) -> tuple[str, ...] | None:
+    """`1-3, 5` -> ("1", "2", "3", "5"); an empty text — (); a malformed one — None."""
+    groups: list[str] = []
+    for part in (p.strip() for p in text.split(",")):
+        if not part:
+            continue
+        if (match := _GROUP_RANGE_RE.match(part)) is not None:
+            first, last = int(match.group(1)), int(match.group(2))
+            if first > last:
+                return None
+            groups += [str(number) for number in range(first, last + 1)]
+        elif part.isdigit():
+            groups.append(str(int(part)))
+        else:
+            return None
+    return tuple(dict.fromkeys(groups))
 
 
 def parse_wrong_approach(item: str) -> WrongApproach | None:
-    """The item's prefix; `None` — there's no prefix with a known verdict."""
+    """The item's prefix; `None` — there's no prefix with a known verdict or the
+    groups in `[...]` aren't a list of numbers and ranges."""
     match = _WRONG_APPROACH_RE.match(item)
     if match is None or match.group(1).lower() not in WRONG_APPROACH_VERDICTS:
         return None
     languages = tuple(lang.strip() for lang in (match.group(2) or "").split("/") if lang.strip())
-    return WrongApproach(match.group(1).lower(), languages, match.group(3).strip())
+    passed_groups = None
+    if match.group(3) is not None:
+        passed_groups = _parse_groups(match.group(3))
+        if passed_groups is None:
+            return None
+    return WrongApproach(match.group(1).lower(), languages, match.group(4).strip(), passed_groups)
 
 
 class Solutions(BaseModel):
@@ -272,8 +347,10 @@ class Solutions(BaseModel):
             if parse_wrong_approach(item) is None:
                 raise ValueError(
                     f"solutions.known_wrong_approaches[{index}] must start with the verdict — "
-                    "'<verdict>: <mistake>' or '<verdict> (<languages separated by />): "
-                    f"<mistake>', verdict one of {sorted(WRONG_APPROACH_VERDICTS)}; got {item!r}"
+                    "'<verdict>: <mistake>' or '<verdict> (<languages separated by />) "
+                    "[<passed test groups, e.g. 1-3, 5>]: <mistake>' (languages and groups "
+                    f"are optional), verdict one of {sorted(WRONG_APPROACH_VERDICTS)}; "
+                    f"got {item!r}"
                 )
         return self
 

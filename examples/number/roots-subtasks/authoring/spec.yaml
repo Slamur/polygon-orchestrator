@@ -1,0 +1,132 @@
+problem_id: number--roots-subtasks
+title:
+  ru: "Целые корни"
+  en: "Integer roots"
+references:
+  - "examples/number/roots"
+
+statement_draft:
+  legend_sketch: |
+    Given a positive integer N. Find the integer part (rounded down)
+    of its cube root and the integer part of its square root.
+  formal_input_sketch: |
+    The only line has one integer N (1 <= N <= 10^18).
+  formal_output_sketch: |
+    On one line, separated by a space, two integers: first floor(N^(1/3)) —
+    the largest integer C for which C^3 <= N, then floor(sqrt(N)) —
+    the largest integer S for which S^2 <= N.
+  indexing: "irrelevant"
+  sample_examples:
+    - input: |
+        10
+      output: |
+        2 3
+      note_hint: |
+        2^3 = 8 <= 10 < 27 = 3^3, so C = 2; 3^2 = 9 <= 10 < 16 = 4^2, so S = 3.
+    - input: |
+        63
+      output: |
+        3 7
+      note_hint: |
+        63 is one less than 64 = 4^3 = 8^2: the real roots are just below 4 and 8,
+        so their integer parts are 3 and 7, not 4 and 8.
+    - input: |
+        123456
+      output: |
+        49 351
+
+constraints:
+  intended_complexity: "O(log N)"
+  complexity_reasoning: |
+    Each root is found by a binary search on the answer: for the square one — on
+    [0, 10^9], for the cube one — on [0, 10^6]; the check mid^k <= N
+    is done without overflowing a 64-bit type (the binary search bounds
+    are chosen so that mid^k <= 10^18, or the comparison is done via
+    division). An alternative is a floating-point root (sqrtl/cbrtl) with
+    an integer correction of the result by +-1 in both directions.
+  variables:
+    - name: "N"
+      min: 1
+      max: 1000000000000000000
+      description: "the number the roots are extracted from"
+  test_groups_hint:
+    - name: "1"
+      max_n: 10
+      points: 10
+      feedback_policy: "icpc"
+    - name: "2"
+      max_n: 1000
+      points: 15
+      dependencies: ["1"]
+      feedback_policy: "icpc"
+    - name: "3"
+      max_n: 1000000
+      points: 15
+      dependencies: ["2"]
+      feedback_policy: "icpc"
+    - name: "4"
+      max_n: 1000000000000
+      points: 20
+      dependencies: ["3"]
+      feedback_policy: "icpc"
+    - name: "5"
+      points: 40
+      dependencies: ["4"]
+      feedback_policy: "icpc"
+  time_limit_seconds: 1
+  memory_limit_mb: 256
+
+generation:
+  generator_ideas:
+    - name: "gen_n_rand"
+      params: ["minN", "maxN"]
+      purpose: "a random N from the range [minN, maxN]"
+    - name: "gen_n_power"
+      params: ["k", "maxN", "minB", "delta"]
+      purpose: |
+        N = B^k + delta for a random B from [minB, maxB], where maxB is
+        the largest B for which B^k + delta <= maxN (found by a binary search
+        on the answer). If minB > maxB — the generator fails with an error.
+        Necessarily used with k = 2, 3, 6; also with k = 4, 5, 12 and
+        delta from {-1, 0, +1}.
+    - name: "gen_n_pow_of_base"
+      params: ["b", "p", "delta"]
+      purpose: |
+        N = b^p + delta for a fixed base (powers of two,
+        powers of ten, the largest B for k = 2, 3, 6); fails if b^p doesn't
+        fit into a 64-bit type. Doesn't check the range of N — the script
+        calls the generator only for allowed N.
+  specific_test_ideas:
+    - "group 1: all N from 1 to 10"
+    - "groups 2-5: N equal to the group's largest N and to it minus 1 (10^3, 10^6, 10^12, 10^18 are exact squares)"
+    - "groups 2-5: exact powers B^k and B^k +- 1 for k = 2, 3, 6 and a random B up to the largest the group allows"
+    - "group 5: B^k and B^k +- 1 for large B close to 10^9 (k = 2), 10^6 (k = 3), 10^3 (k = 6)"
+    - "groups 2-5: powers of two 2^p +- 1 (p up to 59) and powers of ten 10^p +- 1 that fall into the group's own range"
+    - "groups 2-5: random N above the previous group's largest N"
+  script_style: "groups"
+
+solutions:
+  wanted_verdicts: ["ok", "wa", "tl_ok"]
+  languages: ["cpp", "java", "py"]
+  algorithm_hint: |
+    Two independent binary searches on the answer: the largest C with C^3 <= N
+    (C in [0, 10^6]) and the largest S with S^2 <= N (S in [0, 10^9]). Computations
+    in a 64-bit signed type (in Python — integer arithmetic);
+    the binary search bounds are such that mid^k doesn't overflow.
+  alternative_approaches:
+    - "a floating-point root (sqrtl/cbrtl in C++, Math.sqrt/Math.cbrt in Java, math.sqrt and ** (1 / 3) in Python) with an integer correction of the result by +-1 in both directions until C^3 / S^2 become correct"
+    - "(py): the square root via math.isqrt, the cube one — with the same binary search"
+  known_wrong_approaches:
+    - "wa (cpp) [1-4]: (long long)sqrt((double)N) without correction — a mistake on B^2 - 1 for large B (double doesn't distinguish neighboring numbers near 10^18)"
+    - "wa (cpp) [1-4]: (long long)cbrt((double)N) without correction — a mistake on B^3 - 1 for large B"
+    - "wa (cpp) [1]: the cube root as pow(N, 1.0 / 3) without correction — a mistake already on exact cubes (e.g. 64 -> 3)"
+    - "wa (py) [1-4]: int(N ** 0.5) without correction — a mistake on B^2 - 1 for large B"
+    - "wa (py) [1]: int(N ** (1 / 3)) without correction — a mistake already on exact cubes (e.g. 64 -> 3)"
+    - "wa [1-3]: a binary search for the cube root on [0, N] with mid * mid * mid in a 64-bit type — an overflow with N greater than ~4 * 10^6, on the examples and small N the answer is correct"
+    - "wa []: a binary search for the square root with a strict mid * mid < N instead of <= — a mistake on exact squares"
+    - "tl_ok [1-4]: a linear search for the square root S = 0, 1, 2, ... while (S + 1)^2 <= N — up to 10^9 iterations, a borderline case: in C++ with N = 10^18 about 0.3 s, in Python certainly TL"
+
+checker:
+  standard: "ncmp"
+  custom_needed: false
+  custom_comparison_notes: null

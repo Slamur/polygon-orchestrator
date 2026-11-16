@@ -380,6 +380,11 @@ def test_unknown_language_is_rejected(tmp_path):
         ("ok: a correct one", None),
         ("note: not a verdict", None),
         ("wa:", None),
+        ("wa (cpp) [1-3]: overflow", WrongApproach("wa", ("cpp",), "overflow", ("1", "2", "3"))),
+        ("wa [1, 3-4, 1]: x", WrongApproach("wa", (), "x", ("1", "3", "4"))),
+        ("tl_ok []: slow", WrongApproach("tl_ok", (), "slow", ())),
+        ("wa [small]: x", None),
+        ("wa [3-1]: x", None),
     ],
 )
 def test_parse_wrong_approach(item, expected):
@@ -396,3 +401,46 @@ def test_wrong_approach_without_verdict_raises(tmp_path):
         load_spec(path)
 
     assert "known_wrong_approaches[0] must start with the verdict" in str(exc_info.value)
+
+
+def _write_with_groups(tmp_path, groups_yaml: str) -> Path:
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    old = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+    assert old in text
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text.replace(old, "  test_groups_hint:\n" + groups_yaml), encoding="utf-8")
+    return path
+
+
+def test_test_groups_with_points_and_dependencies_are_loaded(tmp_path):
+    spec = load_spec(
+        _write_with_groups(
+            tmp_path,
+            '    - name: "1"\n      max_n: 10\n      points: 30\n'
+            '    - name: "2"\n      points: 70\n      dependencies: ["1"]\n'
+            '      feedback_policy: "points"\n',
+        )
+    )
+
+    first, second = spec.constraints.test_groups_hint
+    assert first.feedback_policy == "icpc"
+    assert (second.points, second.dependencies, second.feedback_policy) == (70, ["1"], "points")
+
+
+@pytest.mark.parametrize(
+    "groups_yaml, message",
+    [
+        ('    - name: "small"\n', "must be a positive number"),
+        ('    - name: "0"\n', "must be a positive number"),
+        ('    - name: "01"\n', "must be a positive number"),
+        ('    - name: "1"\n    - name: "1"\n', "repeat"),
+        ('    - name: "1"\n      dependencies: ["2"]\n', "dependencies"),
+        ('    - name: "1"\n      dependencies: ["1"]\n', "dependencies"),
+        ('    - name: "1"\n      subset_of: "full"\n', "subset_of"),
+        ('    - name: "1"\n      points: -5\n', "points"),
+        ('    - name: "1"\n      feedback_policy: "first"\n', "feedback_policy"),
+    ],
+)
+def test_invalid_test_groups_are_rejected(tmp_path, groups_yaml, message):
+    with pytest.raises(SpecValidationError, match=message):
+        load_spec(_write_with_groups(tmp_path, groups_yaml))

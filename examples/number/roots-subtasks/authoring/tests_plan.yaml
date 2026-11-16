@@ -1,0 +1,166 @@
+problem_id: number--roots-subtasks
+
+# A test is one number N on a single line. The tests of a group take N from the group's own
+# range (prevN, maxN]: smaller N are in the groups it depends on. The commands don't
+# carry -group: the script adds -group=<the block's group> to each line itself.
+generators:
+  - name: gen_n_rand
+    status: confirmed
+    params:
+      - name: minN
+        type: ll
+        description: the smallest N
+      - name: maxN
+        type: ll
+        description: the largest N
+    input: null
+    output: the whole test — N
+    algorithm: |
+      N is a random one from [minN, maxN].
+
+  - name: gen_n_power
+    status: confirmed
+    params:
+      - name: k
+        type: int
+        description: the exponent
+      - name: maxN
+        type: ll
+        description: the largest N
+      - name: minB
+        type: ll
+        description: the smallest base
+      - name: delta
+        type: ll
+        description: the shift of N from B^k
+    input: null
+    output: the whole test — N
+    algorithm: |
+      maxB is the largest B for which B^k <= maxN - delta (a binary search on the
+      answer without overflowing a 64-bit type); B is a random one from [minB, maxB],
+      N = B^k + delta. Fails if minB > maxB.
+
+  - name: gen_n_pow_of_base
+    status: confirmed
+    params:
+      - name: b
+        type: ll
+        description: the base
+      - name: p
+        type: int
+        description: the exponent
+    input: null
+    output: the whole test — N
+    algorithm: |
+      N = b^p + delta, delta is a random one from {-1, 0, 1} (the generator chooses it
+      itself: this way script lines for different delta aren't needed). Fails if
+      b^p doesn't fit into a 64-bit signed type. Doesn't check the range of N —
+      the script calls the generator only for allowed N.
+
+constants:
+  - name: minN
+    value: "1"
+    description: N.min from constraints.yaml
+  - name: maxNExp
+    value: "18"
+    description: N.max = 10^maxNExp from constraints.yaml
+  - name: maxN
+    value: 10^maxNExp
+    description: N.max from constraints.yaml — the largest N of group 5
+  - name: groups
+    value: |
+      [{id: 1, prevN: 0, maxN: 10},
+       {id: 2, prevN: 10, maxN: 10^3, randomTests: 5},
+       {id: 3, prevN: 10^3, maxN: 10^6, randomTests: 5},
+       {id: 4, prevN: 10^6, maxN: 10^12, randomTests: 5},
+       {id: 5, prevN: 10^12, maxN: maxN, randomTests: 5}]
+    description: |
+      test_groups of constraints.yaml: maxN — the group's max_n, prevN — the max_n of the group
+      it depends on (0 for group 1), randomTests — how many random tests the group gets
+  - name: deltas
+    value: "[-1, 0, 1]"
+    description: the shifts from an exact power
+  - name: powerExps
+    value: "[2, 3, 6]"
+    description: the exponents for random B^k + delta; for group 5 maxN is an exact power of 10^(maxNExp / k)
+  - name: pow2Exps
+    value: "[9, 10, 15, 20, 30, 31, 32, 40, 48, 53, 54, 59]"
+    description: |
+      powers of two: 2^30 = 1024^3 = 32768^2, 2^31 / 2^32 — the int / unsigned int bounds,
+      2^48 = 65536^3, 2^53 / 2^54 — the double precision bound, 2^59 — the largest power
+      of 2 <= 10^18; not 2^6: 63 is an example of the statement
+  - name: pow10Exps
+    value: "[2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 15, 16, 17]"
+    description: powers of ten — squares, cubes and neither
+
+tests:
+  - description: "Group 1: all N from 1 to 10"
+    group: "1"
+    status: confirmed
+    covers:
+      - specific_test_ideas[0]
+    commands:
+      - gen_n_rand -minN=n -maxN=n
+    repeat: n = 1..10
+
+  - description: "Groups 2-5: random N from the group's own range"
+    group: ["2", "3", "4", "5"]
+    status: confirmed
+    covers:
+      - specific_test_ideas[5]
+    commands:
+      - gen_n_rand -minN=fromN -maxN=toN
+    repeat: |
+      the group's range (prevN, maxN] split into randomTests equal parts, a test per part:
+      fromN = prevN + 1 + step * i, toN = min(maxN, fromN + step - 1), step = ceil((maxN - prevN) / randomTests)
+
+  - description: "Groups 2-5: random B^k + delta in the group's own range"
+    group: ["2", "3", "4", "5"]
+    status: confirmed
+    covers:
+      - specific_test_ideas[2]
+      - known_wrong_approaches[0]
+      - known_wrong_approaches[1]
+      - known_wrong_approaches[2]
+      - known_wrong_approaches[3]
+      - known_wrong_approaches[4]
+      - known_wrong_approaches[6]
+    commands:
+      - gen_n_power -k=k -maxN=maxN -minB=minB -delta=delta
+    repeat: |
+      k over powerExps, delta over deltas; maxN — the group's; minB — the smallest B with
+      B^k > prevN - delta (so that N > prevN); only if (minB + 3)^k + delta <= maxN: with fewer
+      than 4 bases the tests repeat each other
+
+  - description: "Groups 2-5: powers of two and ten ± 1 in the group's own range"
+    group: ["2", "3", "4", "5"]
+    status: confirmed
+    covers:
+      - specific_test_ideas[4]
+    commands:
+      - gen_n_pow_of_base -b=2 -p=p
+      - gen_n_pow_of_base -b=10 -p=q
+    repeat: |
+      the first command — p over pow2Exps, then the second — q over pow10Exps; only the powers
+      b^p with b^p - 1 > prevN and b^p + 1 <= maxN of the group
+
+  - description: "Groups 2-5: the group's largest N and one less"
+    group: ["2", "3", "4", "5"]
+    status: confirmed
+    covers:
+      - specific_test_ideas[1]
+      - known_wrong_approaches[5]
+      - known_wrong_approaches[7]
+    commands:
+      - gen_n_rand -minN=maxN-1 -maxN=maxN-1
+      - gen_n_rand -minN=maxN -maxN=maxN
+    repeat: maxN — the group's
+
+  - description: "Group 5: B^k + delta for the largest B (topB - 1)"
+    group: "5"
+    status: confirmed
+    covers:
+      - specific_test_ideas[3]
+    commands:
+      - gen_n_pow_of_base -b=b -p=k
+    repeat: k over powerExps, b = 10^(maxNExp / k) - 1 — the largest B for which any delta is allowed

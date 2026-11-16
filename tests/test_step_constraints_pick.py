@@ -213,7 +213,7 @@ def test_test_groups_hint_wins_over_needed_false(spec, tmp_path):
 
     user_prompt = mock_call.call_args.args[2]
     assert "test_groups_needed: False" in user_prompt
-    assert "name=small" in user_prompt
+    assert "name=1," in user_prompt
 
 
 def test_renders_without_crashing_when_optional_lists_are_null(spec, tmp_path):

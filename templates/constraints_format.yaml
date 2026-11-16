@@ -28,11 +28,18 @@ limits:
   rationale: |
     <the consistency of TL/ML with intended_complexity at the maximal values>
 
-test_groups:                    # only if groups are needed; otherwise there's no key at all
-  - name: "<group name>"        # the fields — as in the spec's constraints.test_groups_hint
+test_groups:                    # only if groups are needed; otherwise there's no key at all.
+                                # Group 0 — the statement examples: the full limits, 0 points,
+                                # always present, isn't listed here
+  - name: "<1, 2, ...>"         # the fields — as in the spec's constraints.test_groups_hint;
+                                # names — numbers in order: the validator gets the group as a number
     subset_of: "<group name | null>"
-    max_n: <number | null>
+    max_n: <number | null>      # null — the full limit of the variable
     special_property: "<the special property of the group's tests | null>"
+    points: <points for passing all tests of the group; all groups sum to 100>
+    dependencies: [<names of the groups that must be passed for this group's points>]
+    feedback_policy: <points | icpc | complete | none>   # what a contestant sees on the group;
+                                # icpc (the first error) unless the spec sets another
     status: <confirmed | proposed>
 
 validator:                      # validator.cpp implements this section 1-to-1
@@ -44,3 +51,10 @@ validator:                      # validator.cpp implements this section 1-to-1
   checks:                       # everything the validator checks beyond min/max
     - "<the reading order of tokens and lines, by formal_input_sketch>"
     - "<a check for each special_guarantees>"
+  groups:                       # only with test_groups: the limits of each group's tests
+    - name: "<a group name from test_groups>"
+      constants:                # the variables whose bounds are narrower than the full ones
+        - name: "<name>"
+          max: <number>
+      checks:                   # the group's special_property, if any
+        - "<check>"
