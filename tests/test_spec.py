@@ -471,6 +471,10 @@ def test_test_groups_with_points_and_dependencies_are_loaded(tmp_path):
         ('    - name: "1"\n    - name: "1"\n', "repeat"),
         ('    - name: "1"\n      dependencies: ["2"]\n', "dependencies"),
         ('    - name: "1"\n      dependencies: ["1"]\n', "dependencies"),
+        (
+            '    - name: "1"\n      dependencies: ["2"]\n    - name: "2"\n',
+            "group 1 depends on group 2, which isn't an earlier group",
+        ),
         ('    - name: "1"\n      subset_of: "full"\n', "subset_of"),
         ('    - name: "1"\n      points: -5\n', "points"),
         ('    - name: "1"\n      feedback_policy: "first"\n', "feedback_policy"),

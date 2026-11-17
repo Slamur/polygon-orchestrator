@@ -157,7 +157,7 @@ constraints:
       points: 30
     - name: "3"                      # max_n absent — the full limits
       points: 50
-      dependencies: ["1", "2"]       # the groups that must be passed for this group's points
+      dependencies: ["1", "2"]       # the earlier groups that must be passed for this group's points
     # All fields but name are optional; subset_of — the group whose limits this one narrows.
     # A group's points are given only if all its tests are passed (on Polygon — the
     # COMPLETE_GROUP policy). The sample with groups — examples/number/roots-subtasks.
