@@ -462,6 +462,21 @@ def test_test_groups_with_points_and_dependencies_are_loaded(tmp_path):
     assert (second.points, second.dependencies, second.feedback_policy) == (70, ["1"], "points")
 
 
+def test_test_groups_may_depend_on_several_earlier_groups(tmp_path):
+    spec = load_spec(
+        _write_with_groups(
+            tmp_path,
+            '    - name: "1"\n      points: 10\n'
+            '    - name: "2"\n      points: 20\n      dependencies: ["1"]\n'
+            '    - name: "3"\n      points: 30\n      dependencies: ["1"]\n'
+            '    - name: "4"\n      points: 40\n      dependencies: ["2", "3"]\n',
+        )
+    )
+
+    deps = [group.dependencies for group in spec.constraints.test_groups_hint]
+    assert deps == [None, ["1"], ["1"], ["2", "3"]]
+
+
 @pytest.mark.parametrize(
     "groups_yaml, message",
     [
