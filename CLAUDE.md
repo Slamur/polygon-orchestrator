@@ -195,6 +195,18 @@ the user can see it) in the same PR.
   the groups are split by cost: `llm` (and `init --draft`) calls the model,
   `polygon` goes to the network, `local` — neither.
 
+## Scope of a task: ask before doing much more
+
+If what Claude Code is about to do is noticeably bigger than what the author asked
+(extra fixes, workarounds, new mechanics, "while I'm here" changes), it first names it
+in a line or two with the reason and asks — instead of doing it. Small, obviously
+necessary fixes that make the requested change work are fine without asking; anything
+else extra noticed along the way goes into the reply as a proposal.
+
+Why: in practice unrequested additions changed things the author had decided
+deliberately (e.g. a script rule that dropped a test to avoid a duplicate Polygon only
+warns about), and undoing them cost more than asking would have.
+
 ## Git workflow for developing the orchestrator
 
 `main` is the stable branch. No direct commits to `main`, including by
