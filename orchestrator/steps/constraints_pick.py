@@ -8,6 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
@@ -26,11 +28,13 @@ from orchestrator.steps.base import (
     TEMPLATES_DIR,
     StepResult,
     StepRevision,
+    StepUncertainError,
     existing_artifacts,
     run_generative_step,
     statement_io_section,
     with_default_lists,
 )
+from orchestrator.test_groups import TEST_GROUPS_KEY, TestGroupsError, parse_test_groups
 
 STEP_NAME = "constraints_pick"
 
@@ -52,6 +56,103 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
         ),
         "statement": statement_io_section(spec, include_output_and_legend=False),
     }
+
+
+# The full points of a problem with test groups.
+FULL_POINTS = 100
+GROUPS_HINT_FIELD = "constraints.test_groups_hint"
+
+
+def _check_groups_are_set(problem_id: str, spec: ProblemSpec) -> None:
+    """`test_groups_needed` without `test_groups_hint`: the groups (their limits, points,
+    dependencies) are the author's — set in the spec by the author or by `init --draft`,
+    the step doesn't invent them. `StepUncertainError` without calling the model."""
+    constraints = spec.constraints
+    if constraints.test_groups_needed and not constraints.test_groups_hint:
+        explanation = (
+            "test_groups_needed is true, but the groups aren't set: the steps don't invent "
+            f"test groups — set {GROUPS_HINT_FIELD} (each group with its limits and points)"
+        )
+        raise StepUncertainError(
+            STEP_NAME,
+            problem_id,
+            [{"field": GROUPS_HINT_FIELD, "kind": "uncertain", "explanation": explanation}],
+        )
+
+
+def check_test_groups_artifact(text: str, spec: ProblemSpec) -> None:
+    """The structural check of the test groups in the model's `constraints.yaml`, before it
+    is written (`validate_artifacts`: a failure — a conflict, nothing is applied). The
+    groups must read as `orchestrator/test_groups.py` reads them (names, dependencies and
+    `subset_of` of listed groups), every dependency — an earlier group, points — given for
+    every group or none, summing to 100 (or to the total of the author's points, when the
+    spec's `test_groups_hint` gives points to every group), `validator.groups` — only of
+    listed groups, each once, and none without `test_groups`. `ValueError` with every
+    problem found."""
+    try:
+        groups = parse_test_groups(text)
+    except TestGroupsError as exc:
+        raise ValueError(str(exc)) from exc
+    data = yaml.safe_load(text)
+    validator = data.get("validator") if isinstance(data, dict) else None
+    validator_groups = validator.get("groups") if isinstance(validator, dict) else None
+    errors: list[str] = []
+    if groups is None:
+        if validator_groups:
+            errors.append(f"validator.groups is set, but there are no {TEST_GROUPS_KEY}")
+    else:
+        names = [group.name for group in groups]
+        for index, group in enumerate(groups):
+            for dependency in group.dependencies or []:
+                if dependency not in names[:index]:
+                    errors.append(
+                        f"group {group.name} depends on group {dependency}, "
+                        "which isn't an earlier group"
+                    )
+        errors += _points_errors(groups, spec)
+        errors += _validator_groups_errors(validator_groups, names)
+    if errors:
+        raise ValueError(
+            f"{CONSTRAINTS_ARTIFACT}: invalid test groups:\n"
+            + "\n".join(f"- {error}" for error in errors)
+        )
+
+
+def _points_errors(groups: list, spec: ProblemSpec) -> list[str]:
+    without = [group.name for group in groups if group.points is None]
+    if len(without) == len(groups):
+        return []
+    if without:
+        return [f"groups {', '.join(without)} have no points, the other groups have"]
+    total = sum(group.points for group in groups)
+    hint = spec.constraints.test_groups_hint or []
+    author_total = (
+        sum(group.points for group in hint)
+        if hint and all(group.points is not None for group in hint)
+        else None
+    )
+    if total in (FULL_POINTS, author_total):
+        return []
+    return [f"the points of the groups sum to {total}, not {FULL_POINTS}"]
+
+
+def _validator_groups_errors(validator_groups: Any, names: list[str]) -> list[str]:
+    if validator_groups is None:
+        return []
+    if not isinstance(validator_groups, list) or not all(
+        isinstance(item, dict) for item in validator_groups
+    ):
+        return ["validator.groups must be a list of groups"]
+    errors = []
+    seen: set[str] = set()
+    for item in validator_groups:
+        name = str(item.get("name", "")).strip()
+        if name not in names:
+            errors.append(f"validator.groups has '{name}', which isn't one of {TEST_GROUPS_KEY}")
+        elif name in seen:
+            errors.append(f"validator.groups has group {name} twice")
+        seen.add(name)
+    return errors
 
 
 def set_spec_problem_id(
@@ -195,6 +296,7 @@ def run_step(
     `upstream_artifacts` isn't used: `constraints_pick` depends only
     on the spec (CLAUDE.md, "Caching by spec hash").
     """
+    _check_groups_are_set(problem_id, spec)
     context = {"problem_id": spec.problem_id, **_build_context_sections(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
@@ -203,6 +305,10 @@ def run_step(
         if filename == CONSTRAINTS_ARTIFACT:
             return primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
         return Path(problems_dir) / problem_id / filename
+
+    def validate_artifacts(artifacts: dict[str, str]) -> None:
+        if CONSTRAINTS_ARTIFACT in artifacts:
+            check_test_groups_artifact(artifacts[CONSTRAINTS_ARTIFACT], spec)
 
     return run_generative_step(
         step_name=STEP_NAME,
@@ -216,6 +322,7 @@ def run_step(
         prompts_dir=prompts_dir,
         problems_dir=problems_dir,
         templates_dir=templates_dir,
+        validate_artifacts=validate_artifacts,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
         postprocess_artifacts=set_spec_problem_id(spec.problem_id),
     )

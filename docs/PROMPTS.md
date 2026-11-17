@@ -355,7 +355,8 @@ You are given mandatory rules:
 - constraints_format.yaml — the mandatory format of `constraints.yaml`.
   Reproduce the top-level structure (`variables`, `limits` with
   `time_limit_seconds`/`memory_limit_mb`, `test_groups` — only when
-  groups are needed, `validator` with `constants`/`checks`) and the `status` mark
+  groups are needed, `validator` with `constants`/`checks` and, with groups,
+  `groups`) and the `status` mark
   (`confirmed`/`proposed`) with a `rationale` for each decision
   without fail: the following steps and the orchestrator read the file.
 - problem_lib.h — helpers you can use in the validator
@@ -407,16 +408,27 @@ What to do when the asymptotics are given explicitly:
    marking it as `proposed`, and justify it with the number of operations at the given complexity.
 2. Fix the TL in whole seconds (plus 0.5 if needed) and the ML as a multiple of
    256 MB (or a power of two — 32/64/128 — if there are grounds).
-3. Form the test groups by the following priority:
-   - if the spec has a non-empty `test_groups_hint` — follow its structure and
-     `subset_of` relations (it's already an explicit request of the author, regardless of
-     `test_groups_needed`);
-   - otherwise, if `test_groups_needed: true` — propose a reasonable set
-     (small / edge cases / max) and EXPLICITLY mark it as `proposed`;
-   - otherwise (`test_groups_needed` is absent/`false`, and `test_groups_hint`
-     is empty) — the author doesn't need groups: don't include `test_groups` in
+3. Form the test groups only from the spec's `test_groups_hint`: the groups are the
+   author's decision, you don't invent them.
+   - If `test_groups_hint` is non-empty — follow its structure and `subset_of`
+     relations.
+   - If it is empty — the problem has no groups: don't include `test_groups` in
      `constraints.yaml` at all, don't write an empty list and don't leave a
-     placeholder comment.
+     placeholder comment. If you think groups would make the problem better — only
+     an entry in `notes` with `kind: suggestion`.
+   For each group fix the fields of constraints_format.yaml:
+   - `name` — as in the hint (numbers 1, 2, ... in order); group 0 — the statement
+     examples with the full limits and 0 points — is implicit, don't list it;
+   - `max_n`, `special_property`, `subset_of` — from the hint;
+   - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
+     groups — propose them so that all groups sum to 100 (`proposed`, with a
+     justification: the more of the full solution a group needs, the more points);
+     if the hint's points don't sum to 100 — keep them and say so in `notes`
+     (`kind: proposed`);
+   - `dependencies` — from the hint; absent — `[]`. Don't add dependencies the
+     author didn't give: if you think a group should depend on another one —
+     an entry in `notes` with `kind: suggestion`;
+   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it).
 4. For each `special_guarantees` from the spec — make sure it's formulated
    so that it can be checked in the validator, and formulate it as a
    concrete check in `validator.checks` (see item 5).
@@ -439,6 +451,14 @@ a separate `validator` section, from which item 6 below derives
   pass these checks. If `formal_input_sketch` is ambiguous in the order
   or the split of tokens into lines and the examples don't clarify it — an entry in
   `notes` with `kind: proposed` about the chosen interpretation, not a silent choice.
+- `validator.groups` — only with `test_groups`: an entry for each group whose
+  tests have narrower limits than the full ones — `constants` with the variables
+  whose bounds the group narrows (by its `max_n` and `subset_of`: a group narrowing
+  another one has at most its limits) and `checks` with the group's
+  `special_property`, if any, as a concrete check. A group with the full limits
+  and no special property has no entry. Plus one entry in `validator.checks`: the
+  test group is a known one — 0 (the statement examples) or a name from
+  `test_groups`.
 
 6. Implement `validator.cpp` (as described above and as in the sample's validator.cpp,
    if attached):
@@ -446,9 +466,16 @@ a separate `validator` section, from which item 6 below derives
    for each variable from `validator.constants` in the reading order,
    `inf.readSpace()` between values on one line, `inf.readEoln()` at
    the end of each line and `inf.readEof()` at the end of the input —
-   implementing EXACTLY the `validator.constants` and `validator.checks` that you
-   fixed in `constraints.yaml` in this same response, and no checks
-   beyond or besides those listed there. This isn't a separate decision of the model, but
+   implementing EXACTLY the `validator.constants`, `validator.checks` (and
+   `validator.groups`) that you fixed in `constraints.yaml` in this same response, and no checks
+   beyond or besides those listed there.
+   With `test_groups`: the test's group is `group_index()` from problem_lib.h (0 —
+   the statement examples, they have the full limits); `ensuref` that it is a known
+   group; the bounds of each variable a group narrows — per group (e.g. a vector of
+   the variable's largest value indexed by the group, from 0), read with the bounds
+   of the test's group; the checks of a group's `special_property` —
+   only for the tests of that group.
+   This isn't a separate decision of the model, but
    the mechanical last step of the same reasoning about the limits — the implementation
    mustn't diverge from what's described in `constraints.yaml`.
 
@@ -465,7 +492,8 @@ really deserves the author's attention; if there's nothing to propose — don't.
 
 Respond in the JSON format from the contract. Put two files into `artifacts`:
 `constraints.yaml` with the final variable ranges, TL, ML, the list of
-test groups and the `validator` section (`constants` + `checks`), and
+test groups and the `validator` section (`constants` + `checks`, with groups —
+`groups`), and
 `validator.cpp` — the implementation of this section.
 For each proposed (not set by the author) value — an entry in `notes`
 with `kind: proposed` and a justification through the order of operations.
@@ -621,10 +649,20 @@ How the plan's tests work:
   test with parameters right at the bound (±1), don't mix several bounds in
   one test unless it's an "OK test" combining several boundary
   checks.
-- `group` — only if the fixed limits have `test_groups`:
-  each block belongs to one group, the blocks go strictly in the order of the groups, and
-  each test of a block satisfies the limits of its group. The distribution of tests
-  over groups is your decision: `status: proposed` with a justification.
+- `group` — only if the fixed limits have `test_groups`: every block belongs to
+  a group — a name, or a list of names when the same tests are needed in several
+  groups (the block then repeats in each of them, with the group's own values:
+  its range, its limits). The blocks go in the order of the groups (a block with a list
+  — where its first group is), and each test of a block satisfies the limits of its
+  group: `max_n`, `special_property` and `validator.groups` of the fixed limits. A
+  group's tests are better taken from its own range, beyond the groups it depends on
+  (`dependencies`): smaller tests are already there. Every group gets tests; group 0
+  — the statement examples — gets none. The commands don't carry `-group`: the script
+  adds `-group=<the group>` to each line itself. Values that differ by group (e.g. a
+  group's largest N and the largest N of the group before it) — in `constants`, e.g.
+  a list of groups with their values, so that the script can loop over it. The
+  distribution of tests over groups that the spec doesn't set is your decision:
+  `status: proposed` with a justification.
 
 This is the base plan of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
@@ -779,6 +817,10 @@ How to write a generator (the sample generators are built this way too):
   `opt<ll>`, `bool` → `opt<bool>`, `string` → `opt<string>`). Not a single
   limit of the problem is hardcoded as a constant.
 - The test number is NOT passed to the generator in any form.
+- If the fixed limits have `test_groups`, the script adds `-group=<N>` to every
+  line: the generator doesn't read it, and it isn't one of the plan's parameters. So
+  don't use `has_opt` and `opt` with a default value there: after them testlib fails
+  on an option the generator didn't read.
 - Reading — exactly the plan's `input` (the part of the test from the previous generator of the
   chain) with the `ri()`/`rll()`/`rv<T>()` helpers; output — exactly the plan's `output`,
   in the problem's input format (the "Input format" section of the request).
@@ -909,7 +951,17 @@ How to carry the plan over into the script:
 - The script's style — by `script_style`. `flat` — the file `test_script`. `groups` —
   the file `test_script_groups`: the blocks by the plan's `group`s, strictly in the
   order of the test groups of the fixed limits, for each group —
-  its own section (or macro) using the limits of exactly this group.
+  its own section (or macro) using the limits of exactly this group. The groups with
+  their values (from the plan's `constants`) — a list of hashes in one `<#assign>`
+  (`{"id": 1, ...}`); a block the plan gives to several groups — a macro with the
+  group as a parameter, called for each of them; the generation itself — one
+  `<#list>` over the groups calling the group's section (macro).
+- If the fixed limits have `test_groups` (in either style): every script line ends
+  with `-group=<the line's group>` before `> $` (`-group=${group.id}`), after the
+  last generator of the chain — the orchestrator takes the test's group from it (the
+  local checks and the test groups on Polygon), and the validator checks the test with
+  the limits of this group. Generators don't read it, so it isn't one of their
+  parameters. Without `test_groups` — no `-group`.
 
 If a plan block can't be carried over unambiguously (a command refers to a value
 that isn't in `constants` and isn't set by `repeat`, `repeat` is incomplete) —
@@ -1082,6 +1134,13 @@ Mandatory rules (each item says which stages it is about):
    may give languages (e.g. "wa (py): ..." or "tl_ok (java/py): ..."): write the solution
    with exactly this verdict and in each of these languages — a file per language,
    even if the verdict or the language isn't in `wanted_verdicts`/`languages`.
+   With test groups (the "Fixed limits" section has `test_groups`) an item may also name,
+   after the languages, the groups the solution passes completely: `wa (cpp) [1-3]: ...`,
+   `tl [1, 2]: ...`, `wa []: ...` (none). The verdict in the prefix is the one on the
+   whole test set (e.g. a too slow algorithm that passes the small groups is still
+   `tl`), and the file name is built as for any other item — the groups aren't part of
+   it. Write the solution so that it does pass the named groups: the mistake (or the
+   slowness) shows up only beyond their limits.
    If the languages aren't given — choose them by the verdict (by default, only from
    `languages`):
    - `tl` — in C++ (if it isn't in `languages` — in the fastest of them);
@@ -1394,7 +1453,9 @@ What to do for EACH surviving solution:
    can build such an input, otherwise with a new generator (by the rules of the plan:
    one generator — one idea, `gen_*` produces the input, `upd_*` transforms it, all limits
    — parameters). Every test must satisfy the problem's limits ("Fixed limits" section) and,
-   with groups, the limits of its group.
+   with groups, the limits of its group: a block with test groups has `group` (a name or a
+   list of names, as in the current plan) — the groups whose limits allow the input that
+   catches the solution; the commands don't carry `-group`, the script adds it.
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and
@@ -1852,7 +1913,7 @@ to check:
    the script style, a standard checker, an example, the title, etc.
 2. `# SUGGESTION: <why>` — your idea beyond what's needed for completeness:
    another correct solution, a likely contestant mistake, a generator or a
-   concrete test for it, a test group.
+   concrete test for it.
 A mark is a YAML comment at the end of the field's line (for block text —
 after `|`: `legend_sketch: |  # PROPOSED, REVIEW ME: ...`) or of a list
 item. Additionally — an entry in `notes` for each such value:
@@ -1886,6 +1947,16 @@ a proposed value here must have a mark and an explanation in `notes`:
   asymptotics — derive it from this idea; if there's no solution idea — propose
   your own and say so explicitly.
 - `solutions.algorithm_hint` — the reference solution.
+- `constraints.test_groups_hint` — the test groups (subtasks): the later steps don't
+  invent groups, they take them only from here. Only if the draft has or implies
+  subtasks (groups, partial points, "for N <= 1000 ..."): then fill in every group
+  completely — `name` (1, 2, ...), its limits (`max_n`, `special_property`,
+  `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
+  groups), `feedback_policy` — keep what the author wrote as is, mark each value you
+  filled in yourself `# PROPOSED, REVIEW ME`, and set `generation.script_style:
+  "groups"` (a spec with groups and `flat` doesn't validate). Without any sign of
+  subtasks in the draft — no groups: `test_groups_hint` empty, `test_groups_needed`
+  `false`.
 - `checker.custom_needed` and `checker.custom_comparison_notes` — the rule of
   comparing answers. A non-standard checker is needed if there may be several
   answers or the answer isn't checked by byte-by-byte comparison; then

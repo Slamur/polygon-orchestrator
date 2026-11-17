@@ -33,6 +33,10 @@ How to write a generator (the sample generators are built this way too):
   `opt<ll>`, `bool` → `opt<bool>`, `string` → `opt<string>`). Not a single
   limit of the problem is hardcoded as a constant.
 - The test number is NOT passed to the generator in any form.
+- If the fixed limits have `test_groups`, the script adds `-group=<N>` to every
+  line: the generator doesn't read it, and it isn't one of the plan's parameters. So
+  don't use `has_opt` and `opt` with a default value there: after them testlib fails
+  on an option the generator didn't read.
 - Reading — exactly the plan's `input` (the part of the test from the previous generator of the
   chain) with the `ri()`/`rll()`/`rv<T>()` helpers; output — exactly the plan's `output`,
   in the problem's input format (the "Input format" section of the request).

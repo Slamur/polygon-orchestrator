@@ -38,7 +38,7 @@ to check:
    the script style, a standard checker, an example, the title, etc.
 2. `# SUGGESTION: <why>` — your idea beyond what's needed for completeness:
    another correct solution, a likely contestant mistake, a generator or a
-   concrete test for it, a test group.
+   concrete test for it.
 A mark is a YAML comment at the end of the field's line (for block text —
 after `|`: `legend_sketch: |  # PROPOSED, REVIEW ME: ...`) or of a list
 item. Additionally — an entry in `notes` for each such value:
@@ -72,6 +72,16 @@ a proposed value here must have a mark and an explanation in `notes`:
   asymptotics — derive it from this idea; if there's no solution idea — propose
   your own and say so explicitly.
 - `solutions.algorithm_hint` — the reference solution.
+- `constraints.test_groups_hint` — the test groups (subtasks): the later steps don't
+  invent groups, they take them only from here. Only if the draft has or implies
+  subtasks (groups, partial points, "for N <= 1000 ..."): then fill in every group
+  completely — `name` (1, 2, ...), its limits (`max_n`, `special_property`,
+  `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
+  groups), `feedback_policy` — keep what the author wrote as is, mark each value you
+  filled in yourself `# PROPOSED, REVIEW ME`, and set `generation.script_style:
+  "groups"` (a spec with groups and `flat` doesn't validate). Without any sign of
+  subtasks in the draft — no groups: `test_groups_hint` empty, `test_groups_needed`
+  `false`.
 - `checker.custom_needed` and `checker.custom_comparison_notes` — the rule of
   comparing answers. A non-standard checker is needed if there may be several
   answers or the answer isn't checked by byte-by-byte comparison; then

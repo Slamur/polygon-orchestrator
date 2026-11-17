@@ -98,7 +98,10 @@ the parser, `orchestrator/cli_commands.py` — the commands themselves):
   the draft the model keeps, and what isn't in it — it fills in itself and may
   propose its own (solutions, contestant mistakes, tests); each such
   value is marked in the spec with a `# PROPOSED, REVIEW ME: ...` or
-  `# SUGGESTION: ...` comment and printed as a note. The `problem_id` and the reference to
+  `# SUGGESTION: ...` comment and printed as a note. Test groups are the spec's: only
+  if the draft has or implies subtasks, the model fills `constraints.test_groups_hint`
+  completely (limits, points summing to 100, dependencies, feedback policy) and sets
+  `script_style: "groups"`; the generative steps don't invent groups. The `problem_id` and the reference to
   the base problem are set by the orchestrator on top of the response. The spec is written even if
   it doesn't pass validation yet (the errors are printed), the draft copy — to the problem
   directory's `authoring/draft.<extension>`, the log — to `llm_generation.log`.

@@ -195,7 +195,20 @@ class Constraints(BaseModel):
         # right to run and must fail with a clear error.
         _non_blank(self.intended_complexity, "constraints.intended_complexity")
         _non_blank(self.complexity_reasoning, "constraints.complexity_reasoning")
-        check_test_groups(self.test_groups_hint or [], "constraints.test_groups_hint")
+        groups = self.test_groups_hint or []
+        check_test_groups(groups, "constraints.test_groups_hint")
+        # In the spec a group depends only on earlier groups: the statement's subtasks
+        # table and constraints_pick take them in order (`constraints.yaml` read back from
+        # Polygon isn't held to this).
+        names = [group.name for group in groups]
+        for index, group in enumerate(groups):
+            for dependency in group.dependencies or []:
+                if dependency not in names[:index]:
+                    raise ValueError(
+                        f"constraints.test_groups_hint[{index}].dependencies: group "
+                        f"{group.name} depends on group {dependency}, which isn't an earlier "
+                        "group — a group depends only on groups listed before it"
+                    )
         return self
 
 
@@ -446,6 +459,19 @@ class ProblemSpec(BaseModel):
                 "statement_draft.interaction_sketch is set, but the spec has no "
                 "'interactor' section — add it for an interactive problem or remove "
                 "the field, see SPEC_FORMAT.md"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _check_script_style(self) -> ProblemSpec:
+        # A problem with test groups marks each script line with its group, which the
+        # flat script (`test_script`) doesn't do.
+        has_groups = bool(self.constraints.test_groups_hint) or self.constraints.test_groups_needed
+        if has_groups and self.generation.script_style == "flat":
+            raise ValueError(
+                'generation.script_style is "flat", but the problem has test groups '
+                '(constraints.test_groups_hint or test_groups_needed) — use "groups", '
+                "see SPEC_FORMAT.md"
             )
         return self
 

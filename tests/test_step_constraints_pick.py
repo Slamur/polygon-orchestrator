@@ -1,12 +1,15 @@
+import re
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from orchestrator.model_router import ModelResponse
+from orchestrator.spec import TestGroupHint as GroupHint
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepUncertainError
 from orchestrator.steps.constraints_pick import (
+    check_test_groups_artifact,
     compute_input_hash,
     extra_context_documents,
     run_step,
@@ -152,7 +155,7 @@ def test_test_groups_needed_false_no_hint_yields_no_test_groups_in_artifact(spec
     assert "test_groups" not in written
 
 
-def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
+def test_test_groups_needed_true_no_hint_stops_without_calling_the_model(spec, tmp_path):
     spec_needed = spec.model_copy(
         update={
             "constraints": spec.constraints.model_copy(
@@ -160,34 +163,20 @@ def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
             )
         }
     )
-    response = ModelResponse(
-        status="proposed",
-        artifacts={"constraints.yaml": ("test_groups:  # PROPOSED, REVIEW ME\n  - name: small\n")},
-        notes=[
-            {
-                "field": "constraints.test_groups",
-                "kind": "proposed",
-                "explanation": "no hint given, a reasonable small/edge/max set is proposed",
-            }
-        ],
-    )
-    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
-        result = run_step(
-            "valid-spec",
-            spec_needed,
-            None,
-            prompts_dir=PROMPTS_DIR,
-            problems_dir=tmp_path,
-            templates_dir=TEMPLATES_DIR,
-        )
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        with pytest.raises(StepUncertainError) as exc_info:
+            run_step(
+                "valid-spec",
+                spec_needed,
+                None,
+                prompts_dir=PROMPTS_DIR,
+                problems_dir=tmp_path,
+                templates_dir=TEMPLATES_DIR,
+            )
 
-    assert result.status == "proposed"
-    user_prompt = mock_call.call_args.args[2]
-    assert "test_groups_needed: True" in user_prompt
-    written = (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(
-        encoding="utf-8"
-    )
-    assert "test_groups" in written
+    mock_call.assert_not_called()
+    assert [note["field"] for note in exc_info.value.notes] == ["constraints.test_groups_hint"]
+    assert not (tmp_path / "valid-spec").exists()
 
 
 def test_test_groups_hint_wins_over_needed_false(spec, tmp_path):
@@ -329,3 +318,95 @@ def test_correct_problem_id_in_constraints_yaml_is_left_as_is(spec, tmp_path):
         encoding="utf-8"
     ) == text
     assert result.notes == []
+
+
+def _groups_yaml(groups: str, validator_groups: str = "") -> str:
+    text = "problem_id: valid-spec\ntest_groups:\n" + groups
+    if validator_groups:
+        text += "validator:\n  constants: []\n  groups:\n" + validator_groups
+    return text
+
+
+_TWO_GROUPS = (
+    '  - name: "1"\n    points: 40\n    dependencies: []\n'
+    '  - name: "2"\n    points: 60\n    dependencies: ["1"]\n'
+)
+
+
+def test_test_groups_check_accepts_valid_groups(spec):
+    check_test_groups_artifact(_groups_yaml(_TWO_GROUPS, '    - name: "1"\n'), spec)
+    check_test_groups_artifact("problem_id: valid-spec\n", spec)
+
+
+@pytest.mark.parametrize(
+    "text, error",
+    [
+        (_groups_yaml('  - name: "a"\n'), "must be a positive number"),
+        (_groups_yaml('  - name: "1"\n  - name: "1"\n'), "group names repeat"),
+        (
+            _groups_yaml('  - name: "1"\n    dependencies: ["2"]\n  - name: "2"\n'),
+            "group 1 depends on group 2, which isn't an earlier group",
+        ),
+        (
+            _groups_yaml('  - name: "1"\n    points: 40\n  - name: "2"\n'),
+            "groups 2 have no points",
+        ),
+        (
+            _groups_yaml('  - name: "1"\n    points: 40\n  - name: "2"\n    points: 50\n'),
+            "sum to 90, not 100",
+        ),
+        (
+            _groups_yaml(_TWO_GROUPS, '    - name: "3"\n'),
+            "validator.groups has '3', which isn't one of test_groups",
+        ),
+        (
+            _groups_yaml(_TWO_GROUPS, '    - name: "1"\n    - name: "1"\n'),
+            "validator.groups has group 1 twice",
+        ),
+        (
+            'validator:\n  groups:\n    - name: "1"\n',
+            "validator.groups is set, but there are no test_groups",
+        ),
+    ],
+)
+def test_test_groups_check_rejects_invalid_groups(spec, text, error):
+    with pytest.raises(ValueError, match=re.escape(error)):
+        check_test_groups_artifact(text, spec)
+
+
+def test_test_groups_check_accepts_the_authors_total_of_points(spec):
+    hint = [
+        GroupHint(name="1", points=30),
+        GroupHint(name="2", points=60, dependencies=["1"]),
+    ]
+    author = spec.model_copy(
+        update={"constraints": spec.constraints.model_copy(update={"test_groups_hint": hint})}
+    )
+    text = _groups_yaml(
+        '  - name: "1"\n    points: 30\n  - name: "2"\n    points: 60\n    dependencies: ["1"]\n'
+    )
+
+    check_test_groups_artifact(text, author)
+    with pytest.raises(ValueError, match="sum to 90"):
+        check_test_groups_artifact(text, spec)
+
+
+def test_constraints_with_invalid_test_groups_are_not_written(spec, tmp_path):
+    response = ModelResponse(
+        status="confirmed",
+        artifacts={"constraints.yaml": _groups_yaml('  - name: "1"\n    points: 50\n')},
+        notes=[],
+    )
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_step(
+            "valid-spec",
+            spec,
+            None,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert not (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").exists()
+    assert "sum to 50, not 100" in result.not_applied_reason
+    assert (tmp_path / "valid-spec" / ".cache" / "constraints_pick.response.json").is_file()

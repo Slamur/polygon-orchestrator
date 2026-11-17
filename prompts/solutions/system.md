@@ -124,6 +124,13 @@ Mandatory rules (each item says which stages it is about):
    may give languages (e.g. "wa (py): ..." or "tl_ok (java/py): ..."): write the solution
    with exactly this verdict and in each of these languages — a file per language,
    even if the verdict or the language isn't in `wanted_verdicts`/`languages`.
+   With test groups (the "Fixed limits" section has `test_groups`) an item may also name,
+   after the languages, the groups the solution passes completely: `wa (cpp) [1-3]: ...`,
+   `tl [1, 2]: ...`, `wa []: ...` (none). The verdict in the prefix is the one on the
+   whole test set (e.g. a too slow algorithm that passes the small groups is still
+   `tl`), and the file name is built as for any other item — the groups aren't part of
+   it. Write the solution so that it does pass the named groups: the mistake (or the
+   slowness) shows up only beyond their limits.
    If the languages aren't given — choose them by the verdict (by default, only from
    `languages`):
    - `tl` — in C++ (if it isn't in `languages` — in the fastest of them);

@@ -146,7 +146,7 @@ constraints:
   special_guarantees:                # [optional] everything that doesn't reduce to min/max of one variable
     - "the graph is connected by definition"
     - "all S_i consist only of lowercase Latin letters"
-  test_groups_hint:                  # [optional] — if the author already has an idea about groups (subtasks)
+  test_groups_hint:                  # [optional] — test groups (subtasks): set by the author or by init --draft, the steps don't invent them
     - name: "1"                      # names — positive numbers 1, 2, ...: the validator gets the group
       max_n: 10                      # as a number; group 0 — the statement examples (the full limits,
       points: 20                     # 0 points) — is implicit and isn't listed
@@ -157,7 +157,7 @@ constraints:
       points: 30
     - name: "3"                      # max_n absent — the full limits
       points: 50
-      dependencies: ["1", "2"]       # the groups that must be passed for this group's points
+      dependencies: ["1", "2"]       # the earlier groups that must be passed for this group's points
     # All fields but name are optional; subset_of — the group whose limits this one narrows.
     # A group's points are given only if all its tests are passed (on Polygon — the
     # COMPLETE_GROUP policy). The sample with groups — examples/number/roots-subtasks.
@@ -166,8 +166,8 @@ constraints:
     # constraints_pick step doesn't propose groups at all. If
     # test_groups_hint is set (non-empty) — groups are formed from it regardless
     # of this flag's value (the hint itself is already an explicit request). If
-    # test_groups_needed: true and test_groups_hint isn't set — the step proposes
-    # a reasonable set itself, as proposed (the current behavior).
+    # test_groups_needed: true and test_groups_hint isn't set — the steps stop as
+    # uncertain before calling the model: they don't invent groups, set test_groups_hint.
   time_limit_seconds: null           # [optional] if null — the model proposes, marking it as a black-box proposal
   memory_limit_mb: 256               # [optional], preferably a multiple of 256 (see tutorials/limits.md)
   uncertain_points:                  # [optional] what the author themselves isn't sure about — a focus for the step
@@ -202,6 +202,8 @@ generation:
     # be tested", which the author formulates themselves, without
     # deriving it from the legend/asymptotics.
   script_style: "groups"             # [required] "flat" | "groups" — a simple script (test_script) or by test groups (test_script_groups)
+    # A problem with test groups (a non-empty constraints.test_groups_hint or
+    # test_groups_needed: true) needs "groups": the spec with "flat" doesn't validate.
   references:                        # [optional] references only for the tests_plan, generators_draft and test_script_draft steps, added to the shared ones
     - "problems/old-task"
     - "my_examples/gen_tree.cpp"

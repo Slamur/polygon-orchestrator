@@ -34,7 +34,9 @@ What to do for EACH surviving solution:
    can build such an input, otherwise with a new generator (by the rules of the plan:
    one generator — one idea, `gen_*` produces the input, `upd_*` transforms it, all limits
    — parameters). Every test must satisfy the problem's limits ("Fixed limits" section) and,
-   with groups, the limits of its group.
+   with groups, the limits of its group: a block with test groups has `group` (a name or a
+   list of names, as in the current plan) — the groups whose limits allow the input that
+   catches the solution; the commands don't carry `-group`, the script adds it.
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and
