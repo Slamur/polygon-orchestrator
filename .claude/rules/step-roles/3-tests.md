@@ -36,7 +36,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      `templates/tests_plan_format.yaml` format — generators (name, parameters with
      types, what they read and print, the algorithm) and test-script blocks
      (commands — generator chains, named values, the group, which
-     spec items the block covers — `covers`). The plan is self-contained:
+     spec items the block covers — `covers`). With test groups every block has
+     `group` — a name or a list of names (the block repeats in each group with the
+     group's values); the commands don't carry `-group`, the script adds it. The plan is self-contained:
      the next two steps don't see the spec. The orchestrator checks it before writing
      (`parse_tests_plan`: commands call only the plan's generators and only
      their parameters; doesn't parse — a conflict) and reports with `uncovered` notes
@@ -69,7 +71,11 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      the script) + `constraints.yaml` without TL/ML + `generation.script_style`.
      Output: a FreeMarker test-script (`flat` — `test_script` following the sample from the
      references; `groups` — `test_script_groups` by the `group`s of the plan's
-     blocks, on the same structure if there is no sample).
+     blocks, on the same structure if there is no sample: a list of groups, a macro per
+     group, one `<#list>` over them). With test groups every script line carries
+     `-group=<N>` (the test's group for the local checks and Polygon); generators don't
+     read it, so `generators_draft` avoids `has_opt`/`opt` with a default (testlib then
+     fails on an unread option).
    - **`tests_survivors`** — after the solution stages (`STEP_ORDER`, last): tests for the
      wrong solutions that the local runs `run_slow`/`run_wrong` report as surviving — no
      test from the script gets their declared verdict, the examples don't count

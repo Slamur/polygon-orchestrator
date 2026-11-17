@@ -84,10 +84,20 @@ How the plan's tests work:
   test with parameters right at the bound (±1), don't mix several bounds in
   one test unless it's an "OK test" combining several boundary
   checks.
-- `group` — only if the fixed limits have `test_groups`:
-  each block belongs to one group, the blocks go strictly in the order of the groups, and
-  each test of a block satisfies the limits of its group. The distribution of tests
-  over groups is your decision: `status: proposed` with a justification.
+- `group` — only if the fixed limits have `test_groups`: every block belongs to
+  a group — a name, or a list of names when the same tests are needed in several
+  groups (the block then repeats in each of them, with the group's own values:
+  its range, its limits). The blocks go in the order of the groups (a block with a list
+  — where its first group is), and each test of a block satisfies the limits of its
+  group: `max_n`, `special_property` and `validator.groups` of the fixed limits. A
+  group's tests are better taken from its own range, beyond the groups it depends on
+  (`dependencies`): smaller tests are already there. Every group gets tests; group 0
+  — the statement examples — gets none. The commands don't carry `-group`: the script
+  adds `-group=<the group>` to each line itself. Values that differ by group (e.g. a
+  group's largest N and the largest N of the group before it) — in `constants`, e.g.
+  a list of groups with their values, so that the script can loop over it. The
+  distribution of tests over groups that the spec doesn't set is your decision:
+  `status: proposed` with a justification.
 
 This is the base plan of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run

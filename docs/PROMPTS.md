@@ -651,10 +651,20 @@ How the plan's tests work:
   test with parameters right at the bound (±1), don't mix several bounds in
   one test unless it's an "OK test" combining several boundary
   checks.
-- `group` — only if the fixed limits have `test_groups`:
-  each block belongs to one group, the blocks go strictly in the order of the groups, and
-  each test of a block satisfies the limits of its group. The distribution of tests
-  over groups is your decision: `status: proposed` with a justification.
+- `group` — only if the fixed limits have `test_groups`: every block belongs to
+  a group — a name, or a list of names when the same tests are needed in several
+  groups (the block then repeats in each of them, with the group's own values:
+  its range, its limits). The blocks go in the order of the groups (a block with a list
+  — where its first group is), and each test of a block satisfies the limits of its
+  group: `max_n`, `special_property` and `validator.groups` of the fixed limits. A
+  group's tests are better taken from its own range, beyond the groups it depends on
+  (`dependencies`): smaller tests are already there. Every group gets tests; group 0
+  — the statement examples — gets none. The commands don't carry `-group`: the script
+  adds `-group=<the group>` to each line itself. Values that differ by group (e.g. a
+  group's largest N and the largest N of the group before it) — in `constants`, e.g.
+  a list of groups with their values, so that the script can loop over it. The
+  distribution of tests over groups that the spec doesn't set is your decision:
+  `status: proposed` with a justification.
 
 This is the base plan of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
@@ -809,6 +819,10 @@ How to write a generator (the sample generators are built this way too):
   `opt<ll>`, `bool` → `opt<bool>`, `string` → `opt<string>`). Not a single
   limit of the problem is hardcoded as a constant.
 - The test number is NOT passed to the generator in any form.
+- If the fixed limits have `test_groups`, the script adds `-group=<N>` to every
+  line: the generator doesn't read it, and it isn't one of the plan's parameters. So
+  don't use `has_opt` and `opt` with a default value there: after them testlib fails
+  on an option the generator didn't read.
 - Reading — exactly the plan's `input` (the part of the test from the previous generator of the
   chain) with the `ri()`/`rll()`/`rv<T>()` helpers; output — exactly the plan's `output`,
   in the problem's input format (the "Input format" section of the request).
@@ -939,7 +953,17 @@ How to carry the plan over into the script:
 - The script's style — by `script_style`. `flat` — the file `test_script`. `groups` —
   the file `test_script_groups`: the blocks by the plan's `group`s, strictly in the
   order of the test groups of the fixed limits, for each group —
-  its own section (or macro) using the limits of exactly this group.
+  its own section (or macro) using the limits of exactly this group. The groups with
+  their values (from the plan's `constants`) — a list of hashes in one `<#assign>`
+  (`{"id": 1, ...}`); a block the plan gives to several groups — a macro with the
+  group as a parameter, called for each of them; the generation itself — one
+  `<#list>` over the groups calling the group's section (macro).
+- If the fixed limits have `test_groups` (in either style): every script line ends
+  with `-group=<the line's group>` before `> $` (`-group=${group.id}`), after the
+  last generator of the chain — the orchestrator takes the test's group from it (the
+  local checks and the test groups on Polygon), and the validator checks the test with
+  the limits of this group. Generators don't read it, so it isn't one of their
+  parameters. Without `test_groups` — no `-group`.
 
 If a plan block can't be carried over unambiguously (a command refers to a value
 that isn't in `constants` and isn't set by `repeat`, `repeat` is incomplete) —
@@ -1424,7 +1448,9 @@ What to do for EACH surviving solution:
    can build such an input, otherwise with a new generator (by the rules of the plan:
    one generator — one idea, `gen_*` produces the input, `upd_*` transforms it, all limits
    — parameters). Every test must satisfy the problem's limits ("Fixed limits" section) and,
-   with groups, the limits of its group.
+   with groups, the limits of its group: a block with test groups has `group` (a name or a
+   list of names, as in the current plan) — the groups whose limits allow the input that
+   catches the solution; the commands don't carry `-group`, the script adds it.
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and

@@ -60,7 +60,17 @@ How to carry the plan over into the script:
 - The script's style — by `script_style`. `flat` — the file `test_script`. `groups` —
   the file `test_script_groups`: the blocks by the plan's `group`s, strictly in the
   order of the test groups of the fixed limits, for each group —
-  its own section (or macro) using the limits of exactly this group.
+  its own section (or macro) using the limits of exactly this group. The groups with
+  their values (from the plan's `constants`) — a list of hashes in one `<#assign>`
+  (`{"id": 1, ...}`); a block the plan gives to several groups — a macro with the
+  group as a parameter, called for each of them; the generation itself — one
+  `<#list>` over the groups calling the group's section (macro).
+- If the fixed limits have `test_groups` (in either style): every script line ends
+  with `-group=<the line's group>` before `> $` (`-group=${group.id}`), after the
+  last generator of the chain — the orchestrator takes the test's group from it (the
+  local checks and the test groups on Polygon), and the validator checks the test with
+  the limits of this group. Generators don't read it, so it isn't one of their
+  parameters. Without `test_groups` — no `-group`.
 
 If a plan block can't be carried over unambiguously (a command refers to a value
 that isn't in `constants` and isn't set by `repeat`, `repeat` is incomplete) —
