@@ -70,7 +70,7 @@ wanted_verdicts: {{ solutions.wanted_verdicts }}
 
 ## Known wrong approaches of your stage
 {% for w in solutions.known_wrong_approaches %}
-- {{ w }}
+- known_wrong_approaches[{{ w.index }}]: {{ w.item }}
 {% endfor %}
 {% if not solutions.known_wrong_approaches %}
 (none of your stage's verdicts)
@@ -102,6 +102,11 @@ See {{ local_run.report }}.
   {{ test.comment }}
 {% endif %}
 {% endfor %}
+{% if failure.group_mismatches is defined %}
+{% for mismatch in failure.group_mismatches %}
+- {{ mismatch }}
+{% endfor %}
+{% endif %}
 {% endfor %}
 {% if local_run.comment %}
 

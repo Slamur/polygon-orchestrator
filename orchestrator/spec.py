@@ -339,6 +339,19 @@ def parse_wrong_approach(item: str) -> WrongApproach | None:
     return WrongApproach(match.group(1).lower(), languages, match.group(4).strip(), passed_groups)
 
 
+# The comment a solution written from a `known_wrong_approaches` item carries in its
+# first lines: `// spec: solutions.known_wrong_approaches[<i>]` (`#` in Python), `<i>` —
+# the item's 0-based index in the whole list. By it the local run finds the item of a
+# solution file and compares the test groups it passes with the item's `[...]`.
+APPROACH_MARKER_RE = re.compile(r"\bsolutions\.known_wrong_approaches\[(\d+)\]")
+
+
+def find_approach_marker(source: str) -> int | None:
+    """The item index of the first `APPROACH_MARKER_RE` in `source`; `None` — no marker."""
+    match = APPROACH_MARKER_RE.search(source)
+    return int(match.group(1)) if match is not None else None
+
+
 class Solutions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

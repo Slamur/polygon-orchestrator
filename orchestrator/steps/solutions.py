@@ -211,14 +211,20 @@ class Stage:
 
     def _approaches(self, spec: ProblemSpec) -> list[str]:
         """The `known_wrong_approaches` items of the stage's verdicts."""
+        return [entry["item"] for entry in self._indexed_approaches(spec)]
+
+    def _indexed_approaches(self, spec: ProblemSpec) -> list[dict[str, Any]]:
+        """The same items with their index in the whole list (`{"index", "item"}`): a
+        solution written from an item names it by the index in a source comment
+        (`spec.APPROACH_MARKER_RE`), and the local run finds the item by it."""
         assert spec.solutions is not None
         if self.key in ("main", "ok"):
             return []
         verdicts = SLOW_VERDICTS if self.key == "slow" else WRONG_VERDICTS
         items = spec.solutions.known_wrong_approaches or []
         return [
-            item
-            for item in items
+            {"index": index, "item": item}
+            for index, item in enumerate(items)
             if (parsed := parse_wrong_approach(item)) is not None and parsed.verdict in verdicts
         ]
 
@@ -230,7 +236,9 @@ class Stage:
         `solutions`, `constraints.intended_complexity` and the statement from
         `statement_draft` in its input/output part (`base.statement_io_section`). Fields
         the stage doesn't use aren't taken: e.g. editing `known_wrong_approaches`
-        doesn't invalidate the `ok` solutions."""
+        doesn't invalidate the `ok` solutions. The items go with their index in the whole
+        list: inserting an item before them changes the indices and makes the stage stale,
+        so the markers in its solutions are renumbered."""
         assert spec.solutions is not None
         solutions: dict[str, Any] = {"algorithm_hint": spec.solutions.algorithm_hint}
         if self.key == "main":
@@ -245,7 +253,7 @@ class Stage:
             solutions["wanted_verdicts"] = [
                 v for v in spec.solutions.wanted_verdicts if v in verdicts
             ]
-            solutions["known_wrong_approaches"] = self._approaches(spec)
+            solutions["known_wrong_approaches"] = self._indexed_approaches(spec)
         return {
             "solutions": solutions,
             "constraints": {"intended_complexity": spec.constraints.intended_complexity},
