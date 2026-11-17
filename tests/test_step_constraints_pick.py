@@ -155,7 +155,7 @@ def test_test_groups_needed_false_no_hint_yields_no_test_groups_in_artifact(spec
     assert "test_groups" not in written
 
 
-def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
+def test_test_groups_needed_true_no_hint_stops_without_calling_the_model(spec, tmp_path):
     spec_needed = spec.model_copy(
         update={
             "constraints": spec.constraints.model_copy(
@@ -163,34 +163,20 @@ def test_test_groups_needed_true_no_hint_proposes_groups(spec, tmp_path):
             )
         }
     )
-    response = ModelResponse(
-        status="proposed",
-        artifacts={"constraints.yaml": ('test_groups:  # PROPOSED, REVIEW ME\n  - name: "1"\n')},
-        notes=[
-            {
-                "field": "constraints.test_groups",
-                "kind": "proposed",
-                "explanation": "no hint given, a reasonable small/edge/max set is proposed",
-            }
-        ],
-    )
-    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
-        result = run_step(
-            "valid-spec",
-            spec_needed,
-            None,
-            prompts_dir=PROMPTS_DIR,
-            problems_dir=tmp_path,
-            templates_dir=TEMPLATES_DIR,
-        )
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        with pytest.raises(StepUncertainError) as exc_info:
+            run_step(
+                "valid-spec",
+                spec_needed,
+                None,
+                prompts_dir=PROMPTS_DIR,
+                problems_dir=tmp_path,
+                templates_dir=TEMPLATES_DIR,
+            )
 
-    assert result.status == "proposed"
-    user_prompt = mock_call.call_args.args[2]
-    assert "test_groups_needed: True" in user_prompt
-    written = (tmp_path / "valid-spec" / "authoring" / "constraints.yaml").read_text(
-        encoding="utf-8"
-    )
-    assert "test_groups" in written
+    mock_call.assert_not_called()
+    assert [note["field"] for note in exc_info.value.notes] == ["constraints.test_groups_hint"]
+    assert not (tmp_path / "valid-spec").exists()
 
 
 def test_test_groups_hint_wins_over_needed_false(spec, tmp_path):

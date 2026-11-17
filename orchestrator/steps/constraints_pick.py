@@ -28,6 +28,7 @@ from orchestrator.steps.base import (
     TEMPLATES_DIR,
     StepResult,
     StepRevision,
+    StepUncertainError,
     existing_artifacts,
     run_generative_step,
     statement_io_section,
@@ -59,6 +60,24 @@ def _build_context_sections(spec: ProblemSpec) -> dict[str, Any]:
 
 # The full points of a problem with test groups.
 FULL_POINTS = 100
+GROUPS_HINT_FIELD = "constraints.test_groups_hint"
+
+
+def _check_groups_are_set(problem_id: str, spec: ProblemSpec) -> None:
+    """`test_groups_needed` without `test_groups_hint`: the groups (their limits, points,
+    dependencies) are the author's — set in the spec by the author or by `init --draft`,
+    the step doesn't invent them. `StepUncertainError` without calling the model."""
+    constraints = spec.constraints
+    if constraints.test_groups_needed and not constraints.test_groups_hint:
+        explanation = (
+            "test_groups_needed is true, but the groups aren't set: the steps don't invent "
+            f"test groups — set {GROUPS_HINT_FIELD} (each group with its limits and points)"
+        )
+        raise StepUncertainError(
+            STEP_NAME,
+            problem_id,
+            [{"field": GROUPS_HINT_FIELD, "kind": "uncertain", "explanation": explanation}],
+        )
 
 
 def check_test_groups_artifact(text: str, spec: ProblemSpec) -> None:
@@ -277,6 +296,7 @@ def run_step(
     `upstream_artifacts` isn't used: `constraints_pick` depends only
     on the spec (CLAUDE.md, "Caching by spec hash").
     """
+    _check_groups_are_set(problem_id, spec)
     context = {"problem_id": spec.problem_id, **_build_context_sections(spec)}
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))

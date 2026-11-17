@@ -43,8 +43,10 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    `test_groups_hint` — names, `max_n`/`special_property`/`subset_of`, `points`,
    `dependencies`, `feedback_policy` as the author gave them (missing points are
    proposed to sum to 100; dependencies the author didn't give are only a
-   `suggestion` note) — or, with `test_groups_needed: true` and no hint, are proposed;
-   otherwise there are none. With groups the `validator` section also has `groups` —
+   `suggestion` note); without the hint there are none — the step doesn't invent groups
+   (they are set by the author or `init --draft`), and `test_groups_needed: true`
+   without the hint stops it as `uncertain` before calling the model
+   (`_check_groups_are_set`, no cache entry). With groups the `validator` section also has `groups` —
    the narrower limits of each group's tests — and `validator.cpp` reads with the
    limits of the test's group, `group_index()` from `problem_lib.h` (0 — the
    statement examples, the full limits), as in `examples/number/roots-subtasks`.

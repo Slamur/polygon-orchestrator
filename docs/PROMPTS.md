@@ -408,16 +408,14 @@ What to do when the asymptotics are given explicitly:
    marking it as `proposed`, and justify it with the number of operations at the given complexity.
 2. Fix the TL in whole seconds (plus 0.5 if needed) and the ML as a multiple of
    256 MB (or a power of two — 32/64/128 — if there are grounds).
-3. Form the test groups by the following priority:
-   - if the spec has a non-empty `test_groups_hint` — follow its structure and
-     `subset_of` relations (it's already an explicit request of the author, regardless of
-     `test_groups_needed`);
-   - otherwise, if `test_groups_needed: true` — propose a reasonable set
-     (small / edge cases / max) and EXPLICITLY mark it as `proposed`;
-   - otherwise (`test_groups_needed` is absent/`false`, and `test_groups_hint`
-     is empty) — the author doesn't need groups: don't include `test_groups` in
+3. Form the test groups only from the spec's `test_groups_hint`: the groups are the
+   author's decision, you don't invent them.
+   - If `test_groups_hint` is non-empty — follow its structure and `subset_of`
+     relations.
+   - If it is empty — the problem has no groups: don't include `test_groups` in
      `constraints.yaml` at all, don't write an empty list and don't leave a
-     placeholder comment.
+     placeholder comment. If you think groups would make the problem better — only
+     an entry in `notes` with `kind: suggestion`.
    For each group fix the fields of constraints_format.yaml:
    - `name` — as in the hint (numbers 1, 2, ... in order); group 0 — the statement
      examples with the full limits and 0 points — is implicit, don't list it;
