@@ -45,11 +45,7 @@ from pathlib import Path
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.checks.run_with_timeout import _raise_stack_limit
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
-from orchestrator.checks.test_groups import (
-    VALIDATOR_GROUP_OPTION,
-    TestGroup,
-    script_test_group,
-)
+from orchestrator.checks.test_groups import VALIDATOR_GROUP_OPTION, TestGroup
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptLine,
@@ -59,6 +55,7 @@ from orchestrator.checks.test_script_check import (
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.polygon.sync import VALIDATOR_FILENAME
 from orchestrator.problem_paths import is_removed_mark
+from orchestrator.test_groups import group_marker
 
 TESTS_CACHE_DIRNAME = ".tests_cache"
 MANIFEST_FILENAME = "manifest.txt"
@@ -307,7 +304,7 @@ def generate_tests(
                 path,
                 script.name,
                 line.source.line if line.source else None,
-                script_test_group(command),
+                group_marker(command),
             )
         )
         manifest.append(f"{number}\t{path.relative_to(cache_dir).as_posix()}\t{command}")

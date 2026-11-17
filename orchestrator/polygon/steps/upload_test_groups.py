@@ -50,13 +50,11 @@ Run via `orchestrator.polygon.steps.base.run_step(STEP, ...)`.
 from __future__ import annotations
 
 import json
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
-from pydantic import ValidationError
 
 from orchestrator.polygon.client import PolygonClient
 from orchestrator.polygon.state import load_polygon_state
@@ -78,7 +76,13 @@ from orchestrator.polygon.sync import (
     digest,
 )
 from orchestrator.problem_paths import CONSTRAINTS_FILENAME, authoring_path
-from orchestrator.spec import TestGroupHint, _check_test_groups
+from orchestrator.test_groups import (
+    EXAMPLES_GROUP,
+    TestGroupsError,
+    constraints_path,
+    group_marker,
+    load_test_groups,
+)
 
 STEP_NAME = "upload_test_groups"
 
@@ -86,14 +90,10 @@ NO_GROUPS_MESSAGE = f"no test_groups in {CONSTRAINTS_FILENAME}, skipped"
 
 _TESTSET = "tests"
 
-# The group of the statement examples (manual tests); not listed in constraints.yaml.
-EXAMPLES_GROUP = "0"
 POINTS_POLICY = "COMPLETE_GROUP"
 EXAMPLES_FEEDBACK_POLICY = "COMPLETE"
 # `feedback_policy` of constraints.yaml -> `feedbackPolicy` of `problem.saveTestGroup`.
 FEEDBACK_POLICIES = {"icpc": "ICPC", "points": "POINTS", "complete": "COMPLETE", "none": "NONE"}
-
-_GROUP_MARKER = re.compile(r"(?:^|\s)-group=(\S+)")
 
 
 @dataclass(frozen=True)
@@ -212,32 +212,19 @@ def _has_groups(path: Path) -> bool:
 
 def read_groups(problem_dir: Path) -> list[GroupSettings] | None:
     """The groups of `authoring/constraints.yaml`, group `0` (the examples) first;
-    `None` — no file or no `test_groups` in it. Invalid groups —
-    `PolygonStepError`."""
-    path = authoring_path(problem_dir, CONSTRAINTS_FILENAME)
-    if not path.is_file():
-        return None
+    `None` — no file or no `test_groups` in it. Invalid groups or groups without
+    points — `PolygonStepError`."""
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError as exc:
-        raise PolygonStepError(f"{path} is not valid YAML: {exc}") from exc
-    raw = data.get("test_groups") if isinstance(data, dict) else None
-    if not raw:
+        hints = load_test_groups(problem_dir)
+    except TestGroupsError as exc:
+        raise PolygonStepError(f"{constraints_path(problem_dir)}: {exc}") from exc
+    if hints is None:
         return None
-    if not isinstance(raw, list) or not all(isinstance(item, dict) for item in raw):
-        raise PolygonStepError(f"{path}: test_groups must be a list of groups")
-    fields = set(TestGroupHint.model_fields)
-    try:
-        hints = [
-            TestGroupHint(**{key: value for key, value in item.items() if key in fields})
-            for item in _with_string_names(raw)
-        ]
-        _check_test_groups(hints)
-    except (ValidationError, ValueError) as exc:
-        raise PolygonStepError(f"{path}: invalid test_groups — {exc}") from exc
     missing = [hint.name for hint in hints if hint.points is None]
     if missing:
-        raise PolygonStepError(f"{path}: test_groups without points: {missing}")
+        raise PolygonStepError(
+            f"{constraints_path(problem_dir)}: test_groups without points: {missing}"
+        )
     return [
         GroupSettings(EXAMPLES_GROUP, 0, (), EXAMPLES_FEEDBACK_POLICY),
         *(
@@ -250,17 +237,6 @@ def read_groups(problem_dir: Path) -> list[GroupSettings] | None:
             for hint in hints
         ),
     ]
-
-
-def _with_string_names(raw: list[dict]) -> Iterable[dict]:
-    """YAML reads `name: 1` as a number, `dependencies: [1]` as numbers too."""
-    for item in raw:
-        item = dict(item)
-        if "name" in item:
-            item["name"] = str(item["name"])
-        if isinstance(item.get("dependencies"), list):
-            item["dependencies"] = [str(dep) for dep in item["dependencies"]]
-        yield item
 
 
 def groups_digest(groups: Iterable[GroupSettings]) -> str:
@@ -342,12 +318,6 @@ def assign_groups(tests: list[dict], groups: dict[str, GroupSettings]) -> dict[i
             + (f"; and {len(problems) - 10} more" if len(problems) > 10 else "")
         )
     return assignment
-
-
-def group_marker(script_line: str) -> str | None:
-    """The group of a generated test by the `-group=<name>` marker of its script line."""
-    match = _GROUP_MARKER.search(script_line.split(">", 1)[0])
-    return match.group(1) if match else None
 
 
 def _check_every_group_has_tests(assignment: dict[int, str], groups: dict[str, GroupSettings]):

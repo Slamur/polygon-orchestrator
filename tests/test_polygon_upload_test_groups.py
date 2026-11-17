@@ -9,7 +9,6 @@ from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_groups import (
     NO_GROUPS_MESSAGE,
     STEP,
-    group_marker,
     read_groups,
 )
 from orchestrator.polygon.sync import TEST_GROUPS_KEY, TEST_GROUPS_TESTS_KEY
@@ -264,17 +263,3 @@ def test_numeric_yaml_names_are_read_as_strings(problems_dir):
     groups = read_groups(problems_dir / PROBLEM_ID)
 
     assert [(g.name, g.dependencies) for g in groups] == [("0", ()), ("1", ()), ("2", ("1",))]
-
-
-@pytest.mark.parametrize(
-    "line, group",
-    [
-        ("gen -n=5 -group=3", "3"),
-        ("gen -group=12 -n=5 > $", "12"),
-        ("gen -n=5", None),
-        ("gen -subgroup=3", None),
-        ("gen 1 > -group=3", None),
-    ],
-)
-def test_group_marker(line, group):
-    assert group_marker(line) == group

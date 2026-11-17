@@ -1,14 +1,9 @@
 """Test groups (subtasks) for the local checks — `local check --full`, `local run --full`.
 
-A problem has test groups if `authoring/constraints.yaml` has `test_groups`
-(`templates/constraints_format.yaml`): names are numbers `1, 2, ...`, each with its
-points and dependencies. Group 0 — the statement examples — isn't listed there: it has
-the full limits and no points.
-
-A script test's group is the `-group=<N>` marker on its script line (generators don't
-read it, see the test-script of `examples/number/roots-subtasks`). The validator gets it
-as testlib's `--group <N>` — as on Polygon — so a test outside its group's limits is
-rejected.
+The groups themselves and a script test's group (the `-group=<N>` marker) — in
+`orchestrator/test_groups.py`, shared with the polygon steps. The validator gets the
+group as testlib's `--group <N>` — as on Polygon — so a test outside its group's limits
+is rejected.
 
 Points (`group_results`): a group is passed if all its tests got OK; its points are
 earned if it is passed and every group it depends on is earned too. Without
@@ -17,18 +12,13 @@ earned if it is passed and every group it depends on is earned too. Without
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
-import yaml
+from orchestrator.test_groups import EXAMPLES_GROUP, TestGroupsError
+from orchestrator.test_groups import load_test_groups as load_constraints_groups
 
-from orchestrator.problem_paths import CONSTRAINTS_FILENAME, find_authoring_file
-
-EXAMPLES_GROUP = "0"
 VALIDATOR_GROUP_OPTION = "--group"
-# `-group=<N>` as a separate argument of any generator of the chain.
-_GROUP_MARKER = re.compile(r"(?:^|\s)-group=(\S*)(?=\s|$)")
 
 
 @dataclass(frozen=True)
@@ -74,63 +64,19 @@ class GroupResult:
         return f"{name} OK"
 
 
-def script_test_group(command: str) -> str | None:
-    """The group of a script line: the value of its last `-group=` marker, `None` — no
-    marker."""
-    found = _GROUP_MARKER.findall(command)
-    return found[-1] if found else None
-
-
 def load_test_groups(problem_dir: Path) -> tuple[list[TestGroup] | None, list[str]]:
     """(the groups from `constraints.yaml` in their order, errors). `None` — the problem has
-    no test groups (no file, no `test_groups` key or it is empty)."""
-    path = find_authoring_file(Path(problem_dir), CONSTRAINTS_FILENAME)
-    if not path.is_file():
-        return None, []
+    no test groups (no file, no `test_groups` key or it is empty) or they are invalid (the
+    error says why). A group without points has 0."""
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except yaml.YAMLError as exc:
-        return None, [f"{CONSTRAINTS_FILENAME}: not valid YAML: {exc}"]
-    raw = data.get("test_groups") if isinstance(data, dict) else None
-    if not raw:
+        hints = load_constraints_groups(problem_dir)
+    except TestGroupsError as exc:
+        return None, [str(exc)]
+    if hints is None:
         return None, []
-    if not isinstance(raw, list):
-        return None, [f"{CONSTRAINTS_FILENAME}: test_groups must be a list"]
-    groups: list[TestGroup] = []
-    errors: list[str] = []
-    for index, item in enumerate(raw):
-        where = f"{CONSTRAINTS_FILENAME}: test_groups[{index}]"
-        if not isinstance(item, dict) or item.get("name") is None:
-            errors.append(f"{where}: no name")
-            continue
-        name = str(item["name"]).strip()
-        points = item.get("points")
-        if points is None:
-            points = 0
-        if isinstance(points, bool) or not isinstance(points, int) or points < 0:
-            errors.append(f"{where}: points must be a non-negative integer, got {points!r}")
-            points = 0
-        dependencies = item.get("dependencies") or []
-        if not isinstance(dependencies, list):
-            errors.append(f"{where}: dependencies must be a list")
-            dependencies = []
-        groups.append(TestGroup(name, points, tuple(str(d).strip() for d in dependencies)))
-    names = [g.name for g in groups]
-    for group in groups:
-        if not group.name.isdigit() or group.name.startswith("0"):
-            errors.append(
-                f"{CONSTRAINTS_FILENAME}: test group '{group.name}' — the name must be a "
-                "positive number: the validator gets it as a number"
-            )
-        if names.count(group.name) > 1:
-            errors.append(f"{CONSTRAINTS_FILENAME}: test group '{group.name}' repeats")
-        for dependency in group.dependencies:
-            if dependency not in names or dependency == group.name:
-                errors.append(
-                    f"{CONSTRAINTS_FILENAME}: test group '{group.name}' depends on "
-                    f"'{dependency}', which is not another listed group"
-                )
-    return groups, sorted(set(errors), key=errors.index)
+    return [
+        TestGroup(hint.name, hint.points or 0, tuple(hint.dependencies or ())) for hint in hints
+    ], []
 
 
 def check_test_groups(
