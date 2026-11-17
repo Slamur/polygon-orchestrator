@@ -27,6 +27,7 @@ from orchestrator.checks.local_tests import (
     sample_paths,
     validate_tests,
 )
+from orchestrator.checks.scoring_check import check_scoring
 from orchestrator.checks.solutions_run import run_solutions
 from orchestrator.checks.statement_check import (
     FIX_BACKUP_DIRNAME,
@@ -676,7 +677,8 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
 def cmd_local_check(args: argparse.Namespace) -> int:
     """Without the model and without the network checks the problem's files: the statement's formatting
     (`statement/*.tex`: Markdown-style lists, quotes other than `<<…>>` —
-    `orchestrator/checks/statement_check.py`) and the test-script(s) — expands
+    `orchestrator/checks/statement_check.py`), the subtasks table `scoring.tex` against the
+    test groups (`orchestrator/checks/scoring_check.py`) and the test-script(s) — expands
     them and prints identical lines and lines Polygon won't accept
     (quotes, an extra `>`), pointing to the script lines that printed them
     (`orchestrator/checks/test_script_check.py`). No spec needed —
@@ -693,6 +695,10 @@ def cmd_local_check(args: argparse.Namespace) -> int:
         return 1
     if tex_files:
         failed |= not _check_statement(problem_dir, tex_files)
+        scoring_errors = check_scoring(problem_dir)
+        for error in scoring_errors:
+            print(error)
+        failed |= bool(scoring_errors)
     else:
         print(f"no statement ({STATEMENT_DIRNAME}/<language>/*.tex) — skipped")
     scripts_ok = _check_scripts(problem_dir)

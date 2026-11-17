@@ -26,6 +26,7 @@ _RESPONSES = {
             "input_format.tex": "tex",
             "output_format.tex": "tex",
             "notes.tex": "tex",
+            "scoring.tex": "tex",
             "examples/example_1.txt": "1\n",
         },
         notes=[],
@@ -634,7 +635,7 @@ def test_model_change_invalidates_cache(spec_file, tmp_path):
     assert [c.args[0] for c in mock_call.call_args_list] == ["statement_draft"]
     outcome = result.outcomes[0]
     assert outcome.detail == (
-        "regenerated: model changed (medium-model -> strong-model); revising 4 current file(s)"
+        "regenerated: model changed (medium-model -> strong-model); revising 5 current file(s)"
     )
 
 

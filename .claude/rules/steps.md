@@ -90,7 +90,8 @@ used in `orchestrator/pipeline.py` before calling
 
 - the canonical JSON representation of the spec section the step depends on
   (`statement_draft` → the `statement_draft` section + `language` if it isn't
-  `ru`; `constraints_pick` →
+  `ru` + `constraints.test_groups_hint` with the variables' names and descriptions if
+  the hint is set; `constraints_pick` →
   the `constraints` section + the input format from `statement_draft`
   (`formal_input_sketch`, `indexing`, the examples' input — an edit of the input format
   must invalidate `validator.cpp` too); `tests_plan` → the

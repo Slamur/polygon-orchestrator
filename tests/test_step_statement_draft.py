@@ -22,8 +22,16 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 @pytest.fixture
-def spec():
+def groups_spec():
+    """The fixture spec has `test_groups_hint`: a problem with test groups."""
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
+
+
+@pytest.fixture
+def spec(groups_spec):
+    """A problem without test groups — most tests are about the statement itself."""
+    constraints = groups_spec.constraints.model_copy(update={"test_groups_hint": None})
+    return groups_spec.model_copy(update={"constraints": constraints})
 
 
 def _model_artifacts() -> dict[str, str]:
@@ -518,3 +526,81 @@ def test_language_goes_to_prompt_and_hash(spec, tmp_path):
         _run(english, "valid-spec", tmp_path)
     assert "Write the statement in this language: English" in mock_call.call_args.args[2]
     assert (tmp_path / "valid-spec" / "statement" / "en" / "legend.tex").is_file()
+
+
+# --- test groups: scoring.tex ---------------------------------------------------
+
+
+def test_groups_expected_names_and_rules_include_scoring(groups_spec):
+    assert "scoring.tex" in _expected_artifact_names(groups_spec)
+    assert extra_context_documents(groups_spec, templates_dir=TEMPLATES_DIR) == [
+        str(TEMPLATES_DIR / "tutorials" / "scoring.md")
+    ]
+
+
+def test_plain_problem_has_no_scoring(spec, tmp_path):
+    from orchestrator.steps.statement_draft import hash_inputs
+
+    assert "scoring.tex" not in _expected_artifact_names(spec)
+    section, _ = hash_inputs("valid-spec", spec)
+    assert "test_groups" not in section and "variables" not in section
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        _run(spec, "valid-spec", tmp_path)
+    assert "Test groups" not in mock_call.call_args.args[2]
+    assert "scoring.tex" not in mock_call.call_args.args[2]
+    assert not (tmp_path / "valid-spec" / "statement" / "ru" / "scoring.tex.removed").exists()
+
+
+def test_scoring_of_dropped_groups_is_marked_removed(spec, tmp_path):
+    statement_dir = tmp_path / "valid-spec" / "statement"
+    for code in ("ru", "en"):
+        (statement_dir / code).mkdir(parents=True)
+        (statement_dir / code / "scoring.tex").write_text("table", encoding="utf-8")
+    # not shown to the model as a current file: it isn't revised, only marked
+    assert "scoring.tex" not in current_artifacts("valid-spec", spec, problems_dir=tmp_path)
+
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = _run(spec, "valid-spec", tmp_path)
+
+    assert not (statement_dir / "ru" / "scoring.tex").exists()
+    assert (statement_dir / "ru" / "scoring.tex.removed").is_file()
+    assert [mark.name for mark, _ in result.removed] == ["scoring.tex.removed"]
+    # another language's table is the author's: `local check` reports it
+    assert (statement_dir / "en" / "scoring.tex").is_file()
+
+
+def test_groups_needed_without_hint_is_uncertain_without_calling_the_model(spec, tmp_path):
+    constraints = spec.constraints.model_copy(update={"test_groups_needed": True})
+    needed = spec.model_copy(update={"constraints": constraints})
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        with pytest.raises(StepUncertainError, match="constraints.test_groups_hint"):
+            _run(needed, "valid-spec", tmp_path)
+    mock_call.assert_not_called()
+    assert not (tmp_path / "valid-spec").exists()
+
+
+def test_groups_go_to_prompt_hash_and_scoring_is_written(groups_spec, tmp_path):
+    from orchestrator.steps.statement_draft import hash_inputs
+
+    section, _ = hash_inputs("valid-spec", groups_spec)
+    assert section["test_groups"][0]["max_n"] == 10
+    assert [v["name"] for v in section["variables"]] == ["N", "K"]
+
+    artifacts = {**_model_artifacts(), "scoring.tex": "table"}
+    response = ModelResponse(status="confirmed", artifacts=artifacts)
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        _run(groups_spec, "valid-spec", tmp_path)
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "## Test groups (subtasks)" in user_prompt
+    assert "- subtask 1: points None; max_n 10;" in user_prompt
+    assert "dependencies none; feedback_policy icpc" in user_prompt
+    assert "- N — the number of vertices" in user_prompt
+    assert "- scoring.tex" in user_prompt
+    documents = mock_call.call_args.kwargs.get("context_documents") or mock_call.call_args.args[3]
+    assert "tutorials/scoring.md" in documents
+    scoring = tmp_path / "valid-spec" / "statement" / "ru" / "scoring.tex"
+    assert scoring.read_text(encoding="utf-8") == "table"
+    assert "scoring.tex" in current_artifacts("valid-spec", groups_spec, problems_dir=tmp_path)

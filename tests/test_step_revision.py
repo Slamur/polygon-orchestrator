@@ -487,6 +487,7 @@ _PIPELINE_RESPONSES = {
             "input_format.tex": "tex",
             "output_format.tex": "tex",
             "notes.tex": "tex",
+            "scoring.tex": "tex",
             "examples/example_1.txt": "1\n",
         },
     ),
@@ -581,7 +582,7 @@ def test_pipeline_revises_stale_step_with_spec_diff(spec_file, tmp_path):
         "solutions_slow",
         "solutions_wrong",
     ]
-    assert result.outcomes[0].detail.endswith("; revising 4 current file(s)")
+    assert result.outcomes[0].detail.endswith("; revising 5 current file(s)")
     prompt = _user_prompt(mock_call, "statement_draft")
     assert "#### `spec: legend_sketch`" in prompt
     assert "Edited." in prompt

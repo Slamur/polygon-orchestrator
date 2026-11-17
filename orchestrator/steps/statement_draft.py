@@ -27,6 +27,7 @@ from orchestrator.steps.base import (
     GeneratedArtifacts,
     StepResult,
     StepRevision,
+    StepUncertainError,
     check_artifact_names,
     existing_artifacts,
     language_input,
@@ -56,6 +57,42 @@ INTERACTION_FILE = "interaction.tex"
 _DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$")
 
 
+# A problem with test groups (subtasks) — a non-empty `constraints.test_groups_hint` in the
+# spec: the step also writes the Scoring block — the subtasks table — by the rules of
+# `SCORING_TUTORIAL` (attached only then, so editing it doesn't touch the statement cache
+# of problems without groups). Its source is the spec's hint, not `constraints.yaml`: the
+# step runs before `constraints_pick`. Groups wanted without a hint (`test_groups_needed`)
+# stop the step as `uncertain` before the model is called (`_check_groups_are_set`): the
+# points and the subtasks of the published table are the author's. A spec without groups
+# — the step's `scoring.tex` from an earlier run is marked `.removed`.
+SCORING_FILE = "scoring.tex"
+SCORING_TUTORIAL = "tutorials/scoring.md"
+GROUPS_HINT_FIELD = "constraints.test_groups_hint"
+
+
+def has_test_groups(spec: ProblemSpec) -> bool:
+    """The spec gives test groups: the step writes `scoring.tex`."""
+    return bool(spec.constraints.test_groups_hint)
+
+
+def _check_groups_are_set(problem_id: str, spec: ProblemSpec) -> None:
+    """`test_groups_needed` without `test_groups_hint`: the statement needs the subtasks
+    table, and its groups and points aren't set — `StepUncertainError`, without calling
+    the model (nothing in the spec to write the table from)."""
+    constraints = spec.constraints
+    if constraints.test_groups_needed and not constraints.test_groups_hint:
+        explanation = (
+            "test_groups_needed is true, but the groups aren't set: the statement's "
+            "subtasks table (scoring.tex) needs each group with its points — set "
+            f"{GROUPS_HINT_FIELD}"
+        )
+        raise StepUncertainError(
+            STEP_NAME,
+            problem_id,
+            [{"field": GROUPS_HINT_FIELD, "kind": "uncertain", "explanation": explanation}],
+        )
+
+
 def dialogue_filenames(number: int) -> tuple[str, str]:
     """The file names of the `number`-th example's dialogue (without `examples/`)."""
     return (
@@ -80,6 +117,8 @@ def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
     """
     n = len(spec.statement_draft.sample_examples)
     names = set(_FIXED_STATEMENT_FILES) | {f"examples/example_{i}.txt" for i in range(1, n + 1)}
+    if has_test_groups(spec):
+        names.add(SCORING_FILE)
     if spec.interactive:
         names.add(INTERACTION_FILE)
         for i in range(1, n + 1):
@@ -91,14 +130,34 @@ def _section_data(spec: ProblemSpec) -> dict[str, Any]:
     """The `statement_draft` section for the prompt and the hash. `interaction_sketch`
     only for an interactive problem — a normal one has no field in the hash, as before it
     appeared (otherwise adding it would have invalidated the cache of all problems).
-    The statement language (the spec's `language`) — likewise, only if it isn't `DEFAULT_LANGUAGE`."""
+    The statement language (the spec's `language`) — likewise, only if it isn't `DEFAULT_LANGUAGE`.
+    The test groups (`constraints.test_groups_hint`) with the variables their `max_n` may
+    bound — likewise, only for a problem with groups."""
     exclude = set(SPEC_REFERENCES_FIELD)
     if not spec.interactive:
         exclude.add("interaction_sketch")
     section = with_default_lists(
         spec.statement_draft.model_dump(mode="json", exclude=exclude), _LIST_FIELDS
     )
-    return {**section, **language_input(spec)}
+    return {**section, **language_input(spec), **_groups_input(spec)}
+
+
+def _groups_input(spec: ProblemSpec) -> dict[str, Any]:
+    """The groups for the Scoring table: `test_groups` — the hint as the author wrote it
+    (absent fields — `null`, `feedback_policy` — its default), `variables` — the name and
+    description of each variable, to name the one `max_n` bounds. `{}` without groups."""
+    if not has_test_groups(spec):
+        return {}
+    constraints = spec.constraints
+    return {
+        "test_groups": [
+            group.model_dump(mode="json") for group in constraints.test_groups_hint or []
+        ],
+        "variables": [
+            {"name": variable.name, "description": variable.description}
+            for variable in constraints.variables
+        ],
+    }
 
 
 def _example_inputs(spec: ProblemSpec) -> dict[str, str]:
@@ -125,6 +184,16 @@ def _stale_example_inputs(
         for path in sorted(examples_dir.glob("example_*.txt"))
         if (match := _EXAMPLE_NAME.match(path.name)) and int(match.group(1)) > n
     }
+
+
+def _stale_scoring(problem_id: str, spec: ProblemSpec, *, problems_dir: Path) -> dict[str, Path]:
+    """`scoring.tex` in the generation language's directory while the spec has no test
+    groups (they were dropped from it) — it'll be marked `.removed`. Other languages'
+    tables are the author's: `local check` reports them."""
+    if has_test_groups(spec):
+        return {}
+    path = artifact_path(problem_id, spec, SCORING_FILE, problems_dir=problems_dir)
+    return {SCORING_FILE: path} if path.is_file() else {}
 
 
 def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str]], None]:
@@ -191,7 +260,8 @@ def current_artifacts(
 ) -> dict[str, Path]:
     """The step's current files on disk: artifact name (as the
     model would return it) -> path — for revision mode (`base.StepRevision`).
-    The 4 tex files, `interaction.tex` and the examples' dialogues
+    The 4 tex files, `scoring.tex` — only for a problem with test groups (otherwise it's
+    the author's), `interaction.tex` and the examples' dialogues
     `examples/example_<N>.{input,output}_for_statement.txt` (by ascending
     N) — only for an interactive problem: for a normal one these are the author's input/output for
     statements. Not the model's artifacts: `examples/example_<N>.txt` (they're
@@ -199,9 +269,11 @@ def current_artifacts(
     `example_<N>.verify_for_statement.txt`, `name.txt` (written by
     `polygon push`/`pull`) and the tutorial `tutorial.tex` (written by the author, `polygon
     pull` or the `tutorial_draft` step)."""
+    names = [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
+    if has_test_groups(spec):
+        names.append(SCORING_FILE)
     candidates = {
-        name: artifact_path(problem_id, spec, name, problems_dir=problems_dir)
-        for name in [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
+        name: artifact_path(problem_id, spec, name, problems_dir=problems_dir) for name in names
     }
     examples_dir = Path(problems_dir) / problem_id / STATEMENT_SUBDIR / EXAMPLES_DIRNAME
     examples = (
@@ -230,6 +302,8 @@ def extra_context_documents(
     """
     references = reference_documents(STEP_NAME, spec) or []
     rules = [str(Path(templates_dir) / INTERACTIVE_TUTORIAL)] if spec.interactive else []
+    if has_test_groups(spec):
+        rules.append(str(Path(templates_dir) / SCORING_TUTORIAL))
     return [*rules, *references] or None
 
 
@@ -248,7 +322,9 @@ def run_step(
 
     Input: the spec's `statement_draft` section (the legend, the formal input/output
     drafts, the indexing, `sample_examples`, `known_ambiguities`,
-    `preserve_legend_verbatim`) — nothing else from the spec is passed to this step.
+    `preserve_legend_verbatim`); a problem with test groups — also
+    `constraints.test_groups_hint` and the variables' names and descriptions, for
+    `scoring.tex` (`_groups_input`) — nothing else from the spec is passed to this step.
     `context` is built from the `model_dump()` of the whole section, so
     new fields of the section (like `preserve_legend_verbatim`) automatically
     get into both the prompt and `input_hash` — they don't need to be passed here
@@ -270,7 +346,8 @@ def run_step(
     orchestrator, not the model); for an interactive problem
     (`spec.interactive`) — also `interaction.tex` (the interaction protocol)
     and the dialogue of each example (`example_<N>.input_for_statement.txt`,
-    `example_<N>.output_for_statement.txt`). The set of file names from the model's
+    `example_<N>.output_for_statement.txt`); for a problem with test groups — also
+    `scoring.tex` (the Scoring block, the subtasks table). The set of file names from the model's
     response is checked BEFORE writing to disk (`_validate_statement_artifacts`):
     missing files are requested from the model once more, and if they are still
     missing or there are extra ones — the response isn't applied at all (a conflict), not a single
@@ -283,6 +360,7 @@ def run_step(
     only for the sake of the shared signature `run_step(problem_id, spec,
     upstream_artifacts)` of all steps.
     """
+    _check_groups_are_set(problem_id, spec)
     context = {
         "problem_id": spec.problem_id,
         "language": language_name(spec.language),
@@ -314,7 +392,10 @@ def run_step(
         validate_artifacts=_validate_statement_artifacts(expected),
         generated_artifacts=GeneratedArtifacts(
             artifacts=_example_inputs(spec),
-            stale=_stale_example_inputs(problem_id, spec, problems_dir=problems_dir),
+            stale={
+                **_stale_example_inputs(problem_id, spec, problems_dir=problems_dir),
+                **_stale_scoring(problem_id, spec, problems_dir=problems_dir),
+            },
             reason="the input of a sample is copied from the spec by the orchestrator",
         ),
     )

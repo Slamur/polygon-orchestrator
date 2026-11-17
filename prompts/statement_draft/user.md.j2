@@ -24,6 +24,21 @@ the solution.
 {{ statement_draft.interaction_sketch }}
 {% endif %}
 
+{% if statement_draft.test_groups is defined %}
+
+## Test groups (subtasks)
+The problem has subtasks (the rules of the Scoring block — scoring.md). The groups as the
+author set them, in order (None — not set):
+{% for g in statement_draft.test_groups %}
+- subtask {{ g.name }}: points {{ g.points }}; max_n {{ g.max_n }}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}
+{% endfor %}
+
+The problem's variables (`max_n` bounds the one that is the problem's size):
+{% for v in statement_draft.variables %}
+- {{ v.name }} — {{ v.description }}
+{% endfor %}
+{% endif %}
+
 ## Example tests
 {% for ex in statement_draft.sample_examples %}
 ### Example {{ loop.index }}
@@ -64,6 +79,9 @@ Expected files in artifacts:
 - input_format.tex
 - output_format.tex
 - notes.tex
+{% if statement_draft.test_groups is defined %}
+- scoring.tex
+{% endif %}
 {% if statement_draft.interaction_sketch is defined %}
 - interaction.tex
 {% for ex in statement_draft.sample_examples %}

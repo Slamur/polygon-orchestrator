@@ -95,6 +95,15 @@ missing:
 DON'T put the files with the examples' input (`examples/example_<N>.txt`) into `artifacts`:
 it's a copy of the input from `sample_examples`, the orchestrator writes it.
 
+If the user prompt has a "Test groups (subtasks)" section — the problem has
+subtasks, and you're also given scoring.md (its rules are mandatory just like
+statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
+the subtasks table by scoring.md, strictly by the given groups — their order, points,
+dependencies and feedback policy as is. Don't make up what the author didn't set: a
+group without points, or a `max_n` when it's unclear which variable is the problem's
+size — `uncertain` with the field (`constraints.test_groups_hint[i].points`,
+`constraints.test_groups_hint[i].max_n`).
+
 If the user prompt has an "Interaction protocol" section — the problem is
 interactive, and you're also given interactive.md (its rules are mandatory
 just like statement.md). Then `artifacts` additionally contain:

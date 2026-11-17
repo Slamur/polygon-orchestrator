@@ -385,6 +385,14 @@ examples and the tests from the script: `solutions_main` → `run_main` →
 the generators, the script and the runs again). Separately, only via the `llm tutorial` command, —
 `tutorial_draft` (the tutorial from a draft).
 
+With `constraints.test_groups_hint` in the spec, `statement_draft` also writes the subtasks
+table `statement/<language>/scoring.tex` (points, extra constraints, necessary subtasks,
+feedback — as in `examples/number/roots-subtasks`) from the hint: give each group its
+points there, or the step stops as `uncertain`. `test_groups_needed: true` without the
+hint stops the step as `uncertain` too (without calling the model): set the groups in
+`test_groups_hint`. If you drop the groups from the spec, the step marks the old table
+`scoring.tex.removed`. `local check` compares the tables with `constraints.yaml`.
+
 | Command | What it does | Model |
 |---|---|---|
 | `llm status` | A "step → cache hit / stale / not run / uncertain / conflict" table; for `stale` — what exactly changed | no |
@@ -424,7 +432,7 @@ What's important to know:
 
 | Command | What it does |
 |---|---|
-| `local check` | Checks the statement (Markdown lists, quotes other than `<<…>>`), duplicate lines and parameters with quotes/`>` in the expanded test-script (needs `java`) |
+| `local check` | Checks the statement (Markdown lists, quotes other than `<<…>>`; the subtasks table `scoring.tex` against `test_groups` — its subtasks, points, limits, necessary subtasks), duplicate lines and parameters with quotes/`>` in the expanded test-script (needs `java`) |
 | `local check --full` | The same plus local generation of tests from the script: the validator on every test and a search for tests identical in content (including with the examples) |
 | `local run` | Build the validator and solutions and run them on the examples (longer than `check`) |
 | `local run --full` | The same plus all tests from the script, with answers from the main `ok` solution: `wa`, `re`, `il` must get their verdict at least once on a test from the script |

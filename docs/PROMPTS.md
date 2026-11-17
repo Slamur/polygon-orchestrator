@@ -51,11 +51,14 @@ The prompts below rely on this contract and don't duplicate the rules from
 instructions attached to the call (in a real call they are passed as part of the context/system
 message, here shown as a logical reference). The rules are split by topic
 (`statement.md`, `limits.md`, `validator.md`, `tests.md`, `freemarker.md`,
-`solutions.md`, `checker.md`, `interactive.md`), and each step gets
+`solutions.md`, `checker.md`, `interactive.md`, `scoring.md`), and each step gets
 only its own — see the table below; `polygon.md` is a reference on the
 Polygon interface, not attached to the steps. `interactive.md` (the rules of interactive
 problems) is given to `statement_draft` and the solution stages only for an
 interactive problem — editing it doesn't touch the cache of normal problems.
+`scoring.md` (the Scoring block, the subtasks table `scoring.tex`) is given to
+`statement_draft` only for a problem with `constraints.test_groups_hint` in the spec —
+likewise.
 
 ## Attached templates as samples
 
@@ -87,7 +90,7 @@ from `templates/` (`STEP_CONTEXT_DOCUMENTS` in
 
 | Step | Always (`templates/`) | From a directory reference |
 |-----|--------------------|-----------------------|
-| `statement_draft` | `statement.md` | `spec.yaml`, `statement/<language>/*.tex` |
+| `statement_draft` | `statement.md`; `interactive.md`, `scoring.md` — see above | `spec.yaml`, `statement/<language>/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
 | `tests_plan` | `tests.md`, `tests_plan_format.yaml` | `spec.yaml`, `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `tests.md`, `problem_lib.h` | `tests_plan.yaml`, `generators/*.cpp` |
@@ -235,6 +238,15 @@ missing:
 DON'T put the files with the examples' input (`examples/example_<N>.txt`) into `artifacts`:
 it's a copy of the input from `sample_examples`, the orchestrator writes it.
 
+If the user prompt has a "Test groups (subtasks)" section — the problem has
+subtasks, and you're also given scoring.md (its rules are mandatory just like
+statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
+the subtasks table by scoring.md, strictly by the given groups — their order, points,
+dependencies and feedback policy as is. Don't make up what the author didn't set: a
+group without points, or a `max_n` when it's unclear which variable is the problem's
+size — `uncertain` with the field (`constraints.test_groups_hint[i].points`,
+`constraints.test_groups_hint[i].max_n`).
+
 If the user prompt has an "Interaction protocol" section — the problem is
 interactive, and you're also given interactive.md (its rules are mandatory
 just like statement.md). Then `artifacts` additionally contain:
@@ -283,6 +295,21 @@ the solution.
 {{ statement_draft.interaction_sketch }}
 {% endif %}
 
+{% if statement_draft.test_groups is defined %}
+
+## Test groups (subtasks)
+The problem has subtasks (the rules of the Scoring block — scoring.md). The groups as the
+author set them, in order (None — not set):
+{% for g in statement_draft.test_groups %}
+- subtask {{ g.name }}: points {{ g.points }}; max_n {{ g.max_n }}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}
+{% endfor %}
+
+The problem's variables (`max_n` bounds the one that is the problem's size):
+{% for v in statement_draft.variables %}
+- {{ v.name }} — {{ v.description }}
+{% endfor %}
+{% endif %}
+
 ## Example tests
 {% for ex in statement_draft.sample_examples %}
 ### Example {{ loop.index }}
@@ -323,6 +350,9 @@ Expected files in artifacts:
 - input_format.tex
 - output_format.tex
 - notes.tex
+{% if statement_draft.test_groups is defined %}
+- scoring.tex
+{% endif %}
 {% if statement_draft.interaction_sketch is defined %}
 - interaction.tex
 {% for ex in statement_draft.sample_examples %}
@@ -421,8 +451,8 @@ What to do when the asymptotics are given explicitly:
      examples with the full limits and 0 points — is implicit, don't list it;
    - `max_n`, `special_property`, `subset_of` — from the hint;
    - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
-     groups — propose them so that all groups sum to 100 (`proposed`, with a
-     justification: the more of the full solution a group needs, the more points);
+     groups — don't propose them: `uncertain`, the missing field is
+     `constraints.test_groups_hint` (the points are the author's, as the groups are);
      if the hint's points don't sum to 100 — keep them and say so in `notes`
      (`kind: proposed`);
    - `dependencies` — from the hint; absent — `[]`. Don't add dependencies the
