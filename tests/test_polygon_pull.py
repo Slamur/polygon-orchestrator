@@ -82,7 +82,8 @@ class FakePolygon:
             {"index": 3, "manual": False, "useInStatements": False},
         ]
         self.test_inputs = {2: b"3 4\n"}
-        # TestGroup objects; `None` — groups aren't enabled (viewTestGroup fails).
+        # TestGroup objects; `None` — groups aren't enabled (viewTestGroup fails), a string
+        # — viewTestGroup fails with this comment.
         self.test_groups: list[dict] | None = None
         # The modification time of files and solutions in the listings (100 by default);
         # `None` — Polygon doesn't return it.
@@ -123,7 +124,12 @@ class FakePolygon:
 
     def _test_groups(self) -> list[dict]:
         if self.test_groups is None:
-            raise PolygonApiError("problem.viewTestGroup", "groups are disabled")
+            raise PolygonApiError(
+                "problem.viewTestGroup",
+                "testset: Test groups are disabled for the specified testset",
+            )
+        if isinstance(self.test_groups, str):
+            raise PolygonApiError("problem.viewTestGroup", self.test_groups)
         return self.test_groups
 
     def call_raw(self, method_name, params):
@@ -1682,3 +1688,13 @@ def test_pull_groups_not_enabled_on_polygon(problems_dir, polygon):
     assert item.status == ITEM_DIFFERS
     assert "Polygon: no groups" in item.detail
     assert _synced(problems_dir).get("test_groups/tests") is None
+
+
+def test_pull_reports_other_errors_reading_groups(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    polygon.test_groups = "Internal error"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert not result.ok
+    assert _statuses(result)["test groups"] == ITEM_ERROR

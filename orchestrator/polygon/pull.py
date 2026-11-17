@@ -114,7 +114,8 @@ What is compared with what (the names are the same that the polygon steps read):
   `kept`; on both sides or without a base — `conflict`/`differs`, the next push sets
   them by `constraints.yaml`. What `constraints.yaml` can't hold (a `pointsPolicy`
   other than `COMPLETE_GROUP`, no groups at all) isn't written — `differs`. Groups not
-  enabled on Polygon (`problem.viewTestGroup` fails) count as no groups;
+  enabled on Polygon (`problem.viewTestGroup` fails with "Test groups are disabled
+  ...") count as no groups, another error of it — the part's error;
 - solutions (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   A solution's tag on Polygon isn't saved locally: `upload_solutions` derives
   the tag from the file name, so names not following its scheme get a warning;
@@ -808,7 +809,10 @@ class _Puller:
         try:
             test_groups = self._call("problem.viewTestGroup", {"testset": _TESTSET}) or []
         except PolygonApiError as exc:
-            # Groups aren't enabled on Polygon yet: push enables them.
+            # "Test groups are disabled for the specified testset": push enables them.
+            # Any other error is the part's error.
+            if "disabled" not in exc.comment:
+                raise
             logger.info("[pull] problem.viewTestGroup: %s", exc)
             test_groups = []
         remote = remote_groups(test_groups, tests)
