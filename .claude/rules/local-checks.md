@@ -17,7 +17,15 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   `ru`): Markdown-style
   lists (lines with `- `, `* `, `1. ` instead of `itemize`/`enumerate`) and
   quotes other than `<<…>>` (`"`, `“”`, `«»`, ```` ``…'' ````; outside
-  formulas and comments) — with the file and line of each finding. It also
+  formulas and comments) — with the file and line of each finding; and the subtasks
+  table `statement/<code>/scoring.tex` against `test_groups` of `constraints.yaml`
+  (`orchestrator/checks/scoring_check.py`): with groups — the file in every statement
+  language, a row per group in their order (a row of group 0 with 0 points is allowed),
+  the points, each value of the group's `max_n` and `validator.groups` maxima among
+  the numbers of its constraints cell (`10^{12}`, `2 \cdot 10^5`), the necessary
+  subtasks = `dependencies`; without groups in an existing `constraints.yaml` — a
+  `scoring.tex` is an error; the feedback column and the text of the
+  constraints aren't checked; `local fix` doesn't touch it. It also
   expands the problem's test-script(s) with real FreeMarker (needs `java`;
   the FreeMarker jar is downloaded from Maven Central into
   `~/.cache/polygon-orchestrator/` on the first run) and prints identical lines — with
