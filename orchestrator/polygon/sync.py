@@ -59,6 +59,10 @@ INTERACTIVE_KEY = "interactive"  # the problem's interactivity flag (`problem.up
 INTERACTOR_FILE_KEY = "interactor.cpp"
 INTERACTOR_KEY = "interactor"  # the name of the assigned interactor
 SCRIPT_KEY = "test_script"  # one per testset, whatever the local file
+# Test groups (`upload_test_groups`): their settings from `constraints.yaml` and the layout
+# of the tests on Polygon they were assigned to.
+TEST_GROUPS_KEY = "test_groups"
+TEST_GROUPS_TESTS_KEY = "test_groups/tests"
 # Attachments are the `authoring/` files of the problem directory; on Polygon and in the base — by
 # file name, without the directory.
 SPEC_KEY = SPEC_FILENAME
@@ -166,6 +170,8 @@ _KEY_LABELS = {
     INTERACTOR_KEY: "interactor assignment",
     INTERACTIVE_KEY: "interactive flag",
     SCRIPT_KEY: "test script",
+    TEST_GROUPS_KEY: "test groups (constraints.yaml)",
+    TEST_GROUPS_TESTS_KEY: "test groups of the generated tests",
 }
 # Assignment -> the file on whose upload the assignment isn't shown separately.
 _ASSIGNED_FILES = {

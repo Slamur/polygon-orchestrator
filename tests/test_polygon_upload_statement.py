@@ -430,6 +430,32 @@ def test_force_without_tutorial_file_does_not_clear_it(problems_dir, spec):
     assert "tutorial" not in statement
 
 
+def test_scoring_is_uploaded_and_cleared(problems_dir, spec):
+    link(problems_dir)
+    _write_tex(problems_dir)
+    _write_examples(problems_dir, {1: "1\n"})
+    path = _lang_dir(problems_dir) / "scoring.tex"
+    path.write_text("Subtasks.\n", encoding="utf-8")
+    client = MagicMock()
+
+    _run(spec, problems_dir, client)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert statement["scoring"] == "Subtasks.\n"
+    assert "tutorial" not in statement
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    path.unlink()
+    assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
+    client = MagicMock()
+    _run(spec, problems_dir, client, incremental=True)
+
+    [statement] = _calls(client, "problem.saveStatement")
+    assert statement["scoring"] == ""
+    synced = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced
+    assert "statement/ru/scoring.tex" not in synced
+
+
 def test_plain_problem_uploads_only_statement_output(problems_dir, spec):
     link(problems_dir)
     _write_tex(problems_dir)

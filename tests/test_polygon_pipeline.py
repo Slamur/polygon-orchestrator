@@ -612,9 +612,12 @@ def test_full_run_commits_after_every_step_but_create_problem(problems_dir):
         for c in client.call.call_args_list
         if c.args[0] == "problem.commitChanges"
     ]
-    # upload_interactor uploads nothing for a normal problem — no commit.
+    # upload_interactor and upload_test_groups upload nothing for a normal problem without
+    # test groups — no commit.
     assert commits == [
-        f"orchestrator: {name}" for name in POLYGON_STEP_ORDER[1:] if name != "upload_interactor"
+        f"orchestrator: {name}"
+        for name in POLYGON_STEP_ORDER[1:]
+        if name not in ("upload_interactor", "upload_test_groups")
     ]
 
 
@@ -631,6 +634,7 @@ def test_step_order():
         "upload_generators",
         "upload_solutions",
         "upload_test_script",
+        "upload_test_groups",
     ]
 
 
@@ -699,6 +703,7 @@ def test_status_not_run_without_state(tmp_path):
         ("upload_generators", "not run"),
         ("upload_solutions", "not run"),
         ("upload_test_script", "not run"),
+        ("upload_test_groups", "done"),
     ]
 
 
@@ -723,6 +728,7 @@ def test_status_done_with_state(tmp_path):
         ("upload_generators", "not run"),
         ("upload_solutions", "not run"),
         ("upload_test_script", "not run"),
+        ("upload_test_groups", "done"),
     ]
     assert statuses[0].detail == "polygon_id=777"
 
@@ -747,6 +753,7 @@ def test_status_after_full_run_then_limits_change(problems_dir):
         ("upload_generators", "done"),
         ("upload_solutions", "done"),
         ("upload_test_script", "done"),
+        ("upload_test_groups", "done"),
     ]
 
     (problems_dir / PROBLEM_ID / "limits.yaml").write_text(

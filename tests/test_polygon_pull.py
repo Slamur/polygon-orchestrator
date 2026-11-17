@@ -34,6 +34,7 @@ from orchestrator.polygon.steps import (
     upload_problem_lib,
     upload_solutions,
     upload_statement,
+    upload_test_groups,
     upload_test_script,
     upload_validator,
 )
@@ -81,6 +82,8 @@ class FakePolygon:
             {"index": 3, "manual": False, "useInStatements": False},
         ]
         self.test_inputs = {2: b"3 4\n"}
+        # TestGroup objects; `None` — groups aren't enabled (viewTestGroup fails).
+        self.test_groups: list[dict] | None = None
         # The modification time of files and solutions in the listings (100 by default);
         # `None` — Polygon doesn't return it.
         self.mtimes: dict[str, int | None] = {}
@@ -115,7 +118,13 @@ class FakePolygon:
                 for name, (tag, content) in self.solutions.items()
             ],
             "problem.tests": lambda: self.tests,
+            "problem.viewTestGroup": self._test_groups,
         }[method_name]()
+
+    def _test_groups(self) -> list[dict]:
+        if self.test_groups is None:
+            raise PolygonApiError("problem.viewTestGroup", "groups are disabled")
+        return self.test_groups
 
     def call_raw(self, method_name, params):
         self.calls.append((method_name, params))
@@ -1496,3 +1505,113 @@ def test_local_language_missing_on_polygon_is_local_only(problems_dir, polygon):
     # The report doesn't mention files that exist neither here nor there.
     assert "statement/en/notes.tex" not in statuses
     assert (problems_dir / PROBLEM_ID / "statement/en/legend.tex").read_text() == "local"
+
+
+def test_pull_downloads_scoring(problems_dir, polygon):
+    polygon.statements["russian"]["scoring"] = "Subtasks\n"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    path = problems_dir / PROBLEM_ID / "statement" / "ru" / "scoring.tex"
+    assert path.read_text() == "Subtasks\n"
+    assert _statuses(result)["statement/ru/scoring.tex"] == ITEM_DOWNLOADED
+    assert upload_statement.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+_CONSTRAINTS_WITH_GROUPS = """\
+test_groups:
+  - name: "1"
+    points: 40
+    feedback_policy: icpc
+  - name: "2"
+    points: 60
+    dependencies: ["1"]
+    feedback_policy: icpc
+"""
+
+
+def _grouped_polygon(polygon) -> None:
+    """Tests and groups on Polygon as `upload_test_groups` sets them by
+    `_CONSTRAINTS_WITH_GROUPS`."""
+    polygon.aux_files["constraints.yaml"] = _CONSTRAINTS_WITH_GROUPS.encode()
+    polygon.tests = [
+        {"index": 1, "manual": True, "input": "1 2\n", "useInStatements": True, "group": "0"},
+        {"index": 2, "manual": False, "scriptLine": "gen 1 -group=1", "group": "1", "points": 40},
+        {"index": 3, "manual": False, "scriptLine": "gen 2 -group=2", "group": "2", "points": 60},
+    ]
+    polygon.test_groups = [
+        {"name": "0", "pointsPolicy": "COMPLETE_GROUP", "feedbackPolicy": "COMPLETE"},
+        {"name": "1", "pointsPolicy": "COMPLETE_GROUP", "feedbackPolicy": "ICPC"},
+        {
+            "name": "2",
+            "pointsPolicy": "COMPLETE_GROUP",
+            "feedbackPolicy": "ICPC",
+            "dependencies": ["1"],
+        },
+    ]
+
+
+def test_pull_without_local_groups_does_not_ask_for_them(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert result.ok
+    assert "problem.viewTestGroup" not in polygon.methods()
+    assert "test groups" not in _statuses(result)
+
+
+def test_pull_matching_groups_lets_push_skip_them(problems_dir, polygon):
+    _grouped_polygon(polygon)
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert result.ok
+    assert _statuses(result)["test groups"] == ITEM_SAME
+    synced = _synced(problems_dir)
+    assert synced["test_groups"] and synced["test_groups/tests"]
+    assert upload_test_groups.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    # Push compares with the same base: nothing to send but the tests listing.
+    client = MagicMock()
+    client.call.return_value = polygon.tests
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+    state = load_polygon_state(PROBLEM_ID, problems_dir=problems_dir)
+    result = run_step(
+        upload_test_groups.STEP,
+        PROBLEM_ID,
+        spec,
+        problems_dir=problems_dir,
+        client=client,
+        synced=dict(state.synced),
+    )
+    assert "no changes" in result.message
+    assert [c.args[0] for c in client.call.call_args_list] == ["problem.tests"]
+
+
+def test_pull_reports_groups_changed_on_polygon(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    polygon.tests[2]["points"] = 50
+    polygon.problems[0]["revision"] = 6
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "test groups")
+    assert item.status == ITEM_DIFFERS
+    assert "2 (50, ICPC, after 1)" in item.detail and "2 (60, ICPC, after 1)" in item.detail
+    # constraints.yaml isn't rewritten: push sets the groups by it.
+    assert upload_test_groups.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
+
+
+def test_pull_groups_not_enabled_on_polygon(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    polygon.test_groups = None
+    for test in polygon.tests:
+        test.pop("group")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert result.ok
+    item = next(item for item in result.items if item.name == "test groups")
+    assert item.status == ITEM_DIFFERS
+    assert "Polygon: no groups" in item.detail
+    assert _synced(problems_dir).get("test_groups/tests") is None

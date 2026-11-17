@@ -17,7 +17,6 @@ from orchestrator.checks.test_script_check import (
     ScriptLine,
 )
 from orchestrator.polygon.client import PolygonApiError
-from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps import upload_test_script
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_script import STEP
@@ -53,17 +52,21 @@ def _run(spec, problems_dir, client, *, incremental: bool = False) -> str:
     ).message
 
 
-def test_groups_style_rejected_before_network(problems_dir, groups_spec):
-    # everything else is in place — the refusal is only because of groups
+def test_groups_style_script_is_uploaded(problems_dir, groups_spec):
+    # The groups themselves are set by upload_test_groups; the script goes as is.
     link(problems_dir)
-    _write_script(problems_dir, name="test_script_groups")
+    content = "gen_random 1 10 -group=1 > $\n"
+    _write_script(problems_dir, content, name="test_script_groups")
     client = MagicMock()
 
-    with pytest.raises(PolygonStepError, match="groups"):
-        _run(groups_spec, problems_dir, client)
+    message = _run(groups_spec, problems_dir, client)
 
-    client.call.assert_not_called()
-    assert load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced == {}
+    client.call.assert_called_once_with(
+        "problem.saveScript",
+        {"problemId": str(POLYGON_ID), "testset": "tests", "source": content},
+        timeout=upload_test_script._SAVE_SCRIPT_TIMEOUT_SECONDS,
+    )
+    assert "test_script_groups" in message
 
 
 def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):

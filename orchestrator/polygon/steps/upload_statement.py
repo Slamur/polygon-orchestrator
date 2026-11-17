@@ -18,10 +18,9 @@ in statements" flag is called `testUseInStatements` (`useInStatements` is the na
 the returned Test object, not of a parameter): Polygon silently ignores an unknown parameter,
 and the test is uploaded without this flag.
 
-Test groups (`generation.script_style: "groups"`) are NOT supported
-by this step: the examples are uploaded without `testGroup`, i.e. into Polygon's default
-group. For a problem with groups this may not be what's needed —
-a deliberate MVP limitation, the examples' group will have to be set by hand.
+The examples are uploaded without `testGroup`: for a problem with test groups their
+group (`0`) is set by the `upload_test_groups` step — it goes after the tests are
+generated, when groups are enabled on Polygon.
 
 If the number of examples decreased since the last upload, the extra tests with
 indices > N stay on Polygon — the step doesn't delete them.
@@ -34,6 +33,8 @@ The tutorial `statement/<code>/tutorial.tex` (optional, written by the author, `
 or the `tutorial_draft` step) goes there too as the `tutorial` parameter. No file —
 the parameter isn't passed (Polygon leaves the tutorial as is), but if the sync
 base had a tutorial and the file was deleted, the tutorial is cleared with an empty string.
+The scoring section `statement/<code>/scoring.tex` (optional, the subtasks table of a
+problem with test groups) — likewise, as the `scoring` parameter.
 
 An example's input/output for statements (`example_<N>.input_for_statement.txt`,
 `example_<N>.output_for_statement.txt` — each on its own, for a normal
@@ -121,6 +122,12 @@ NAME_FILENAME = "name.txt"
 INTERACTION_FILENAME = INTERACTION_FILE
 INTERACTION_PARAM = "interaction"
 TUTORIAL_PARAM = "tutorial"
+SCORING_FILENAME = "scoring.tex"
+SCORING_PARAM = "scoring"
+
+# Optional statement files: no file — the parameter isn't passed, the file was deleted
+# since the last sync — the section is cleared on Polygon.
+OPTIONAL_TEX_PARAMS = {TUTORIAL_FILENAME: TUTORIAL_PARAM, SCORING_FILENAME: SCORING_PARAM}
 
 _VERIFY_VALUE = b"true"
 
@@ -150,9 +157,8 @@ class Statement:
             items[statement_name_key(self.code)] = digest(self.name)
         return items
 
-    @property
-    def tutorial_key(self) -> str:
-        return statement_file_key(TUTORIAL_FILENAME, self.code)
+    def optional_key(self, filename: str) -> str:
+        return statement_file_key(filename, self.code)
 
 
 @dataclass(frozen=True)
@@ -210,12 +216,14 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     for statement in statements:
         statement_items = statement.items()
         # Without a base (`push --force`) it's unknown what's on Polygon — nothing is cleared.
-        tutorial_cleared = (
-            TUTORIAL_FILENAME not in statement.tex_files
+        cleared = [
+            filename
+            for filename in OPTIONAL_TEX_PARAMS
+            if filename not in statement.tex_files
             and ctx.synced is not None
-            and ctx.synced.get(statement.tutorial_key) is not None
-        )
-        if not (changed_items(ctx, statement_items) or tutorial_cleared):
+            and ctx.synced.get(statement.optional_key(filename)) is not None
+        ]
+        if not (changed_items(ctx, statement_items) or cleared):
             continue
         client.call(
             "problem.saveStatement",
@@ -227,12 +235,11 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
                     _tex_param(filename): content.decode("utf-8")
                     for filename, content in statement.tex_files.items()
                 },
-                **({TUTORIAL_PARAM: ""} if tutorial_cleared else {}),
+                **{OPTIONAL_TEX_PARAMS[filename]: "" for filename in cleared},
             },
         )
         uploaded.update(statement_items)
-        if tutorial_cleared:
-            uploaded[statement.tutorial_key] = None
+        uploaded.update({statement.optional_key(filename): None for filename in cleared})
         done.append(f"saved {statement.language} statement (name={statement.name!r})")
 
     changed_examples: dict[str, str | None] = dict(changed_items(ctx, example_items))
@@ -276,9 +283,11 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
         synced = state.synced if state is not None else {}
         for statement in statements:
             items.update(statement.items())
-            # Push clears a deleted tutorial on Polygon — that's an unsynced edit too.
-            if statement.tutorial_key not in items and synced.get(statement.tutorial_key):
-                items[statement.tutorial_key] = digest(b"")
+            # Push clears a deleted tutorial/scoring on Polygon — an unsynced edit too.
+            for filename in OPTIONAL_TEX_PARAMS:
+                key = statement.optional_key(filename)
+                if key not in items and synced.get(key):
+                    items[key] = digest(b"")
         return items
 
     return sync_status(problem_id, problems_dir, key_prefix="statement/", read_items=read_items)
@@ -352,7 +361,7 @@ def _tex_param(filename: str) -> str:
     return {
         **_TEX_PARAM_NAMES,
         INTERACTION_FILENAME: INTERACTION_PARAM,
-        TUTORIAL_FILENAME: TUTORIAL_PARAM,
+        **OPTIONAL_TEX_PARAMS,
     }[filename]
 
 
@@ -383,7 +392,7 @@ def _read_statement_dir(
     """The contents of the 4 fixed tex files (file name -> contents), for an
     interactive problem — also `interaction.tex`. If one is missing —
     `PolygonStepError` with its name, not an empty string instead of the contents.
-    The optional `tutorial.tex` — only if it exists.
+    The optional `tutorial.tex` and `scoring.tex` — only if they exist.
     `generated=False` — a directory of a non-main language: it's written not by a model step,
     but by the author (or `polygon pull`)."""
     names = [*_TEX_PARAM_NAMES, *([INTERACTION_FILENAME] if interactive else [])]
@@ -395,8 +404,7 @@ def _read_statement_dir(
             else "first run the generative step statement_draft"
         )
         raise PolygonStepError(f"files missing in {statement_dir}: {missing} — {hint}")
-    if (statement_dir / TUTORIAL_FILENAME).exists():
-        names.append(TUTORIAL_FILENAME)
+    names.extend(name for name in OPTIONAL_TEX_PARAMS if (statement_dir / name).exists())
     return {filename: (statement_dir / filename).read_bytes() for filename in names}
 
 

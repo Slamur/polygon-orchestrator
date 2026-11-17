@@ -7,11 +7,10 @@ The path to the script file is taken from
 source of truth for the name (`test_script`/`test_script_groups` by
 `generation.script_style`), the flat/groups branching isn't duplicated here.
 
-An MVP limitation: `generation.script_style == "groups"` is deliberately
-rejected with `PolygonStepError` before any other logic — the groups mode in
-Polygon additionally requires `problem.enableGroups` (not designed), and
-there are no groups templates in `templates/` now. An explicit error is better than quiet
-wrong behavior.
+A script with test groups (`generation.script_style == "groups"`) is uploaded the
+same way: each of its lines carries the `-group=<name>` marker, and the tests'
+groups and points are set by the next step, `upload_test_groups` — Polygon
+doesn't take them from the script.
 
 When saving a script, Polygon drops its empty lines, so the
 hash is computed from `normalize_script` (without empty lines and trailing spaces on
@@ -107,16 +106,9 @@ SCRIPT_FILENAMES = ("test_script", "test_script_groups")
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     """Uploads the test-script if it differs from the sync base.
 
-    All three checks (`script_style != "groups"`, `create_problem`,
-    the script file's presence) — before the first network call.
+    Both checks (`create_problem`, the script file's presence) — before the first
+    network call.
     """
-    if ctx.spec.generation.script_style == "groups":
-        raise PolygonStepError(
-            f"'{ctx.problem_id}': script_style='groups' is not supported by this "
-            "step (requires a separate problem.enableGroups, not implemented) — "
-            "see the upload_test_script.py docstring"
-        )
-
     polygon_id = require_polygon_state(ctx).polygon_id
     script_path = script_artifact_path(ctx.problem_id, ctx.spec, problems_dir=ctx.problems_dir)
     content = _read_script(ctx.problem_id, ctx.problems_dir, script_path)
