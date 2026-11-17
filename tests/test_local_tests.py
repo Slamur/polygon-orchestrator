@@ -318,3 +318,67 @@ def test_cli_clear_regenerates_after_clearing(tmp_path, capsys):
     capsys.readouterr()
     assert _check(tmp_path, "--full") == 0
     assert "1 generated" in capsys.readouterr().out
+
+
+# Prints its first argument: the test is one number, `-group=<N>` is only a marker.
+GEN_FIRST_CPP = (
+    '#include <iostream>\nint main(int argc, char** argv) { std::cout << argv[1] << "\\n"; }\n'
+)
+# Group 1 — numbers up to 10, the others (and the examples, group 0) — up to 100.
+GROUP_VALIDATOR_CPP = (
+    '#include "testlib.h"\n'
+    "#include <string>\n"
+    "int main(int argc, char* argv[]) {\n"
+    "    registerValidation(argc, argv);\n"
+    '    int maxX = validator.group() == "1" ? 10 : 100;\n'
+    '    inf.readInt(1, maxX, "x"); inf.readEoln(); inf.readEof();\n'
+    "}\n"
+)
+GROUPS_CONSTRAINTS = (
+    "test_groups:\n"
+    '  - name: "1"\n    points: 40\n    dependencies: []\n'
+    '  - name: "2"\n    points: 60\n    dependencies: ["1"]\n'
+)
+
+
+def _groups_problem(tmp_path: Path, script: str) -> Path:
+    problem_dir = _problem(
+        tmp_path,
+        script,
+        generators={"gen_first": GEN_FIRST_CPP},
+        examples=("50\n",),
+        validator=GROUP_VALIDATOR_CPP,
+    )
+    (problem_dir / "authoring").mkdir()
+    (problem_dir / "authoring" / "constraints.yaml").write_text(
+        GROUPS_CONSTRAINTS, encoding="utf-8"
+    )
+    return problem_dir
+
+
+def test_tests_take_their_group_from_the_marker(tmp_path):
+    problem_dir = _groups_problem(tmp_path, "gen_first 5 -group=1 > $\ngen_first 50 > $\n")
+    assert [t.group for t in _generate(problem_dir).tests] == ["1", None]
+
+
+def test_cli_full_validates_each_test_in_its_group(tmp_path, capsys):
+    _groups_problem(tmp_path, "gen_first 5 -group=1 > $\ngen_first 50 -group=2 > $\n")
+    assert _check(tmp_path, "--full") == 0
+    out = capsys.readouterr().out
+    assert "test groups: 0 (examples): 1, 1: 1, 2: 1" in out
+    assert "validator.cpp accepts all 2 test(s)" in out
+
+
+def test_cli_full_rejects_a_test_outside_its_group(tmp_path, capsys):
+    # 50 fits the full limits, but not group 1's.
+    _groups_problem(tmp_path, "gen_first 50 -group=1 > $\ngen_first 60 -group=2 > $\n")
+    assert _check(tmp_path, "--full") == 1
+    assert "validator.cpp rejects test 2 (group 1)" in capsys.readouterr().out
+
+
+def test_cli_full_reports_tests_without_a_group(tmp_path, capsys):
+    _groups_problem(tmp_path, "gen_first 5 -group=1 > $\ngen_first 50 > $\n")
+    assert _check(tmp_path, "--full") == 1
+    out = capsys.readouterr().out
+    assert "test 3: no -group=<N> marker" in out
+    assert "test group 2 has no tests in the script" in out

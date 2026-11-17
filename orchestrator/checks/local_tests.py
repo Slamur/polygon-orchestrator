@@ -25,7 +25,11 @@ What is done:
    are normalized, the rest is compared byte by byte. This is information for the author,
    not an error: `format_equal_tests` shows which script lines they
    correspond to, the exit code doesn't depend on them.
-5. The validator (`validator.cpp`, if any) is run on each test.
+5. The validator (`validator.cpp`, if any) is run on each test. A problem with test
+   groups (`test_groups` in `constraints.yaml`, `test_groups.py`): a test's group is the
+   `-group=<N>` marker of its script line, the validator gets `--group <N>`, as on
+   Polygon; a test without the marker or of an unknown group, a group without tests —
+   errors (`check_test_groups`).
 """
 
 from __future__ import annotations
@@ -41,6 +45,11 @@ from pathlib import Path
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.checks.run_with_timeout import _raise_stack_limit
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
+from orchestrator.checks.test_groups import (
+    VALIDATOR_GROUP_OPTION,
+    TestGroup,
+    script_test_group,
+)
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptLine,
@@ -80,6 +89,8 @@ class LocalTest:
     # The script's file name and the line that printed the command (`None` — not recognized).
     script: str = ""
     script_line: int | None = None
+    # The `-group=<N>` marker of the line (`None` — no marker).
+    group: str | None = None
 
     @property
     def name(self) -> str:
@@ -290,7 +301,14 @@ def generate_tests(
             result.generated += 1
         keep_keys.add(key)
         result.tests.append(
-            LocalTest(number, command, path, script.name, line.source.line if line.source else None)
+            LocalTest(
+                number,
+                command,
+                path,
+                script.name,
+                line.source.line if line.source else None,
+                script_test_group(command),
+            )
         )
         manifest.append(f"{number}\t{path.relative_to(cache_dir).as_posix()}\t{command}")
 
@@ -376,10 +394,14 @@ def format_equal_tests(groups: list[EqualTests], tests: list[LocalTest]) -> str:
 
 
 def validate_tests(
-    problem_dir: Path, templates_dir: Path, tests: list[LocalTest]
+    problem_dir: Path,
+    templates_dir: Path,
+    tests: list[LocalTest],
+    groups: list[TestGroup] | None = None,
 ) -> tuple[list[str], bool]:
     """(errors, whether the validator was run). No `validator.cpp` — it wasn't run.
-    The build is cached, as for generators."""
+    The build is cached, as for generators. With `groups` (the problem has test groups)
+    a test with a group marker is validated with `--group <N>`."""
     problem_dir, templates_dir = Path(problem_dir).resolve(), Path(templates_dir).resolve()
     source = problem_dir / VALIDATOR_FILENAME
     if not source.is_file():
@@ -395,18 +417,21 @@ def validate_tests(
             path.unlink()
     errors = []
     for test in tests:
+        with_group = groups is not None and test.group is not None
+        args = [VALIDATOR_GROUP_OPTION, test.group] if with_group else []
+        name = f"{test.name} (group {test.group})" if with_group else test.name
         try:
             with test.path.open("rb") as stdin:
                 run = subprocess.run(
-                    [str(binary)],
+                    [str(binary), *args],
                     stdin=stdin,
                     capture_output=True,
                     timeout=_VALIDATOR_TIMEOUT_SECONDS,
                 )
         except subprocess.TimeoutExpired:
-            errors.append(f"{VALIDATOR_FILENAME} timed out on {test.name}: {test.command}")
+            errors.append(f"{VALIDATOR_FILENAME} timed out on {name}: {test.command}")
             continue
         if run.returncode != 0:
             reason = (run.stderr or run.stdout).decode("utf-8", "replace").strip()
-            errors.append(f"{VALIDATOR_FILENAME} rejects {test.name}: {reason}\n    {test.command}")
+            errors.append(f"{VALIDATOR_FILENAME} rejects {name}: {reason}\n    {test.command}")
     return errors, True
