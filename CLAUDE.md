@@ -244,6 +244,25 @@ githooks` has been run in the clone (see `docs/SETUP.md`) — `githooks/pre-push
 the branch name or commit messages contain the `problem_id` of any problem in `problems/` (the name of a problem directory at any depth) or the name (without extension) of any draft in `drafts/` at any depth (except drafts of the sample problems from `examples/` — by the problem directory name or its `problem_id`).
 The hook is a safety net, not a replacement for the rules in the section below.
 
+### Parallel work with subagents
+
+Claude Code decides on its own, without asking, whether to split a task between
+subagents — this is a standing permission from the author:
+
+- independent parts (different files, each its own branch and PR) go in parallel,
+  each subagent in its own git worktree; usually 2–3 subagents at most — each spends
+  the author's subscription limits;
+- small or sequential work Claude Code does itself, without subagents;
+- before launching, one line to the author: what is launched and with how many
+  subagents — without waiting for an answer;
+- each subagent's brief carries the rules of this file: the git workflow above, the
+  confidentiality rules below, no real model calls and no `polygon` commands without
+  the author's explicit command; design choices that are the author's and work beyond
+  the asked scope are not done but listed in the subagent's report;
+- subagents don't merge PRs; Claude Code reviews their PRs (the text — by the
+  self-check below) before handing them to the author, and removes their worktrees
+  once the branches are merged.
+
 ## Confidentiality of problems/
 
 `problems/` (together with the problem specs `problems/<problem path>/authoring/spec.yaml`) and
