@@ -107,11 +107,14 @@ What is compared with what (the names are the same that the polygon steps read):
   (`normalize_script`) — Polygon drops them on saving;
 - test groups (`problem.viewTestGroup` + the tests' groups and points from
   `problem.tests`) — only if `authoring/constraints.yaml` has `test_groups`: compared with
-  them (`upload_test_groups.groups_digest`), nothing is written locally —
-  `constraints.yaml` is compared only with its copy in Attachments. Groups differing
-  on Polygon are reported (`differs`/`conflict`, `kept` if only the local file
-  changed): the next push sets them by `constraints.yaml`. Groups not enabled on
-  Polygon (`problem.viewTestGroup` fails) count as no groups;
+  them (`upload_test_groups.groups_digest`) three-way, like files. Changed only on
+  Polygon (or `--overwrite`) — written into the `test_groups` of `constraints.yaml`
+  (`_write_test_groups`: points, dependencies, feedback policy; added and removed
+  groups; the other fields of a group and the rest of the file stay); changed locally —
+  `kept`; on both sides or without a base — `conflict`/`differs`, the next push sets
+  them by `constraints.yaml`. What `constraints.yaml` can't hold (a `pointsPolicy`
+  other than `COMPLETE_GROUP`, no groups at all) isn't written — `differs`. Groups not
+  enabled on Polygon (`problem.viewTestGroup` fails) count as no groups;
 - solutions (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   A solution's tag on Polygon isn't saved locally: `upload_solutions` derives
   the tag from the file name, so names not following its scheme get a warning;
@@ -156,6 +159,8 @@ from orchestrator.polygon.steps.upload_statement import (
     verify_filename,
 )
 from orchestrator.polygon.steps.upload_test_groups import (
+    FEEDBACK_POLICY_NAMES,
+    POINTS_POLICY,
     GroupSettings,
     assigned_by_script,
     groups_digest,
@@ -214,6 +219,7 @@ from orchestrator.statement_languages import (
     statement_languages,
 )
 from orchestrator.steps.base import PROBLEM_LIB_FILENAME
+from orchestrator.test_groups import EXAMPLES_GROUP, raw_test_groups, replace_test_groups
 
 logger = logging.getLogger(__name__)
 
@@ -831,14 +837,60 @@ class _Puller:
         if change == _LOCAL:
             self.add(_TEST_GROUPS_NAME, ITEM_KEPT, differs)
             return
-        # Pull doesn't rewrite constraints.yaml: it's compared only with its copy in
-        # Attachments. The author decides — edit the file, or push overwrites Polygon.
+        if change == _REMOTE or self.overwrite:
+            unwritable = self._write_test_groups(remote)
+            if unwritable is None:
+                self.add(
+                    _TEST_GROUPS_NAME,
+                    ITEM_UPDATED if change == _REMOTE else ITEM_OVERWRITTEN,
+                    f"{differs} — written to authoring/{CONSTRAINTS_KEY}",
+                )
+                return
+            differs = f"{differs}; {unwritable}"
+        # Like a file in conflict: no base, so `--overwrite` can take Polygon's groups later.
+        self.synced[TEST_GROUPS_KEY] = None
         self.add(
             _TEST_GROUPS_NAME,
             ITEM_CONFLICT if change == _BOTH else ITEM_DIFFERS,
             f"{differs} — edit authoring/{CONSTRAINTS_KEY}, or the next push "
             "overwrites the groups on Polygon",
         )
+
+    def _write_test_groups(self, remote: list[GroupSettings]) -> str | None:
+        """Writes the groups on Polygon into the `test_groups` of `constraints.yaml` (the
+        old file — to the backup): the points, dependencies and feedback policy of each
+        group; its other fields (`max_n`, ...) stay, a new group gets `status: confirmed`,
+        a group that isn't on Polygon is removed. Group `0` (the examples) isn't
+        written: push sets it as always. What `constraints.yaml` can't hold — the reason,
+        nothing is written."""
+        groups = sorted(
+            (group for group in remote if group.name != EXAMPLES_GROUP),
+            key=lambda group: (len(group.name), group.name),
+        )
+        if not groups:
+            return "no test groups on Polygon — they aren't written to an empty list"
+        for group in groups:
+            if not group.name.isdigit():
+                return f"group {group.name!r} on Polygon isn't a number"
+            if group.points_policy != POINTS_POLICY:
+                return f"group {group.name} on Polygon has pointsPolicy {group.points_policy}"
+            if group.feedback_policy not in FEEDBACK_POLICY_NAMES:
+                return f"group {group.name} on Polygon has feedbackPolicy {group.feedback_policy}"
+        name = _authoring_name(CONSTRAINTS_KEY)
+        text = (self.problem_dir / name).read_text(encoding="utf-8")
+        existing = {item.get("name"): item for item in raw_test_groups(text)}
+        items = []
+        for group in groups:
+            item = dict(existing.get(group.name) or {"name": group.name})
+            item["points"] = int(group.points) if group.points.is_integer() else group.points
+            item["dependencies"] = list(group.dependencies)
+            item["feedback_policy"] = FEEDBACK_POLICY_NAMES[group.feedback_policy]
+            if group.name not in existing:
+                item["status"] = "confirmed"
+            items.append(item)
+        self._backup(name)
+        self._write(name, replace_test_groups(text, items).encode("utf-8"))
+        return None
 
     def pull_solutions(self) -> None:
         solutions = sorted(self._polygon_solutions(), key=lambda solution: solution["name"])

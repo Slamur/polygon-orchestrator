@@ -13,6 +13,7 @@ read it, see the test-script of `examples/number/roots-subtasks`).
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable
 from pathlib import Path
@@ -77,6 +78,60 @@ def load_test_groups(problem_dir: Path) -> list[TestGroupHint] | None:
     except ValueError as exc:
         raise TestGroupsError(str(exc)) from exc
     return groups
+
+
+def raw_test_groups(text: str) -> list[dict]:
+    """The `test_groups` items of a `constraints.yaml` text as they are (names as strings),
+    with all their fields; no groups — `[]`."""
+    data = yaml.safe_load(text)
+    raw = data.get(TEST_GROUPS_KEY) if isinstance(data, dict) else None
+    if not isinstance(raw, list):
+        return []
+    return with_string_names(item for item in raw if isinstance(item, dict))
+
+
+def replace_test_groups(text: str, groups: list[dict]) -> str:
+    """The `constraints.yaml` text with its top-level `test_groups` block replaced by
+    `groups`; the rest of the file — comments included — stays as is. Comments inside
+    the block are lost. No such block — `ValueError`."""
+    lines = text.splitlines(keepends=True)
+    start = next(
+        (i for i, line in enumerate(lines) if re.match(rf"{TEST_GROUPS_KEY}\s*:", line)), None
+    )
+    if start is None:
+        raise ValueError(f"no top-level {TEST_GROUPS_KEY} in {CONSTRAINTS_FILENAME}")
+    end = start + 1
+    while end < len(lines) and (not lines[end].strip() or lines[end][0] in " \t"):
+        end += 1
+    while end > start + 1 and not lines[end - 1].strip():
+        end -= 1  # the blank lines before the next key stay
+    block = [f"{TEST_GROUPS_KEY}:\n"]
+    for group in groups:
+        for position, (key, value) in enumerate(group.items()):
+            prefix = "  - " if position == 0 else "    "
+            block.append(f"{prefix}{key}: {_yaml_scalar(value)}\n")
+    return "".join(lines[:start] + block + lines[end:])
+
+
+_PLAIN_WORD = re.compile(r"[a-z][a-z_]*")
+
+
+def _yaml_scalar(value: object) -> str:
+    """A value of a group's field on one line, in the style of `constraints_format.yaml`:
+    names and other strings in double quotes, words like `icpc` — plain, lists — in flow
+    style."""
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return f"{value:g}" if isinstance(value, float) else str(value)
+    if isinstance(value, str):
+        plain = _PLAIN_WORD.fullmatch(value) and value not in ("null", "true", "false")
+        return value if plain else json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list) and all(isinstance(item, str | int) for item in value):
+        return json.dumps(value, ensure_ascii=False)
+    return yaml.safe_dump(value, default_flow_style=True, allow_unicode=True).strip()
 
 
 def with_string_names(raw: Iterable[dict]) -> list[dict]:

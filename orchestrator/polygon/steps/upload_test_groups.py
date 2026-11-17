@@ -94,6 +94,7 @@ POINTS_POLICY = "COMPLETE_GROUP"
 EXAMPLES_FEEDBACK_POLICY = "COMPLETE"
 # `feedback_policy` of constraints.yaml -> `feedbackPolicy` of `problem.saveTestGroup`.
 FEEDBACK_POLICIES = {"icpc": "ICPC", "points": "POINTS", "complete": "COMPLETE", "none": "NONE"}
+FEEDBACK_POLICY_NAMES = {value: key for key, value in FEEDBACK_POLICIES.items()}
 
 
 @dataclass(frozen=True)

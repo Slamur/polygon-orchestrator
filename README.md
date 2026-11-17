@@ -322,8 +322,10 @@ test-script, `push` enables groups and points on Polygon, puts each generated te
 into the group of its `-group=<name>` script marker and the examples into group 0,
 places a group's points on its last test and sets each group's feedback and
 dependencies; `statement/<language>/scoring.tex` goes to the statement's scoring
-section. Groups edited on Polygon are reported by `pull`, but `constraints.yaml` stays
-as is — edit it, or the next `push` sets the groups back.
+section. `pull` compares the groups on Polygon with `constraints.yaml` three-way, like
+files: groups changed only on Polygon (points, dependencies, feedback, added or removed
+groups) are written into its `test_groups`; changed on both sides — a conflict, the local
+file stays (`--overwrite` takes Polygon's).
 
 ---
 

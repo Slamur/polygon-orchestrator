@@ -121,8 +121,11 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   only with their versions in Attachments, and the problem's TL/ML — only with
   `limits.yaml` (the same comparison, by the TL/ML values; they don't touch
   `constraints.yaml`). Test groups on Polygon (if the local `constraints.yaml` has
-  `test_groups`) are compared with them, but nothing is written locally: differing ones
-  are reported (`differs`/`conflict`), and the next push sets them by
+  `test_groups`) are compared with them three-way as well: changed only on Polygon —
+  written into the `test_groups` of `constraints.yaml` (the other fields of the groups
+  and the rest of the file stay); on both sides — `conflict`, `--overwrite` takes
+  Polygon's; what `constraints.yaml` can't hold (a `pointsPolicy` other than
+  `COMPLETE_GROUP`, groups not enabled) — `differs`, the next push sets them by
   `constraints.yaml`. It refuses
   to work if there are uncommitted edits on Polygon. The problem directory
   is created if it doesn't exist; a local spec isn't needed (`spec.yaml` itself
