@@ -1,3 +1,4 @@
+// spec: solutions.known_wrong_approaches[7]
 #include <bits/stdc++.h>
 
 using ll = int64_t;

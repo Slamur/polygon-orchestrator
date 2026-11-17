@@ -1,3 +1,4 @@
+// spec: solutions.known_wrong_approaches[5]
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
