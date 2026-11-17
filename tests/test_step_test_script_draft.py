@@ -1,9 +1,16 @@
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 import yaml
 
+from orchestrator.checks.test_groups import TestGroup
+from orchestrator.checks.test_script_check import (
+    ScriptCheckUnavailable,
+    ScriptLine,
+    ScriptRenderError,
+)
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.test_script_draft import (
@@ -11,6 +18,7 @@ from orchestrator.steps.test_script_draft import (
     fix_script_comparisons,
     restore_script_functions,
     run_step,
+    script_group_errors,
 )
 
 REPO_ROOT = Path(__file__).parent.parent
@@ -203,3 +211,101 @@ def test_run_step_fixes_script_comparisons_with_note(spec, tmp_path):
     assert [(note["field"], note["kind"]) for note in result.notes] == [
         ("test_script_groups", "restored")
     ]
+
+
+GROUPS_CONSTRAINTS = (
+    "n_max: 100000\ntest_groups:\n"
+    '  - name: "1"\n    points: 40\n  - name: "2"\n    points: 60\n    dependencies: ["1"]\n'
+)
+
+
+def test_script_group_errors():
+    groups = [TestGroup("1", 40), TestGroup("2", 60), TestGroup("3", 0)]
+    lines = ["gen -n=1 -group=1 > $", "gen -n=2 > $", "gen -n=3 -group=7 > $"]
+
+    errors = script_group_errors(groups, lines)
+
+    assert errors == [
+        "line 2: no -group=<N> marker, the problem has test groups\n    gen -n=2 > $",
+        "line 3: unknown test group '7'\n    gen -n=3 -group=7 > $",
+        "test group 2 has no tests in the script",
+        "test group 3 has no tests in the script",
+    ]
+
+
+def _run_with_groups(spec, tmp_path, rendered):
+    response = ModelResponse(
+        status="confirmed", artifacts={"test_script_groups": SCRIPT_FUNCTIONS + "body\n"}
+    )
+    lines = [ScriptLine(index, text) for index, text in enumerate(rendered, 1)]
+    with (
+        patch("orchestrator.model_router.call_model", return_value=response),
+        patch("orchestrator.steps.test_script_draft.expand_script", return_value=lines),
+    ):
+        return run_step(
+            "valid-spec",
+            spec,
+            {**_upstream(), "constraints.yaml": GROUPS_CONSTRAINTS},
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+
+def test_script_with_lines_of_every_group_is_written(spec, tmp_path):
+    result = _run_with_groups(spec, tmp_path, ["gen -group=1 > $", "gen -group=2 > $"])
+
+    assert result.not_applied_reason is None
+    assert (tmp_path / "valid-spec" / "test_script_groups").is_file()
+
+
+def test_script_without_group_markers_is_not_written(spec, tmp_path):
+    result = _run_with_groups(spec, tmp_path, ["gen -group=1 > $", "gen -n=5 > $"])
+
+    assert not (tmp_path / "valid-spec" / "test_script_groups").exists()
+    assert "line 2: no -group=<N> marker" in result.not_applied_reason
+    assert "test group 2 has no tests in the script" in result.not_applied_reason
+    assert (tmp_path / "valid-spec" / ".cache" / "test_script_draft.response.json").is_file()
+
+
+@pytest.mark.parametrize("exc", [ScriptCheckUnavailable("no java"), ScriptRenderError("bad")])
+def test_script_that_cannot_be_expanded_is_written_unchecked(spec, tmp_path, exc):
+    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "body\n"})
+    with (
+        patch("orchestrator.model_router.call_model", return_value=response),
+        patch("orchestrator.steps.test_script_draft.expand_script", side_effect=exc),
+    ):
+        result = run_step(
+            "valid-spec",
+            spec,
+            {**_upstream(), "constraints.yaml": GROUPS_CONSTRAINTS},
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert result.not_applied_reason is None
+    assert (tmp_path / "valid-spec" / "test_script_groups").is_file()
+
+
+@pytest.mark.slow
+def test_script_groups_are_checked_on_the_expanded_script(spec, tmp_path):
+    if shutil.which("java") is None:
+        pytest.skip("java not found")
+    script = (
+        SCRIPT_FUNCTIONS
+        + "<#list 1..2 as g>\n    gen -n=${g} -group=${g} > $\n</#list>\ngen -n=9 > $\n"
+    )
+    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": script})
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = run_step(
+            "valid-spec",
+            spec,
+            {**_upstream(), "constraints.yaml": GROUPS_CONSTRAINTS},
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=tmp_path,
+            templates_dir=TEMPLATES_DIR,
+        )
+
+    assert "no -group=<N> marker" in result.not_applied_reason
+    assert "gen -n=9 > $" in result.not_applied_reason

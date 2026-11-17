@@ -75,7 +75,12 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      group, one `<#list>` over them). With test groups every script line carries
      `-group=<N>` (the test's group for the local checks and Polygon); generators don't
      read it, so `generators_draft` avoids `has_opt`/`opt` with a default (testlib then
-     fails on an unread option).
+     fails on an unread option). Before writing, the step expands the script with
+     FreeMarker (as `local check`, with the dropped functions restored) and checks the
+     markers (`check_script_groups`): a line without `-group=<N>` or of an unknown
+     group, a group without lines — the response is a conflict. No `java` or the script
+     doesn't expand — not checked here (`local check` reports it); invalid groups in
+     `constraints.yaml` — not this step's error, not checked either.
    - **`tests_survivors`** — after the solution stages (`STEP_ORDER`, last): tests for the
      wrong solutions that the local runs `run_slow`/`run_wrong` report as surviving — no
      test from the script gets their declared verdict, the examples don't count

@@ -17,6 +17,12 @@ from typing import Any
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
+from orchestrator.checks.test_groups import TestGroup, check_test_groups
+from orchestrator.checks.test_script_check import (
+    ScriptCheckUnavailable,
+    ScriptRenderError,
+    expand_script,
+)
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.references import reference_documents
 from orchestrator.spec import ProblemSpec
@@ -40,6 +46,7 @@ from orchestrator.steps.tests_plan import (
     load_tests_plan,
     plan_generators,
 )
+from orchestrator.test_groups import TestGroupsError, group_marker, parse_test_groups
 
 STEP_NAME = "test_script_draft"
 
@@ -245,6 +252,40 @@ def current_artifacts(
     return existing_artifacts({name: problem_dir / name for name in SCRIPT_NAMES})
 
 
+def script_group_errors(groups: list[TestGroup], lines: list[str]) -> list[str]:
+    """The errors in how the expanded script `lines` split into `groups`: a line without
+    the `-group=<N>` marker or of an unknown group, a group without lines
+    (`checks.test_groups.check_test_groups`, as `local check --full` reports them)."""
+    tests = [(f"line {index}", group_marker(line), line) for index, line in enumerate(lines, 1)]
+    return check_test_groups(groups, tests)
+
+
+def check_script_groups(script: str, script_name: str, constraints_yaml: str) -> None:
+    """For a problem with test groups (`test_groups` of `constraints.yaml`): every line of
+    the expanded script carries `-group=<N>` of a listed group, every group has lines —
+    otherwise `ValueError` (`validate_artifacts`: the response is a conflict). The script
+    is expanded with FreeMarker, as in `local check`; if that can't be done (no `java`)
+    or the script doesn't expand, nothing is checked here: `local check` reports it.
+    Invalid groups in `constraints.yaml` aren't this step's error — not checked either."""
+    try:
+        hints = parse_test_groups(constraints_yaml)
+    except TestGroupsError:
+        return
+    if not hints:
+        return
+    try:
+        lines = [line.text for line in expand_script(script)]
+    except (ScriptCheckUnavailable, ScriptRenderError):
+        return
+    groups = [TestGroup(hint.name, hint.points or 0) for hint in hints]
+    errors = script_group_errors(groups, lines)
+    if errors:
+        raise ValueError(
+            f"{script_name}: the script lines don't match the test groups:\n"
+            + "\n".join(f"- {error}" for error in errors)
+        )
+
+
 def run_step(
     problem_id: str,
     spec: ProblemSpec,
@@ -290,7 +331,13 @@ def run_step(
     def validate_artifacts(artifacts: dict[str, str]) -> None:
         if name not in artifacts:
             raise MissingArtifactsError(f"Step '{STEP_NAME}': the response has no {name}", [name])
+        # Checked as it will be written: with the dropped functions restored.
+        fixed, _ = postprocess({name: artifacts[name]})
+        check_script_groups(fixed[name], name, constraints_yaml)
 
+    postprocess = _restore_functions_in_artifacts(
+        (Path(templates_dir) / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
+    )
     return run_generative_step(
         step_name=STEP_NAME,
         problem_id=problem_id,
@@ -307,7 +354,5 @@ def run_step(
         problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
-        postprocess_artifacts=_restore_functions_in_artifacts(
-            (Path(templates_dir) / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
-        ),
+        postprocess_artifacts=postprocess,
     )
