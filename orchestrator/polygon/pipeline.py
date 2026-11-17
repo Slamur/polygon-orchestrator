@@ -66,6 +66,7 @@ from orchestrator.polygon.steps import (
     upload_problem_lib,
     upload_solutions,
     upload_statement,
+    upload_test_groups,
     upload_test_script,
     upload_validator,
 )
@@ -94,6 +95,7 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_generators.STEP_NAME: upload_generators.STEP,
     upload_solutions.STEP_NAME: upload_solutions.STEP,
     upload_test_script.STEP_NAME: upload_test_script.STEP,
+    upload_test_groups.STEP_NAME: upload_test_groups.STEP,
 }
 
 # PolygonStepOutcome.status statuses:

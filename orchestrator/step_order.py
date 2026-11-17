@@ -99,7 +99,8 @@ def prompt_dir_name(step_name: str) -> str:
 # `set_constraints`: that one sets the problem's interactivity flag.
 # `upload_test_script` — last: having saved the script, Polygon generates
 # tests from it, and the step waits for the generation to end — everything else is already
-# uploaded and committed by that time.
+# uploaded and committed by that time. `upload_test_groups` — after it: Polygon takes
+# the tests' groups and points only for the tests that already exist.
 POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
     "upload_attachments",
@@ -112,6 +113,7 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_generators",
     "upload_solutions",
     "upload_test_script",
+    "upload_test_groups",
 ]
 
 # The lenses of the spec critic (`spec_critic.LENSES`), in their order: `choices` of
