@@ -449,6 +449,19 @@ class ProblemSpec(BaseModel):
             )
         return self
 
+    @model_validator(mode="after")
+    def _check_script_style(self) -> ProblemSpec:
+        # A problem with test groups marks each script line with its group, which the
+        # flat script (`test_script`) doesn't do.
+        has_groups = bool(self.constraints.test_groups_hint) or self.constraints.test_groups_needed
+        if has_groups and self.generation.script_style == "flat":
+            raise ValueError(
+                'generation.script_style is "flat", but the problem has test groups '
+                '(constraints.test_groups_hint or test_groups_needed) — use "groups", '
+                "see SPEC_FORMAT.md"
+            )
+        return self
+
 
 def _format_pydantic_errors(exc: ValidationError) -> list[str]:
     lines: list[str] = []

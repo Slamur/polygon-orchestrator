@@ -30,6 +30,10 @@ def _write_spec(
     if flat_script:
         # upload_test_script rejects groups — a full run needs flat
         content = content.replace('script_style: "groups"', 'script_style: "flat"')
+        # ... and a flat script means no test groups
+        hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+        assert hint in content
+        content = content.replace(hint, "")
     spec_path = problems_dir / (dir_name or problem_id) / "authoring" / "spec.yaml"
     spec_path.parent.mkdir(parents=True, exist_ok=True)
     spec_path.write_text(content, encoding="utf-8")

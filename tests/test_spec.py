@@ -324,6 +324,41 @@ def test_protocol_without_interactor_section_raises(tmp_path):
     assert "no 'interactor' section" in str(exc_info.value)
 
 
+@pytest.mark.parametrize(
+    "groups",
+    [
+        None,  # the fixture's test_groups_hint
+        "  test_groups_hint: []\n  test_groups_needed: true\n",
+    ],
+)
+def test_flat_script_with_test_groups_raises(tmp_path, groups):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    text = text.replace('script_style: "groups"', 'script_style: "flat"')
+    if groups is not None:
+        hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+        assert hint in text
+        text = text.replace(hint, groups)
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert 'generation.script_style is "flat", but the problem has test groups' in str(
+        exc_info.value
+    )
+
+
+def test_flat_script_without_test_groups_is_accepted(tmp_path):
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+    text = text.replace('script_style: "groups"', 'script_style: "flat"').replace(hint, "")
+    path = tmp_path / "valid-spec.yaml"
+    path.write_text(text, encoding="utf-8")
+
+    assert load_spec(path).generation.script_style == "flat"
+
+
 def test_blank_protocol_without_interactor_section_is_accepted(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace(

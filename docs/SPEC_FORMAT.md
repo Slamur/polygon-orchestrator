@@ -202,6 +202,8 @@ generation:
     # be tested", which the author formulates themselves, without
     # deriving it from the legend/asymptotics.
   script_style: "groups"             # [required] "flat" | "groups" — a simple script (test_script) or by test groups (test_script_groups)
+    # A problem with test groups (a non-empty constraints.test_groups_hint or
+    # test_groups_needed: true) needs "groups": the spec with "flat" doesn't validate.
   references:                        # [optional] references only for the tests_plan, generators_draft and test_script_draft steps, added to the shared ones
     - "problems/old-task"
     - "my_examples/gen_tree.cpp"

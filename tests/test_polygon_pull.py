@@ -249,14 +249,20 @@ def test_pull_records_revision_and_baseline(problems_dir, polygon):
     ]
 
 
+def _flat_spec_text() -> str:
+    """The fixture spec with a flat script and so without test groups."""
+    hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+    text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
+    assert hint in text
+    return text.replace('script_style: "groups"', 'script_style: "flat"').replace(hint, "")
+
+
 def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, problems_dir, polygon):
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     # upload_test_script rejects groups — flat is needed
     spec_path = tmp_path / "valid-spec.yaml"
     spec_path.write_text(
-        (FIXTURES_DIR / "valid-spec.yaml")
-        .read_text(encoding="utf-8")
-        .replace('script_style: "groups"', 'script_style: "flat"'),
+        _flat_spec_text(),
         encoding="utf-8",
     )
     spec = load_spec(spec_path)
@@ -325,9 +331,7 @@ def test_script_without_blank_lines_on_polygon_is_same_and_not_pushed_again(
     assert (problem_dir / "test_script").read_text() == local
     spec_path = tmp_path / "valid-spec.yaml"
     spec_path.write_text(
-        (FIXTURES_DIR / "valid-spec.yaml")
-        .read_text(encoding="utf-8")
-        .replace('script_style: "groups"', 'script_style: "flat"'),
+        _flat_spec_text(),
         encoding="utf-8",
     )
     uploaded = run_step(
