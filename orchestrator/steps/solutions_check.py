@@ -363,6 +363,7 @@ def _notes(
             if test.get("comment"):
                 line += f" — {test['comment']}"
             lines.append(line)
+        lines += failure.get("group_mismatches") or []
         notes.append(
             {
                 "field": failure["name"],

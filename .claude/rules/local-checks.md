@@ -92,9 +92,18 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   `points X/Y: ...` under the solution in the groups, `points` and `groups` in
   `summary()`. A solution with a required verdict doesn't stop at the first one: it
   skips the rest of a group after the group's first non-OK test. The prefix verdict
-  rules don't change (the full-score verdict). The expected passed groups of
-  `known_wrong_approaches` (`[1-3]`) aren't compared yet: there is no mapping from a
-  solution file to a spec item.
+  rules don't change (the full-score verdict). A solution written from a
+  `known_wrong_approaches` item names it in a source comment `spec:
+  solutions.known_wrong_approaches[<i>]` (`spec.APPROACH_MARKER_RE`, the solution
+  stages write it); if the item names the groups the solution passes (`[1-3]`), they are
+  compared with its results (`_judge_spec_groups`): a named group not passed — the
+  solution is `unexpected` (`group_mismatches` in `summary()`, the stage's local run
+  fails), unless it's its own time/memory verdict (TL of `tl`/`tl_ok`/`tl_ml`, RE of
+  `ml`/`tl_ml`) — then a warning; a group not named but passed — a warning (not for
+  `tl_ok`, which may get OK everywhere); a group with tests not run isn't judged; a
+  marker of an item not in the spec or with another verdict (`tl_ml` may come from a
+  `tl`/`ml` item), a named group the problem doesn't have — warnings. No marker or no
+  `[...]` — nothing is compared.
   `SolutionsRunResult.summary()` — the same outcome as plain data (per solution: a status
   `expected` / `unexpected` / `survived` / `not_run` and the test that caught it) for
   the steps that act on the run.
