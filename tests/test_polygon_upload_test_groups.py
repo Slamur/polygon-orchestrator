@@ -206,8 +206,10 @@ def test_changed_points_are_stale_and_only_differences_are_sent(problems_dir, sp
     )
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
     client.calls.clear()
-    _run(spec, problems_dir, client, incremental=True)
+    result = run_and_record(STEP, PROBLEM_ID, spec, problems_dir, client, incremental=True)
 
+    # Only the settings changed: the tests' layout isn't reported as pushed.
+    assert set(result.uploaded) == {TEST_GROUPS_KEY}
     assert client.calls_of("problem.setTestGroup") == []
     assert [(p["testIndex"], p["testPoints"]) for p in client.calls_of("problem.saveTest")] == [
         ("3", "40"),

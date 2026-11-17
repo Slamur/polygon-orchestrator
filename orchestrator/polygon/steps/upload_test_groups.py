@@ -117,8 +117,10 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     params = {"problemId": str(polygon_id)}
 
     tests = client.call("problem.tests", {**params, "testset": _TESTSET, "noInputs": "true"}) or []
-    items = {TEST_GROUPS_KEY: groups_digest(groups), TEST_GROUPS_TESTS_KEY: tests_digest(tests)}
-    if not changed_items(ctx, items):
+    items = changed_items(
+        ctx, {TEST_GROUPS_KEY: groups_digest(groups), TEST_GROUPS_TESTS_KEY: tests_digest(tests)}
+    )
+    if not items:
         return StepResult(NO_CHANGES_MESSAGE)
 
     by_name = {group.name: group for group in groups}
