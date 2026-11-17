@@ -24,6 +24,7 @@ from orchestrator.checks.local_tests import (
     find_equal_tests,
     format_equal_tests,
     generate_tests,
+    sample_paths,
     validate_tests,
 )
 from orchestrator.checks.solutions_run import run_solutions
@@ -39,6 +40,7 @@ from orchestrator.checks.statement_check import (
 from orchestrator.checks.statement_check import (
     fix_text as fix_statement_text,
 )
+from orchestrator.checks.test_groups import check_test_groups, count_by_group, load_test_groups
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptRenderError,
@@ -706,7 +708,9 @@ def cmd_local_check(args: argparse.Namespace) -> int:
 def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     """`local check --full`: tests from the script (with a cache), the validator on them and
     a search for tests identical in content (`orchestrator/checks/local_tests.py`).
-    Identical tests are only shown, they aren't considered an error."""
+    Identical tests are only shown, they aren't considered an error. A problem with test
+    groups: the tests' groups by the `-group=<N>` markers, the validator with `--group <N>`
+    (`orchestrator/checks/test_groups.py`)."""
 
     def progress(line: str) -> None:
         print(line, flush=True)
@@ -718,7 +722,15 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
         f"see {TESTS_CACHE_DIRNAME}/{MANIFEST_FILENAME}"
     )
     errors = list(generated.errors)
-    validator_errors, validated = validate_tests(problem_dir, templates_dir, generated.tests)
+    groups, group_errors = load_test_groups(problem_dir)
+    errors += group_errors
+    if groups is not None:
+        marked = [(t.name, t.group, t.command) for t in generated.tests]
+        print(count_by_group(marked, len(sample_paths(problem_dir))))
+        errors += check_test_groups(groups, marked)
+    validator_errors, validated = validate_tests(
+        problem_dir, templates_dir, generated.tests, groups
+    )
     errors += validator_errors
     if not validated:
         print(f"no {VALIDATOR_FILENAME}: tests are not validated")

@@ -637,3 +637,60 @@ def test_only_runs_the_named_solutions_and_main(tmp_path):
     )
     result = run_solutions(problem_dir, TEMPLATES_DIR, only={"re_py_exit_draft.py"})
     assert sorted(_by_name(result)) == ["ma_py_sum_draft.py", "re_py_exit_draft.py"]
+
+
+GROUPS_CONSTRAINTS = (
+    "test_groups:\n"
+    '  - name: "1"\n    points: 30\n    dependencies: []\n'
+    '  - name: "2"\n    points: 30\n    dependencies: ["1"]\n'
+    '  - name: "3"\n    points: 40\n    dependencies: ["2"]\n'
+)
+GROUPS_SCRIPT = (
+    "gen_pair 1 2 -group=1 > $\n"
+    "gen_pair 7 1 -group=2 > $\n"
+    "gen_pair 7 2 -group=2 > $\n"
+    "gen_pair 3 3 -group=3 > $\n"
+)
+
+
+def test_full_with_test_groups_reports_groups_and_points(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        GROUPS_SCRIPT,
+    )
+    (problem_dir / "authoring" / "constraints.yaml").write_text(
+        GROUPS_CONSTRAINTS, encoding="utf-8"
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    assert not result.failed
+    solutions = _by_name(result)
+    assert solutions["ma_py_sum_draft.py"].points == 100
+    wa = solutions["wa_py_seven_draft.py"]
+    # The second test of group 2 is skipped, group 3 is still run.
+    assert [(t.test, t.verdict) for t in wa.tests if t.generated] == [
+        ("test 3", "OK"),
+        ("test 4", "WA"),
+        ("test 6", "OK"),
+    ]
+    assert wa.skipped_in_groups and not wa.stopped_early
+    assert wa.points == 30
+    assert wa.group_line == "points 30/100: 1 OK, 2 WA on test 4, 3 OK, no points (depends on 2)"
+    assert "  " + wa.group_line in _group(result, "expected verdicts")
+    summary = {s["name"]: s for s in result.summary()["solutions"]}["wa_py_seven_draft.py"]
+    assert summary["points"] == 30
+    assert [g["passed"] for g in summary["groups"]] == [True, False, True]
+    assert summary["groups"][1]["failed_on"] == {"test": "test 4", "verdict": "WA"}
+
+
+def test_without_test_groups_there_are_no_points(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        "gen_pair 7 1 > $\n",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    wa = _by_name(result)["wa_py_seven_draft.py"]
+    assert wa.points is None and wa.group_line is None
+    summary = {s["name"]: s for s in result.summary()["solutions"]}
+    assert summary["wa_py_seven_draft.py"]["groups"] is None

@@ -77,9 +77,20 @@ verdict on a generated test: running to the end is needed only for `ok` and `tl_
 for which every test matters. A stray verdict after the stop therefore won't be
 noticed.
 
+A problem with test groups (`test_groups` in `constraints.yaml`, see
+`test_groups.py`): the examples are validated with `--group 0`, the generated tests —
+with the group of their `-group=<N>` marker. With `--full` each solution gets a result
+per group — passed or the first test without OK — and the points: a group's points
+are earned if all its tests got OK and the groups it depends on are earned. The verdict in
+the name still means the full-score verdict: the rules above don't change. A solution
+that stops at the first declared verdict doesn't stop here: in a group it skips only
+the tests after the group's first test without OK (as Polygon's first-error feedback), so
+every group gets a result.
+
 `SolutionsRunResult.summary()` — the same outcome in a machine-readable form: the
 status of each solution (`STATUS_*`; `survived` — the declared verdict on no
-generated test) and the test that caught it.
+generated test), the test that caught it and, with test groups, the points and the result
+of each group.
 """
 
 from __future__ import annotations
@@ -113,6 +124,16 @@ from orchestrator.checks.run_with_timeout import (
     run_with_timeout,
 )
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
+from orchestrator.checks.test_groups import (
+    EXAMPLES_GROUP,
+    VALIDATOR_GROUP_OPTION,
+    GroupResult,
+    TestGroup,
+    check_test_groups,
+    count_by_group,
+    group_results,
+    load_test_groups,
+)
 from orchestrator.limits import LIMITS_FILENAME, LimitsError, parse_limits
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_solutions import (
@@ -236,6 +257,8 @@ class TestOutcome:
     command: str = ""
     # A test from the test-script, not an example.
     generated: bool = False
+    # Its test group (the `-group=<N>` marker), only for a problem with test groups.
+    group: str | None = None
 
 
 @dataclass
@@ -249,6 +272,10 @@ class SolutionOutcome:
     # The verdicts one of which the solution must get on a generated test (only `--full`).
     required: frozenset[str] | None = None
     stopped_early: bool = False
+    # Test groups: the tests after a group's first test without OK were skipped.
+    skipped_in_groups: bool = False
+    # The result per test group (only `--full` of a problem with test groups).
+    groups: list[GroupResult] | None = None
 
     @property
     def required_label(self) -> str:
@@ -312,7 +339,24 @@ class SolutionOutcome:
                 text += f", max {max(seconds):.2f}s"
         if self.stopped_early:
             text += f", stopped at the first {self.required_label}"
+        if self.skipped_in_groups:
+            text += ", the rest of a group skipped after its first non-OK"
         return text
+
+    @property
+    def points(self) -> int | None:
+        if self.groups is None:
+            return None
+        return sum(g.points for g in self.groups)
+
+    @property
+    def group_line(self) -> str | None:
+        """`points 25/100: 1 OK, 2 OK, 3 WA on test 30, ...` — `None` without test groups."""
+        if self.groups is None:
+            return None
+        total = sum(g.group.points for g in self.groups)
+        details = ", ".join(g.describe() for g in self.groups)
+        return f"points {self.points}/{total}: {details}"
 
     def summary(self) -> dict:
         """See `SolutionsRunResult.summary`."""
@@ -329,6 +373,21 @@ class SolutionOutcome:
                 :_MAX_LISTED_UNEXPECTED
             ],
             "max_seconds": round(max(seconds), 2) if seconds else None,
+            "points": self.points,
+            "groups": None
+            if self.groups is None
+            else [
+                {
+                    "name": g.group.name,
+                    "passed": g.passed,
+                    "points": g.points,
+                    "failed_on": None
+                    if g.failed is None
+                    else {"test": g.failed[0], "verdict": g.failed[1]},
+                    "not_run": g.total - g.run if g.failed is None else 0,
+                }
+                for g in self.groups
+            ],
         }
 
 
@@ -356,6 +415,8 @@ class SolutionsRunResult:
     # Whether the tests from the test-script were run (`full`).
     full: bool = False
     progress: Progress | None = None
+    # The problem's test groups (`constraints.yaml`), `None` — it has none.
+    test_groups: list[TestGroup] | None = None
 
     def note(self, message: str) -> None:
         self.notes.append(message)
@@ -419,7 +480,12 @@ class SolutionsRunResult:
     def groups(self) -> list[tuple[str, list[str], str]]:
         """The summary by groups `(title, lines, hint)` — as in `polygon
         push`; the printer skips empty groups."""
-        expected = [f"{s.name}: {s.runs}" for s in self.solutions if not s.failed]
+        expected = []
+        for s in self.solutions:
+            if not s.failed:
+                expected.append(f"{s.name}: {s.runs}")
+                if s.group_line is not None:
+                    expected.append(f"  {s.group_line}")
         unexpected = []
         not_run = []
         for s in self.solutions:
@@ -429,6 +495,8 @@ class SolutionsRunResult:
                 not_run.extend(f"    {line}" for line in rest[:10])
             elif s.failed:
                 unexpected.append(f"{s.name}: {s.runs}")
+                if s.group_line is not None:
+                    unexpected.append(f"  {s.group_line}")
                 if (
                     s.missed_required
                     and not s.caught_on_example
@@ -499,6 +567,8 @@ def run_solutions(
     problem_dir = Path(problem_dir)
     result = SolutionsRunResult(progress=progress, full=full)
     spec = _read_spec(problem_dir, result)
+    result.test_groups, group_errors = load_test_groups(problem_dir)
+    result.errors.extend(group_errors)
     tests = _sample_tests(problem_dir, spec)
     generated = _generated_tests(problem_dir, templates_dir, result) if full else []
     if not tests and not generated:
@@ -590,8 +660,27 @@ def run_solutions(
             _run_generated(
                 generated, parsed, program_for, checker, time_limit, work_dir, interactor, result
             )
+            _judge_groups(generated, result)
     result.solutions.sort(key=lambda s: s.name)
     return result
+
+
+def _judge_groups(generated: list[LocalTest], result: SolutionsRunResult) -> None:
+    """The result per test group and the points of each run solution."""
+    if result.test_groups is None:
+        return
+    totals: dict[str, int] = {}
+    for test in generated:
+        if test.group is not None:
+            totals[test.group] = totals.get(test.group, 0) + 1
+    for outcome in result.solutions:
+        if outcome.error is not None:
+            continue
+        outcome.groups = group_results(
+            result.test_groups,
+            totals,
+            [(t.test, t.group, t.verdict) for t in outcome.tests if t.generated],
+        )
 
 
 def _only_with_main(parsed: dict, only: Collection[str]) -> dict:
@@ -613,7 +702,14 @@ def _generated_tests(
         f"{generated.reused} from cache, {generated.removed} removed), "
         f"see {TESTS_CACHE_DIRNAME}/{MANIFEST_FILENAME}"
     )
-    errors, validated = validate_tests(problem_dir, templates_dir, generated.tests)
+    if result.test_groups is not None:
+        marked = [(t.name, t.group, t.command) for t in generated.tests]
+        examples = len(example_files(problem_dir / STATEMENT_DIRNAME / EXAMPLES_SUBDIR))
+        result.note(count_by_group(marked, examples))
+        result.errors.extend(check_test_groups(result.test_groups, marked))
+    errors, validated = validate_tests(
+        problem_dir, templates_dir, generated.tests, result.test_groups
+    )
     result.errors.extend(errors)
     if validated and not errors:
         result.note(f"{VALIDATOR_FILENAME} accepts all {len(generated.tests)} test(s)")
@@ -674,6 +770,7 @@ def _run_generated(
                     execution.comment,
                     test.command,
                     generated=True,
+                    group=test.group,
                 )
             )
             continue
@@ -691,6 +788,7 @@ def _run_generated(
                 comment,
                 test.command,
                 generated=True,
+                group=test.group,
             )
         )
     report(main_outcome)
@@ -707,13 +805,25 @@ def _run_generated(
         if result.progress is not None:
             result.progress(f"running {name} on generated tests")
         program = program_for(solution.path)
+        # With test groups a solution with a declared mistake goes through every group,
+        # but skips the rest of a group after its first test without OK.
+        by_groups = result.test_groups is not None and outcome.required is not None
+        failed_groups: set[str] = set()
         for test in answered:
+            if by_groups and test.group in failed_groups:
+                outcome.skipped_in_groups = True
+                continue
             answer = (answers_dir / str(test.number)).read_text(encoding="utf-8")
             tested = _run_test(
                 program, checker, load(test, answer), time_limit, work_dir, interactor
             )
-            outcome.tests.append(replace(tested, command=test.command, generated=True))
-            if outcome.required is not None and tested.verdict in outcome.required:
+            outcome.tests.append(
+                replace(tested, command=test.command, generated=True, group=test.group)
+            )
+            if by_groups:
+                if tested.verdict != VERDICT_OK and test.group is not None:
+                    failed_groups.add(test.group)
+            elif outcome.required is not None and tested.verdict in outcome.required:
                 outcome.stopped_early = True
                 break
         report(outcome)
@@ -818,7 +928,8 @@ def _check_validator(
     interactive: bool = False,
 ) -> None:
     """The examples' input and, for a normal problem, their input for statements (for
-    an interactive one these are the interactor's lines, not a test)."""
+    an interactive one these are the interactor's lines, not a test). With test groups —
+    as group 0 (`--group 0`)."""
     path = problem_dir / VALIDATOR_FILENAME
     inputs = [(test.name, test.input) for test in tests]
     if not interactive:
@@ -838,8 +949,9 @@ def _check_validator(
         result.errors.append(f"{VALIDATOR_FILENAME}: {exc}")
         return
     rejected = 0
+    args = [VALIDATOR_GROUP_OPTION, EXAMPLES_GROUP] if result.test_groups is not None else []
     for name, text in inputs:
-        run = run_with_timeout(binary, [], _CHECKER_TIMEOUT_SECONDS, text)
+        run = run_with_timeout(binary, args, _CHECKER_TIMEOUT_SECONDS, text)
         if run.timed_out or run.exit_code != 0:
             rejected += 1
             reason = "timed out" if run.timed_out else (run.stderr or run.stdout).strip()
