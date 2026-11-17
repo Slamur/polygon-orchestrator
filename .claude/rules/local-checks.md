@@ -74,6 +74,19 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   never got it — an error (the tests don't catch them), got it only on the examples —
   a warning; `tl`, `ml` (RE), `tl_ml` (TL or RE) — a warning (the time and memory are local). These solutions
   stop at the first declared verdict on a generated test, `ok` and `tl_ok` go to the end.
+  Test groups (`test_groups` in `constraints.yaml`, `orchestrator/checks/test_groups.py`):
+  a test's group — the `-group=<N>` marker of its script line, the examples — group 0. The
+  validator gets `--group <N>` (the examples — `--group 0`) in `local check --full` and
+  `local run`; a test without the marker or of an unknown group and a group without
+  tests — errors; `local check --full` prints the number of tests per group. With
+  `--full` each solution gets a result per group (passed or the first non-OK test) and
+  points: a group's points — all its tests OK and its dependencies earned; the line
+  `points X/Y: ...` under the solution in the groups, `points` and `groups` in
+  `summary()`. A solution with a required verdict doesn't stop at the first one: it
+  skips the rest of a group after the group's first non-OK test. The prefix verdict
+  rules don't change (the full-score verdict). The expected passed groups of
+  `known_wrong_approaches` (`[1-3]`) aren't compared yet: there is no mapping from a
+  solution file to a spec item.
   `SolutionsRunResult.summary()` — the same outcome as plain data (per solution: a status
   `expected` / `unexpected` / `survived` / `not_run` and the test that caught it) for
   the steps that act on the run.

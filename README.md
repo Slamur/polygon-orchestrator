@@ -432,6 +432,17 @@ time and memory are local. Such solutions stop at the first declared verdict on 
 from the script, `ok` and `tl_ok` go to the end. On a
 problem with many solutions and large tests the run may take many minutes.
 
+Test groups (subtasks, `test_groups` in `authoring/constraints.yaml`): a test's group is
+the `-group=<N>` marker on its script line, the examples are group 0. `local check
+--full` prints how many tests each group has and runs the validator with `--group <N>`
+(as Polygon does), so a test outside its group's limits is rejected; a test without the
+marker or of an unknown group, a group without tests — errors. `local run --full` shows
+under each solution its points and each group's result, e.g. `points 30/100: 1 OK, 2 WA on
+test 14, 3 OK, no points (depends on 2)`: a group's points need all its tests OK and the
+groups it depends on earned. A solution with a declared mistake doesn't stop at the
+first one here: it skips only the rest of a group after the group's first non-OK test.
+The verdict in the name still means the verdict on the full score.
+
 `local run`: each solution from `solutions/` is built and
 run on `statement/examples/example_<N>.txt`, the answer is checked by the problem's
 checker (its own `checker.cpp` or the standard one from `checker.standard`), the answers —
