@@ -25,5 +25,17 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    `orchestrator/steps/base.py`); example files that are no longer in the
    spec are marked `.removed`.
 
+For a problem with test groups (a non-empty `constraints.test_groups_hint` in the spec)
+the step also gets the hint (as the author wrote it) and the variables' names and
+descriptions — in the hash only then — and the rules `templates/tutorials/scoring.md`
+(attached only then), and also writes `statement/<language>/scoring.tex`: the Scoring
+block, a subtasks table (points, extra constraints, necessary subtasks, feedback) as
+in `examples/number/roots-subtasks`. Its source is the spec's hint, not
+`constraints.yaml`: the step runs before `constraints_pick`. A group without points or
+an unclear `max_n` variable — `uncertain`. Groups that only `constraints_pick` proposes
+(`test_groups_needed` without a hint) get no table from the step: `local check`
+reports the missing `scoring.tex` (`.claude/rules/local-checks.md`). A `scoring.tex` of a
+problem without groups in the spec isn't the step's file (not revised, not expected).
+
 For an interactive problem the step also gets the interaction protocol — see
 `.claude/rules/step-roles/6-interactor_draft.md`.

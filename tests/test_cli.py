@@ -22,6 +22,7 @@ _RESPONSES = {
             "input_format.tex": "tex",
             "output_format.tex": "tex",
             "notes.tex": "tex",
+            "scoring.tex": "tex",
             "examples/example_1.txt": "1\n",
         },
         notes=[],
@@ -185,7 +186,7 @@ def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tm
     assert "CONFLICTS.md" in report
     log = (problems_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     assert (
-        "not applied: legend.tex, input_format.tex, output_format.tex, notes.tex "
+        "not applied: legend.tex, input_format.tex, output_format.tex, notes.tex, scoring.tex "
         "— the response is not applied as a whole" in log
     )
 
