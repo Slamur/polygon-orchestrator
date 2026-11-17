@@ -34,7 +34,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    (`algorithm_hint`; `main` — the main language, `ok` — `languages` and
    `alternative_approaches`, `slow`/`wrong` — `languages` and the `wanted_verdicts` and
    `known_wrong_approaches` items of the stage's verdicts — the item's verdict prefix
-   is mandatory, `spec.parse_wrong_approach`) + `constraints.intended_complexity` + the
+   is mandatory, `spec.parse_wrong_approach`; with test groups it may name the groups
+   the solution passes, `[1-3]` — the verdict stays the one on the whole test set,
+   the groups aren't in the file name, and the solution must pass those groups) + `constraints.intended_complexity` + the
    text of `constraints.yaml` from step 2 without TL/ML (the model derives time
    verdicts from the asymptotics and the variables' maximum values, and tuning the TL
    doesn't invalidate the solutions) + the statement from `statement_draft` in its
