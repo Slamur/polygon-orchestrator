@@ -28,7 +28,17 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   interactivity flag is set by `set_constraints`),
   the tutorial `problems/<problem path>/statement/<code>/tutorial.tex` (optional;
   written by the author, `polygon pull` or the `tutorial_draft` step) —
-  together with the statement in `upload_statement`,
+  together with the statement in `upload_statement`, likewise the scoring section
+  `statement/<code>/scoring.tex` (optional, the subtasks table) as `scoring`,
+  test groups and their points by the `test_groups` of `authoring/constraints.yaml`
+  (`upload_test_groups`, after `upload_test_script`; no groups — nothing is done):
+  groups and points are enabled, each generated test goes to the group of the
+  `-group=<name>` marker of its script line, the examples — to group `0`
+  (0 points, feedback `COMPLETE`), the group's points — on its last test, each group
+  gets `pointsPolicy=COMPLETE_GROUP`, `feedbackPolicy` and `dependencies` from
+  `constraints.yaml` (`problem.saveTestGroup`); a test without a marker or with an
+  unknown group, a group without tests — an error before any change. The step always reads
+  `problem.tests`: regenerated tests (a new script) are assigned again,
   uploading `problems/<problem path>/authoring/` — `spec.yaml`,
   `constraints.yaml` (the whole `constraints_pick` result), `tests_plan.yaml`
   (the test plan), the copies of the draft `draft.<extension>` and of the tutorial draft
@@ -91,7 +101,7 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   named `problem_id` — with the same location checks as `init`;
   `--polygon-id` additionally narrows the search if
   there are several problems with that name), compares with it the problem parts
-  the orchestrator uses (statement, tutorial and examples, TL/ML, validator,
+  the orchestrator uses (statement, tutorial, scoring and examples, TL/ML, validator,
   non-standard checker, generators, test-script, solutions, spec,
   `constraints.yaml`, test plan, draft and tutorial draft from Attachments), downloads into
   the problem directory those missing locally and rewrites the sync
@@ -110,7 +120,10 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   files from Attachments (spec, `constraints.yaml`, `tests_plan.yaml`, draft, tutorial draft) are compared
   only with their versions in Attachments, and the problem's TL/ML — only with
   `limits.yaml` (the same comparison, by the TL/ML values; they don't touch
-  `constraints.yaml`). It refuses
+  `constraints.yaml`). Test groups on Polygon (if the local `constraints.yaml` has
+  `test_groups`) are compared with them, but nothing is written locally: differing ones
+  are reported (`differs`/`conflict`), and the next push sets them by
+  `constraints.yaml`. It refuses
   to work if there are uncommitted edits on Polygon. The problem directory
   is created if it doesn't exist; a local spec isn't needed (`spec.yaml` itself
   is compared and downloaded as an ordinary file). It changes nothing on Polygon

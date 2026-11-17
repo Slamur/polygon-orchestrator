@@ -317,6 +317,14 @@ orchestrator problems/my-task polygon push   # create the problem on Polygon and
 Then — tests, the package and checking solutions in Polygon by hand. If you edited
 the problem in Polygon — `polygon pull` before the next `push`.
 
+A problem with subtasks (`test_groups` in `authoring/constraints.yaml`): after the
+test-script, `push` enables groups and points on Polygon, puts each generated test
+into the group of its `-group=<name>` script marker and the examples into group 0,
+places a group's points on its last test and sets each group's feedback and
+dependencies; `statement/<language>/scoring.tex` goes to the statement's scoring
+section. Groups edited on Polygon are reported by `pull`, but `constraints.yaml` stays
+as is — edit it, or the next `push` sets the groups back.
+
 ---
 
 ## Command reference
