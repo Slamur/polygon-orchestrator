@@ -571,6 +571,16 @@ def test_scoring_of_dropped_groups_is_marked_removed(spec, tmp_path):
     assert (statement_dir / "en" / "scoring.tex").is_file()
 
 
+def test_groups_needed_without_hint_is_uncertain_without_calling_the_model(spec, tmp_path):
+    constraints = spec.constraints.model_copy(update={"test_groups_needed": True})
+    needed = spec.model_copy(update={"constraints": constraints})
+    with patch("orchestrator.model_router.call_model") as mock_call:
+        with pytest.raises(StepUncertainError, match="constraints.test_groups_hint"):
+            _run(needed, "valid-spec", tmp_path)
+    mock_call.assert_not_called()
+    assert not (tmp_path / "valid-spec").exists()
+
+
 def test_groups_go_to_prompt_hash_and_scoring_is_written(groups_spec, tmp_path):
     from orchestrator.steps.statement_draft import hash_inputs
 

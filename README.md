@@ -388,9 +388,10 @@ the generators, the script and the runs again). Separately, only via the `llm tu
 With `constraints.test_groups_hint` in the spec, `statement_draft` also writes the subtasks
 table `statement/<language>/scoring.tex` (points, extra constraints, necessary subtasks,
 feedback — as in `examples/number/roots-subtasks`) from the hint: give each group its
-points there, or the step stops as `uncertain`. Groups that only `constraints_pick`
-proposes get no table — write it yourself; `local check` compares it with
-`constraints.yaml`.
+points there, or the step stops as `uncertain`. `test_groups_needed: true` without the
+hint stops the step as `uncertain` too (without calling the model): set the groups in
+`test_groups_hint`. If you drop the groups from the spec, the step marks the old table
+`scoring.tex.removed`. `local check` compares the tables with `constraints.yaml`.
 
 | Command | What it does | Model |
 |---|---|---|

@@ -32,10 +32,15 @@ descriptions — in the hash only then — and the rules `templates/tutorials/sc
 block, a subtasks table (points, extra constraints, necessary subtasks, feedback) as
 in `examples/number/roots-subtasks`. Its source is the spec's hint, not
 `constraints.yaml`: the step runs before `constraints_pick`. A group without points or
-an unclear `max_n` variable — `uncertain`. Groups that only `constraints_pick` proposes
-(`test_groups_needed` without a hint) get no table from the step: `local check`
-reports the missing `scoring.tex` (`.claude/rules/local-checks.md`). A `scoring.tex` of a
-problem without groups in the spec isn't the step's file (not revised, not expected).
+an unclear `max_n` variable — `uncertain` from the model. `test_groups_needed: true`
+without a hint — `uncertain` before the model is called (`_check_groups_are_set`, a
+`StepUncertainError` with the field `constraints.test_groups_hint`): the published table
+needs the author's groups and points, and the step runs before `constraints_pick` could
+propose them; so with `llm generate` the "constraints_pick proposes groups itself" case
+doesn't happen. A spec without groups: the generation language's `scoring.tex` (from an
+earlier run with groups) is marked `.removed` (`GeneratedArtifacts.stale`); it isn't
+shown to the model as a current file. Other languages' tables are the author's —
+`local check` reports them (`.claude/rules/local-checks.md`).
 
 For an interactive problem the step also gets the interaction protocol — see
 `.claude/rules/step-roles/6-interactor_draft.md`.

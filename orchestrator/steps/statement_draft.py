@@ -27,6 +27,7 @@ from orchestrator.steps.base import (
     GeneratedArtifacts,
     StepResult,
     StepRevision,
+    StepUncertainError,
     check_artifact_names,
     existing_artifacts,
     language_input,
@@ -60,17 +61,36 @@ _DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$
 # spec: the step also writes the Scoring block — the subtasks table — by the rules of
 # `SCORING_TUTORIAL` (attached only then, so editing it doesn't touch the statement cache
 # of problems without groups). Its source is the spec's hint, not `constraints.yaml`: the
-# step runs before `constraints_pick`. Groups that only `constraints_pick` proposes
-# (`test_groups_needed` without a hint) get no table from the step — `local check`
-# reports the missing `scoring.tex` against `constraints.yaml`. A spec without groups —
-# the step's `scoring.tex` from an earlier run is marked `.removed`.
+# step runs before `constraints_pick`. Groups wanted without a hint (`test_groups_needed`)
+# stop the step as `uncertain` before the model is called (`_check_groups_are_set`): the
+# points and the subtasks of the published table are the author's. A spec without groups
+# — the step's `scoring.tex` from an earlier run is marked `.removed`.
 SCORING_FILE = "scoring.tex"
 SCORING_TUTORIAL = "tutorials/scoring.md"
+GROUPS_HINT_FIELD = "constraints.test_groups_hint"
 
 
 def has_test_groups(spec: ProblemSpec) -> bool:
     """The spec gives test groups: the step writes `scoring.tex`."""
     return bool(spec.constraints.test_groups_hint)
+
+
+def _check_groups_are_set(problem_id: str, spec: ProblemSpec) -> None:
+    """`test_groups_needed` without `test_groups_hint`: the statement needs the subtasks
+    table, and its groups and points aren't set — `StepUncertainError`, without calling
+    the model (nothing in the spec to write the table from)."""
+    constraints = spec.constraints
+    if constraints.test_groups_needed and not constraints.test_groups_hint:
+        explanation = (
+            "test_groups_needed is true, but the groups aren't set: the statement's "
+            "subtasks table (scoring.tex) needs each group with its points — set "
+            f"{GROUPS_HINT_FIELD}"
+        )
+        raise StepUncertainError(
+            STEP_NAME,
+            problem_id,
+            [{"field": GROUPS_HINT_FIELD, "kind": "uncertain", "explanation": explanation}],
+        )
 
 
 def dialogue_filenames(number: int) -> tuple[str, str]:
@@ -340,6 +360,7 @@ def run_step(
     only for the sake of the shared signature `run_step(problem_id, spec,
     upstream_artifacts)` of all steps.
     """
+    _check_groups_are_set(problem_id, spec)
     context = {
         "problem_id": spec.problem_id,
         "language": language_name(spec.language),
