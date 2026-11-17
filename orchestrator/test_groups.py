@@ -57,8 +57,14 @@ def load_test_groups(problem_dir: Path) -> list[TestGroupHint] | None:
     path = constraints_path(problem_dir)
     if not path.is_file():
         return None
+    return parse_test_groups(path.read_text(encoding="utf-8"))
+
+
+def parse_test_groups(text: str) -> list[TestGroupHint] | None:
+    """`load_test_groups` over a `constraints.yaml` text (e.g. a model's response before
+    it is written): `None` — no groups, invalid ones — `TestGroupsError`."""
     try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data = yaml.safe_load(text)
     except yaml.YAMLError as exc:
         raise TestGroupsError(f"{CONSTRAINTS_FILENAME} is not valid YAML: {exc}") from exc
     raw = data.get(TEST_GROUPS_KEY) if isinstance(data, dict) else None

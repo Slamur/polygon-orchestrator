@@ -48,6 +48,13 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    the narrower limits of each group's tests — and `validator.cpp` reads with the
    limits of the test's group, `group_index()` from `problem_lib.h` (0 — the
    statement examples, the full limits), as in `examples/number/roots-subtasks`.
+   Before writing, the orchestrator checks the groups of the response
+   (`check_test_groups_artifact`, a failure — the whole response is a conflict):
+   they read as `orchestrator/test_groups.py` reads them (names `1, 2, ...`, unique,
+   references to listed groups), every dependency is an earlier group, points are
+   given to every group or to none and sum to 100 (or to the total of the author's
+   points, when `test_groups_hint` gives points to every group), `validator.groups`
+   names only listed groups, each once, and isn't there without `test_groups`.
    After `constraints_pick` comes the mechanical step **`limits_from_constraints`**
    (without the model, `step_order.MECHANICAL_STEPS`): it writes `limits.yaml` —
    the problem's actual TL/ML, which `polygon push` uploads and
