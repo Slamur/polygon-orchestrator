@@ -68,7 +68,8 @@ What is compared with what (the names are the same that the polygon steps read):
   requires all four. A language directory that isn't on Polygon — `local only`.
   The interaction protocol of an interactive problem -> `interaction.tex` of the same
   directory — only if it's non-empty on Polygon or the file exists locally.
-  The tutorial -> `tutorial.tex` — likewise. The problem's name from the statement ->
+  The tutorial -> `tutorial.tex` and the scoring section (the subtasks table) ->
+  `scoring.tex` — likewise. The problem's name from the statement ->
   `name.txt` (compared without surrounding spaces and line breaks);
 - tests with the "use in statements" flag (`problem.tests`, testset `tests`) ->
   `statement/examples/example_<K>.txt`, K is the ordinal number of such a test
@@ -104,6 +105,13 @@ What is compared with what (the names are the same that the polygon steps read):
 - the test-script (`problem.script`, testset `tests`) -> `test_script` (or an
   already existing local `test_script_groups`); compared without empty lines
   (`normalize_script`) — Polygon drops them on saving;
+- test groups (`problem.viewTestGroup` + the tests' groups and points from
+  `problem.tests`) — only if `authoring/constraints.yaml` has `test_groups`: compared with
+  them (`upload_test_groups.groups_digest`), nothing is written locally —
+  `constraints.yaml` is compared only with its copy in Attachments. Groups differing
+  on Polygon are reported (`differs`/`conflict`, `kept` if only the local file
+  changed): the next push sets them by `constraints.yaml`. Groups not enabled on
+  Polygon (`problem.viewTestGroup` fails) count as no groups;
 - solutions (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   A solution's tag on Polygon isn't saved locally: `upload_solutions` derives
   the tag from the file name, so names not following its scheme get a warning;
@@ -143,9 +151,17 @@ from orchestrator.polygon.steps.upload_statement import (
     INTERACTION_FILENAME,
     INTERACTION_PARAM,
     NAME_FILENAME,
-    TUTORIAL_PARAM,
+    OPTIONAL_TEX_PARAMS,
     dialogue_filenames,
     verify_filename,
+)
+from orchestrator.polygon.steps.upload_test_groups import (
+    GroupSettings,
+    assigned_by_script,
+    groups_digest,
+    read_groups,
+    remote_groups,
+    tests_digest,
 )
 from orchestrator.polygon.steps.upload_test_script import (
     SCRIPT_FILENAMES,
@@ -165,6 +181,8 @@ from orchestrator.polygon.sync import (
     SCRIPT_KEY,
     SPEC_KEY,
     STANDARD_CHECKER_PREFIX,
+    TEST_GROUPS_KEY,
+    TEST_GROUPS_TESTS_KEY,
     TESTS_PLAN_KEY,
     VALIDATOR_FILE_KEY,
     VALIDATOR_KEY,
@@ -182,7 +200,6 @@ from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
     PROBLEMS_DIR,
     TUTORIAL_DRAFT_FILENAME,
-    TUTORIAL_FILENAME,
     ProblemPathError,
     authoring_dir,
     check_new_problem_location,
@@ -213,6 +230,7 @@ ITEM_ABSENT = "absent"  # neither on Polygon nor locally
 ITEM_ERROR = "error"
 
 _TESTSET = "tests"
+_TEST_GROUPS_NAME = "test groups"
 # The contents of the verify input/output for statements flag file.
 _VERIFY_CONTENT = b"true\n"
 
@@ -332,6 +350,7 @@ def pull_problem(
         (INTERACTOR_FILENAME, puller.pull_interactor),
         ("generators", puller.pull_generators),
         ("test_script", puller.pull_script),
+        (_TEST_GROUPS_NAME, puller.pull_test_groups),
         ("solutions", puller.pull_solutions),
     ):
         if on_part is not None:
@@ -485,7 +504,6 @@ class _Puller:
         prefix = f"{STATEMENT_DIRNAME}/{code}/"
         name_file = f"{prefix}{NAME_FILENAME}"
         name_key = statement_name_key(code)
-        tutorial_file = f"{prefix}{TUTORIAL_FILENAME}"
         if statement is None:
             absent = f"no {polygon_language(code)!r} statement on Polygon"
             for filename in _STATEMENT_FILES.values():
@@ -496,7 +514,8 @@ class _Puller:
                 absent,
                 push_condition=_INTERACTIVE_CONDITION,
             )
-            self._missing_if_local(tutorial_file, absent)
+            for filename in OPTIONAL_TEX_PARAMS:
+                self._missing_if_local(f"{prefix}{filename}", absent)
             return
         for field_name, filename in _STATEMENT_FILES.items():
             self._sync_file(
@@ -513,11 +532,12 @@ class _Puller:
                 "no interaction protocol on Polygon",
                 push_condition=_INTERACTIVE_CONDITION,
             )
-        tutorial = statement.get(TUTORIAL_PARAM) or ""
-        if tutorial:
-            self._sync_file(tutorial_file, lambda: tutorial.encode("utf-8"))
-        else:
-            self._missing_if_local(tutorial_file, "no tutorial on Polygon")
+        for filename, param in OPTIONAL_TEX_PARAMS.items():
+            value = statement.get(param) or ""
+            if value:
+                self._sync_file(f"{prefix}{filename}", lambda value=value: value.encode("utf-8"))
+            else:
+                self._missing_if_local(f"{prefix}{filename}", f"no {param} on Polygon")
         name = (statement.get("name") or "").strip()
         if not name:
             self._missing_on_polygon(
@@ -767,6 +787,58 @@ class _Puller:
             return
         # Like `upload_test_script`: empty lines that Polygon drops don't count.
         self._sync_file(local_name, lambda: content, key=SCRIPT_KEY, normalize=normalize_script)
+
+    def pull_test_groups(self) -> None:
+        """The test groups on Polygon against the `test_groups` of `constraints.yaml`
+        (see the module docstring); only if the local file has them."""
+        try:
+            local = read_groups(self.problem_dir)
+        except PolygonStepError as exc:
+            self.add(_TEST_GROUPS_NAME, ITEM_ERROR, str(exc))
+            return
+        if local is None:
+            return
+        tests = self._call("problem.tests", {"testset": _TESTSET, "noInputs": "true"}) or []
+        try:
+            test_groups = self._call("problem.viewTestGroup", {"testset": _TESTSET}) or []
+        except PolygonApiError as exc:
+            # Groups aren't enabled on Polygon yet: push enables them.
+            logger.info("[pull] problem.viewTestGroup: %s", exc)
+            test_groups = []
+        remote = remote_groups(test_groups, tests)
+        remote_digest = groups_digest(remote)
+        assigned = assigned_by_script(tests, local)
+        self.synced[TEST_GROUPS_KEY] = remote_digest
+        self.synced[TEST_GROUPS_TESTS_KEY] = tests_digest(tests) if assigned else None
+
+        local_digest = groups_digest(local)
+        if local_digest == remote_digest:
+            if assigned:
+                self.add(_TEST_GROUPS_NAME, ITEM_SAME)
+            else:
+                self.add(
+                    _TEST_GROUPS_NAME,
+                    ITEM_KEPT,
+                    "tests on Polygon are not in the groups of their -group= markers "
+                    "— the next push assigns them",
+                )
+            return
+        differs = (
+            f"Polygon: {_describe_groups(remote) or 'no groups'}; "
+            f"{CONSTRAINTS_KEY}: {_describe_groups(local)}"
+        )
+        change = _change(self.base_synced.get(TEST_GROUPS_KEY), local_digest, remote_digest)
+        if change == _LOCAL:
+            self.add(_TEST_GROUPS_NAME, ITEM_KEPT, differs)
+            return
+        # Pull doesn't rewrite constraints.yaml: it's compared only with its copy in
+        # Attachments. The author decides — edit the file, or push overwrites Polygon.
+        self.add(
+            _TEST_GROUPS_NAME,
+            ITEM_CONFLICT if change == _BOTH else ITEM_DIFFERS,
+            f"{differs} — edit authoring/{CONSTRAINTS_KEY}, or the next push "
+            "overwrites the groups on Polygon",
+        )
 
     def pull_solutions(self) -> None:
         solutions = sorted(self._polygon_solutions(), key=lambda solution: solution["name"])
@@ -1089,6 +1161,16 @@ def _change(base: str | None, local: str | None, remote: str) -> str | None:
     if remote == base:
         return _LOCAL
     return _BOTH
+
+
+def _describe_groups(groups: list[GroupSettings]) -> str:
+    """Groups in one line for a pull item's detail: `1 (10, ICPC, after 2)`."""
+    return ", ".join(
+        f"{group.name} ({group.points:g}, {group.feedback_policy}"
+        + (f", after {'/'.join(group.dependencies)}" if group.dependencies else "")
+        + ")"
+        for group in groups
+    )
 
 
 def _authoring_name(attachment: str) -> str:
