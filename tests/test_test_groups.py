@@ -8,8 +8,8 @@ from orchestrator.checks.test_groups import (
     count_by_group,
     group_results,
     load_test_groups,
-    script_test_group,
 )
+from orchestrator.test_groups import group_marker
 
 CHAIN = [
     TestGroup("1", 30),
@@ -22,13 +22,15 @@ CHAIN = [
     "command, expected",
     [
         ("gen -n=5 -group=2", "2"),
+        ("gen -group=12 -n=5 > $", "12"),
         ("gen -group=1 -n=5 | upd -group=3", "3"),
         ("gen -n=5", None),
         ("gen -subgroup=2", None),
+        ("gen 1 > -group=3", None),
     ],
 )
-def test_script_test_group(command, expected):
-    assert script_test_group(command) == expected
+def test_group_marker(command, expected):
+    assert group_marker(command) == expected
 
 
 def _constraints(tmp_path: Path, text: str) -> Path:
@@ -61,13 +63,16 @@ def test_no_test_groups(tmp_path):
     [
         ('  - name: "small"\n    points: 10\n', "positive number"),
         ('  - name: "1"\n    points: -1\n', "points"),
-        ('  - name: "1"\n    points: 1\n  - name: "1"\n    points: 1\n', "repeats"),
-        ('  - name: "1"\n    dependencies: ["2"]\n', "depends on '2'"),
+        ('  - name: "1"\n    points: 1\n  - name: "1"\n    points: 1\n', "repeat"),
+        ('  - name: "1"\n    dependencies: ["2"]\n', "dependencies: '2' must name"),
+        ('  - name: "1"\n    feedback_policy: "first"\n', "feedback_policy"),
     ],
 )
 def test_invalid_test_groups(tmp_path, groups_yaml, message):
-    _, errors = load_test_groups(_constraints(tmp_path, "test_groups:\n" + groups_yaml))
-    assert any(message in error for error in errors)
+    groups, errors = load_test_groups(_constraints(tmp_path, "test_groups:\n" + groups_yaml))
+    assert groups is None
+    assert len(errors) == 1 and message in errors[0]
+    assert errors[0].startswith("constraints.yaml: test_groups")
 
 
 def test_check_test_groups():

@@ -195,25 +195,27 @@ class Constraints(BaseModel):
         # right to run and must fail with a clear error.
         _non_blank(self.intended_complexity, "constraints.intended_complexity")
         _non_blank(self.complexity_reasoning, "constraints.complexity_reasoning")
-        _check_test_groups(self.test_groups_hint or [])
+        check_test_groups(self.test_groups_hint or [], "constraints.test_groups_hint")
         return self
 
 
-def _check_test_groups(groups: list[TestGroupHint]) -> None:
+def check_test_groups(groups: list[TestGroupHint], where: str) -> None:
     """Group names — distinct positive numbers (`0` — the statement examples, implicit),
-    `dependencies` and `subset_of` — names of the listed groups, other than the group itself."""
+    `dependencies` and `subset_of` — names of the listed groups, other than the group itself.
+    `where` — the list's location for the messages: `constraints.test_groups_hint` of the
+    spec or `test_groups` of `constraints.yaml` (`orchestrator/test_groups.py`)."""
     names = [group.name for group in groups]
     for index, name in enumerate(names):
         if not name.isdigit() or int(name) == 0 or name != str(int(name)):
             raise ValueError(
-                f"constraints.test_groups_hint[{index}].name must be a positive number "
+                f"{where}[{index}].name must be a positive number "
                 f"(1, 2, ...; group 0 — the statement examples — is implicit), got {name!r}"
             )
     if len(set(names)) != len(names):
-        raise ValueError(f"constraints.test_groups_hint: group names repeat: {names}")
+        raise ValueError(f"{where}: group names repeat: {names}")
     for index, group in enumerate(groups):
         if group.points is not None and group.points < 0:
-            raise ValueError(f"constraints.test_groups_hint[{index}].points must be >= 0")
+            raise ValueError(f"{where}[{index}].points must be >= 0")
         for field, refs in (
             ("dependencies", group.dependencies or []),
             ("subset_of", [group.subset_of] if group.subset_of is not None else []),
@@ -221,7 +223,7 @@ def _check_test_groups(groups: list[TestGroupHint]) -> None:
             for ref in refs:
                 if ref == group.name or ref not in names:
                     raise ValueError(
-                        f"constraints.test_groups_hint[{index}].{field}: {ref!r} must name "
+                        f"{where}[{index}].{field}: {ref!r} must name "
                         f"another listed group (one of {names})"
                     )
 

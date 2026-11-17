@@ -125,7 +125,6 @@ from orchestrator.checks.run_with_timeout import (
 )
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
 from orchestrator.checks.test_groups import (
-    EXAMPLES_GROUP,
     VALIDATOR_GROUP_OPTION,
     GroupResult,
     TestGroup,
@@ -154,6 +153,7 @@ from orchestrator.problem_paths import (
     is_removed_mark,
 )
 from orchestrator.steps.statement_draft import dialogue_filenames
+from orchestrator.test_groups import EXAMPLES_GROUP
 
 VERDICT_OK = "OK"
 VERDICT_WA = "WA"

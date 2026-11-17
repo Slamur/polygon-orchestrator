@@ -82,7 +82,8 @@ class FakePolygon:
             {"index": 3, "manual": False, "useInStatements": False},
         ]
         self.test_inputs = {2: b"3 4\n"}
-        # TestGroup objects; `None` — groups aren't enabled (viewTestGroup fails).
+        # TestGroup objects; `None` — groups aren't enabled (viewTestGroup fails), a string
+        # — viewTestGroup fails with this comment.
         self.test_groups: list[dict] | None = None
         # The modification time of files and solutions in the listings (100 by default);
         # `None` — Polygon doesn't return it.
@@ -123,7 +124,12 @@ class FakePolygon:
 
     def _test_groups(self) -> list[dict]:
         if self.test_groups is None:
-            raise PolygonApiError("problem.viewTestGroup", "groups are disabled")
+            raise PolygonApiError(
+                "problem.viewTestGroup",
+                "testset: Test groups are disabled for the specified testset",
+            )
+        if isinstance(self.test_groups, str):
+            raise PolygonApiError("problem.viewTestGroup", self.test_groups)
         return self.test_groups
 
     def call_raw(self, method_name, params):
@@ -1587,19 +1593,86 @@ def test_pull_matching_groups_lets_push_skip_them(problems_dir, polygon):
     assert [c.args[0] for c in client.call.call_args_list] == ["problem.tests"]
 
 
-def test_pull_reports_groups_changed_on_polygon(problems_dir, polygon):
+def _constraints_text(problems_dir) -> str:
+    return (problems_dir / PROBLEM_ID / "authoring" / "constraints.yaml").read_text()
+
+
+def test_pull_writes_groups_changed_only_on_polygon(problems_dir, polygon):
     _grouped_polygon(polygon)
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    polygon.tests[2]["points"] = 50
+    polygon.test_groups[2]["feedbackPolicy"] = "POINTS"
+    polygon.problems[0]["revision"] = 6
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "test groups")
+    assert item.status == ITEM_UPDATED
+    assert "2 (50, POINTS, after 1)" in item.detail and "2 (60, ICPC, after 1)" in item.detail
+    text = _constraints_text(problems_dir)
+    assert '  - name: "2"\n    points: 50\n    dependencies: ["1"]\n' in text
+    assert "    feedback_policy: points\n" in text
+    assert text.startswith(_CONSTRAINTS_WITH_GROUPS.split("test_groups:")[0])
+    # The groups now match Polygon: push has nothing to set.
+    assert upload_test_groups.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_pull_writes_added_and_removed_groups(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    polygon.tests[2].update(group="3", points=60)
+    polygon.test_groups[2] = {
+        "name": "3",
+        "pointsPolicy": "COMPLETE_GROUP",
+        "feedbackPolicy": "ICPC",
+        "dependencies": ["1"],
+    }
+    polygon.problems[0]["revision"] = 6
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["test groups"] == ITEM_UPDATED
+    text = _constraints_text(problems_dir)
+    assert 'name: "2"' not in text
+    assert (
+        '  - name: "3"\n    points: 60\n    dependencies: ["1"]\n'
+        "    feedback_policy: icpc\n    status: confirmed\n"
+    ) in text
+
+
+def test_pull_keeps_groups_changed_on_both_sides(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    path = problems_dir / PROBLEM_ID / "authoring" / "constraints.yaml"
+    local = path.read_text().replace("points: 40", "points: 30").replace("points: 60", "points: 70")
+    path.write_text(local)
 
     polygon.tests[2]["points"] = 50
     polygon.problems[0]["revision"] = 6
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
+    assert _statuses(result)["test groups"] == ITEM_CONFLICT
+    assert path.read_text() == local
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon, overwrite=True)
+
+    assert _statuses(result)["test groups"] == ITEM_OVERWRITTEN
+    assert "points: 50" in path.read_text() and "points: 40" in path.read_text()
+
+
+def test_pull_does_not_write_groups_it_cannot_hold(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    before = _constraints_text(problems_dir)
+
+    polygon.test_groups[1]["pointsPolicy"] = "EACH_TEST"
+    polygon.problems[0]["revision"] = 6
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
     item = next(item for item in result.items if item.name == "test groups")
     assert item.status == ITEM_DIFFERS
-    assert "2 (50, ICPC, after 1)" in item.detail and "2 (60, ICPC, after 1)" in item.detail
-    # constraints.yaml isn't rewritten: push sets the groups by it.
-    assert upload_test_groups.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
+    assert "pointsPolicy EACH_TEST" in item.detail
+    assert _constraints_text(problems_dir) == before
 
 
 def test_pull_groups_not_enabled_on_polygon(problems_dir, polygon):
@@ -1615,3 +1688,13 @@ def test_pull_groups_not_enabled_on_polygon(problems_dir, polygon):
     assert item.status == ITEM_DIFFERS
     assert "Polygon: no groups" in item.detail
     assert _synced(problems_dir).get("test_groups/tests") is None
+
+
+def test_pull_reports_other_errors_reading_groups(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    polygon.test_groups = "Internal error"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert not result.ok
+    assert _statuses(result)["test groups"] == ITEM_ERROR

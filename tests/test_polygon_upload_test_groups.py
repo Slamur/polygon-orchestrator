@@ -9,7 +9,6 @@ from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_test_groups import (
     NO_GROUPS_MESSAGE,
     STEP,
-    group_marker,
     read_groups,
 )
 from orchestrator.polygon.sync import TEST_GROUPS_KEY, TEST_GROUPS_TESTS_KEY
@@ -207,8 +206,10 @@ def test_changed_points_are_stale_and_only_differences_are_sent(problems_dir, sp
     )
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
     client.calls.clear()
-    _run(spec, problems_dir, client, incremental=True)
+    result = run_and_record(STEP, PROBLEM_ID, spec, problems_dir, client, incremental=True)
 
+    # Only the settings changed: the tests' layout isn't reported as pushed.
+    assert set(result.uploaded) == {TEST_GROUPS_KEY}
     assert client.calls_of("problem.setTestGroup") == []
     assert [(p["testIndex"], p["testPoints"]) for p in client.calls_of("problem.saveTest")] == [
         ("3", "40"),
@@ -264,17 +265,3 @@ def test_numeric_yaml_names_are_read_as_strings(problems_dir):
     groups = read_groups(problems_dir / PROBLEM_ID)
 
     assert [(g.name, g.dependencies) for g in groups] == [("0", ()), ("1", ()), ("2", ("1",))]
-
-
-@pytest.mark.parametrize(
-    "line, group",
-    [
-        ("gen -n=5 -group=3", "3"),
-        ("gen -group=12 -n=5 > $", "12"),
-        ("gen -n=5", None),
-        ("gen -subgroup=3", None),
-        ("gen 1 > -group=3", None),
-    ],
-)
-def test_group_marker(line, group):
-    assert group_marker(line) == group
