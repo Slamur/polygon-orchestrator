@@ -76,8 +76,8 @@ What to do when the asymptotics are given explicitly:
      examples with the full limits and 0 points — is implicit, don't list it;
    - `max_n`, `special_property`, `subset_of` — from the hint;
    - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
-     groups — propose them so that all groups sum to 100 (`proposed`, with a
-     justification: the more of the full solution a group needs, the more points);
+     groups — don't propose them: `uncertain`, the missing field is
+     `constraints.test_groups_hint` (the points are the author's, as the groups are);
      if the hint's points don't sum to 100 — keep them and say so in `notes`
      (`kind: proposed`);
    - `dependencies` — from the hint; absent — `[]`. Don't add dependencies the
