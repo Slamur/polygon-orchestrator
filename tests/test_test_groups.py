@@ -108,6 +108,44 @@ def test_points_need_the_dependencies():
     ]
 
 
+# Not a chain: 2 and 3 both depend on 1, 4 depends on both of them.
+DIAMOND = [
+    TestGroup("1", 10),
+    TestGroup("2", 20, ("1",)),
+    TestGroup("3", 30, ("1",)),
+    TestGroup("4", 40, ("2", "3")),
+]
+
+
+@pytest.mark.parametrize(
+    "failed, points",
+    [
+        (None, [10, 20, 30, 40]),
+        ("1", [0, 0, 0, 0]),
+        ("2", [10, 0, 30, 0]),
+        ("3", [10, 20, 0, 0]),
+        ("4", [10, 20, 30, 0]),
+    ],
+)
+def test_points_with_dependencies_that_are_not_a_chain(failed, points):
+    verdicts = [
+        (f"test {name}", name, "WA" if name == failed else "OK") for name in ("1", "2", "3", "4")
+    ]
+    results = group_results(DIAMOND, dict.fromkeys(("1", "2", "3", "4"), 1), verdicts)
+    assert [r.points for r in results] == points
+
+
+def test_points_need_the_dependencies_of_the_dependencies():
+    """Group 3 depends only on 2, but 2 earns nothing without 1: neither does 3."""
+    results = group_results(
+        CHAIN,
+        {"1": 1, "2": 1, "3": 1},
+        [("test 1", "1", "WA"), ("test 2", "2", "OK"), ("test 3", "3", "OK")],
+    )
+    assert [r.points for r in results] == [0, 0, 0]
+    assert results[2].describe() == "3 OK, no points (depends on 2)"
+
+
 def test_group_with_tests_not_run_is_not_passed():
     results = group_results(CHAIN[:1], {"1": 2}, [("test 1", "1", "OK")])
     assert not results[0].passed

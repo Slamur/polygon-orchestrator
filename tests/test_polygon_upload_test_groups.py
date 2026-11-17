@@ -169,6 +169,34 @@ def test_sets_groups_points_and_policies(problems_dir, spec):
     assert STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
 
+DIAMOND_YAML = """\
+problem_id: example-problem
+test_groups:
+  - name: "1"
+    points: 10
+  - name: "2"
+    points: 20
+    dependencies: ["1"]
+  - name: "3"
+    points: 30
+    dependencies: ["1"]
+  - name: "4"
+    points: 40
+    dependencies: ["2", "3"]
+"""
+
+
+def test_sends_several_dependencies_of_a_group(problems_dir, spec):
+    link(problems_dir)
+    _write_constraints(problems_dir, DIAMOND_YAML)
+    client = FakeTests([f"gen {i} -group={i}" for i in range(1, 5)])
+
+    _run(spec, problems_dir, client)
+
+    sent = {p["group"]: p["dependencies"] for p in client.calls_of("problem.saveTestGroup")}
+    assert sent == {"0": "", "1": "", "2": "1", "3": "1", "4": "2,3"}
+
+
 def test_unchanged_groups_only_read_the_tests(problems_dir, spec):
     link(problems_dir)
     _write_constraints(problems_dir)
