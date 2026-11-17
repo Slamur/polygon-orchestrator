@@ -62,7 +62,8 @@ _DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$
 # of problems without groups). Its source is the spec's hint, not `constraints.yaml`: the
 # step runs before `constraints_pick`. Groups that only `constraints_pick` proposes
 # (`test_groups_needed` without a hint) get no table from the step — `local check`
-# reports the missing `scoring.tex` against `constraints.yaml`.
+# reports the missing `scoring.tex` against `constraints.yaml`. A spec without groups —
+# the step's `scoring.tex` from an earlier run is marked `.removed`.
 SCORING_FILE = "scoring.tex"
 SCORING_TUTORIAL = "tutorials/scoring.md"
 
@@ -163,6 +164,16 @@ def _stale_example_inputs(
         for path in sorted(examples_dir.glob("example_*.txt"))
         if (match := _EXAMPLE_NAME.match(path.name)) and int(match.group(1)) > n
     }
+
+
+def _stale_scoring(problem_id: str, spec: ProblemSpec, *, problems_dir: Path) -> dict[str, Path]:
+    """`scoring.tex` in the generation language's directory while the spec has no test
+    groups (they were dropped from it) — it'll be marked `.removed`. Other languages'
+    tables are the author's: `local check` reports them."""
+    if has_test_groups(spec):
+        return {}
+    path = artifact_path(problem_id, spec, SCORING_FILE, problems_dir=problems_dir)
+    return {SCORING_FILE: path} if path.is_file() else {}
 
 
 def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str]], None]:
@@ -360,7 +371,10 @@ def run_step(
         validate_artifacts=_validate_statement_artifacts(expected),
         generated_artifacts=GeneratedArtifacts(
             artifacts=_example_inputs(spec),
-            stale=_stale_example_inputs(problem_id, spec, problems_dir=problems_dir),
+            stale={
+                **_stale_example_inputs(problem_id, spec, problems_dir=problems_dir),
+                **_stale_scoring(problem_id, spec, problems_dir=problems_dir),
+            },
             reason="the input of a sample is copied from the spec by the orchestrator",
         ),
     )

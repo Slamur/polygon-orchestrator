@@ -544,17 +544,31 @@ def test_plain_problem_has_no_scoring(spec, tmp_path):
     assert "scoring.tex" not in _expected_artifact_names(spec)
     section, _ = hash_inputs("valid-spec", spec)
     assert "test_groups" not in section and "variables" not in section
-    # a hand-written scoring.tex of a problem without groups isn't the model's to revise
-    ru = tmp_path / "valid-spec" / "statement" / "ru"
-    ru.mkdir(parents=True)
-    (ru / "scoring.tex").write_text("x", encoding="utf-8")
-    assert "scoring.tex" not in current_artifacts("valid-spec", spec, problems_dir=tmp_path)
-
     response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         _run(spec, "valid-spec", tmp_path)
     assert "Test groups" not in mock_call.call_args.args[2]
     assert "scoring.tex" not in mock_call.call_args.args[2]
+    assert not (tmp_path / "valid-spec" / "statement" / "ru" / "scoring.tex.removed").exists()
+
+
+def test_scoring_of_dropped_groups_is_marked_removed(spec, tmp_path):
+    statement_dir = tmp_path / "valid-spec" / "statement"
+    for code in ("ru", "en"):
+        (statement_dir / code).mkdir(parents=True)
+        (statement_dir / code / "scoring.tex").write_text("table", encoding="utf-8")
+    # not shown to the model as a current file: it isn't revised, only marked
+    assert "scoring.tex" not in current_artifacts("valid-spec", spec, problems_dir=tmp_path)
+
+    response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
+    with patch("orchestrator.model_router.call_model", return_value=response):
+        result = _run(spec, "valid-spec", tmp_path)
+
+    assert not (statement_dir / "ru" / "scoring.tex").exists()
+    assert (statement_dir / "ru" / "scoring.tex.removed").is_file()
+    assert [mark.name for mark, _ in result.removed] == ["scoring.tex.removed"]
+    # another language's table is the author's: `local check` reports it
+    assert (statement_dir / "en" / "scoring.tex").is_file()
 
 
 def test_groups_go_to_prompt_hash_and_scoring_is_written(groups_spec, tmp_path):
