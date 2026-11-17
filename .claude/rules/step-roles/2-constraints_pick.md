@@ -39,6 +39,15 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    `intended_complexity` is empty, the step must end with an
    "insufficient data" error rather than guess; in that case `validator.cpp`
    isn't written either — the whole step response goes to `uncertain`.
+   Test groups (`test_groups` of `constraints.yaml`) come from the spec's
+   `test_groups_hint` — names, `max_n`/`special_property`/`subset_of`, `points`,
+   `dependencies`, `feedback_policy` as the author gave them (missing points are
+   proposed to sum to 100; dependencies the author didn't give are only a
+   `suggestion` note) — or, with `test_groups_needed: true` and no hint, are proposed;
+   otherwise there are none. With groups the `validator` section also has `groups` —
+   the narrower limits of each group's tests — and `validator.cpp` reads with the
+   limits of the test's group, `group_index()` from `problem_lib.h` (0 — the
+   statement examples, the full limits), as in `examples/number/roots-subtasks`.
    After `constraints_pick` comes the mechanical step **`limits_from_constraints`**
    (without the model, `step_order.MECHANICAL_STEPS`): it writes `limits.yaml` —
    the problem's actual TL/ML, which `polygon push` uploads and

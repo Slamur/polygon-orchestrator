@@ -355,7 +355,8 @@ You are given mandatory rules:
 - constraints_format.yaml — the mandatory format of `constraints.yaml`.
   Reproduce the top-level structure (`variables`, `limits` with
   `time_limit_seconds`/`memory_limit_mb`, `test_groups` — only when
-  groups are needed, `validator` with `constants`/`checks`) and the `status` mark
+  groups are needed, `validator` with `constants`/`checks` and, with groups,
+  `groups`) and the `status` mark
   (`confirmed`/`proposed`) with a `rationale` for each decision
   without fail: the following steps and the orchestrator read the file.
 - problem_lib.h — helpers you can use in the validator
@@ -417,6 +418,19 @@ What to do when the asymptotics are given explicitly:
      is empty) — the author doesn't need groups: don't include `test_groups` in
      `constraints.yaml` at all, don't write an empty list and don't leave a
      placeholder comment.
+   For each group fix the fields of constraints_format.yaml:
+   - `name` — as in the hint (numbers 1, 2, ... in order); group 0 — the statement
+     examples with the full limits and 0 points — is implicit, don't list it;
+   - `max_n`, `special_property`, `subset_of` — from the hint;
+   - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
+     groups — propose them so that all groups sum to 100 (`proposed`, with a
+     justification: the more of the full solution a group needs, the more points);
+     if the hint's points don't sum to 100 — keep them and say so in `notes`
+     (`kind: proposed`);
+   - `dependencies` — from the hint; absent — `[]`. Don't add dependencies the
+     author didn't give: if you think a group should depend on another one —
+     an entry in `notes` with `kind: suggestion`;
+   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it).
 4. For each `special_guarantees` from the spec — make sure it's formulated
    so that it can be checked in the validator, and formulate it as a
    concrete check in `validator.checks` (see item 5).
@@ -439,6 +453,14 @@ a separate `validator` section, from which item 6 below derives
   pass these checks. If `formal_input_sketch` is ambiguous in the order
   or the split of tokens into lines and the examples don't clarify it — an entry in
   `notes` with `kind: proposed` about the chosen interpretation, not a silent choice.
+- `validator.groups` — only with `test_groups`: an entry for each group whose
+  tests have narrower limits than the full ones — `constants` with the variables
+  whose bounds the group narrows (by its `max_n` and `subset_of`: a group narrowing
+  another one has at most its limits) and `checks` with the group's
+  `special_property`, if any, as a concrete check. A group with the full limits
+  and no special property has no entry. Plus one entry in `validator.checks`: the
+  test group is a known one — 0 (the statement examples) or a name from
+  `test_groups`.
 
 6. Implement `validator.cpp` (as described above and as in the sample's validator.cpp,
    if attached):
@@ -446,9 +468,16 @@ a separate `validator` section, from which item 6 below derives
    for each variable from `validator.constants` in the reading order,
    `inf.readSpace()` between values on one line, `inf.readEoln()` at
    the end of each line and `inf.readEof()` at the end of the input —
-   implementing EXACTLY the `validator.constants` and `validator.checks` that you
-   fixed in `constraints.yaml` in this same response, and no checks
-   beyond or besides those listed there. This isn't a separate decision of the model, but
+   implementing EXACTLY the `validator.constants`, `validator.checks` (and
+   `validator.groups`) that you fixed in `constraints.yaml` in this same response, and no checks
+   beyond or besides those listed there.
+   With `test_groups`: the test's group is `group_index()` from problem_lib.h (0 —
+   the statement examples, they have the full limits); `ensuref` that it is a known
+   group; the bounds of each variable a group narrows — per group (e.g. a vector of
+   the variable's largest value indexed by the group, from 0), read with the bounds
+   of the test's group; the checks of a group's `special_property` —
+   only for the tests of that group.
+   This isn't a separate decision of the model, but
    the mechanical last step of the same reasoning about the limits — the implementation
    mustn't diverge from what's described in `constraints.yaml`.
 
@@ -465,7 +494,8 @@ really deserves the author's attention; if there's nothing to propose — don't.
 
 Respond in the JSON format from the contract. Put two files into `artifacts`:
 `constraints.yaml` with the final variable ranges, TL, ML, the list of
-test groups and the `validator` section (`constants` + `checks`), and
+test groups and the `validator` section (`constants` + `checks`, with groups —
+`groups`), and
 `validator.cpp` — the implementation of this section.
 For each proposed (not set by the author) value — an entry in `notes`
 with `kind: proposed` and a justification through the order of operations.
