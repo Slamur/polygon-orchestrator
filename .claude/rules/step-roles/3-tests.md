@@ -83,9 +83,13 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      `constraints.yaml` — not this step's error, not checked either.
    - **`tests_survivors`** — after the solution stages (`STEP_ORDER`, last): tests for the
      wrong solutions that the local runs `run_slow`/`run_wrong` report as surviving — no
-     test from the script gets their declared verdict, the examples don't count
+     test from the script gets their declared verdict, the examples don't count — and the
+     wrong solutions that pass a test group their spec item says they fail
+     (`uncaught_groups`, `.claude/rules/local-checks.md`): survivors with those groups,
+     even if another group catches them, whose tests go into those groups
      (`solutions_check.Gate.current_survivors`: only of a passed run whose input is still
-     the same). No survivors — `skipped`. Input: the survivors (name, verdict, code), the
+     the same). No survivors — `skipped`. Input: the survivors (name, verdict, the
+     uncaught groups, code), the
      main solution, the input format and the legend, `algorithm_hint`, `constraints.yaml`
      without TL/ML. The current plan, the survivors' local times and the TL are the
      context of the call, not its input: the plan this step itself extends doesn't make it
@@ -95,8 +99,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      proposed`) and new generators; the current plan must stay as is
      (`tests_plan.check_plan_extends`, otherwise nothing is applied), and its entries are
      written back exactly as they were (`keep_current_entries`), so that the kept
-     generators stay cache hits of `generators_draft`. A survivor no block refers to — an
-     `uncovered` note; a solution the model can't catch (it may be correct) — an
+     generators stay cache hits of `generators_draft`. A survivor no block refers to, or
+     an uncaught group of it that no block referring to it is in — an `uncovered` note; a solution the model can't catch (it may be correct) — an
      `uncertain` note, the author decides. After the step `llm generate` runs
      `SURVIVOR_RECHECK_STEPS` (`generators_draft` … `run_wrong`) again; with
      `--survivor-rounds N` (1 by default, `0` — the step doesn't run) the step runs up

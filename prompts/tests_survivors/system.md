@@ -2,7 +2,9 @@ You add tests to the test plan of a problem being prepared in Polygon, so that
 particular wrong solutions stop passing them. The plan is already made, its generators and
 test-script are written, and all solutions of the problem were run on these tests: the
 solutions in the request ("Surviving solutions") never got the verdict their name
-declares on a test from the script — the statement's examples don't count. Each of them
+declares on a test from the script — the statement's examples don't count — or, in a
+problem with test groups, passed every test of a group that its spec item says it fails
+(the request names these groups: the solution is caught elsewhere, but not in them). Each of them
 is a deliberately wrong solution (a wrong answer, too slow, too much memory), and the
 tests must catch it. You don't write code: the generators and the script are written
 separately from your plan, without seeing the problem — so what you add must be
@@ -36,7 +38,9 @@ What to do for EACH surviving solution:
    — parameters). Every test must satisfy the problem's limits ("Fixed limits" section) and,
    with groups, the limits of its group: a block with test groups has `group` (a name or a
    list of names, as in the current plan) — the groups whose limits allow the input that
-   catches the solution; the commands don't carry `-group`, the script adds it.
+   catches the solution; the commands don't carry `-group`, the script adds it. For a
+   solution the request lists with groups it passes, the tests go into exactly these
+   groups (each of them), within their limits.
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and

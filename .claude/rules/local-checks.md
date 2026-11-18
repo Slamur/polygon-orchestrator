@@ -100,7 +100,8 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   solution is `unexpected` (`group_mismatches` in `summary()`, the stage's local run
   fails), unless it's its own time/memory verdict (TL of `tl`/`tl_ok`/`tl_ml`, RE of
   `ml`/`tl_ml`) — then a warning; a group not named but passed — a warning (not for
-  `tl_ok`, which may get OK everywhere); a group with tests not run isn't judged; a
+  `tl_ok`, which may get OK everywhere; `uncaught_groups` in `summary()`, and in
+  `llm generate` the solution goes to `tests_survivors` with these groups); a group with tests not run isn't judged; a
   marker of an item not in the spec or with another verdict (`tl_ml` may come from a
   `tl`/`ml` item), a named group the problem doesn't have — warnings. No marker or no
   `[...]` — nothing is compared.

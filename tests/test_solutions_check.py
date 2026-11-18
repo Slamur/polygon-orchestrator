@@ -170,6 +170,32 @@ def test_survivor_is_reported_but_does_not_fail_the_run(spec, problem_dir, monke
     assert [n["kind"] for n in result.notes] == ["passed", "survived"]
 
 
+def test_solution_passing_a_group_its_item_says_it_fails_is_a_survivor(
+    spec, problem_dir, monkeypatch
+):
+    wrong = GATES["run_wrong"]
+    (problem_dir / "solutions" / "wa_py_off_draft.py").write_text("print(2)\n", encoding="utf-8")
+    caught = SolutionOutcome(
+        "wa_py_off_draft.py",
+        "wa",
+        frozenset({"OK", "WA"}),
+        tests=[Outcome("test 2", "WA", generated=True)],
+        required=frozenset({"WA"}),
+        uncaught_groups=["2"],
+    )
+    _stub_run(monkeypatch, _result_with(caught))
+
+    result = _run_gate(wrong, spec, problem_dir)
+
+    assert result.status == "confirmed"
+    [note] = [n for n in result.notes if n["kind"] == "survived"]
+    assert "no test of group(s) 2 catches it" in note["explanation"]
+    report = load_run_report(PROBLEM_ID, "run_wrong", problems_dir=problem_dir.parent)
+    assert [(s["name"], s["uncaught_groups"]) for s in report["survivors"]] == [
+        ("wa_py_off_draft.py", ["2"])
+    ]
+
+
 def test_ok_run_judges_the_main_solution_too(problem_dir):
     (problem_dir / "solutions" / "ok_py_alt_draft.py").write_text("print(1)\n", encoding="utf-8")
     assert sorted(GATES["run_ok"].judged(problem_dir)) == sorted(["ok_py_alt_draft.py", MAIN_NAME])

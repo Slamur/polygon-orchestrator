@@ -4,7 +4,9 @@ CLAUDE.md, "Role of each generative step", item 3.
 The base test plan (`tests_plan`) doesn't design tests for particular wrong solutions:
 they are added here, and only for the solutions that the local runs of
 `solutions_slow` and `solutions_wrong` report as surviving — no test from the script
-gets their declared verdict (the examples don't count). The response is the same
+gets their declared verdict (the examples don't count), or no test of a group catches a
+solution whose spec item says it fails the group (`uncaught_groups`: the tests are
+added in those groups). The response is the same
 `authoring/tests_plan.yaml` with new blocks (`covers: solutions/<name>`) and, if
 needed, new generators; the current plan is kept as is (`tests_plan.check_plan_extends`).
 After the step the pipeline writes the code of the plan again and reruns the solutions
@@ -150,7 +152,9 @@ def hash_inputs(
     for survivor in inputs["survivors"]:
         upstream[f"{COVERS_PREFIX}{survivor['name']}"] = survivor["code"]
     upstream["survivors"] = [
-        {"name": s["name"], "verdict": s["verdict"]} for s in inputs["survivors"]
+        {"name": s["name"], "verdict": s["verdict"]}
+        | ({"uncaught_groups": s["uncaught_groups"]} if s.get("uncaught_groups") else {})
+        for s in inputs["survivors"]
     ]
     return _build_context_sections(spec), upstream
 
@@ -196,10 +200,17 @@ def keep_current_entries(current: dict[str, Any], text: str) -> str:
     return dump_plan_part(plan)
 
 
-def _postprocess(spec: ProblemSpec, current: dict[str, Any], names: list[str]):
+def _block_groups(test: dict[str, Any]) -> set[str]:
+    group = test.get("group")
+    groups = group if isinstance(group, list) else [] if group is None else [group]
+    return {str(name).strip() for name in groups}
+
+
+def _postprocess(spec: ProblemSpec, current: dict[str, Any], survivors: list[dict[str, Any]]):
     """The `problem_id` in the plan — from the spec, the current plan's entries — as they
     are (`keep_current_entries`); an `uncovered` note for each survivor that no block of the
-    plan refers to."""
+    plan refers to, and for each of its `uncaught_groups` that no block referring to it is
+    in."""
     set_problem_id = set_spec_problem_id(spec.problem_id, TESTS_PLAN_ARTIFACT)
 
     def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
@@ -209,20 +220,31 @@ def _postprocess(spec: ProblemSpec, current: dict[str, Any], names: list[str]):
         artifacts = {**artifacts, TESTS_PLAN_ARTIFACT: keep_current_entries(current, text)}
         artifacts, notes = set_problem_id(artifacts)
         text = artifacts[TESTS_PLAN_ARTIFACT]
-        covered = {
-            item.strip()
-            for test in parse_tests_plan(text).get("tests") or []
-            for item in test.get("covers") or []
-        }
+        covered: dict[str, set[str]] = {}
+        for test in parse_tests_plan(text).get("tests") or []:
+            for item in test.get("covers") or []:
+                covered.setdefault(str(item).strip(), set()).update(_block_groups(test))
         notes = [*notes]
-        for name in names:
-            if f"{COVERS_PREFIX}{name}" not in covered:
+        for survivor in survivors:
+            field = f"{COVERS_PREFIX}{survivor['name']}"
+            if field not in covered:
                 notes.append(
                     {
-                        "field": f"{COVERS_PREFIX}{name}",
+                        "field": field,
                         "kind": "uncovered",
                         "explanation": f"no test of {TESTS_PLAN_ARTIFACT} covers it "
                         "(tests[].covers) — it may survive the tests again",
+                    }
+                )
+                continue
+            missing = [g for g in survivor.get("uncaught_groups") or [] if g not in covered[field]]
+            if missing:
+                notes.append(
+                    {
+                        "field": field,
+                        "kind": "uncovered",
+                        "explanation": f"no test of {TESTS_PLAN_ARTIFACT} that covers it is in "
+                        f"group(s) {', '.join(missing)} — it may pass them again",
                     }
                 )
         return artifacts, notes
@@ -282,7 +304,5 @@ def run_step(
         problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
-        postprocess_artifacts=_postprocess(
-            spec, current_plan, [s["name"] for s in inputs["survivors"]]
-        ),
+        postprocess_artifacts=_postprocess(spec, current_plan, inputs["survivors"]),
     )

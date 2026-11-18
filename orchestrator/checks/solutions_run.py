@@ -98,6 +98,8 @@ compared with its results (`_judge_spec_groups`):
   only a warning;
 - a group not named that the solution passed — a warning (the tests of the group don't
   catch the mistake), not for a solution whose name allows OK on the whole set (`tl_ok`);
+  these groups are `uncaught_groups` in `summary()`, and the solution stages' local runs
+  pass the solution to `tests_survivors` with them;
 - a group with tests not run (no expected output) isn't judged; the examples (group 0)
   aren't part of `[...]`;
 - a marker of an item that isn't in the spec, of an item with another verdict (a
@@ -107,7 +109,8 @@ compared with its results (`_judge_spec_groups`):
 `SolutionsRunResult.summary()` — the same outcome in a machine-readable form: the
 status of each solution (`STATUS_*`; `survived` — the declared verdict on no
 generated test), the test that caught it and, with test groups, the points, the result
-of each group and the mismatches with the groups of its spec item.
+of each group, the mismatches with the groups of its spec item and the groups it passes
+against its spec item (`uncaught_groups`).
 """
 
 from __future__ import annotations
@@ -312,6 +315,9 @@ class SolutionOutcome:
     group_mismatches: list[str] = field(default_factory=list)
     # The same that is only a warning, and the other notes on the spec item.
     group_warnings: list[str] = field(default_factory=list)
+    # Groups its spec item says it fails, but it passed: no test of the group catches it
+    # (a warning, and `tests_survivors` adds tests for it in these groups).
+    uncaught_groups: list[str] = field(default_factory=list)
 
     @property
     def required_label(self) -> str:
@@ -413,6 +419,7 @@ class SolutionOutcome:
             "points": self.points,
             "spec_item": self.spec_item,
             "group_mismatches": list(self.group_mismatches),
+            "uncaught_groups": list(self.uncaught_groups),
             "groups": None
             if self.groups is None
             else [
@@ -789,6 +796,7 @@ def _judge_spec_groups(outcome: SolutionOutcome, source: str, items: list) -> No
             else:
                 outcome.group_mismatches.append(text)
         elif group.passed and outcome.verdict in REQUIRED_VERDICTS:
+            outcome.uncaught_groups.append(name)
             outcome.group_warnings.append(
                 f"passes group {name}, {where} says it doesn't: no test of the group catches it"
             )

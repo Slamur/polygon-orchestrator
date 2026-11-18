@@ -89,8 +89,9 @@ def test_changing_the_current_plan_is_rejected(change):
 # --- survivors ----------------------------------------------------------------
 
 
-def _run_gates(spec, problem_dir, monkeypatch, *, caught: bool):
-    """`run_slow` and `run_wrong` over a stub run: the wrong solution survives or is caught."""
+def _run_gates(spec, problem_dir, monkeypatch, *, caught: bool, uncaught_groups=()):
+    """`run_slow` and `run_wrong` over a stub run: the wrong solution survives or is caught;
+    `uncaught_groups` — the groups it passes against its spec item."""
     verdict = "WA" if caught else "OK"
     wrong = SolutionOutcome(
         WRONG,
@@ -98,6 +99,7 @@ def _run_gates(spec, problem_dir, monkeypatch, *, caught: bool):
         frozenset({"OK", "WA"}),
         tests=[Outcome("test 1", verdict, 0.5, generated=True)],
         required=frozenset({"WA"}),
+        uncaught_groups=list(uncaught_groups),
     )
     result = SolutionsRunResult(full=True, solutions=[wrong])
     monkeypatch.setattr(solutions_check, "run_solutions", lambda *a, **kw: result)
@@ -192,3 +194,47 @@ def test_hash_ignores_the_plan_and_the_times(spec, problem_dir, monkeypatch):
     upstream[tests_survivors.INPUTS_KEY]["survivors"][0]["max_seconds"] = 9.0
 
     assert tests_survivors.compute_input_hash(PROBLEM_ID, spec, upstream) == before
+
+
+# --- groups the spec item says the solution fails, but it passes ---------------------
+
+
+def _plan_with_groups(*groups: str) -> dict:
+    plan = _extended_plan()
+    plan["tests"][-1]["group"] = list(groups)
+    return plan
+
+
+def test_caught_solution_that_passes_a_named_group_is_a_survivor(spec, problem_dir, monkeypatch):
+    kwargs = {"problem_id": PROBLEM_ID, "problems_dir": problem_dir.parent}
+    _run_gates(spec, problem_dir, monkeypatch, caught=True, uncaught_groups=["3"])
+
+    assert tests_survivors.skip_detail(spec, **kwargs) is None
+    [survivor] = tests_survivors.survivors(PROBLEM_ID, spec, problems_dir=problem_dir.parent)
+    assert (survivor["name"], survivor["uncaught_groups"]) == (WRONG, ["3"])
+
+    result, mock_call = _run(spec, problem_dir, _plan_with_groups("3"))
+
+    assert not [n for n in result.notes if n["kind"] == "uncovered"]
+    prompt = mock_call.call_args.args[2]
+    assert "it passes test group(s) 3, which its spec item says it fails" in prompt
+
+
+def test_test_outside_the_uncaught_group_gets_an_uncovered_note(spec, problem_dir, monkeypatch):
+    _run_gates(spec, problem_dir, monkeypatch, caught=True, uncaught_groups=["2", "3"])
+
+    result, _ = _run(spec, problem_dir, _plan_with_groups("3"))
+
+    [note] = [n for n in result.notes if n["kind"] == "uncovered"]
+    assert note["field"] == f"solutions/{WRONG}"
+    assert "group(s) 2" in note["explanation"]
+
+
+def test_uncaught_groups_are_part_of_the_input(spec, problem_dir, monkeypatch):
+    _run_gates(spec, problem_dir, monkeypatch, caught=True, uncaught_groups=["3"])
+    before = tests_survivors.compute_input_hash(PROBLEM_ID, spec, _upstream(spec, problem_dir))
+    _run_gates(spec, problem_dir, monkeypatch, caught=True, uncaught_groups=["2", "3"])
+
+    after = tests_survivors.compute_input_hash(PROBLEM_ID, spec, _upstream(spec, problem_dir))
+
+    assert after != before
