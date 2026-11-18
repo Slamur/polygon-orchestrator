@@ -242,10 +242,9 @@ If the user prompt has a "Test groups (subtasks)" section — the problem has
 subtasks, and you're also given scoring.md (its rules are mandatory just like
 statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
 the subtasks table by scoring.md, strictly by the given groups — their order, points,
-dependencies and feedback policy as is. Don't make up what the author didn't set: a
-group without points, or a `max_n` when it's unclear which variable is the problem's
-size — `uncertain` with the field (`constraints.test_groups_hint[i].points`,
-`constraints.test_groups_hint[i].max_n`).
+dependencies, feedback policy and variable bounds as is. Don't make up what the author
+didn't set: a group without points — `uncertain` with the field
+(`constraints.test_groups_hint[i].points`).
 
 If the user prompt has an "Interaction protocol" section — the problem is
 interactive, and you're also given interactive.md (its rules are mandatory
@@ -301,10 +300,10 @@ the solution.
 The problem has subtasks (the rules of the Scoring block — scoring.md). The groups as the
 author set them, in order (None — not set):
 {% for g in statement_draft.test_groups %}
-- subtask {{ g.name }}: points {{ g.points }}; max_n {{ g.max_n }}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}
+- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}
 {% endfor %}
 
-The problem's variables (`max_n` bounds the one that is the problem's size):
+The problem's variables (a subtask's `variables` narrow their bounds):
 {% for v in statement_draft.variables %}
 - {{ v.name }} — {{ v.description }}
 {% endfor %}
@@ -449,7 +448,9 @@ What to do when the asymptotics are given explicitly:
    For each group fix the fields of constraints_format.yaml:
    - `name` — as in the hint (numbers 1, 2, ... in order); group 0 — the statement
      examples with the full limits and 0 points — is implicit, don't list it;
-   - `max_n`, `special_property`, `subset_of` — from the hint;
+   - `variables`, `special_property`, `subset_of` — from the hint (`variables` — the
+     group's own `min`/`max` of the named variables, as the author gave them;
+     a variable not named — its full bounds);
    - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
      groups — don't propose them: `uncertain`, the missing field is
      `constraints.test_groups_hint` (the points are the author's, as the groups are);
@@ -483,8 +484,10 @@ a separate `validator` section, from which item 6 below derives
   `notes` with `kind: proposed` about the chosen interpretation, not a silent choice.
 - `validator.groups` — only with `test_groups`: an entry for each group whose
   tests have narrower limits than the full ones — `constants` with the variables
-  whose bounds the group narrows (by its `max_n` and `subset_of`: a group narrowing
-  another one has at most its limits) and `checks` with the group's
+  whose bounds the group narrows and their group `min`/`max` as numbers (by its
+  `variables` and `subset_of`: a group narrowing another one has at most its
+  limits; an expression bound of the hint — evaluated at the fixed limits, or kept
+  as a check in `checks` if it depends on other values of the test) and `checks` with the group's
   `special_property`, if any, as a concrete check. A group with the full limits
   and no special property has no entry. Plus one entry in `validator.checks`: the
   test group is a known one — 0 (the statement examples) or a name from
@@ -502,7 +505,7 @@ a separate `validator` section, from which item 6 below derives
    With `test_groups`: the test's group is `group_index()` from problem_lib.h (0 —
    the statement examples, they have the full limits); `ensuref` that it is a known
    group; the bounds of each variable a group narrows — per group (e.g. a vector of
-   the variable's largest value indexed by the group, from 0), read with the bounds
+   the variable's smallest/largest value indexed by the group, from 0), read with the bounds
    of the test's group; the checks of a group's `special_property` —
    only for the tests of that group.
    This isn't a separate decision of the model, but
@@ -562,7 +565,7 @@ The inputs of the statement's examples (an illustration of the format — the va
 
 ## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
-- name={{ g.name }}, subset_of={{ g.subset_of }}, max_n={{ g.max_n }}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}
+- name={{ g.name }}, subset_of={{ g.subset_of }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 
@@ -684,7 +687,7 @@ How the plan's tests work:
   groups (the block then repeats in each of them, with the group's own values:
   its range, its limits). The blocks go in the order of the groups (a block with a list
   — where its first group is), and each test of a block satisfies the limits of its
-  group: `max_n`, `special_property` and `validator.groups` of the fixed limits. A
+  group: `variables`, `special_property` and `validator.groups` of the fixed limits. A
   group's tests are better taken from its own range, beyond the groups it depends on
   (`dependencies`): smaller tests are already there. Every group gets tests; group 0
   — the statement examples — gets none. The commands don't carry `-group`: the script
@@ -1998,8 +2001,9 @@ a proposed value here must have a mark and an explanation in `notes`:
 - `constraints.test_groups_hint` — the test groups (subtasks): the later steps don't
   invent groups, they take them only from here. Only if the draft has or implies
   subtasks (groups, partial points, "for N <= 1000 ..."): then fill in every group
-  completely — `name` (1, 2, ...), its limits (`max_n`, `special_property`,
-  `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
+  completely — `name` (1, 2, ...), its limits (`variables` — the group's own `min`/`max`
+  of variables from `constraints.variables`, `{N: {max: 1000}}`; `special_property` —
+  everything that isn't a bound of one variable; `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
   groups), `feedback_policy` — keep what the author wrote as is, mark each value you
   filled in yourself `# PROPOSED, REVIEW ME`, and set `generation.script_style:
   "groups"` (a spec with groups and `flat` doesn't validate). Without any sign of

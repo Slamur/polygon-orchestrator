@@ -863,7 +863,7 @@ class _Puller:
     def _write_test_groups(self, remote: list[GroupSettings]) -> str | None:
         """Writes the groups on Polygon into the `test_groups` of `constraints.yaml` (the
         old file — to the backup): the points, dependencies and feedback policy of each
-        group; its other fields (`max_n`, ...) stay, a new group gets `status: confirmed`,
+        group; its other fields (`variables`, ...) stay, a new group gets `status: confirmed`,
         a group that isn't on Polygon is removed. Group `0` (the examples) isn't
         written: push sets it as always. What `constraints.yaml` can't hold — the reason,
         nothing is written."""

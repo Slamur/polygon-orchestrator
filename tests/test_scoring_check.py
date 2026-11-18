@@ -13,11 +13,11 @@ _CONSTRAINTS = """\
 problem_id: example-problem
 test_groups:
   - name: "1"
-    max_n: 1000
+    variables: {N: {max: 1000}}
     points: 30
     dependencies: []
   - name: "2"
-    max_n: null
+    variables: null
     special_property: "all a_i are equal"
     points: 20
     dependencies: []
@@ -104,6 +104,19 @@ def test_mismatches_are_reported(tmp_path):
         "statement/ru/scoring.tex: subtask 1: the constraints don't mention "
         "1000, 1000000000 ('$N \\le 10^4$')",
         "statement/ru/scoring.tex: subtask 3: necessary subtasks '1', expected 1, 2",
+    ]
+
+
+def test_group_variable_min_is_checked(tmp_path):
+    constraints = _CONSTRAINTS.replace(
+        "    variables: null\n", '    variables: {K: {min: 5, max: "N"}}\n'
+    )
+    table = _table(*_GOOD_ROWS)
+    errors = check_scoring(_problem(tmp_path, {"ru": table, "en": table}, constraints))
+    assert errors == [
+        f"statement/{code}/scoring.tex: subtask 2: the constraints don't mention 5 "
+        "('all $a_i$ are equal')"
+        for code in ("en", "ru")
     ]
 
 

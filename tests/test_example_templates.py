@@ -215,9 +215,10 @@ def test_example_test_groups_match_spec_and_plan(example_dir):
         assert spec.generation.script_style == "flat"
         return
 
-    fields = ("name", "max_n", "points", "dependencies", "feedback_policy")
+    fields = ("name", "variables", "points", "dependencies", "feedback_policy")
+    hint_groups = [h.model_dump(mode="json", exclude_none=True) for h in hint]
     assert [tuple(g.get(f) or None for f in fields) for g in groups] == [
-        tuple(getattr(h, f) or None for f in fields) for h in hint
+        tuple(h.get(f) or None for f in fields) for h in hint_groups
     ]
     assert sum(g["points"] for g in groups) == 100
     assert plan_groups == {g["name"] for g in groups}

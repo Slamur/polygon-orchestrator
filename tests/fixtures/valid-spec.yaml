@@ -44,7 +44,7 @@ constraints:
   test_groups_hint:
     - name: "1"
       subset_of: null
-      max_n: 10
+      variables: {N: {max: 10}}
   time_limit_seconds: 2.0
   memory_limit_mb: 256
   uncertain_points:

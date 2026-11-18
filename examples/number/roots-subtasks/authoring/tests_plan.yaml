@@ -75,7 +75,7 @@ constants:
        {id: 4, prevN: 10^6, maxN: 10^12, randomTests: 5},
        {id: 5, prevN: 10^12, maxN: maxN, randomTests: 5}]
     description: |
-      test_groups of constraints.yaml: maxN — the group's max_n, prevN — the max_n of the group
+      test_groups of constraints.yaml: maxN — the group's max of N (its `variables`), prevN — that of the group
       it depends on (0 for group 1), randomTests — how many random tests the group gets
   - name: deltas
     value: "[-1, 0, 1]"

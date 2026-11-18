@@ -89,7 +89,7 @@ How the plan's tests work:
   groups (the block then repeats in each of them, with the group's own values:
   its range, its limits). The blocks go in the order of the groups (a block with a list
   — where its first group is), and each test of a block satisfies the limits of its
-  group: `max_n`, `special_property` and `validator.groups` of the fixed limits. A
+  group: `variables`, `special_property` and `validator.groups` of the fixed limits. A
   group's tests are better taken from its own range, beyond the groups it depends on
   (`dependencies`): smaller tests are already there. Every group gets tests; group 0
   — the statement examples — gets none. The commands don't carry `-group`: the script

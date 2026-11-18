@@ -75,8 +75,9 @@ a proposed value here must have a mark and an explanation in `notes`:
 - `constraints.test_groups_hint` — the test groups (subtasks): the later steps don't
   invent groups, they take them only from here. Only if the draft has or implies
   subtasks (groups, partial points, "for N <= 1000 ..."): then fill in every group
-  completely — `name` (1, 2, ...), its limits (`max_n`, `special_property`,
-  `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
+  completely — `name` (1, 2, ...), its limits (`variables` — the group's own `min`/`max`
+  of variables from `constraints.variables`, `{N: {max: 1000}}`; `special_property` —
+  everything that isn't a bound of one variable; `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
   groups), `feedback_policy` — keep what the author wrote as is, mark each value you
   filled in yourself `# PROPOSED, REVIEW ME`, and set `generation.script_style:
   "groups"` (a spec with groups and `flat` doesn't validate). Without any sign of

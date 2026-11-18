@@ -131,8 +131,8 @@ def _section_data(spec: ProblemSpec) -> dict[str, Any]:
     only for an interactive problem — a normal one has no field in the hash, as before it
     appeared (otherwise adding it would have invalidated the cache of all problems).
     The statement language (the spec's `language`) — likewise, only if it isn't `DEFAULT_LANGUAGE`.
-    The test groups (`constraints.test_groups_hint`) with the variables their `max_n` may
-    bound — likewise, only for a problem with groups."""
+    The test groups (`constraints.test_groups_hint`) with the variables their `variables`
+    narrow — likewise, only for a problem with groups."""
     exclude = set(SPEC_REFERENCES_FIELD)
     if not spec.interactive:
         exclude.add("interaction_sketch")
@@ -145,7 +145,7 @@ def _section_data(spec: ProblemSpec) -> dict[str, Any]:
 def _groups_input(spec: ProblemSpec) -> dict[str, Any]:
     """The groups for the Scoring table: `test_groups` — the hint as the author wrote it
     (absent fields — `null`, `feedback_policy` — its default), `variables` — the name and
-    description of each variable, to name the one `max_n` bounds. `{}` without groups."""
+    description of each variable the groups' `variables` refer to. `{}` without groups."""
     if not has_test_groups(spec):
         return {}
     constraints = spec.constraints

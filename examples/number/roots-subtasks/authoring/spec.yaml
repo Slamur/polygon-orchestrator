@@ -51,21 +51,21 @@ constraints:
       description: "the number the roots are extracted from"
   test_groups_hint:
     - name: "1"
-      max_n: 10
+      variables: {N: {max: 10}}
       points: 10
       feedback_policy: "icpc"
     - name: "2"
-      max_n: 1000
+      variables: {N: {max: 1000}}
       points: 15
       dependencies: ["1"]
       feedback_policy: "icpc"
     - name: "3"
-      max_n: 1000000
+      variables: {N: {max: 1000000}}
       points: 15
       dependencies: ["2"]
       feedback_policy: "icpc"
     - name: "4"
-      max_n: 1000000000000
+      variables: {N: {max: 1000000000000}}
       points: 20
       dependencies: ["3"]
       feedback_policy: "icpc"

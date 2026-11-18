@@ -148,14 +148,18 @@ constraints:
     - "all S_i consist only of lowercase Latin letters"
   test_groups_hint:                  # [optional] — test groups (subtasks): set by the author or by init --draft, the steps don't invent them
     - name: "1"                      # names — positive numbers 1, 2, ...: the validator gets the group
-      max_n: 10                      # as a number; group 0 — the statement examples (the full limits,
-      points: 20                     # 0 points) — is implicit and isn't listed
+      variables:                     # as a number; group 0 — the statement examples (the full limits,
+        N: {max: 10}                 # 0 points) — is implicit and isn't listed
+        K: {min: 1, max: "N - 1"}    # variables — the group's own min and/or max of variables from
+                                     # `variables` (a number or an expression, within the full
+                                     # bounds); a variable not named — its full bounds
+      points: 20
       feedback_policy: "icpc"        # what a contestant sees on the group: icpc (the first failed
                                      # test, the default) | points (only the points) | complete | none
     - name: "2"
-      special_property: "n is prime"
+      special_property: "n is prime" # everything that isn't a bound of one variable
       points: 30
-    - name: "3"                      # max_n absent — the full limits
+    - name: "3"                      # no variables and special_property — the full limits
       points: 50
       dependencies: ["1", "2"]       # the earlier groups that must be passed for this group's points
     # All fields but name are optional; subset_of — the group whose limits this one narrows.

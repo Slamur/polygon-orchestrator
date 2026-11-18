@@ -367,6 +367,10 @@ def test_test_groups_check_accepts_valid_groups(spec):
             'validator:\n  groups:\n    - name: "1"\n',
             "validator.groups is set, but there are no test_groups",
         ),
+        (
+            _groups_yaml('  - name: "1"\n    variables: {M: {max: 10}}\n'),
+            "test_groups[0].variables: 'M' isn't one of constraints.variables",
+        ),
     ],
 )
 def test_test_groups_check_rejects_invalid_groups(spec, text, error):

@@ -11,10 +11,11 @@ What is checked, in each statement language:
   order: a row is a data row if its first cell is a number (the header rows aren't);
   a row of group `0` (the statement examples) with 0 points is allowed and skipped;
 - the second cell is the group's points (if `constraints.yaml` sets them);
-- the third cell mentions the group's extra limits: the group's `max_n` and the `max`
-  of each constant in its `validator.groups` entry — each value must occur among the
-  numbers of the cell (`10`, `10^{12}`, `2 \\cdot 10^5`, `10\\,000`); which variable
-  the number bounds isn't checked, and neither is text (`special_property`);
+- the third cell mentions the group's extra limits: the numeric `min`/`max` of the
+  group's `variables` and of each constant in its `validator.groups` entry — each value
+  must occur among the numbers of the cell (`10`, `10^{12}`, `2 \\cdot 10^5`,
+  `10\\,000`); which variable the number bounds isn't checked, and neither are
+  expressions and text (`special_property`);
 - the fourth cell, if there is one, — exactly the group's `dependencies` (numbers in any
   order).
 
@@ -153,8 +154,12 @@ def _compare(rows: list[list[str]], groups, limits: dict[str, set[int]]) -> list
             cell = row[1] if len(row) > 1 else ""
             errors.append(f"{label}: points {cell or 'none'}, expected {group.points}")
         wanted = set(limits.get(group.name, set()))
-        if group.max_n is not None:
-            wanted.add(group.max_n)
+        for limit in (group.variables or {}).values():
+            wanted.update(
+                value
+                for value in (limit.min, limit.max)
+                if isinstance(value, int) and not isinstance(value, bool)
+            )
         found = numbers(row[2]) if len(row) > 2 else set()
         missing = sorted(wanted - found)
         if missing:
@@ -171,7 +176,8 @@ def _compare(rows: list[list[str]], groups, limits: dict[str, set[int]]) -> list
 
 
 def _group_limits(problem_dir: Path) -> dict[str, set[int]]:
-    """The `max` of each constant of `validator.groups` in `constraints.yaml`, by group."""
+    """The `min` and `max` of each constant of `validator.groups` in `constraints.yaml`,
+    by group."""
     try:
         data = yaml.safe_load(constraints_path(problem_dir).read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
@@ -184,11 +190,13 @@ def _group_limits(problem_dir: Path) -> dict[str, set[int]]:
     for group in with_string_names(item for item in raw if isinstance(item, dict)):
         values = limits.setdefault(str(group.get("name")), set())
         for constant in group.get("constants") or []:
-            value = constant.get("max") if isinstance(constant, dict) else None
-            if isinstance(value, str) and value.strip().isdigit():
-                value = int(value)
-            if isinstance(value, int) and not isinstance(value, bool):
-                values.add(value)
+            if not isinstance(constant, dict):
+                continue
+            for value in (constant.get("min"), constant.get("max")):
+                if isinstance(value, str) and value.strip().isdigit():
+                    value = int(value)
+                if isinstance(value, int) and not isinstance(value, bool):
+                    values.add(value)
     return limits
 
 

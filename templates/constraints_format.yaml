@@ -34,7 +34,8 @@ test_groups:                    # only if groups are needed; otherwise there's n
   - name: "<1, 2, ...>"         # the fields — as in the spec's constraints.test_groups_hint;
                                 # names — numbers in order: the validator gets the group as a number
     subset_of: "<group name | null>"
-    max_n: <number | null>      # null — the full limit of the variable
+    variables:                  # the group's own bounds, by variable name; absent — the full ones
+      <name>: {min: <number | expression>, max: <number | expression>}  # either or both
     special_property: "<the special property of the group's tests | null>"
     points: <points for passing all tests of the group; all groups sum to 100>
     dependencies: [<names of the groups that must be passed for this group's points>]
@@ -55,6 +56,7 @@ validator:                      # validator.cpp implements this section 1-to-1
     - name: "<a group name from test_groups>"
       constants:                # the variables whose bounds are narrower than the full ones
         - name: "<name>"
+          min: <number>         # only the narrowed bound(s): an absent one — the full one
           max: <number>
       checks:                   # the group's special_property, if any
         - "<check>"

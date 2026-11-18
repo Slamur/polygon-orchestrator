@@ -52,7 +52,7 @@ constraints:
   test_groups_hint: []               # [optional] test groups (subtasks), if they're already invented;
                                      # names — 1, 2, ... (group 0 — the examples — is implicit):
                                      #   - name: "1"
-                                     #     max_n: 10
+                                     #     variables: {N: {max: 10}}   # the group's own min/max of constraints.variables
                                      #     special_property: null
                                      #     points: 30
                                      #     dependencies: []

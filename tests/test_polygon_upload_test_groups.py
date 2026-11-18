@@ -18,13 +18,13 @@ GROUPS_YAML = """\
 problem_id: example-problem
 test_groups:
   - name: "1"
-    max_n: 10
+    variables: {N: {max: 10}}
     points: 30
     dependencies: []
     feedback_policy: icpc
     status: confirmed
   - name: "2"
-    max_n: null
+    variables: null
     points: 70
     dependencies: ["1"]
     feedback_policy: points
