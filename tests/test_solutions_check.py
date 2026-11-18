@@ -119,6 +119,25 @@ def test_failed_run_raises_and_its_report_stays_current_until_an_input_changes(
     )
 
 
+def test_editing_the_groups_of_a_spec_item_reruns_the_local_run(spec, problem_dir):
+    """The run compares the groups a solution passes with its item's `[...]`."""
+
+    def input_hash(spec):
+        upstream = {
+            RUN_MAIN.INPUTS_KEY: RUN_MAIN.load_inputs(
+                PROBLEM_ID, spec, problems_dir=problem_dir.parent
+            )
+        }
+        return RUN_MAIN.compute_input_hash(PROBLEM_ID, spec, upstream)
+
+    before = spec.model_copy(deep=True)
+    before.solutions.known_wrong_approaches = ["wa [1-3]: a mistake"]
+    after = spec.model_copy(deep=True)
+    after.solutions.known_wrong_approaches = ["wa [1-2]: a mistake"]
+
+    assert input_hash(before) != input_hash(after)
+
+
 def test_problem_errors_fail_the_run_but_are_not_given_to_the_stage(spec, problem_dir, monkeypatch):
     outcome = SolutionOutcome(MAIN_NAME, "ok", frozenset({"OK"}), tests=[Outcome("t", "OK")])
     _stub_run(monkeypatch, _result_with(outcome, errors=["validator.cpp rejects test 3: bad"]))
