@@ -167,6 +167,26 @@ def test_author_comment_is_read_after_the_marker(problem_dir):
     assert read_author_comment(problem_dir, "run_main") == "the sample is wrong"
 
 
+def test_group_mismatch_with_the_spec_item_fails_the_run(spec, problem_dir, monkeypatch):
+    mismatch = "group 2: WA on test 4, solutions.known_wrong_approaches[0] says it passes the group"
+    outcome = SolutionOutcome(
+        MAIN_NAME,
+        "ok",
+        frozenset({"OK"}),
+        tests=[Outcome("t", "OK")],
+        group_mismatches=[mismatch],
+    )
+    _stub_run(monkeypatch, _result_with(outcome))
+
+    with pytest.raises(GateFailedError) as exc_info:
+        _run_gate(RUN_MAIN, spec, problem_dir)
+
+    failed = [n for n in exc_info.value.notes if n["kind"] == "failed"]
+    assert failed[0]["explanation"] == mismatch
+    current = RUN_MAIN.failed_report(PROBLEM_ID, spec, [MAIN_NAME], problems_dir=problem_dir.parent)
+    assert current["failures"][0]["group_mismatches"] == [mismatch]
+
+
 def test_stage_reads_the_failed_report_of_its_run(spec, problem_dir, monkeypatch):
     _stub_run(monkeypatch, _result_with(_failing_main()))
     with pytest.raises(GateFailedError):

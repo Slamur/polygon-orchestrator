@@ -1,3 +1,4 @@
+# spec: solutions.known_wrong_approaches[6]
 def read_line() -> str:
     return input()
 

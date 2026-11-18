@@ -694,3 +694,26 @@ def test_without_test_groups_there_are_no_points(tmp_path):
     assert wa.points is None and wa.group_line is None
     summary = {s["name"]: s for s in result.summary()["solutions"]}
     assert summary["wa_py_seven_draft.py"]["groups"] is None
+
+
+def test_full_compares_groups_with_the_spec_item_of_the_solution(tmp_path):
+    marker = "# spec: solutions.known_wrong_approaches[0]\n"
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": marker + WA_ON_SEVEN_PY},
+        GROUPS_SCRIPT,
+        extra_spec={"solutions": {"known_wrong_approaches": ["wa (py) [1, 2]: wrong on seven"]}},
+    )
+    (problem_dir / "authoring" / "constraints.yaml").write_text(
+        GROUPS_CONSTRAINTS, encoding="utf-8"
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    wa = _by_name(result)["wa_py_seven_draft.py"]
+    assert wa.spec_item == 0
+    assert wa.group_mismatches == [
+        "group 2: WA on test 4, solutions.known_wrong_approaches[0] says it passes the group"
+    ]
+    assert result.failed
+    summary = {s["name"]: s for s in result.summary()["solutions"]}["wa_py_seven_draft.py"]
+    assert summary["status"] == "unexpected"
+    assert any("passes group 3" in w for w in result.warnings)

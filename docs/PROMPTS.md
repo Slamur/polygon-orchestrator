@@ -1171,6 +1171,14 @@ Mandatory rules (each item says which stages it is about):
    `tl`), and the file name is built as for any other item — the groups aren't part of
    it. Write the solution so that it does pass the named groups: the mistake (or the
    slowness) shows up only beyond their limits.
+   The request gives each item with its place in the spec, `known_wrong_approaches[<i>]`.
+   In the first lines of every file written from an item put the comment
+   `spec: solutions.known_wrong_approaches[<i>]` with exactly this `<i>` (`// ...` in
+   C++ and Java, `# ...` in Python): by it the local run finds the item of the solution
+   and, with test groups, checks that the solution passes exactly the groups the item
+   names. In revision mode keep the comment, with the index the request gives now.
+   Solutions not written from an item (item 4, your own suggestions) have no such
+   comment.
    If the languages aren't given — choose them by the verdict (by default, only from
    `languages`):
    - `tl` — in C++ (if it isn't in `languages` — in the fastest of them);
@@ -1390,7 +1398,7 @@ wanted_verdicts: {{ solutions.wanted_verdicts }}
 
 ## Known wrong approaches of your stage
 {% for w in solutions.known_wrong_approaches %}
-- {{ w }}
+- known_wrong_approaches[{{ w.index }}]: {{ w.item }}
 {% endfor %}
 {% if not solutions.known_wrong_approaches %}
 (none of your stage's verdicts)
@@ -1422,6 +1430,11 @@ See {{ local_run.report }}.
   {{ test.comment }}
 {% endif %}
 {% endfor %}
+{% if failure.group_mismatches is defined %}
+{% for mismatch in failure.group_mismatches %}
+- {{ mismatch }}
+{% endfor %}
+{% endif %}
 {% endfor %}
 {% if local_run.comment %}
 

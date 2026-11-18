@@ -232,7 +232,10 @@ solutions:
     # "<verdict> (<languages separated by />): " is mandatory (the spec doesn't
     # validate without it). With test groups the prefix may name the groups the
     # solution passes completely: "wa (cpp) [1-3]: ...", "wa [1, 2, 4]: ...", "wa []: ..."
-    # (passes none); the verdict is the one on the whole test set. The verdict — one of wa, tl, tl_ok, tl_ml, tle, ml, mle, re, il
+    # (passes none); the verdict is the one on the whole test set. `local run --full`
+    # compares them with the groups the solution really passes (the solution names its
+    # item in a comment "spec: solutions.known_wrong_approaches[<i>]", <i> — the item's
+    # index from 0): a named group not passed is an error. The verdict — one of wa, tl, tl_ok, tl_ml, tle, ml, mle, re, il
     # (`tl_ok` — "TL or OK": a solution borderline in time or a solution
     # without input/output speedup; `tl_ml` — "TL or ML", Polygon's TM tag: a solution
     # too slow and too memory-hungry at once — the model itself writes a tl/ml item

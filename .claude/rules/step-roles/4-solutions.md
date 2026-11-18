@@ -36,7 +36,12 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    `known_wrong_approaches` items of the stage's verdicts — the item's verdict prefix
    is mandatory, `spec.parse_wrong_approach`; with test groups it may name the groups
    the solution passes, `[1-3]` — the verdict stays the one on the whole test set,
-   the groups aren't in the file name, and the solution must pass those groups) + `constraints.intended_complexity` + the
+   the groups aren't in the file name, and the solution must pass those groups; each
+   item goes with its index in the whole list, `known_wrong_approaches[<i>]`, and every
+   file written from it carries the comment `spec: solutions.known_wrong_approaches[<i>]`
+   — by it the local run compares the passed groups with the item's,
+   `.claude/rules/local-checks.md`; inserting an item before others renumbers them and
+   makes the stage `stale`) + `constraints.intended_complexity` + the
    text of `constraints.yaml` from step 2 without TL/ML (the model derives time
    verdicts from the asymptotics and the variables' maximum values, and tuning the TL
    doesn't invalidate the solutions) + the statement from `statement_draft` in its

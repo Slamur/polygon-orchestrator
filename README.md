@@ -331,6 +331,14 @@ files: groups changed only on Polygon (points, dependencies, feedback, added or 
 groups) are written into its `test_groups`; changed on both sides — a conflict, the local
 file stays (`--overwrite` takes Polygon's).
 
+A wrong approach may name the groups its solution passes (`wa (cpp) [1-3]: ...` in
+`known_wrong_approaches`). The solution stages put the comment `spec:
+solutions.known_wrong_approaches[<i>]` into each solution written from an item, and
+`local run --full` compares the groups the solution passes with the item's: a named group
+it fails is an error (the stage's local run fails and the stage revises the solution), a
+group it passes but the item doesn't name — a warning. Add the comment by hand to a
+solution you write yourself, if you want this check for it.
+
 ---
 
 ## Command reference

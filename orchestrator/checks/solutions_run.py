@@ -87,10 +87,27 @@ that stops at the first declared verdict doesn't stop here: in a group it skips 
 the tests after the group's first test without OK (as Polygon's first-error feedback), so
 every group gets a result.
 
+A solution written from a `known_wrong_approaches` item names it in a source comment
+`spec: solutions.known_wrong_approaches[<i>]` (`spec.APPROACH_MARKER_RE`). With `--full`
+and test groups, if the item names the groups the solution passes (`[1-3]`), they are
+compared with its results (`_judge_spec_groups`):
+
+- a named group the solution didn't pass — the solution is `unexpected` (an error, the
+  stage's local run fails), unless it is its own time/memory verdict (TL of a `tl`,
+  `tl_ok`, `tl_ml`; RE of an `ml`, `tl_ml`) — local time and memory aren't Polygon's, so
+  only a warning;
+- a group not named that the solution passed — a warning (the tests of the group don't
+  catch the mistake), not for a solution whose name allows OK on the whole set (`tl_ok`);
+- a group with tests not run (no expected output) isn't judged; the examples (group 0)
+  aren't part of `[...]`;
+- a marker of an item that isn't in the spec, of an item with another verdict (a
+  `tl_ml` may come from a `tl` or `ml` item) or naming a group the problem doesn't have —
+  a warning. Without the marker or without `[...]` in the item nothing is compared.
+
 `SolutionsRunResult.summary()` — the same outcome in a machine-readable form: the
 status of each solution (`STATUS_*`; `survived` — the declared verdict on no
-generated test), the test that caught it and, with test groups, the points and the result
-of each group.
+generated test), the test that caught it and, with test groups, the points, the result
+of each group and the mismatches with the groups of its spec item.
 """
 
 from __future__ import annotations
@@ -152,6 +169,7 @@ from orchestrator.problem_paths import (
     find_authoring_file,
     is_removed_mark,
 )
+from orchestrator.spec import find_approach_marker, parse_wrong_approach
 from orchestrator.steps.statement_draft import dialogue_filenames
 from orchestrator.test_groups import EXAMPLES_GROUP
 
@@ -213,6 +231,18 @@ _MAX_LISTED_UNEXPECTED = 10
 # The fraction of the TL above which a solution without the `tl` verdict gets a warning.
 SLOW_FRACTION = 0.5
 _TL_VERDICTS = frozenset({"tl", "tle", "tl_ml"})
+# The solution's verdict -> the local verdict on a test that is its own time/memory
+# verdict: in a group its spec item says it passes, that's only a warning.
+_SOFT_GROUP_FAILURES: dict[str, frozenset[str]] = {
+    "tl": frozenset({VERDICT_TL}),
+    "tle": frozenset({VERDICT_TL}),
+    "tl_ok": frozenset({VERDICT_TL}),
+    "tl_ml": frozenset({VERDICT_TL, VERDICT_RE}),
+    "ml": frozenset({VERDICT_RE}),
+    "mle": frozenset({VERDICT_RE}),
+}
+# Spellings of one verdict in a spec item and a file name.
+_VERDICT_ALIASES = {"tle": "tl", "mle": "ml"}
 
 STD_CHECKERS_DIR = Path(__file__).with_name("std_checkers")
 SOLUTIONS_DIRNAME = "solutions"
@@ -276,6 +306,12 @@ class SolutionOutcome:
     skipped_in_groups: bool = False
     # The result per test group (only `--full` of a problem with test groups).
     groups: list[GroupResult] | None = None
+    # The `known_wrong_approaches` index from the solution's source comment.
+    spec_item: int | None = None
+    # Groups its spec item says it passes, but it didn't — an error.
+    group_mismatches: list[str] = field(default_factory=list)
+    # The same that is only a warning, and the other notes on the spec item.
+    group_warnings: list[str] = field(default_factory=list)
 
     @property
     def required_label(self) -> str:
@@ -302,7 +338,7 @@ class SolutionOutcome:
     def status(self) -> str:
         if self.error is not None:
             return STATUS_NOT_RUN
-        if any(t.verdict not in self.allowed for t in self.tests):
+        if any(t.verdict not in self.allowed for t in self.tests) or self.group_mismatches:
             return STATUS_UNEXPECTED
         if self.missed_required:
             return STATUS_SURVIVED
@@ -315,6 +351,7 @@ class SolutionOutcome:
         return (
             self.error is not None
             or any(t.verdict not in self.allowed for t in self.tests)
+            or bool(self.group_mismatches)
             or (
                 self.missed_required
                 and not self.caught_on_example
@@ -374,6 +411,8 @@ class SolutionOutcome:
             ],
             "max_seconds": round(max(seconds), 2) if seconds else None,
             "points": self.points,
+            "spec_item": self.spec_item,
+            "group_mismatches": list(self.group_mismatches),
             "groups": None
             if self.groups is None
             else [
@@ -441,11 +480,13 @@ class SolutionsRunResult:
 
     @property
     def warnings(self) -> list[str]:
-        """Survivors that aren't an error (caught only on the examples; `tl`/`ml`) and
-        solutions without the `tl` verdict that ran on an example longer than
-        `SLOW_FRACTION` of the TL (but fit into it)."""
+        """Survivors that aren't an error (caught only on the examples; `tl`/`ml`), the
+        warnings on the groups of a solution's spec item and solutions without the `tl`
+        verdict that ran on an example longer than `SLOW_FRACTION` of the TL (but fit
+        into it)."""
         warnings = []
         for s in self.solutions:
+            warnings += [f"{s.name}: {warning}" for warning in s.group_warnings]
             if s.status != STATUS_SURVIVED:
                 continue
             if s.caught_on_example:
@@ -497,6 +538,7 @@ class SolutionsRunResult:
                 unexpected.append(f"{s.name}: {s.runs}")
                 if s.group_line is not None:
                     unexpected.append(f"  {s.group_line}")
+                unexpected.extend(f"  {mismatch}" for mismatch in s.group_mismatches)
                 if (
                     s.missed_required
                     and not s.caught_on_example
@@ -661,6 +703,7 @@ def run_solutions(
                 generated, parsed, program_for, checker, time_limit, work_dir, interactor, result
             )
             _judge_groups(generated, result)
+            _judge_all_spec_groups(parsed, spec, result)
     result.solutions.sort(key=lambda s: s.name)
     return result
 
@@ -681,6 +724,85 @@ def _judge_groups(generated: list[LocalTest], result: SolutionsRunResult) -> Non
             totals,
             [(t.test, t.group, t.verdict) for t in outcome.tests if t.generated],
         )
+
+
+def _judge_all_spec_groups(parsed: dict, spec: dict | None, result: SolutionsRunResult) -> None:
+    """Compares the groups each run solution passed with the `[...]` of its spec item
+    (see the module docstring)."""
+    if result.test_groups is None:
+        return
+    items = _section(spec, "solutions").get("known_wrong_approaches")
+    items = items if isinstance(items, list) else []
+    for outcome in result.solutions:
+        if outcome.groups is None or outcome.name not in parsed:
+            continue
+        try:
+            source = parsed[outcome.name].path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        _judge_spec_groups(outcome, source, items)
+
+
+def _judge_spec_groups(outcome: SolutionOutcome, source: str, items: list) -> None:
+    """One solution: the groups it passed against its spec item's `[...]`, the item —
+    by the marker in its `source`; the findings go into `group_mismatches` (errors) and
+    `group_warnings`."""
+    index = find_approach_marker(source)
+    if index is None or outcome.groups is None:
+        return
+    outcome.spec_item = index
+    where = f"solutions.known_wrong_approaches[{index}]"
+    if index >= len(items) or not isinstance(items[index], str):
+        outcome.group_warnings.append(f"{where} named in the source is not in the spec")
+        return
+    approach = parse_wrong_approach(items[index])
+    if approach is None:
+        outcome.group_warnings.append(f"{where} named in the source has no verdict prefix")
+        return
+    if not _same_approach_verdict(outcome.verdict, approach.verdict):
+        outcome.group_warnings.append(
+            f"{where} named in the source is a '{approach.verdict}' item, "
+            f"the file name says '{outcome.verdict}'"
+        )
+        return
+    if approach.passed_groups is None:
+        return
+    listed = set(approach.passed_groups)
+    names = {g.group.name for g in outcome.groups}
+    unknown = sorted(listed - names, key=lambda name: (len(name), name))
+    if unknown:
+        outcome.group_warnings.append(
+            f"{where} names test group(s) {', '.join(unknown)} the problem doesn't have"
+        )
+    soft = _SOFT_GROUP_FAILURES.get(outcome.verdict, frozenset())
+    for group in outcome.groups:
+        name = group.group.name
+        if name == EXAMPLES_GROUP:
+            continue
+        if name in listed:
+            if group.failed is None:
+                continue
+            test, verdict = group.failed
+            text = f"group {name}: {verdict} on {test}, {where} says it passes the group"
+            if verdict in soft:
+                outcome.group_warnings.append(f"{text} (local time and memory, not Polygon's)")
+            else:
+                outcome.group_mismatches.append(text)
+        elif group.passed and outcome.verdict in REQUIRED_VERDICTS:
+            outcome.group_warnings.append(
+                f"passes group {name}, {where} says it doesn't: no test of the group catches it"
+            )
+
+
+def _same_approach_verdict(file_verdict: str, item_verdict: str) -> bool:
+    """Whether a solution with `file_verdict` in its name may be written from an item with
+    `item_verdict`: the same verdict (`tle` = `tl`, `mle` = `ml`), or a `tl_ml` from a
+    `tl` or `ml` item (`.claude/rules/step-roles/4-solutions.md`)."""
+    file_verdict = _VERDICT_ALIASES.get(file_verdict, file_verdict)
+    item_verdict = _VERDICT_ALIASES.get(item_verdict, item_verdict)
+    return file_verdict == item_verdict or (
+        file_verdict == "tl_ml" and item_verdict in ("tl", "ml")
+    )
 
 
 def _only_with_main(parsed: dict, only: Collection[str]) -> dict:
