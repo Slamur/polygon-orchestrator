@@ -12,7 +12,8 @@ the tests for it are a separate matter.
 
 The step's input is the contents of everything the run reads (the judged solutions,
 generators, the test-script, the validator, the checker, the interactor, the limits,
-the examples) and the spec parts it takes (the checker, the examples' outputs), so
+the examples) and the spec parts it takes (the checker, the examples' outputs, the
+`known_wrong_approaches` items — their groups are compared with the results), so
 an unchanged input doesn't run the tests again: a run that failed fails again at once,
 pointing to its report. The failures and the survivors — `.cache/<step>.report.json`
 (`load_run_report`); the survivors of a passed run — the input of `tests_survivors`
@@ -146,6 +147,10 @@ class Gate:
             "checker": spec.checker.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD),
             "interactive": spec.interactive,
             "sample_outputs": [ex.output for ex in spec.statement_draft.sample_examples],
+            # The run compares the groups a solution passes with its item's `[...]`.
+            "known_wrong_approaches": (
+                spec.solutions.known_wrong_approaches if spec.solutions is not None else None
+            ),
         }
         return section, {f"file: {name}": digest for name, digest in inputs["files"].items()}
 
