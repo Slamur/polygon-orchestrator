@@ -8,11 +8,14 @@ The run fails — and stops the pipeline — if a judged solution got a verdict 
 doesn't allow or didn't build (`STATUS_UNEXPECTED`, `STATUS_NOT_RUN`), or the problem
 itself has errors (the validator rejects a test, the checker fails). A wrong solution
 that no generated test catches (`STATUS_SURVIVED`) isn't a failure: it's reported,
-the tests for it are a separate matter.
+the tests for it are a separate matter. The same goes for a wrong solution that passes a
+test group its spec item says it fails (`uncaught_groups`): it is a survivor too, with
+those groups, even if a test of another group catches it.
 
 The step's input is the contents of everything the run reads (the judged solutions,
 generators, the test-script, the validator, the checker, the interactor, the limits,
-the examples) and the spec parts it takes (the checker, the examples' outputs), so
+the examples) and the spec parts it takes (the checker, the examples' outputs, the
+`known_wrong_approaches` items — their groups are compared with the results), so
 an unchanged input doesn't run the tests again: a run that failed fails again at once,
 pointing to its report. The failures and the survivors — `.cache/<step>.report.json`
 (`load_run_report`); the survivors of a passed run — the input of `tests_survivors`
@@ -42,6 +45,7 @@ from orchestrator.cache import (
 )
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.checks.solutions_run import (
+    STATUS_EXPECTED,
     STATUS_NOT_RUN,
     STATUS_SURVIVED,
     STATUS_UNEXPECTED,
@@ -146,6 +150,10 @@ class Gate:
             "checker": spec.checker.model_dump(mode="json", exclude=SPEC_REFERENCES_FIELD),
             "interactive": spec.interactive,
             "sample_outputs": [ex.output for ex in spec.statement_draft.sample_examples],
+            # The run compares the groups a solution passes with its item's `[...]`.
+            "known_wrong_approaches": (
+                spec.solutions.known_wrong_approaches if spec.solutions is not None else None
+            ),
         }
         return section, {f"file: {name}": digest for name, digest in inputs["files"].items()}
 
@@ -251,7 +259,12 @@ class Gate:
         failures = [
             s for s in judged_outcomes if s["status"] in (STATUS_UNEXPECTED, STATUS_NOT_RUN)
         ]
-        survivors = [s for s in judged_outcomes if s["status"] == STATUS_SURVIVED]
+        survivors = [
+            s
+            for s in judged_outcomes
+            if s["status"] == STATUS_SURVIVED
+            or (s["status"] == STATUS_EXPECTED and s.get("uncaught_groups"))
+        ]
         failed = bool(failures or result.errors)
         _save_run_report(
             problem_id,
@@ -372,17 +385,18 @@ def _notes(
             }
         )
     for survivor in survivors:
-        where = (
-            "only the examples catch it"
-            if survivor.get("caught_on_example")
-            else "nothing catches it"
-        )
-        notes.append(
-            {
-                "field": survivor["name"],
-                "kind": "survived",
-                "explanation": f"no test from the script gets '{survivor['verdict']}': {where}",
-            }
-        )
+        if survivor["status"] == STATUS_SURVIVED:
+            where = (
+                "only the examples catch it"
+                if survivor.get("caught_on_example")
+                else "nothing catches it"
+            )
+            explanation = f"no test from the script gets '{survivor['verdict']}': {where}"
+        else:
+            explanation = (
+                f"no test of group(s) {', '.join(survivor['uncaught_groups'])} catches it, "
+                f"its spec item says it fails them"
+            )
+        notes.append({"field": survivor["name"], "kind": "survived", "explanation": explanation})
     notes += [{"field": "run", "kind": "warning", "explanation": w} for w in warnings]
     return notes

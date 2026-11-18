@@ -389,7 +389,8 @@ plan) → `generators_draft` (generators from the plan) → `test_script_draft`
 → the solutions in stages, each checked by a local run of its solutions on the
 examples and the tests from the script: `solutions_main` → `run_main` →
 `solutions_ok` → `run_ok` → `solutions_slow` → `run_slow` → `solutions_wrong` →
-`run_wrong` → `tests_survivors` (tests for the wrong solutions no test catches; after it
+`run_wrong` → `tests_survivors` (tests for the wrong solutions no test catches, or no
+test of a group their spec item says they fail; after it
 the generators, the script and the runs again). Separately, only via the `llm tutorial` command, —
 `tutorial_draft` (the tutorial from a draft).
 

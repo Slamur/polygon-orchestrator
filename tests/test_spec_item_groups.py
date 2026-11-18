@@ -82,14 +82,17 @@ def test_a_group_not_named_but_passed_is_a_warning():
         "passes group 3, solutions.known_wrong_approaches[0] says it doesn't: "
         "no test of the group catches it"
     ]
+    assert outcome.uncaught_groups == ["3"]
     result = SolutionsRunResult(solutions=[outcome])
     assert f"{outcome.name}: {outcome.group_warnings[0]}" in result.warnings
+    assert result.summary()["solutions"][0]["uncaught_groups"] == ["3"]
 
 
 def test_tl_ok_may_pass_groups_it_does_not_name():
     outcome = _outcome("tl_ok", _groups(("1", None), ("2", None)))
     _judge_spec_groups(outcome, _marker(1), ITEMS)
     assert outcome.group_mismatches == [] and outcome.group_warnings == []
+    assert outcome.uncaught_groups == []
     assert outcome.status == STATUS_EXPECTED
 
 

@@ -28,7 +28,8 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   locally (`run_*`, without the model, `.claude/rules/step-roles/4-solutions.md`): a
   failed run stops the pipeline, its report `llm_reports/<run>.md` ends with a section
   for the author's comment, and the next run lets the stage revise with the report.
-  After them `tests_survivors` adds tests for the wrong solutions no test catches, and
+  After them `tests_survivors` adds tests for the wrong solutions no test catches (or
+  no test of a group their spec item says they fail), and
   the code of the plan and the local runs run again — up to `--survivor-rounds N`
   times (1 by default, `0` — not at all; `.claude/rules/step-roles/3-tests.md`); the
   console shows each repetition as a `round N: rechecking` line. To the console — a line per step and, for a step that worked (called
