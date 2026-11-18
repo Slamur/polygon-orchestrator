@@ -74,7 +74,9 @@ What to do when the asymptotics are given explicitly:
    For each group fix the fields of constraints_format.yaml:
    - `name` — as in the hint (numbers 1, 2, ... in order); group 0 — the statement
      examples with the full limits and 0 points — is implicit, don't list it;
-   - `max_n`, `special_property`, `subset_of` — from the hint;
+   - `variables`, `special_property`, `subset_of` — from the hint (`variables` — the
+     group's own `min`/`max` of the named variables, as the author gave them;
+     a variable not named — its full bounds);
    - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
      groups — don't propose them: `uncertain`, the missing field is
      `constraints.test_groups_hint` (the points are the author's, as the groups are);
@@ -108,8 +110,10 @@ a separate `validator` section, from which item 6 below derives
   `notes` with `kind: proposed` about the chosen interpretation, not a silent choice.
 - `validator.groups` — only with `test_groups`: an entry for each group whose
   tests have narrower limits than the full ones — `constants` with the variables
-  whose bounds the group narrows (by its `max_n` and `subset_of`: a group narrowing
-  another one has at most its limits) and `checks` with the group's
+  whose bounds the group narrows and their group `min`/`max` as numbers (by its
+  `variables` and `subset_of`: a group narrowing another one has at most its
+  limits; an expression bound of the hint — evaluated at the fixed limits, or kept
+  as a check in `checks` if it depends on other values of the test) and `checks` with the group's
   `special_property`, if any, as a concrete check. A group with the full limits
   and no special property has no entry. Plus one entry in `validator.checks`: the
   test group is a known one — 0 (the statement examples) or a name from
@@ -127,7 +131,7 @@ a separate `validator` section, from which item 6 below derives
    With `test_groups`: the test's group is `group_index()` from problem_lib.h (0 —
    the statement examples, they have the full limits); `ensuref` that it is a known
    group; the bounds of each variable a group narrows — per group (e.g. a vector of
-   the variable's largest value indexed by the group, from 0), read with the bounds
+   the variable's smallest/largest value indexed by the group, from 0), read with the bounds
    of the test's group; the checks of a group's `special_property` —
    only for the tests of that group.
    This isn't a separate decision of the model, but

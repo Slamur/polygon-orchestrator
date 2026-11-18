@@ -28,9 +28,11 @@
 
 - The constraints of a subtask:
 
-  - `max_n` — the upper bound of the problem's size variable in the subtask,
-    `$N \le 10^5$` (the variable's name — as in the input format; the bound — by the
-    statement's conventions for numbers: powers of ten as `10^{k}`, `2 \cdot 10^5`);
+  - `variables` — the subtask's own bounds of the named variables: `max` —
+    `$N \le 10^5$`, `min` — `$K \ge 2$`, both — `$1 \le K \le 10$` (or `$K = 1$`
+    when they are equal); the variable's name — as in the input format; a number — by
+    the statement's conventions: powers of ten as `10^{k}`, `2 \cdot 10^5`; an
+    expression — as a formula, `$K \le N - 1$`;
   - `special_property` — the property in the statement's language, in formulas where
     it helps;
   - `subset_of` — the subtask's tests also satisfy all constraints of that subtask:

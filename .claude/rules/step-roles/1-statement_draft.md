@@ -31,9 +31,8 @@ descriptions — in the hash only then — and the rules `templates/tutorials/sc
 (attached only then), and also writes `statement/<language>/scoring.tex`: the Scoring
 block, a subtasks table (points, extra constraints, necessary subtasks, feedback) as
 in `examples/number/roots-subtasks`. Its source is the spec's hint, not
-`constraints.yaml`: the step runs before `constraints_pick`. A group without points or
-an unclear `max_n` variable — `uncertain` from the model. `test_groups_needed: true`
-without a hint — `uncertain` before the model is called (`_check_groups_are_set`, a
+`constraints.yaml`: the step runs before `constraints_pick`. A group without points —
+`uncertain` from the model. `test_groups_needed: true` without a hint — `uncertain` before the model is called (`_check_groups_are_set`, a
 `StepUncertainError` with the field `constraints.test_groups_hint`): the published table
 needs the author's groups and points, and no step invents them: groups are set only in
 the spec (by the author or by `init --draft`). A spec without groups: the generation language's `scoring.tex` (from an

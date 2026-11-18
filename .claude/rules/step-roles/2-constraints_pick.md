@@ -40,7 +40,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    "insufficient data" error rather than guess; in that case `validator.cpp`
    isn't written either — the whole step response goes to `uncertain`.
    Test groups (`test_groups` of `constraints.yaml`) come from the spec's
-   `test_groups_hint` — names, `max_n`/`special_property`/`subset_of`, `points`,
+   `test_groups_hint` — names, `variables`/`special_property`/`subset_of`, `points`,
    `dependencies`, `feedback_policy` as the author gave them (missing points —
    `uncertain`, like the groups themselves; dependencies the author didn't give are only a
    `suggestion` note); without the hint there are none — the step doesn't invent groups
@@ -56,7 +56,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    references to listed groups), every dependency is an earlier group, points are
    given to every group or to none and sum to 100 (or to the total of the author's
    points, when `test_groups_hint` gives points to every group), `validator.groups`
-   names only listed groups, each once, and isn't there without `test_groups`.
+   names only listed groups, each once, and isn't there without `test_groups`; a
+   group's `variables` name only the spec's variables, within their numeric bounds.
    After `constraints_pick` comes the mechanical step **`limits_from_constraints`**
    (without the model, `step_order.MECHANICAL_STEPS`): it writes `limits.yaml` —
    the problem's actual TL/ML, which `polygon push` uploads and

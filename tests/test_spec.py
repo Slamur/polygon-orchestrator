@@ -335,7 +335,7 @@ def test_flat_script_with_test_groups_raises(tmp_path, groups):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace('script_style: "groups"', 'script_style: "flat"')
     if groups is not None:
-        hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+        hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      variables: {N: {max: 10}}\n'
         assert hint in text
         text = text.replace(hint, groups)
     path = tmp_path / "valid-spec.yaml"
@@ -351,7 +351,7 @@ def test_flat_script_with_test_groups_raises(tmp_path, groups):
 
 def test_flat_script_without_test_groups_is_accepted(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
-    hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+    hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      variables: {N: {max: 10}}\n'
     text = text.replace('script_style: "groups"', 'script_style: "flat"').replace(hint, "")
     path = tmp_path / "valid-spec.yaml"
     path.write_text(text, encoding="utf-8")
@@ -440,7 +440,7 @@ def test_wrong_approach_without_verdict_raises(tmp_path):
 
 def _write_with_groups(tmp_path, groups_yaml: str) -> Path:
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
-    old = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      max_n: 10\n'
+    old = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      variables: {N: {max: 10}}\n'
     assert old in text
     path = tmp_path / "valid-spec.yaml"
     path.write_text(text.replace(old, "  test_groups_hint:\n" + groups_yaml), encoding="utf-8")
@@ -451,7 +451,7 @@ def test_test_groups_with_points_and_dependencies_are_loaded(tmp_path):
     spec = load_spec(
         _write_with_groups(
             tmp_path,
-            '    - name: "1"\n      max_n: 10\n      points: 30\n'
+            '    - name: "1"\n      variables: {N: {max: 10}}\n      points: 30\n'
             '    - name: "2"\n      points: 70\n      dependencies: ["1"]\n'
             '      feedback_policy: "points"\n',
         )
@@ -460,6 +460,39 @@ def test_test_groups_with_points_and_dependencies_are_loaded(tmp_path):
     first, second = spec.constraints.test_groups_hint
     assert first.feedback_policy == "icpc"
     assert (second.points, second.dependencies, second.feedback_policy) == (70, ["1"], "points")
+
+
+def test_test_group_variables_narrow_any_variable(tmp_path):
+    spec = load_spec(
+        _write_with_groups(
+            tmp_path,
+            '    - name: "1"\n      variables: {N: {max: 1000}, K: {min: 1, max: "N - 1"}}\n',
+        )
+    )
+
+    limits = spec.constraints.test_groups_hint[0].variables
+    assert (limits["N"].min, limits["N"].max) == (None, 1000)
+    assert (limits["K"].min, limits["K"].max) == (1, "N - 1")
+
+
+@pytest.mark.parametrize(
+    ("variables", "message"),
+    [
+        ("{M: {max: 10}}", "'M' isn't one of constraints.variables (N, K)"),
+        ("{N: {max: 1000000}}", "variables.N.max 1000000 is above the variable's max 100000"),
+        ("{N: {min: 0}}", "variables.N.min 0 is below the variable's min 1"),
+        ("{N: {min: 10, max: 5}}", "min 10 > max 5"),
+        ("{N: {}}", "sets min, max or both"),
+        ("{N: {max: 10, step: 2}}", "step"),
+    ],
+)
+def test_invalid_test_group_variables_raise(tmp_path, variables, message):
+    path = _write_with_groups(tmp_path, f'    - name: "1"\n      variables: {variables}\n')
+
+    with pytest.raises(SpecValidationError) as exc_info:
+        load_spec(path)
+
+    assert message in str(exc_info.value)
 
 
 def test_test_groups_may_depend_on_several_earlier_groups(tmp_path):

@@ -19,6 +19,7 @@ from orchestrator.spec import (
     SPEC_REFERENCES_FIELD,
     ProblemSpec,
     SpecInitError,
+    check_group_variables,
     set_problem_id,
 )
 from orchestrator.steps.base import (
@@ -84,7 +85,8 @@ def check_test_groups_artifact(text: str, spec: ProblemSpec) -> None:
     """The structural check of the test groups in the model's `constraints.yaml`, before it
     is written (`validate_artifacts`: a failure — a conflict, nothing is applied). The
     groups must read as `orchestrator/test_groups.py` reads them (names, dependencies and
-    `subset_of` of listed groups), every dependency — an earlier group, points — given for
+    `subset_of` of listed groups), their `variables` — the spec's variables within their
+    numeric bounds, every dependency — an earlier group, points — given for
     every group or none, summing to 100 (or to the total of the author's points, when the
     spec's `test_groups_hint` gives points to every group), `validator.groups` — only of
     listed groups, each once, and none without `test_groups`. `ValueError` with every
@@ -109,6 +111,10 @@ def check_test_groups_artifact(text: str, spec: ProblemSpec) -> None:
                         f"group {group.name} depends on group {dependency}, "
                         "which isn't an earlier group"
                     )
+        try:
+            check_group_variables(groups, spec.constraints.variables, TEST_GROUPS_KEY)
+        except ValueError as exc:
+            errors.append(str(exc))
         errors += _points_errors(groups, spec)
         errors += _validator_groups_errors(validator_groups, names)
     if errors:

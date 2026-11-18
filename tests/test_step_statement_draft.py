@@ -585,7 +585,7 @@ def test_groups_go_to_prompt_hash_and_scoring_is_written(groups_spec, tmp_path):
     from orchestrator.steps.statement_draft import hash_inputs
 
     section, _ = hash_inputs("valid-spec", groups_spec)
-    assert section["test_groups"][0]["max_n"] == 10
+    assert section["test_groups"][0]["variables"] == {"N": {"min": None, "max": 10}}
     assert [v["name"] for v in section["variables"]] == ["N", "K"]
 
     artifacts = {**_model_artifacts(), "scoring.tex": "table"}
@@ -595,7 +595,7 @@ def test_groups_go_to_prompt_hash_and_scoring_is_written(groups_spec, tmp_path):
 
     user_prompt = mock_call.call_args.args[2]
     assert "## Test groups (subtasks)" in user_prompt
-    assert "- subtask 1: points None; max_n 10;" in user_prompt
+    assert "- subtask 1: points None; variables N (max 10);" in user_prompt
     assert "dependencies none; feedback_policy icpc" in user_prompt
     assert "- N — the number of vertices" in user_prompt
     assert "- scoring.tex" in user_prompt

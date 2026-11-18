@@ -157,6 +157,28 @@ FEEDBACK_POLICIES = ("points", "icpc", "complete", "none")
 DEFAULT_FEEDBACK_POLICY = "icpc"
 
 
+class GroupVariableLimit(BaseModel):
+    """A test group's own bounds of one of `constraints.variables`: a number or an
+    expression through other variables, as in `Variable`; an absent bound — the
+    variable's full one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    min: int | str | None = None
+    max: int | str | None = None
+
+    @model_validator(mode="after")
+    def _check_bounds(self) -> GroupVariableLimit:
+        if self.min is None and self.max is None:
+            raise ValueError("a group's variable limit sets min, max or both")
+        for value in (self.min, self.max):
+            if isinstance(value, str):
+                _non_blank(value, "a group's variable limit")
+        if isinstance(self.min, int) and isinstance(self.max, int) and self.min > self.max:
+            raise ValueError(f"a group's variable limit has min {self.min} > max {self.max}")
+        return self
+
+
 class TestGroupHint(BaseModel):
     """A test group (subtask) the author already has in mind. The names are numbers
     `1`, `2`, ...: the validator gets the group as a number (`group_index()` in
@@ -167,7 +189,9 @@ class TestGroupHint(BaseModel):
 
     name: str
     subset_of: str | None = None
-    max_n: int | None = None
+    # The group's own bounds of the problem's variables, by the variable's name in
+    # `constraints.variables`; everything else about the group's tests — `special_property`.
+    variables: dict[str, GroupVariableLimit] | None = None
     special_property: str | None = None
     points: int | None = None
     dependencies: list[str] | None = None
@@ -197,6 +221,7 @@ class Constraints(BaseModel):
         _non_blank(self.complexity_reasoning, "constraints.complexity_reasoning")
         groups = self.test_groups_hint or []
         check_test_groups(groups, "constraints.test_groups_hint")
+        check_group_variables(groups, self.variables, "constraints.test_groups_hint")
         # In the spec a group depends only on earlier groups: the statement's subtasks
         # table and constraints_pick take them in order (`constraints.yaml` read back from
         # Polygon isn't held to this).
@@ -239,6 +264,39 @@ def check_test_groups(groups: list[TestGroupHint], where: str) -> None:
                         f"{where}[{index}].{field}: {ref!r} must name "
                         f"another listed group (one of {names})"
                     )
+
+
+def check_group_variables(
+    groups: list[TestGroupHint], variables: list[Variable], where: str
+) -> None:
+    """Each group's `variables` — names from `constraints.variables`, and its numeric
+    bounds are within the variable's numeric ones (an expression on either side isn't
+    compared)."""
+    by_name = {variable.name: variable for variable in variables}
+    for index, group in enumerate(groups):
+        for name, limit in (group.variables or {}).items():
+            variable = by_name.get(name)
+            if variable is None:
+                raise ValueError(
+                    f"{where}[{index}].variables: {name!r} isn't one of "
+                    f"constraints.variables ({', '.join(by_name)})"
+                )
+            if _int(limit.min) is not None and _int(variable.min) is not None:
+                if limit.min < variable.min:
+                    raise ValueError(
+                        f"{where}[{index}].variables.{name}.min {limit.min} is below the "
+                        f"variable's min {variable.min}"
+                    )
+            if _int(limit.max) is not None and _int(variable.max) is not None:
+                if limit.max > variable.max:
+                    raise ValueError(
+                        f"{where}[{index}].variables.{name}.max {limit.max} is above the "
+                        f"variable's max {variable.max}"
+                    )
+
+
+def _int(value: int | str | None) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
 class GeneratorIdea(BaseModel):

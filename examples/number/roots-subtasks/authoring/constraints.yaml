@@ -33,7 +33,7 @@ limits:
 test_groups:
   - name: "1"
     subset_of: null
-    max_n: 10
+    variables: {N: {max: 10}}
     special_property: null
     points: 10
     dependencies: []
@@ -41,7 +41,7 @@ test_groups:
     status: confirmed
   - name: "2"
     subset_of: null
-    max_n: 1000
+    variables: {N: {max: 1000}}
     special_property: null
     points: 15
     dependencies: ["1"]
@@ -49,7 +49,7 @@ test_groups:
     status: confirmed
   - name: "3"
     subset_of: null
-    max_n: 1000000
+    variables: {N: {max: 1000000}}
     special_property: null
     points: 15
     dependencies: ["2"]
@@ -57,7 +57,7 @@ test_groups:
     status: confirmed
   - name: "4"
     subset_of: null
-    max_n: 1000000000000
+    variables: {N: {max: 1000000000000}}
     special_property: null
     points: 20
     dependencies: ["3"]
@@ -65,7 +65,7 @@ test_groups:
     status: confirmed
   - name: "5"
     subset_of: null
-    max_n: null
+    variables: null
     special_property: null
     points: 40
     dependencies: ["4"]
