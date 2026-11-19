@@ -52,8 +52,9 @@ In scope:
 - optional drafts of author solutions (ok/wa/tl/ml/...) for later
   manual review by the author — in stages (the main `ok`, the other `ok`, time/memory,
   wrong answers), each stage checked by a local run of its solutions before the next one;
-  a failed run stops the pipeline, and the next `llm generate` lets the stage revise its
-  solutions with the run's report (`.claude/rules/step-roles/4-solutions.md`);
+  a failed run makes the stage revise its solutions with the run's report — in the same
+  run up to `--revise-attempts` times, then the pipeline stops and the next `llm generate`
+  does it again (`.claude/rules/step-roles/4-solutions.md`);
 - an optional custom checker draft (C++/testlib, following the
   read_and_check pattern — see `checker.cpp` of the sample problem in `examples/`), only if
   `checker.custom_needed: true` in the spec; if a standard
@@ -147,7 +148,8 @@ the user can see it) in the same PR.
 │                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons),
 │                                    # tutorials/*.md (rules for the steps; polygon.md — reference, not attached to steps)
 ├── examples/<input kind>/<gist>/    # sample problems in the problems/<problem path>/ layout
-├── prompts/<step>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2
+├── prompts/<step>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2,
+│                                          #   check_failed.md.j2
 ├── orchestrator/
 │   ├── cli.py                       # parser and Tab completion; NO heavy imports (the shell runs it on every Tab)
 │   ├── cli_commands.py              # command implementations, imported from cli.py lazily

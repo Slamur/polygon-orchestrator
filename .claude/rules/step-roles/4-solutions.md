@@ -86,7 +86,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    generate` reruns the stage (`forced_rerun_reason`, `llm status` shows it `stale`)
    in revision mode with the failures and the comment: the author looks at the report
    first, then either fixes the files by hand (the run's input changed — the report is
-   outdated, the model isn't called) or lets the model revise. The report isn't part
+   outdated, the model isn't called) or lets the model revise. With `llm generate
+   --revise-attempts N` (1 by default) the stage revises and the run repeats in the same
+   `llm generate`, up to N times, before the pipeline stops. The report isn't part
    of the stage's input, so after the revision the stage is a cache hit again. Problem
    errors aren't given to the model: the author fixes the tests, the checker or the
    spec. `llm accept` doesn't accept local runs (`llm generate` runs them) and stages
