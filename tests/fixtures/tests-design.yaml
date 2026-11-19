@@ -1,0 +1,26 @@
+# A synthetic test design (format — templates/tests_design_format.yaml) for
+# fake model responses to the tests_plan step; without test groups and formulas —
+# the constraints.yaml of the fakes has no variables.
+problem_id: p1
+generators:
+  - name: gen_rand
+    status: confirmed
+    params:
+      - name: n
+        type: int
+        description: the number of elements
+    input: null
+    output: the whole test
+    algorithm: |
+      A random array of length n.
+constants:
+  - name: maxN
+    value: 10^5
+    description: n.max from constraints.yaml
+ideas:
+  - id: own[0]
+    status: confirmed
+    what: Random maximal tests
+    tests:
+      - gen_rand -n=maxN
+    repeat: null

@@ -31,6 +31,7 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 _TESTS_PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8")
+_TESTS_DESIGN_YAML = (FIXTURES_DIR / "tests-design.yaml").read_text(encoding="utf-8")
 
 
 @pytest.fixture
@@ -498,7 +499,7 @@ _PIPELINE_RESPONSES = {
         },
     ),
     "tests_plan": ModelResponse(
-        status="confirmed", artifacts={"tests_plan.yaml": _TESTS_PLAN_YAML}
+        status="confirmed", artifacts={"tests_design.yaml": _TESTS_DESIGN_YAML}
     ),
     "generators_draft": ModelResponse(
         status="confirmed", artifacts={"gen_rand.cpp": "int main(){}"}

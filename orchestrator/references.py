@@ -29,6 +29,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from orchestrator.problem_paths import (
+    TESTS_DESIGN_FILENAME,
     TESTS_PLAN_FILENAME,
     TUTORIAL_FILENAME,
     find_authoring_file,
@@ -56,6 +57,7 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     "tests_plan": [
         SPEC_FILENAME,
         "constraints.yaml",
+        TESTS_DESIGN_FILENAME,
         TESTS_PLAN_FILENAME,
         "test_script",
         "test_script_groups",
