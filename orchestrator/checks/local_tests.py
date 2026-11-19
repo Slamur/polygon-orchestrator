@@ -101,6 +101,29 @@ class EqualTests:
     names: list[str]
 
 
+# The kinds of `TestIssue` — what is wrong, so that the `run_tests` report reaches the step
+# that writes the file at fault (`steps.tests_check`).
+ISSUE_SCRIPT = "script"  # no script, it doesn't expand, a bad line, the lines' groups
+ISSUE_GENERATOR_MISSING = "generator_missing"  # a line calls a generator with no source
+ISSUE_GENERATOR_BUILD = "generator_build"  # a generator doesn't compile
+ISSUE_GENERATOR_RUN = "generator_run"  # a generator of a line fails or prints nothing
+ISSUE_VALIDATOR_BUILD = "validator_build"
+ISSUE_VALIDATOR_REJECT = "validator_reject"  # the validator rejects a test or times out
+ISSUE_UNAVAILABLE = "unavailable"  # the script can't be checked here (no `java`)
+
+
+@dataclass(frozen=True)
+class TestIssue:
+    """An error of the local tests: `message` — as `local check --full` prints it; the
+    script line's command and number and the generator — if the error is about them."""
+
+    kind: str
+    message: str
+    command: str | None = None
+    script_line: int | None = None
+    generator: str | None = None
+
+
 @dataclass
 class LocalTestsResult:
     tests: list[LocalTest] = field(default_factory=list)
@@ -108,6 +131,12 @@ class LocalTestsResult:
     reused: int = 0
     removed: int = 0
     errors: list[str] = field(default_factory=list)
+    # The same errors with their kinds, in the same order.
+    issues: list[TestIssue] = field(default_factory=list)
+
+    def add_issue(self, issue: TestIssue) -> None:
+        self.issues.append(issue)
+        self.errors.append(issue.message)
 
 
 def _sha256(data: bytes) -> str:
@@ -169,11 +198,11 @@ def _build_generator(
     return target, ""
 
 
-def _run_chain(stages: list[tuple[Path, list[str]]], cwd: Path) -> tuple[bytes | None, str]:
-    """(the output of the last generator, error): bytes as is, the output of each is
-    the input of the next."""
+def _run_chain(stages: list[tuple[Path, list[str]]], cwd: Path) -> tuple[bytes | None, str, int]:
+    """(the output of the last generator, error, the index of the failed part of the chain):
+    bytes as is, the output of each is the input of the next."""
     data = b""
-    for binary, args in stages:
+    for index, (binary, args) in enumerate(stages):
         try:
             run = subprocess.run(
                 [str(binary), *args],
@@ -184,12 +213,18 @@ def _run_chain(stages: list[tuple[Path, list[str]]], cwd: Path) -> tuple[bytes |
                 preexec_fn=_raise_stack_limit,
             )
         except subprocess.TimeoutExpired:
-            return None, f"{binary.name} exceeded {_GENERATOR_TIMEOUT_SECONDS:.0f}s"
+            return None, f"{binary.name} exceeded {_GENERATOR_TIMEOUT_SECONDS:.0f}s", index
         if run.returncode != 0:
             stderr = run.stderr.decode("utf-8", "replace").strip()
-            return None, f"{binary.name} exit code {run.returncode}: {stderr}"
+            return None, f"{binary.name} exit code {run.returncode}: {stderr}", index
         data = run.stdout
-    return data, ""
+    return data, "", -1
+
+
+def _line_issue(
+    line: ScriptLine, kind: str, message: str, generator: str | None = None
+) -> TestIssue:
+    return TestIssue(kind, message, line.text, line.source.line if line.source else None, generator)
 
 
 def _describe_line(line: ScriptLine) -> str:
@@ -210,19 +245,30 @@ def generate_tests(
         (problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()), None
     )
     if script is None:
-        result.errors.append(f"no test script (expected one of: {', '.join(SCRIPT_FILENAMES)})")
+        result.add_issue(
+            TestIssue(
+                ISSUE_SCRIPT, f"no test script (expected one of: {', '.join(SCRIPT_FILENAMES)})"
+            )
+        )
         return result
     try:
         checked = check_script(script.read_text(encoding="utf-8"), script.name)
     except ScriptCheckUnavailable as exc:
-        result.errors.append(f"{script.name}: check unavailable — {exc}")
+        result.add_issue(TestIssue(ISSUE_UNAVAILABLE, f"{script.name}: check unavailable — {exc}"))
         return result
     except ScriptRenderError as exc:
-        result.errors.append(f"{script.name}: FreeMarker failed to expand the script:\n{exc}")
+        result.add_issue(
+            TestIssue(
+                ISSUE_SCRIPT, f"{script.name}: FreeMarker failed to expand the script:\n{exc}"
+            )
+        )
         return result
     if checked.failed:
-        result.errors.append(
-            f"{script.name}: tests are not generated — fix the script first:\n{checked.report}"
+        result.add_issue(
+            TestIssue(
+                ISSUE_SCRIPT,
+                f"{script.name}: tests are not generated — fix the script first:\n{checked.report}",
+            )
         )
         return result
 
@@ -241,12 +287,16 @@ def generate_tests(
         try:
             command, stages = parse_chain(line.text)
         except ValueError as exc:
-            result.errors.append(f"test {number}: {exc}: {_describe_line(line)}")
+            result.add_issue(
+                _line_issue(line, ISSUE_SCRIPT, f"test {number}: {exc}: {_describe_line(line)}")
+            )
             continue
 
         chain: list[tuple[Path, list[str]]] = []
         hashes: list[str] = []
         failure = ""
+        failed_generator = ""
+        failure_kind = ISSUE_GENERATOR_BUILD
         for name, *args in stages:
             if name not in builds:
                 source = _generator_source(problem_dir, name)
@@ -271,13 +321,17 @@ def generate_tests(
                     )
             build_hash, binary, error = builds[name]
             if binary is None:
-                failure = error
+                failure, failed_generator = error, name
+                if not build_hash:
+                    failure_kind = ISSUE_GENERATOR_MISSING
                 break
             keep_bins.add(binary.name)
             chain.append((binary, args))
             hashes.append(build_hash)
         if failure:
-            result.errors.append(f"test {number}: {failure}")
+            result.add_issue(
+                _line_issue(line, failure_kind, f"test {number}: {failure}", failed_generator)
+            )
             continue
 
         key = _test_key(command, hashes)
@@ -285,12 +339,26 @@ def generate_tests(
         if path.is_file():
             result.reused += 1
         else:
-            data, error = _run_chain(chain, cache_dir)
+            data, error, failed = _run_chain(chain, cache_dir)
             if data is None:
-                result.errors.append(f"test {number}: {error}: {_describe_line(line)}")
+                result.add_issue(
+                    _line_issue(
+                        line,
+                        ISSUE_GENERATOR_RUN,
+                        f"test {number}: {error}: {_describe_line(line)}",
+                        stages[failed][0],
+                    )
+                )
                 continue
             if not data.strip():
-                result.errors.append(f"test {number}: empty output: {_describe_line(line)}")
+                result.add_issue(
+                    _line_issue(
+                        line,
+                        ISSUE_GENERATOR_RUN,
+                        f"test {number}: empty output: {_describe_line(line)}",
+                        stages[-1][0],
+                    )
+                )
                 continue
             part = path.with_name(key + ".part")
             part.write_bytes(data)
@@ -396,6 +464,17 @@ def validate_tests(
     tests: list[LocalTest],
     groups: list[TestGroup] | None = None,
 ) -> tuple[list[str], bool]:
+    """(errors, whether the validator was run) — `validate_test_issues` as messages."""
+    issues, validated = validate_test_issues(problem_dir, templates_dir, tests, groups)
+    return [issue.message for issue in issues], validated
+
+
+def validate_test_issues(
+    problem_dir: Path,
+    templates_dir: Path,
+    tests: list[LocalTest],
+    groups: list[TestGroup] | None = None,
+) -> tuple[list[TestIssue], bool]:
     """(errors, whether the validator was run). No `validator.cpp` — it wasn't run.
     The build is cached, as for generators. With `groups` (the problem has test groups)
     a test with a group marker is validated with `--group <N>`."""
@@ -408,11 +487,13 @@ def validate_tests(
         source, _build_hash(source, problem_dir, templates_dir), bin_dir, problem_dir, templates_dir
     )
     if binary is None:
-        return [f"{VALIDATOR_FILENAME}: compilation failed:\n{error}"], True
+        return [
+            TestIssue(ISSUE_VALIDATOR_BUILD, f"{VALIDATOR_FILENAME}: compilation failed:\n{error}")
+        ], True
     for path in bin_dir.iterdir():
         if path != binary:
             path.unlink()
-    errors = []
+    errors: list[TestIssue] = []
     for test in tests:
         with_group = groups is not None and test.group is not None
         args = [VALIDATOR_GROUP_OPTION, test.group] if with_group else []
@@ -426,9 +507,15 @@ def validate_tests(
                     timeout=_VALIDATOR_TIMEOUT_SECONDS,
                 )
         except subprocess.TimeoutExpired:
-            errors.append(f"{VALIDATOR_FILENAME} timed out on {name}: {test.command}")
+            message = f"{VALIDATOR_FILENAME} timed out on {name}: {test.command}"
+            errors.append(
+                TestIssue(ISSUE_VALIDATOR_REJECT, message, test.command, test.script_line)
+            )
             continue
         if run.returncode != 0:
             reason = (run.stderr or run.stdout).decode("utf-8", "replace").strip()
-            errors.append(f"{VALIDATOR_FILENAME} rejects {name}: {reason}\n    {test.command}")
+            message = f"{VALIDATOR_FILENAME} rejects {name}: {reason}\n    {test.command}"
+            errors.append(
+                TestIssue(ISSUE_VALIDATOR_REJECT, message, test.command, test.script_line)
+            )
     return errors, True

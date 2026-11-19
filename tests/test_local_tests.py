@@ -5,11 +5,17 @@ import pytest
 
 from orchestrator import cli
 from orchestrator.checks.local_tests import (
+    ISSUE_GENERATOR_BUILD,
+    ISSUE_GENERATOR_MISSING,
+    ISSUE_GENERATOR_RUN,
+    ISSUE_SCRIPT,
+    ISSUE_VALIDATOR_REJECT,
     MANIFEST_FILENAME,
     TESTS_CACHE_DIRNAME,
     find_equal_tests,
     generate_tests,
     parse_chain,
+    validate_test_issues,
     validate_tests,
 )
 from orchestrator.checks.test_script_check import ScriptCheckUnavailable, freemarker_jar
@@ -179,16 +185,48 @@ def test_relative_problem_dir_works(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("script", "generators", "expected"),
+    ("script", "generators", "expected", "kind", "generator"),
     [
-        ("gen_missing a > $\n", {}, "no generators/gen_missing.cpp"),
-        ("gen_bad a > $\n", {"gen_bad": "not c++\n"}, "failed to compile"),
-        ("gen_fail a > $\n", {"gen_fail": GEN_FAIL_CPP}, "exit code 3"),
-        ("gen_empty a > $\n", {"gen_empty": GEN_EMPTY_CPP}, "empty output"),
-        ("gen_args a > 5\n", {"gen_args": GEN_ARGS_CPP}, "only '> $' is supported"),
+        (
+            "gen_missing a > $\n",
+            {},
+            "no generators/gen_missing.cpp",
+            ISSUE_GENERATOR_MISSING,
+            "gen_missing",
+        ),
+        (
+            "gen_bad a > $\n",
+            {"gen_bad": "not c++\n"},
+            "failed to compile",
+            ISSUE_GENERATOR_BUILD,
+            "gen_bad",
+        ),
+        (
+            "gen_ok a | gen_fail > $\n",
+            {"gen_fail": GEN_FAIL_CPP},
+            "exit code 3",
+            ISSUE_GENERATOR_RUN,
+            "gen_fail",
+        ),
+        (
+            "gen_empty a > $\n",
+            {"gen_empty": GEN_EMPTY_CPP},
+            "empty output",
+            ISSUE_GENERATOR_RUN,
+            "gen_empty",
+        ),
+        (
+            "gen_args a > 5\n",
+            {"gen_args": GEN_ARGS_CPP},
+            "only '> $' is supported",
+            ISSUE_SCRIPT,
+            None,
+        ),
     ],
 )
-def test_bad_line_is_reported_and_others_are_generated(tmp_path, script, generators, expected):
+def test_bad_line_is_reported_and_others_are_generated(
+    tmp_path, script, generators, expected, kind, generator
+):
     problem_dir = _problem(
         tmp_path, script + "gen_ok fine > $\n", generators={**generators, "gen_ok": GEN_ARGS_CPP}
     )
@@ -196,12 +234,17 @@ def test_bad_line_is_reported_and_others_are_generated(tmp_path, script, generat
     assert len(result.errors) == 1
     assert expected in result.errors[0]
     assert [t.path.read_text() for t in result.tests] == ["fine\n"]
+    [issue] = result.issues
+    assert (issue.kind, issue.generator, issue.script_line) == (kind, generator, 1)
+    assert issue.message == result.errors[0]
+    assert issue.command == script.strip()
 
 
 def test_script_with_identical_lines_is_not_generated(tmp_path):
     result = _generate(_problem(tmp_path, "gen_args a > $\ngen_args a > $\n"))
     assert result.tests == []
     assert "fix the script first" in result.errors[0]
+    assert [issue.kind for issue in result.issues] == [ISSUE_SCRIPT]
 
 
 def test_equal_tests_are_found_across_commands_and_examples(tmp_path):
@@ -229,6 +272,12 @@ def test_validator_rejects_reports_test_and_command(tmp_path):
     assert validated
     assert len(errors) == 1
     assert "test 2" in errors[0] and "gen_args bad" in errors[0]
+    [issue], _ = validate_test_issues(problem_dir, TEMPLATES_DIR, _generate(problem_dir).tests)
+    assert (issue.kind, issue.command, issue.script_line) == (
+        ISSUE_VALIDATOR_REJECT,
+        "gen_args bad",
+        2,
+    )
 
 
 def test_no_validator_is_not_an_error(tmp_path):
