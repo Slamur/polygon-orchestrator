@@ -266,7 +266,7 @@ class Gate:
             or (s["status"] == STATUS_EXPECTED and s.get("uncaught_groups"))
         ]
         failed = bool(failures or result.errors)
-        _save_run_report(
+        save_run_report(
             problem_id,
             self.step_name,
             {
@@ -355,7 +355,7 @@ def load_run_report(
     return data if isinstance(data, dict) else None
 
 
-def _save_run_report(
+def save_run_report(
     problem_id: str, step_name: str, report: dict[str, Any], *, problems_dir: Path
 ) -> None:
     path = _run_report_path(problem_id, step_name, problems_dir=problems_dir)

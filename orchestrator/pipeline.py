@@ -83,6 +83,7 @@ from orchestrator.steps.base import (
 from orchestrator.steps.solutions import SOLUTION_STEPS, STAGES
 from orchestrator.steps.solutions_check import STATUS_FAILED as GATE_FAILED
 from orchestrator.steps.solutions_check import GateFailedError
+from orchestrator.steps.tests_check import TESTS_GATE
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ _STEP_MODULES: dict[str, ModuleType | Any] = {
     "tests_plan": tests_plan,
     "generators_draft": generators_draft,
     "test_script_draft": test_script_draft,
+    "run_tests": TESTS_GATE,
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
     **SOLUTION_STEPS,

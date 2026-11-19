@@ -67,7 +67,7 @@ _RESPONSES = {
 # without survivors, so no tests for them.
 _SKIPPED_STEPS = {"checker_draft", "interactor_draft", "solutions_ok", "run_ok", "tests_survivors"}
 # Steps without a model call (the local runs are a stub in the tests, see conftest.py).
-_MECHANICAL_STEPS = {"limits_from_constraints", "run_main", "run_slow", "run_wrong"}
+_MECHANICAL_STEPS = {"limits_from_constraints", "run_tests", "run_main", "run_slow", "run_wrong"}
 
 
 def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
@@ -231,7 +231,7 @@ def test_solution_stages_skipped_when_spec_has_no_solutions_section(spec_file, t
     assert {
         name: status
         for name, status in statuses.items()
-        if name.startswith("solutions_") or name.startswith("run_")
+        if name.startswith("solutions_") or (name.startswith("run_") and name != "run_tests")
     } == {name: pipeline.OUTCOME_SKIPPED_OPTIONAL for name in STAGE_AND_GATE_STEPS}
     assert not (problems_dir / "p1" / "solutions").exists()
 
@@ -1092,3 +1092,54 @@ def test_survivor_rounds_extend_the_plan_and_rerun_its_code(
     ) as mock_call:
         _run(problems_dir, survivor_rounds=1 if rounds else 0)
     assert "tests_survivors" not in [c.args[0] for c in mock_call.call_args_list]
+
+
+def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
+    spec_file, tmp_path, monkeypatch
+):
+    from orchestrator.checks.local_tests import ISSUE_GENERATOR_RUN
+    from orchestrator.checks.local_tests import TestIssue as Issue
+    from orchestrator.steps import tests_check
+
+    error = "test 2: gen_rand exit code 3: FAIL Opts: unknown key 'n'"
+    issue = Issue(ISSUE_GENERATOR_RUN, error, "gen_rand > $", 1, "gen_rand")
+    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([issue], [], 1))
+    problems_dir = tmp_path / "problems"
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        result = _run(problems_dir)
+
+    assert not result.ok
+    assert (result.outcomes[-1].step_name, result.outcomes[-1].status) == (
+        "run_tests",
+        pipeline.OUTCOME_FAILED,
+    )
+    statuses = _statuses(problems_dir)
+    assert statuses["run_tests"].state == pipeline.STATUS_FAILED
+    for step in ("tests_plan", "generators_draft", "test_script_draft"):
+        assert statuses[step].state == pipeline.STATUS_STALE
+
+    # Each test step revises with the errors; the fixed generator makes the run pass.
+    responses = dict(_RESPONSES)
+    responses["generators_draft"] = ModelResponse(
+        status="confirmed", artifacts={"gen_rand.cpp": "int main() { /* reads n */ }"}
+    )
+    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([], [], 1))
+    with patch(
+        "orchestrator.model_router.call_model", side_effect=lambda step, *a, **kw: responses[step]
+    ) as mock_call:
+        result = _run(problems_dir)
+
+    assert result.ok
+    calls = mock_call.call_args_list[:3]
+    assert [call.args[0] for call in calls] == [
+        "tests_plan",
+        "generators_draft",
+        "test_script_draft",
+    ]
+    assert all(error in call.args[2] for call in calls)
+    plan_outcome = next(o for o in result.outcomes if o.step_name == "tests_plan")
+    assert plan_outcome.detail.startswith("the local tests 'run_tests' failed")
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        _run(problems_dir)
+    mock_call.assert_not_called()

@@ -221,6 +221,32 @@ def hash_inputs(
     }
 
 
+# The errors of the last local tests (`run_tests`) that may come from this step's files:
+# while there are some, the step reruns to revise its files with them (`tests_check`).
+# `tests_check` is imported in the functions: through `local_tests` it imports the test steps.
+INPUTS_KEY = f"{STEP_NAME}: run_tests report"
+
+
+def load_inputs(
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
+) -> dict[str, Any] | None:
+    from orchestrator.steps.tests_check import TESTS_GATE
+
+    return TESTS_GATE.failed_report(problem_id, STEP_NAME, problems_dir=problems_dir)
+
+
+def forced_rerun_reason(
+    problem_id: str, spec: ProblemSpec, upstream_artifacts: dict[str, Any] | None = None
+) -> str | None:
+    from orchestrator.steps.tests_check import TESTS_GATE
+
+    return TESTS_GATE.revision_reason(_tests_run(upstream_artifacts))
+
+
+def _tests_run(upstream_artifacts: dict[str, Any] | None) -> dict[str, Any] | None:
+    return (upstream_artifacts or {}).get(INPUTS_KEY)
+
+
 def compute_input_hash(
     problem_id: str,
     spec: ProblemSpec,
@@ -316,6 +342,7 @@ def run_step(
         "generators": dump_plan_part(_generator_signatures(plan)),
         "constants": dump_plan_part(plan.get("constants") or []),
         "tests": dump_plan_part(plan.get("tests")),
+        "tests_run": _tests_run(upstream_artifacts),
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))

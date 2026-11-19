@@ -13,7 +13,8 @@ from __future__ import annotations
 # The order of the steps is fixed (CLAUDE.md, "Role of each generative step"):
 # each next step may depend on the artifacts of the previous ones. `tests_plan`,
 # `generators_draft` and `test_script_draft` — test preparation: the plan, then
-# code from it. `checker_draft` depends on nothing (unlike its neighbors in the
+# code from it; `run_tests` — their local generation, a mechanical check: the tests from
+# the script and the validator on them (CLAUDE.md, item 3). `checker_draft` depends on nothing (unlike its neighbors in the
 # order), but is kept next to them — logically it's also part of the problem's test infrastructure,
 # not of the solutions (CLAUDE.md, item 5). `interactor_draft` — there too and for
 # the same reason (CLAUDE.md, item 6). `limits_from_constraints` — right
@@ -30,6 +31,7 @@ STEP_ORDER: list[str] = [
     "tests_plan",
     "generators_draft",
     "test_script_draft",
+    "run_tests",
     "checker_draft",
     "interactor_draft",
     "solutions_main",
@@ -50,9 +52,11 @@ SOLUTION_STAGES: dict[str, str] = {
     "solutions_slow": "run_slow",
     "solutions_wrong": "run_wrong",
 }
-# The local runs of the solutions: mechanical steps that stop the pipeline when the
-# stage's solutions don't behave as their names say.
-GATE_STEPS: frozenset[str] = frozenset(SOLUTION_STAGES.values())
+# The local generation of the tests: the tests from the script and the validator on them.
+TESTS_GATE_STEP = "run_tests"
+# The local runs: mechanical steps that stop the pipeline when the tests don't generate or
+# the stage's solutions don't behave as their names say.
+GATE_STEPS: frozenset[str] = frozenset({TESTS_GATE_STEP, *SOLUTION_STAGES.values()})
 
 SURVIVORS_STEP = "tests_survivors"
 # What `tests_survivors` changes and what checks it: the code of the extended plan and the

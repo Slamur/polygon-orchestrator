@@ -385,7 +385,8 @@ The steps in order: `statement_draft` → `constraints_pick` →
 `limits_from_constraints` (mechanical, without the model) → `tests_plan` (the test
 design `tests_design.yaml` from the model; the orchestrator builds the plan
 `tests_plan.yaml` from it, computing the design's formulas for each test group) → `generators_draft` (generators from the plan) → `test_script_draft`
-(the test-script from the plan) → `checker_draft` (only with
+(the test-script from the plan) → `run_tests` (mechanical: the tests from the script and
+the validator on them, as `local check --full`) → `checker_draft` (only with
 `checker.custom_needed: true`) → `interactor_draft` (only for interactive problems)
 → the solutions in stages, each checked by a local run of its solutions on the
 examples and the tests from the script: `solutions_main` → `run_main` →
@@ -429,6 +430,16 @@ What's important to know:
   directory and run `llm accept` (or `llm generate --force`).
 - **Subscription limit exhausted** — `llm generate` stops at the current
   step; after the limit resets just run it again.
+- **The local tests failed** (`run_tests` — after the test-script, `local check --full`
+  without the statement checks). The pipeline stops; `llm_reports/run_tests.md` lists the
+  errors. Each goes to the steps whose files may cause it: a script that doesn't expand
+  or a line without its group — `test_script_draft`; a generator that doesn't compile —
+  `generators_draft`; a generator that fails on a line or a test the validator rejects —
+  `tests_plan` (the arguments), `generators_draft` (the code) and `test_script_draft` (how
+  it wrote the command). Fix the files by hand, or write what the model should know at the
+  end of the report and run `llm generate` again: those steps revise their files with the
+  errors (a step whose files you changed since the run doesn't). A validator that doesn't
+  compile or invalid groups in `constraints.yaml` aren't given to the model.
 - **A local run of the solutions failed** (`run_main`, `run_ok`, `run_slow`,
   `run_wrong` — after each solution stage, `local run --full` over its solutions).
   The pipeline stops; `llm_reports/<run>.md` says which solution got which verdict
