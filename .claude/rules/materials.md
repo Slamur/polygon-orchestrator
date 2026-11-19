@@ -37,8 +37,9 @@ paths:
 - `templates/` is shared by all problems and is always attached to the steps
   (`STEP_CONTEXT_DOCUMENTS` in `orchestrator/steps/base.py`); also there is
   `constraints_format.yaml` — the format of the `constraints_pick` result, which
-  the following steps and `polygon push` read, and `tests_plan_format.yaml` —
-  the test plan format. `examples/` are sample
+  the following steps and `polygon push` read, `tests_design_format.yaml` — the
+  format of the test design the `tests_plan` step's model writes, and
+  `tests_plan_format.yaml` — the test plan format. `examples/` are sample
   problems, a `<input data kind>/<problem gist>` directory for each
   (`array/prefix-sums`), in the `problems/<problem path>/` layout plus their own
   spec `authoring/spec.yaml` (`problem_id` — the path joined with `--`, `array--prefix-sums`;

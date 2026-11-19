@@ -182,6 +182,7 @@ constraints:
 # 3. GENERATORS / FREEMARKER — input for the tests_plan step
 # ---------------------------------------------------------------------------
 # From this section (and solutions.algorithm_hint) the tests_plan step makes the
+# test design authoring/tests_design.yaml, the orchestrator builds from it the
 # base test plan authoring/tests_plan.yaml, and from the plan
 # generators_draft writes the generators and test_script_draft — the test-script; these two
 # steps don't see the spec.
@@ -364,7 +365,7 @@ part from the directory (`REFERENCE_DOCUMENTS` in `orchestrator/references.py`):
 |-----|-------------------|
 | `statement_draft` | `statement/<the sample's main language>/*.tex` (for a sample not yet moved — `statement/*.tex`), except the tutorial `tutorial.tex` (for an interactive problem — and `interaction.tex`) |
 | `constraints_pick` | `authoring/constraints.yaml`, `validator.cpp` |
-| `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` |
+| `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_design.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `authoring/tests_plan.yaml`, `generators/*.cpp` (without the spec — a "plan → generators" pair) |
 | `test_script_draft` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` (without the spec) |
 | the solution stages `solutions_*` | `solutions/*` in the languages from `solutions.languages` |

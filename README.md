@@ -383,7 +383,8 @@ Without `--draft`, an existing `spec.yaml` isn't overwritten.
 
 The steps in order: `statement_draft` → `constraints_pick` →
 `limits_from_constraints` (mechanical, without the model) → `tests_plan` (the test
-plan) → `generators_draft` (generators from the plan) → `test_script_draft`
+design `tests_design.yaml` from the model; the orchestrator builds the plan
+`tests_plan.yaml` from it, computing the design's formulas for each test group) → `generators_draft` (generators from the plan) → `test_script_draft`
 (the test-script from the plan) → `checker_draft` (only with
 `checker.custom_needed: true`) → `interactor_draft` (only for interactive problems)
 → the solutions in stages, each checked by a local run of its solutions on the
@@ -551,7 +552,10 @@ drafts/                    problem drafts for init --draft (not in git)
 problems/<problem path>/   your problems (not in git)
   authoring/spec.yaml        the spec — the input of all steps
   authoring/constraints.yaml limits, groups, what the validator checks
-  authoring/tests_plan.yaml  the test plan: generators and script tests (can be edited by hand)
+  authoring/tests_design.yaml the test design: generators and test templates with formulas over
+                             a group's limits — written by tests_plan, edit it rather than the plan
+  authoring/tests_plan.yaml  the test plan built from the design (rebuilt on every tests_plan run;
+                             blocks tests_survivors added are kept)
   authoring/draft-tutorial.md a free-form tutorial draft for llm tutorial
   statement/<code>/          the statement (.tex) and tutorial (optional tutorial.tex) in a language: ru/, en/, …
   statement/examples/        examples — shared by all languages
