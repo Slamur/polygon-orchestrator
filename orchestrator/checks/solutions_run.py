@@ -27,7 +27,8 @@ What is done:
    `ALLOWED_VERDICTS`: a solution with verdict X gets OK or X. Anything else is
    an error. A solution without the `tl` verdict that ran on an example longer than
    `SLOW_FRACTION` of the TL — a warning: on large tests it may not
-   fit (for `tl_ok` — it shows how borderline it is).
+   fit (for `tl_ok` — it shows how borderline it is). A `wa` that gets WA on an
+   example — a warning too: by solutions.md it should pass the examples.
 
 The time is wall-clock on the local machine, including starting the JVM/interpreter:
 compilers, flags and speed aren't those of Polygon, so the TL here is
@@ -337,6 +338,13 @@ class SolutionOutcome:
         )
 
     @property
+    def wa_examples(self) -> list[str]:
+        """The examples a `wa` fails: by solutions.md it should pass them."""
+        if self.verdict != "wa":
+            return []
+        return [t.test for t in self.tests if not t.generated and t.verdict == VERDICT_WA]
+
+    @property
     def missed_required(self) -> bool:
         return self.required is not None and self.caught_by is None
 
@@ -487,13 +495,19 @@ class SolutionsRunResult:
 
     @property
     def warnings(self) -> list[str]:
-        """Survivors that aren't an error (caught only on the examples; `tl`/`ml`), the
+        """A `wa` that fails an example, survivors that aren't an error (caught only on
+        the examples; `tl`/`ml`), the
         warnings on the groups of a solution's spec item and solutions without the `tl`
         verdict that ran on an example longer than `SLOW_FRACTION` of the TL (but fit
         into it)."""
         warnings = []
         for s in self.solutions:
             warnings += [f"{s.name}: {warning}" for warning in s.group_warnings]
+            if s.wa_examples:
+                warnings.append(
+                    f"{s.name}: WA on {', '.join(s.wa_examples)} — a wa should pass "
+                    "the statement's examples (solutions.md)"
+                )
             if s.status != STATUS_SURVIVED:
                 continue
             if s.caught_on_example:

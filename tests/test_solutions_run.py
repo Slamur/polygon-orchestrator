@@ -273,7 +273,10 @@ def test_interactive_verdicts(tmp_path):
     assert "expected outputs: tout of the main solution ma_py_sum_draft.py" in result.notes
     assert [s.name for s in result.solutions if s.failed] == ["ok_py_wrong_draft.py"]
     assert "expected 10, got 5" in _by_name(result)["ok_py_wrong_draft.py"].tests[0].comment
-    assert result.warnings == []
+    assert result.warnings == [
+        "wa_py_echo_draft.py: WA on example_1 — a wa should pass the statement's examples "
+        "(solutions.md)"
+    ]
 
 
 def test_interactive_problem_without_interactor(tmp_path):
@@ -474,6 +477,20 @@ def test_full_wa_caught_on_example_still_runs_generated_tests(tmp_path):
     assert [t.verdict for t in wa.tests] == ["WA", "WA", "WA"]
     assert wa.stopped_early
     assert wa.status == STATUS_EXPECTED
+
+
+def test_wa_failing_an_example_is_a_warning(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
+        "gen_pair 3 1 > $\n",
+    )
+    for full in (False, True):
+        result = run_solutions(problem_dir, TEMPLATES_DIR, full=full)
+        assert not result.failed
+        assert any(
+            line.startswith("wa_py_minus_draft.py: WA on example_1") for line in result.warnings
+        ), result.warnings
 
 
 def test_full_wa_caught_only_on_examples_survives_with_a_warning(tmp_path):

@@ -1197,12 +1197,11 @@ Mandatory rules (each item says which stages it is about):
    mistakes (e.g. in computing two different values), write a file for
    each mistake and mark this in `notes` (`kind: proposed`) — otherwise a test
    catching one mistake hides whether the other one is caught.
-   A `wa` must pass the statement's examples (otherwise by solutions.md it's
-   almost useless): run it on the examples mentally. If the mistake in the
-   form the author described fails an example, still write it as
-   described, but state in `notes` (`kind: proposed`) on which example and
-   why, and propose a wording under which the mistake shows up only on
-   some of the tests.
+   Don't run the solutions on the examples mentally and don't trace them by
+   hand: the orchestrator runs each of them on the examples and the tests,
+   and a `wa` that fails an example (by solutions.md it should pass them)
+   is reported to the author. Write the mistake in the form the author
+   described.
    The choice of which wrong solutions are needed was made by the author, not you: even if
    you think the solution will get another verdict (e.g. it will pass in
    time instead of TL or crash with RE instead of WA) or that the item is useless — still write it exactly as described, with the
