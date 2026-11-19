@@ -364,7 +364,11 @@ def _review_marks_warning(args: argparse.Namespace) -> list[str]:
 
 def cmd_llm_generate(args: argparse.Namespace) -> int:
     return _run_llm_pipeline(
-        args, force=args.force, fresh=args.fresh, survivor_rounds=args.survivor_rounds
+        args,
+        force=args.force,
+        fresh=args.fresh,
+        survivor_rounds=args.survivor_rounds,
+        revise_attempts=args.revise_attempts,
     )
 
 

@@ -496,3 +496,24 @@ def test_init_does_not_expand_a_group(problems_dir, capsys):
     ask.assert_not_called()
     assert rc == 1
     assert "can't be nested" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("flag, revised", [([], True), (["--revise-attempts", "0"], False)])
+def test_generate_revises_a_failed_local_run_once_by_default(
+    problems_dir, monkeypatch, capsys, flag, revised
+):
+    from orchestrator.checks.local_tests import ISSUE_GENERATOR_RUN
+    from orchestrator.checks.local_tests import TestIssue as Issue
+    from orchestrator.steps import tests_check
+
+    issue = Issue(ISSUE_GENERATOR_RUN, "test 2: gen_rand exit code 3", "gen_rand > $", 1)
+    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([issue], [], 1))
+    _write_spec(problems_dir, "p1")
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        rc = cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "generate", *flag])
+
+    assert rc == 1
+    called = [c.args[0] for c in mock_call.call_args_list]
+    assert called.count("generators_draft") == (2 if revised else 1)
+    assert ("revision 1 of 1" in capsys.readouterr().out) == revised
