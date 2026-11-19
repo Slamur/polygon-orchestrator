@@ -29,7 +29,7 @@ be printed in exactly the same form):
 {% endfor %}
 
 ## Concrete test scenarios ordered by the author (not generators, but
-## concrete tests — see item B of the system message; in `covers` —
+## concrete tests — see item B of the system message; in `id` —
 ## specific_test_ideas[number])
 {% for t in generation.specific_test_ideas %}
 - [{{ loop.index0 }}] {{ t }}
@@ -45,6 +45,6 @@ script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat
 ## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-The task: make the test plan `tests_plan.yaml` by the rules from the system
+The task: make the test design `tests_design.yaml` by the rules from the system
 message, using the fixed limits above as the only
-source of ranges and groups.
+source of ranges and groups (through formulas).

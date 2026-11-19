@@ -13,6 +13,9 @@ paths:
   - "prompts/test_script_draft/**"
   - "tests/test_step_test_script_draft.py"
   - "templates/tests_plan_format.yaml"
+  - "templates/tests_design_format.yaml"
+  - "orchestrator/steps/tests_design.py"
+  - "tests/test_tests_design.py"
   - "orchestrator/step_order.py"
   - "docs/PROMPTS.md"
   - "tests/test_prompts_doc_sync.py"
@@ -32,18 +35,39 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      duplicate the input format description) + `legend_sketch` + the fixed
      limits from step 2 without TL/ML + (if the `solutions` section is set in the spec)
      `solutions.algorithm_hint`.
-     Output: the test plan `authoring/tests_plan.yaml` in the
-     `templates/tests_plan_format.yaml` format — generators (name, parameters with
-     types, what they read and print, the algorithm) and test-script blocks
-     (commands — generator chains, named values, the group, which
-     spec items the block covers — `covers`). With test groups every block has
-     `group` — a name or a list of names (the block repeats in each group with the
-     group's values); the commands don't carry `-group`, the script adds it. The plan is self-contained:
-     the next two steps don't see the spec. The orchestrator checks it before writing
-     (`parse_tests_plan`: commands call only the plan's generators and only
-     their parameters; doesn't parse — a conflict) and reports with `uncovered` notes
-     the `specific_test_ideas` items
-     not covered by any block, and generators without tests. The plan is the
+     The model's output: the test design `authoring/tests_design.yaml` in the
+     `templates/tests_design_format.yaml` format — generators (name, parameters with
+     types, what they read and print, the algorithm) and ideas: for each spec item
+     (`id: specific_test_ideas[i]`) or the model's own idea (`own[k]`) — command
+     templates and the groups they go into (`all` or a list; one idea may take several
+     entries on disjoint groups, e.g. when a group's `special_property` needs another
+     generator). A value in a template is a number, a named value or a formula over the
+     limits of `constraints.yaml` — `{n.max}`, `{n.min}`, `{n.lo}` (one more than the
+     largest `n` of the groups the group depends on, transitively) and integer
+     arithmetic over them. Why: picking every group's numbers and checking them against
+     its limits made one plan call heavy; this part is mechanical.
+     From the design the orchestrator builds the test plan `authoring/tests_plan.yaml`
+     (`tests_design.plan_from_design`, the `derive_artifacts` of
+     `run_generative_step`) in the `templates/tests_plan_format.yaml` format: the
+     design's generators as they are; a block per idea entry and group, in the order of
+     the groups, within a group — of the ideas (`covers` — the idea's id for the spec's
+     items); every formula — a named value of the plan (`n_max_g3`, `n_lo_g2`,
+     `n_max_div_2`; a group's bound equal to the problem's one — the problem's name
+     `n_max`), so the script keeps referring to values by name. The blocks of the current
+     plan for wrong solutions (`covers` — `solutions/<name>` or
+     `known_wrong_approaches[i]`) are carried over with the generators and named values
+     they use, at the end of their group. The plan is rebuilt on every run of the step
+     (also when the model returns the design unchanged — e.g. the group limits changed),
+     so the author edits the design, not the plan. The plan is self-contained:
+     the next two steps don't see the spec. The commands don't carry `-group`, the
+     script adds it. Before writing, the design and the plan are checked
+     (`parse_tests_design`, `parse_tests_plan`): commands call only the generators and
+     only their parameters, formulas refer to known variables and compute for every
+     group (`{n.lo}` of a group whose dependencies already take `n` up to its max — an
+     error), groups exist (not `0`), entries of one idea take disjoint groups, every group
+     gets tests; anything wrong — the response is a conflict. The orchestrator reports
+     with `uncovered` notes the `specific_test_ideas` items not covered by any block, and
+     generators without tests. The design is the
      base one: the author's generators (`generator_ideas`, `status: confirmed`),
      the author's concrete tests (`specific_test_ideas`; a generator the author didn't
      describe — `status: proposed`) and, beyond what the author ordered, the model's own
@@ -54,8 +78,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      is added only for a wrong solution the base tests don't catch (`tests_survivors`
      below). So `known_wrong_approaches` isn't part of the step's input — editing it
      doesn't invalidate the plan; blocks whose `covers` refer to
-     `known_wrong_approaches[i]` or to a solution (`solutions/<name>`) are kept in
-     revision mode and aren't reconciled with the spec.
+     `known_wrong_approaches[i]` or to a solution (`solutions/<name>`) are carried over
+     when the plan is rebuilt (see above) and aren't reconciled with the spec.
    - **`generators_draft`** — input: the plan's generators (each a separate
      input part: editing one plan entry — editing one generator in
      revision mode, editing the plan's tests doesn't touch the step) + the input format from

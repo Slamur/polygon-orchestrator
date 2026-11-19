@@ -3,8 +3,11 @@ the test-script assembles from them, CLAUDE.md, "Role of each generative step", 
 
 The substantive part of test preparation — implementing what the author ordered
 (`generator_ideas`, `specific_test_ideas`) and edge cases of the input — is done here, in a
-small response: `authoring/tests_plan.yaml` in the
-`templates/tests_plan_format.yaml` format. The code from the plan is written by the next steps —
+small response: the model writes the test design `authoring/tests_design.yaml`
+(`templates/tests_design_format.yaml`) — generators and command templates whose values are
+formulas over a test group's limits — and the orchestrator builds from it
+`authoring/tests_plan.yaml` in the `templates/tests_plan_format.yaml` format
+(`orchestrator/steps/tests_design.py`). The code from the plan is written by the next steps —
 `generators_draft` (generators) and `test_script_draft` (the script); they don't see
 the spec, so the plan is self-contained. Parsing the plan (`parse_tests_plan`) is
 shared by all three steps.
@@ -12,7 +15,8 @@ shared by all three steps.
 The plan is the base one: tests aimed at particular wrong solutions
 (`solutions.known_wrong_approaches`) aren't designed here — they are added only for
 a wrong solution that the base tests don't catch, once the solutions are run on them.
-Blocks of the current plan that cover wrong approaches are kept in revision mode.
+Blocks of the current plan that cover wrong approaches are carried over when the plan is
+rebuilt from the design.
 """
 
 from __future__ import annotations
@@ -27,7 +31,11 @@ import yaml
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
-from orchestrator.problem_paths import TESTS_PLAN_FILENAME, authoring_path
+from orchestrator.problem_paths import (
+    TESTS_DESIGN_FILENAME,
+    TESTS_PLAN_FILENAME,
+    authoring_path,
+)
 from orchestrator.references import reference_documents
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
@@ -49,6 +57,7 @@ from orchestrator.steps.constraints_pick import set_spec_problem_id
 
 STEP_NAME = "tests_plan"
 TESTS_PLAN_ARTIFACT = TESTS_PLAN_FILENAME
+TESTS_DESIGN_ARTIFACT = TESTS_DESIGN_FILENAME
 
 # Optional[list[...]] fields of the generation section over which user.md.j2 does
 # {% for %} without a null check (see base.with_default_lists).
@@ -358,30 +367,45 @@ def primary_artifact_path(
     return authoring_path(Path(problems_dir) / problem_id, TESTS_PLAN_ARTIFACT)
 
 
+def design_artifact_path(
+    problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
+) -> Path:
+    return authoring_path(Path(problems_dir) / problem_id, TESTS_DESIGN_ARTIFACT)
+
+
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """The step's current files for revision mode: `tests_plan.yaml`."""
+    """The step's current files for revision mode: `tests_design.yaml` — what the model
+    writes; the plan is built from it."""
     return existing_artifacts(
-        {TESTS_PLAN_ARTIFACT: primary_artifact_path(problem_id, spec, problems_dir=problems_dir)}
+        {TESTS_DESIGN_ARTIFACT: design_artifact_path(problem_id, spec, problems_dir=problems_dir)}
     )
 
 
-def _postprocess(
-    spec: ProblemSpec,
+def _current_plan_text(plan_path: Path) -> str | None:
+    return plan_path.read_text(encoding="utf-8") if plan_path.is_file() else None
+
+
+def _derive(
+    spec: ProblemSpec, constraints_yaml: str, plan_path: Path
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
-    """The `problem_id` in the plan — from the spec (`set_spec_problem_id`), and notes about
-    what the plan doesn't cover (`uncovered_notes`)."""
-    set_problem_id = set_spec_problem_id(spec.problem_id, TESTS_PLAN_ARTIFACT)
+    """`tests_plan.yaml` from the design (`tests_design.plan_from_design`, the current
+    plan — for its blocks for wrong solutions) and notes about what the plan doesn't cover
+    (`uncovered_notes`)."""
+    # Imported here: `tests_design` takes the plan's checks from this module.
+    from orchestrator.steps.tests_design import plan_from_design
 
-    def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
-        artifacts, notes = set_problem_id(artifacts)
-        text = artifacts.get(TESTS_PLAN_ARTIFACT)
-        if text is not None:
-            notes = [*notes, *uncovered_notes(parse_tests_plan(text), spec)]
-        return artifacts, notes
+    def derive(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
+        text = plan_from_design(
+            artifacts[TESTS_DESIGN_ARTIFACT],
+            constraints_yaml,
+            spec.problem_id,
+            _current_plan_text(plan_path),
+        )
+        return {TESTS_PLAN_ARTIFACT: text}, uncovered_notes(parse_tests_plan(text), spec)
 
-    return postprocess
+    return derive
 
 
 def run_step(
@@ -400,11 +424,14 @@ def run_step(
     Input: the `generation` section (generator ideas, concrete tests, the script
     style), `solutions.algorithm_hint`, the input
     format and the legend from `statement_draft`, `constraints.yaml` without TL/ML —
-    the only source of ranges and groups. Output —
-    `authoring/tests_plan.yaml`; a plan that doesn't parse
-    (`parse_tests_plan`) isn't written: the response goes to conflicts and
-    stays for `llm apply`.
+    the only source of ranges and groups. Output — `authoring/tests_design.yaml` from
+    the model and `authoring/tests_plan.yaml` built from it; a design that doesn't parse
+    or doesn't give a valid plan (`tests_design.plan_from_design`) isn't written: the
+    response goes to conflicts and stays for `llm apply`.
     """
+    # Imported here: `tests_design` takes the plan's checks from this module.
+    from orchestrator.steps.tests_design import plan_from_design
+
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     context = {
         "problem_id": spec.problem_id,
@@ -414,16 +441,26 @@ def run_step(
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
 
+    plan_path = primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
+    plan_constraints = constraints_without_limits(constraints_yaml)
+
     def resolve_artifact_path(filename: str) -> Path:
-        if filename != TESTS_PLAN_ARTIFACT:
+        if filename == TESTS_PLAN_ARTIFACT:
+            return plan_path
+        if filename != TESTS_DESIGN_ARTIFACT:
             raise ValueError(
-                f"Step '{STEP_NAME}' returns only {TESTS_PLAN_ARTIFACT}, got '{filename}'"
+                f"Step '{STEP_NAME}' returns only {TESTS_DESIGN_ARTIFACT}, got '{filename}'"
             )
-        return primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
+        return design_artifact_path(problem_id, spec, problems_dir=problems_dir)
 
     def validate_artifacts(artifacts: dict[str, str]) -> None:
-        check_artifact_names(STEP_NAME, {TESTS_PLAN_ARTIFACT}, artifacts)
-        parse_tests_plan(artifacts[TESTS_PLAN_ARTIFACT])
+        check_artifact_names(STEP_NAME, {TESTS_DESIGN_ARTIFACT}, artifacts)
+        plan_from_design(
+            artifacts[TESTS_DESIGN_ARTIFACT],
+            plan_constraints,
+            spec.problem_id,
+            _current_plan_text(plan_path),
+        )
 
     return run_generative_step(
         step_name=STEP_NAME,
@@ -439,5 +476,6 @@ def run_step(
         problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
-        postprocess_artifacts=_postprocess(spec),
+        postprocess_artifacts=set_spec_problem_id(spec.problem_id, TESTS_DESIGN_ARTIFACT),
+        derive_artifacts=_derive(spec, plan_constraints, plan_path),
     )

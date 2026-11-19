@@ -15,6 +15,7 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 _TESTS_PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8")
+_TESTS_DESIGN_YAML = (FIXTURES_DIR / "tests-design.yaml").read_text(encoding="utf-8")
 
 _CONSTRAINTS_YAML = "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
 
@@ -35,7 +36,7 @@ _RESPONSES = {
         status="confirmed", artifacts={"constraints.yaml": _CONSTRAINTS_YAML}, notes=[]
     ),
     "tests_plan": ModelResponse(
-        status="confirmed", artifacts={"tests_plan.yaml": _TESTS_PLAN_YAML}, notes=[]
+        status="confirmed", artifacts={"tests_design.yaml": _TESTS_DESIGN_YAML}, notes=[]
     ),
     "generators_draft": ModelResponse(
         status="confirmed", artifacts={"gen_rand.cpp": "int main(){}"}, notes=[]

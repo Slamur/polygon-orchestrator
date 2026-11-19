@@ -165,7 +165,7 @@ the user can see it) in the same PR.
 ├── tests/
 ├── drafts/                          # the author's drafts for `init --draft`; in .gitignore
 └── problems/<problem path>/         # in .gitignore; at any depth
-    ├── authoring/                   # spec.yaml, draft.<ext>, draft-tutorial.md, constraints.yaml, tests_plan.yaml
+    ├── authoring/                   # spec.yaml, draft.<ext>, draft-tutorial.md, constraints.yaml, tests_design.yaml, tests_plan.yaml
     │                                # (model and author only; on Polygon — in Attachments)
     ├── statement/<code>/*.tex, name.txt; statement/examples/example_<N>*.txt
     ├── limits.yaml, problem_lib.h, validator.cpp, checker.cpp, interactor.cpp

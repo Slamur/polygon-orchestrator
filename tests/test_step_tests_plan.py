@@ -6,11 +6,13 @@ import yaml
 
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
-from orchestrator.steps.base import StepUncertainError
+from orchestrator.steps.base import StepRevision, StepUncertainError
+from orchestrator.steps.tests_design import PLAN_HEADER
 from orchestrator.steps.tests_plan import (
     TestsPlanError,
     _build_context_sections,
     compute_input_hash,
+    current_artifacts,
     extra_context_documents,
     parse_tests_plan,
     run_step,
@@ -22,6 +24,7 @@ PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PLAN_YAML = (FIXTURES_DIR / "tests-plan.yaml").read_text(encoding="utf-8")
+DESIGN_YAML = (FIXTURES_DIR / "tests-design.yaml").read_text(encoding="utf-8")
 UPSTREAM = {"constraints.yaml": "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n"}
 
 
@@ -36,15 +39,20 @@ def _plan(**changes) -> dict:
     return plan
 
 
-def _run(spec, tmp_path, artifacts=None, status="confirmed", upstream=UPSTREAM):
+def _run(
+    spec, tmp_path, artifacts=None, status="confirmed", upstream=UPSTREAM, revision=None, **kw
+):
     response = ModelResponse(
-        status=status, artifacts={"tests_plan.yaml": PLAN_YAML} if artifacts is None else artifacts
+        status=status,
+        artifacts={"tests_design.yaml": DESIGN_YAML} if artifacts is None else artifacts,
+        **kw,
     )
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         result = run_step(
             "valid-spec",
             spec,
             upstream,
+            revision=revision,
             prompts_dir=PROMPTS_DIR,
             problems_dir=tmp_path,
             templates_dir=TEMPLATES_DIR,
@@ -150,15 +158,22 @@ def test_missing_constraints_upstream_artifact_raises(spec, tmp_path):
         run_step("valid-spec", spec, None, prompts_dir=PROMPTS_DIR, problems_dir=tmp_path)
 
 
-def test_confirmed_writes_plan_to_authoring_with_problem_id_from_spec(spec, tmp_path):
+def test_confirmed_writes_design_and_the_plan_built_from_it(spec, tmp_path):
     result, mock_call = _run(spec, tmp_path)
 
     assert result.status == "confirmed"
-    written = (tmp_path / "valid-spec" / "authoring" / "tests_plan.yaml").read_text(
-        encoding="utf-8"
-    )
-    assert yaml.safe_load(written)["problem_id"] == "valid-spec"
+    authoring = tmp_path / "valid-spec" / "authoring"
+    design = yaml.safe_load((authoring / "tests_design.yaml").read_text(encoding="utf-8"))
+    assert design["problem_id"] == "valid-spec"
     assert ("problem_id", "restored") in [(n["field"], n["kind"]) for n in result.notes]
+    written = (authoring / "tests_plan.yaml").read_text(encoding="utf-8")
+    assert written.startswith(PLAN_HEADER)
+    plan = parse_tests_plan(written)
+    assert plan["problem_id"] == "valid-spec"
+    assert plan["tests"][0]["commands"] == ["gen_rand -n=maxN"]
+    assert set(result.artifact_paths) == {"tests_design.yaml", "tests_plan.yaml"}
+    # The design covers none of the spec's scenarios.
+    assert "specific_test_ideas[0]" in [n["field"] for n in result.notes]
 
     user_prompt = mock_call.call_args.args[2]
     assert "n_max: 100000" in user_prompt
@@ -167,15 +182,60 @@ def test_confirmed_writes_plan_to_authoring_with_problem_id_from_spec(spec, tmp_
     assert "- [0] N = 1 (the minimal case)" in user_prompt
     # The base plan: tests for wrong approaches are made only for survivors.
     assert "O(N^2) without a heap" not in user_prompt
-    assert "tests_plan_format.yaml" in mock_call.call_args.kwargs["context_documents"]
+    assert "tests_design_format.yaml" in mock_call.call_args.kwargs["context_documents"]
 
 
-def test_plan_that_does_not_parse_is_not_written(spec, tmp_path):
-    result, _ = _run(spec, tmp_path, artifacts={"tests_plan.yaml": "generators: []\n"})
+def test_design_that_does_not_parse_is_not_written(spec, tmp_path):
+    result, _ = _run(spec, tmp_path, artifacts={"tests_design.yaml": "generators: []\n"})
 
-    assert not (tmp_path / "valid-spec" / "authoring" / "tests_plan.yaml").exists()
+    authoring = tmp_path / "valid-spec" / "authoring"
+    assert not (authoring / "tests_design.yaml").exists()
+    assert not (authoring / "tests_plan.yaml").exists()
     assert "'generators' must be a non-empty list" in result.not_applied_reason
     assert (tmp_path / "valid-spec" / ".cache" / "tests_plan.response.json").is_file()
+
+
+def test_the_model_returning_a_plan_is_a_conflict(spec, tmp_path):
+    result, _ = _run(spec, tmp_path, artifacts={"tests_plan.yaml": PLAN_YAML})
+
+    assert "missing files: ['tests_design.yaml']" in result.not_applied_reason
+    assert not (tmp_path / "valid-spec" / "authoring" / "tests_plan.yaml").exists()
+
+
+def test_unchanged_design_rebuilds_the_plan_and_keeps_wrong_solution_blocks(spec, tmp_path):
+    _run(spec, tmp_path)
+    plan_path = tmp_path / "valid-spec" / "authoring" / "tests_plan.yaml"
+    plan = yaml.safe_load(plan_path.read_text(encoding="utf-8"))
+    plan["generators"].append({"name": "gen_trap", "status": "proposed", "params": []})
+    plan["tests"] += [
+        {
+            "description": "edited by hand",
+            "status": "confirmed",
+            "covers": [],
+            "commands": ["gen_rand -n=1"],
+        },
+        {
+            "description": "trap",
+            "status": "proposed",
+            "covers": ["solutions/wa_cpp_x.cpp"],
+            "commands": ["gen_trap"],
+        },
+    ]
+    plan_path.write_text(yaml.safe_dump(plan), encoding="utf-8")
+
+    revision = StepRevision(
+        current_paths=current_artifacts("valid-spec", spec, problems_dir=tmp_path)
+    )
+    assert set(revision.current_paths) == {"tests_design.yaml"}
+    result, _ = _run(
+        spec, tmp_path, artifacts={}, revision=revision, unchanged=["tests_design.yaml"]
+    )
+
+    assert result.not_applied_reason is None
+    rebuilt = parse_tests_plan(plan_path.read_text(encoding="utf-8"))
+    assert [b["description"] for b in rebuilt["tests"]] == ["Random maximal tests", "trap"]
+    assert [g["name"] for g in rebuilt["generators"]] == ["gen_rand", "gen_trap"]
+    assert set(result.artifact_paths) == {"tests_plan.yaml"}
 
 
 def test_uncertain_raises_and_writes_nothing(spec, tmp_path):

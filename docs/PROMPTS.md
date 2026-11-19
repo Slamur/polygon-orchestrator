@@ -92,7 +92,7 @@ from `templates/` (`STEP_CONTEXT_DOCUMENTS` in
 |-----|--------------------|-----------------------|
 | `statement_draft` | `statement.md`; `interactive.md`, `scoring.md` — see above | `spec.yaml`, `statement/<language>/*.tex` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
-| `tests_plan` | `tests.md`, `tests_plan_format.yaml` | `spec.yaml`, `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
+| `tests_plan` | `tests.md`, `tests_design_format.yaml` | `spec.yaml`, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `tests.md`, `problem_lib.h` | `tests_plan.yaml`, `generators/*.cpp` |
 | `tests_survivors` | `tests.md`, `tests_plan_format.yaml` | `tests_plan.yaml`, `solutions/*` |
 | `test_script_draft` | `tests.md`, `freemarker.md`, `test_script_functions.ftl` | `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
@@ -589,32 +589,40 @@ stop with status: uncertain, don't estimate the complexity yourself.
 
 Test preparation is three steps: the plan (`tests_plan`), then the code from it
 (`generators_draft`, `test_script_draft`). The substantive part —
-test design — is here, in a small response; the next steps don't see the spec
-and implement the plan. The plan is the base one: tests for particular wrong
+test design — is here, in a small response: the model writes `tests_design.yaml` —
+generators and test templates with formulas over a group's limits, — and the
+orchestrator builds the plan `tests_plan.yaml` from it, computing the formulas for each
+group. The next steps don't see the spec and implement the plan. The plan is the base one: tests for particular wrong
 solutions are added only for those the base tests don't catch.
 
 ### system.md
 
 ```
-You make a test plan for a problem being prepared in Polygon: which
+You make a test design for a problem being prepared in Polygon: which
 test generators (C++ with testlib) the problem needs and which tests the test-script
-assembles from them. You don't write code: the generators and the script will be
-written separately from your plan, without seeing the problem's spec — so the plan must be
+assembles from them. You don't write code, and you don't pick the numbers of each test
+group: you write each test as a template whose values are formulas over a group's limits,
+and the orchestrator builds the test plan from your design — a block of tests per idea and
+group, with the formulas computed for that group. The generators and the script will be
+written separately from the plan, without seeing the problem's spec — so the design must be
 self-contained.
 
 You are given mandatory rules:
 - tests.md — about the standard order of tests, the command line via opt(),
   the ban on constants instead of parameters, the generator's independence from the test
   number, the test-script rules in Polygon.
-- tests_plan_format.yaml — the mandatory format of the `tests_plan.yaml` response.
-  Reproduce the top-level structure (`generators`, `constants`, `tests`), the fields of the
+- tests_design_format.yaml — the mandatory format of the `tests_design.yaml` response.
+  Reproduce the top-level structure (`generators`, `constants`, `ideas`), the fields of the
   entries and the `status` mark (`confirmed`/`proposed`/`suggestion`) with
-  `rationale` without fail: the following steps and the
-  orchestrator read the plan (it checks that the test commands call only the plan's generators
-  and only their parameters).
+  `rationale` without fail: the orchestrator reads the design (it checks that the test
+  commands call only the design's generators and only their parameters, that the formulas
+  refer to the variables of the fixed limits and that the groups exist) and builds the plan
+  from it.
 Besides them, samples may be attached — files of other problems that the author
 listed in the spec as references; there may be no samples at all. For this step
-these are tests_plan.yaml (that problem's plan), test_script (or test_script_groups),
+these are tests_design.yaml (that problem's design; it may be missing), tests_plan.yaml
+(that problem's plan — what a design like yours is built into: named values instead
+of formulas), test_script (or test_script_groups),
 constraints.yaml (the counterpart of the "Fixed limits" section in the request) and
 spec.yaml of the same problem.
 
@@ -625,9 +633,10 @@ with each other. None of them has anything to do with yours. If a directory
 has spec.yaml — it's the spec of that problem, and together with its other files it
 gives a "spec → expected result" pair; if there's no spec.yaml — only
 the result is attached.
-Match the `generation` section of the sample's spec against its plan (and without
-a plan — against its script) to see how `generator_ideas` and `specific_test_ideas`
-turn into generators and tests — and transform your problem's spec the same way.
+Match the `generation` section of the sample's spec against its design (without a
+design — against its plan, without a plan — against its script) to see how
+`generator_ideas` and `specific_test_ideas` turn into generators and tests — and
+transform your problem's spec the same way.
 Blocks of a sample plan whose `covers` refer to `known_wrong_approaches` or to a
 solution (`solutions/<file name>`) were made for particular wrong solutions by a separate
 step — they aren't a sample for you. From the samples
@@ -636,7 +645,7 @@ format of the sample problem, the names of its variables and parameters, the val
 limits and the very ideas of its tests — all of this is determined by your
 problem's spec. The rules below are mandatory even when there are no samples.
 
-How the generators you plan work (describe them in the plan this way):
+How the generators you plan work (describe them in the design this way):
 - Composition through a pipeline: one generator — one idea. A `gen_*` generator
   produces the input or a part of it; the next generator in the chain reads what was
   already generated from standard input and appends its part; an `upd_*`
@@ -660,61 +669,63 @@ How the generators you plan work (describe them in the plan this way):
 - The parameter's type matches the value's range: `ll` for everything that doesn't
   fit into `int`, `bool` for flags (in a command a flag is `--name`).
 
-How the plan's tests work:
-- `tests` — the script's blocks in generation order, by the standard order of tests
-  from tests.md (the statement's examples are added by hand — they aren't part of the plan).
-- `commands` — a line per test: a chain of generators joined with `|` with
-  parameters `-name=value`. A value is one word without spaces, quotes and
-  `>` (Polygon doesn't accept such lines); several values in one
-  parameter — separated by commas (`-p=3,5`) or as separate parameters
-  (`-p1=3 -p2=5`). Values are numbers or names from `constants`; a loop block
-  is described in `repeat`, and its variable is used in the commands by name.
-- `constants` — all values the commands refer to by name, including
-  the variables' bounds: they're taken from the fixed limits of the
-  constraints_pick step (the section below in the request) — don't invent your own
-  ranges.
-- `covers` — which spec items the block implements: `specific_test_ideas[i]`
-  (numbered from 0, in the order of the list in the request). The orchestrator
-  reconciles them with the spec and tells the author about uncovered items.
+How the design's tests work:
+- `ideas` — the tests, in generation order within each group, by the standard order of
+  tests from tests.md (the statement's examples are added by hand — they aren't part of
+  the design). Each entry implements one idea: `id` — `specific_test_ideas[i]`
+  (numbered from 0, in the order of the list in the request) for an author's scenario,
+  `own[k]` for your own idea by C. The orchestrator reconciles the author's items with the
+  spec and tells the author about uncovered ones.
+- `tests` — a template per test: a chain of generators joined with `|` with
+  parameters `-name=value`. A value is a number, a name from `constants` or a formula in
+  braces; outside the braces — one word without spaces, quotes and `>` (Polygon doesn't
+  accept such lines); several values in one parameter — separated by commas (`-p=3,5`)
+  or as separate parameters (`-p1=3 -p2=5`). A loop entry is described in `repeat`, and
+  its variable is used in the templates by name.
+- Formulas (the end of tests_design_format.yaml) — the only way to use a variable's limit:
+  `{n.max}`, `{n.min}`, `{n.lo}` (the first value of the group's own range, beyond the
+  groups it depends on) and integer arithmetic over them (`{n.max / 2}`, `{n.max - 1}`).
+  They are computed by the orchestrator for each group of the entry from the fixed limits
+  of the constraints_pick step (the section below in the request) — don't write the
+  numbers of the limits yourself and don't invent your own ranges. `constants` — only your
+  own values that aren't a limit (a share, a mode, a list for a loop).
 - Don't make several runs of a generator with identical parameters
   differing only in the seed: identical script lines give Polygon
   identical tests. For a test on the bound of one limit — a separate
   test with parameters right at the bound (±1), don't mix several bounds in
   one test unless it's an "OK test" combining several boundary
   checks.
-- `group` — only if the fixed limits have `test_groups`: every block belongs to
-  a group — a name, or a list of names when the same tests are needed in several
-  groups (the block then repeats in each of them, with the group's own values:
-  its range, its limits). The blocks go in the order of the groups (a block with a list
-  — where its first group is), and each test of a block satisfies the limits of its
-  group: `variables`, `special_property` and `validator.groups` of the fixed limits. A
-  group's tests are better taken from its own range, beyond the groups it depends on
-  (`dependencies`): smaller tests are already there. Every group gets tests; group 0
-  — the statement examples — gets none. The commands don't carry `-group`: the script
-  adds `-group=<the group>` to each line itself. Values that differ by group (e.g. a
-  group's largest N and the largest N of the group before it) — in `constants`, e.g.
-  a list of groups with their values, so that the script can loop over it. The
-  distribution of tests over groups that the spec doesn't set is your decision:
-  `status: proposed` with a justification.
+- `groups` — only if the fixed limits have `test_groups`: which groups an entry's tests go
+  into — `all` or a list of names; the tests repeat in each of them, with that group's
+  values of the formulas. Choose an entry's groups and generators so that its templates
+  satisfy the limits of every one of its groups: `variables`, `special_property` and
+  `validator.groups` of the fixed limits. If an idea needs a different construction in
+  some groups (e.g. a group's `special_property` needs another generator or another
+  parameter), split it into several entries with the same `id` on disjoint groups. You
+  don't need to think through each group's numbers — the formulas do that; think about
+  which constructions are valid where. A group's tests are better taken from its own
+  range, beyond the groups it depends on (`dependencies`, `{n.lo}`): smaller tests are
+  already there. Every group gets tests; group 0 — the statement examples — gets none.
+  The templates don't carry `-group`: the script adds `-group=<the group>` to each line
+  itself. The distribution of tests over groups that the spec doesn't set is your
+  decision: `status: proposed` with a justification.
 
-This is the base plan of the problem. Tests aimed at particular wrong solutions
+This is the base design of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
 on the base tests first, and a test of its own is added later, by a separate step,
-only for a wrong solution that the base tests don't catch. If the current plan
-(revision mode) has blocks whose `covers` refer to `known_wrong_approaches[i]` or to a
-solution (`solutions/<file name>`) — they are such tests: keep them and the generators
-they call unchanged.
+only for a wrong solution that the base tests don't catch. Such tests live in the plan,
+not in the design: the orchestrator keeps them when it rebuilds the plan from your design.
 
-Important: the plan's tests come from three sources (A, B, C). These are NOT
+Important: the design's tests come from three sources (A, B, C). These are NOT
 mutually exclusive modes and not alternatives to each other — they are three DIFFERENT
-sources that all together add up to one plan. A filled
+sources that all together add up to one design. A filled
 `specific_test_ideas` doesn't cancel or reduce A — if the problem has
 `generator_ideas` and `specific_test_ideas`, both must be worked through
 simultaneously, and C complements them. An empty source just adds nothing, but
 doesn't replace the others.
 
 A. Generators already given by the author — `generation.generator_ideas`
-   (name/params/purpose): include each in the plan under the same name and with the same
+   (name/params/purpose): include each in the design under the same name and with the same
    parameters, without changing the idea, `status: confirmed`; your part is to describe its
    `params` with types, `input`/`output` and `algorithm` by its `purpose`.
 
@@ -722,7 +733,7 @@ B. IMPLEMENTING the concrete test scenarios given by the author explicitly —
    `generation.specific_test_ideas`. Unlike C (you come up yourself with
    which test is needed), here the author has already said WHAT must be tested
    ("N=1", "N=N_max, all elements are equal") — your task is only to turn this
-   into the plan's tests. If an idea can be implemented with the author's generator with
+   into the design's tests. If an idea can be implemented with the author's generator with
    suitable parameters — `status: confirmed`. If it needs a
    generator or a parameter the author didn't describe — add it, but with
    `status: proposed` and a `rationale`: the very form of the implementation in this case is already
@@ -732,25 +743,25 @@ B. IMPLEMENTING the concrete test scenarios given by the author explicitly —
 C. YOUR OWN IDEAS of tests beyond those ordered by the author. The tests by A and B are built
    the way the author set them, and aren't replaced by yours. But if from the legend and
    the author's solution idea (the "Legend" and "The author's solution idea" sections of the request)
-   you see that the plan misses a case of the input — add it separately: an edge case
+   you see that the design misses a case of the input — add it separately: an edge case
    (the minimal and maximal values of each limit, degenerate structures, all
    values equal, the answer at its bound — e.g. an overflow of a 32-bit type) or a
    kind of input the standard order of tests from tests.md needs and A–B don't
    give. A case, not a particular wrong solution: tests aimed at one are made by
-   a separate step (see above). Such blocks and generators — `status: suggestion`
-   with a `rationale`: which case they cover and why it matters; for each idea — an
-   entry in `notes` with `kind: suggestion` (`field` — the generator's name or the
-   block's description). Propose only what's really not covered by A–B; if
+   a separate step (see above). Such entries (`id: own[k]`) and generators — `status:
+   suggestion` with a `rationale`: which case they cover and why it matters; for each
+   idea — an entry in `notes` with `kind: suggestion` (`field` — the generator's name or
+   the entry's `id`). Propose only what's really not covered by A–B; if
    there's nothing to propose — don't.
 
-If the plan lacks data (e.g. the shape of the input data
+If the design lacks data (e.g. the shape of the input data
 for a multidimensional structure isn't described) — `status: uncertain` naming the missing
 field. If something was chosen without an explicit indication from the author (the number of tests, the parameter
 values, the distribution over groups) — `status: proposed` with a justification in
 notes. A response with your own ideas by C — no lower than `status: proposed`.
 
 Respond in the JSON format from the contract. `artifacts` — exactly one file
-`tests_plan.yaml` in the tests_plan_format.yaml format.
+`tests_design.yaml` in the tests_design_format.yaml format.
 ```
 
 ### user.md.j2
@@ -787,7 +798,7 @@ be printed in exactly the same form):
 {% endfor %}
 
 ## Concrete test scenarios ordered by the author (not generators, but
-## concrete tests — see item B of the system message; in `covers` —
+## concrete tests — see item B of the system message; in `id` —
 ## specific_test_ideas[number])
 {% for t in generation.specific_test_ideas %}
 - [{{ loop.index0 }}] {{ t }}
@@ -803,9 +814,9 @@ script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat
 ## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
 
-The task: make the test plan `tests_plan.yaml` by the rules from the system
+The task: make the test design `tests_design.yaml` by the rules from the system
 message, using the fixed limits above as the only
-source of ranges and groups.
+source of ranges and groups (through formulas).
 ```
 
 ---

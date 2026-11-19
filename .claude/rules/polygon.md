@@ -40,8 +40,8 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   unknown group, a group without tests — an error before any change. The step always reads
   `problem.tests`: regenerated tests (a new script) are assigned again,
   uploading `problems/<problem path>/authoring/` — `spec.yaml`,
-  `constraints.yaml` (the whole `constraints_pick` result), `tests_plan.yaml`
-  (the test plan), the copies of the draft `draft.<extension>` and of the tutorial draft
+  `constraints.yaml` (the whole `constraints_pick` result), `tests_design.yaml`
+  (the test design), `tests_plan.yaml` (the test plan), the copies of the draft `draft.<extension>` and of the tutorial draft
   `draft-tutorial.md` — as is into the
   Attachments section (by file name, without `authoring/`) (aux files,
   `upload_attachments`) — so that `polygon pull` restores the problem together
@@ -117,7 +117,7 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   or there is no base (`differs`) — the local one stays, with `--overwrite` — it is replaced by the version
   from Polygon. Replaced files are moved to `.pull_backup/`. Files that
   aren't on Polygon are listed explicitly and never deleted;
-  files from Attachments (spec, `constraints.yaml`, `tests_plan.yaml`, draft, tutorial draft) are compared
+  files from Attachments (spec, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`, draft, tutorial draft) are compared
   only with their versions in Attachments, and the problem's TL/ML — only with
   `limits.yaml` (the same comparison, by the TL/ML values; they don't touch
   `constraints.yaml`). Test groups on Polygon (if the local `constraints.yaml` has

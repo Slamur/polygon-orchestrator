@@ -163,7 +163,7 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     ],
     "tests_plan": [
         "tutorials/tests.md",
-        "tests_plan_format.yaml",
+        "tests_design_format.yaml",
     ],
     "generators_draft": [
         "tutorials/tests.md",
@@ -1131,6 +1131,9 @@ def run_generative_step(
     saved_response: ModelResponse | None = None,
     partial_apply: bool = False,
     generated_artifacts: GeneratedArtifacts | None = None,
+    derive_artifacts: (
+        Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]] | None
+    ) = None,
 ) -> StepResult:
     """The shared loop of a step: rendering the prompts, calling the model, writing the result.
 
@@ -1193,6 +1196,13 @@ def run_generative_step(
     returns a new set of artifacts and notes about what was done (added to
     the `notes` of the model's response, so that the author sees that the file was fixed by a rule, not the model).
     In revision mode it gets only new and changed files.
+
+    `derive_artifacts(final_artifacts)` — files the orchestrator builds from the step's
+    whole final set of files (after `postprocess_artifacts`; in revision mode — with the
+    unchanged ones too), e.g. the test plan from the test design: returns the files and
+    notes. Called only when the response is applied in full; a file whose content is
+    already on disk isn't written again. Errors of building them must surface earlier,
+    in `validate_artifacts`, so that the response goes to conflicts.
 
     The model's response (except `uncertain` — there's nothing to apply) is saved
     (`cache.PendingResponse`) before checking the response and writing the files and is deleted
@@ -1305,6 +1315,13 @@ def run_generative_step(
     if postprocess_artifacts is not None and artifacts:
         artifacts, extra_notes = postprocess_artifacts(artifacts)
         notes.extend(extra_notes)
+    if derive_artifacts is not None and whole_step_reason is None:
+        derived, derived_notes = derive_artifacts({**plan.final_artifacts, **artifacts})
+        notes.extend(derived_notes)
+        for filename, content in derived.items():
+            path = resolve_artifact_path(filename)
+            if not path.is_file() or path.read_text(encoding="utf-8") != content:
+                artifacts = {**artifacts, filename: content}
     if generated_artifacts is not None and whole_step_reason is None:
         artifacts = {**artifacts, **generated_artifacts.artifacts}
         plan.removed.extend(
