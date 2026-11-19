@@ -578,3 +578,74 @@ def test_run_generative_step_keeps_response_not_applied_with_its_cache_entry(tmp
     assert pending.cache_entry.input_hash == "h"
     assert pending.cache_entry.input_values == {"spec": {"x": 1}}
     assert pending.cache_entry.status == "confirmed"
+
+
+# --- re-request after a failed check ---------------------------------------
+
+
+def _run_checked_step(tmp_path, responses, attempts):
+    """`statement_draft` whose check rejects a file named `bad.tex`; `attempts` —
+    `CHECK_REVISIONS` for the call. (result, the user prompts of the calls)."""
+    from orchestrator.steps.base import CHECK_FAILED_PROMPT, CHECK_REVISIONS
+
+    prompts_dir = tmp_path / "prompts"
+    problems_dir = tmp_path / "problems"
+    _write_prompt(prompts_dir, "statement_draft", "x")
+    real_prompts = Path(__file__).parent.parent / "prompts"
+    (prompts_dir / CHECK_FAILED_PROMPT).write_text(
+        (real_prompts / CHECK_FAILED_PROMPT).read_text(encoding="utf-8"), encoding="utf-8"
+    )
+
+    def validate(artifacts):
+        if "bad.tex" in artifacts:
+            raise ValueError("bad.tex is not allowed")
+
+    token = CHECK_REVISIONS.set(attempts)
+    try:
+        with patch("orchestrator.model_router.call_model", side_effect=responses) as mock_call:
+            result = run_generative_step(
+                step_name="statement_draft",
+                problem_id="p1",
+                context={},
+                input_hash="h",
+                resolve_artifact_path=lambda name: problems_dir / "p1" / name,
+                prompts_dir=prompts_dir,
+                problems_dir=problems_dir,
+                validate_artifacts=validate,
+            )
+    finally:
+        CHECK_REVISIONS.reset(token)
+    return result, [call.args[2] for call in mock_call.call_args_list]
+
+
+def test_rejected_response_is_requested_again_with_the_reason(tmp_path):
+    bad = ModelResponse(status="confirmed", artifacts={"bad.tex": "oops"}, notes=[])
+    good = ModelResponse(status="confirmed", artifacts={"good.tex": "fine"}, notes=[])
+
+    result, prompts = _run_checked_step(tmp_path, [bad, good], attempts=1)
+
+    assert len(prompts) == 2
+    assert "bad.tex is not allowed" in prompts[1] and "oops" in prompts[1]
+    assert result.conflicts_dir is None
+    assert (tmp_path / "problems" / "p1" / "good.tex").read_text(encoding="utf-8") == "fine"
+    assert not (tmp_path / "problems" / "p1" / "bad.tex").exists()
+    assert [n["kind"] for n in result.notes] == ["retried"]
+
+
+def test_rejected_response_goes_to_conflicts_once_the_attempts_run_out(tmp_path):
+    bad = ModelResponse(status="confirmed", artifacts={"bad.tex": "oops"}, notes=[])
+
+    result, prompts = _run_checked_step(tmp_path, [bad, bad], attempts=1)
+
+    assert len(prompts) == 2
+    assert result.not_applied_reason == "bad.tex is not allowed"
+    assert result.conflicts_dir is not None
+
+
+def test_rejected_response_is_not_requested_again_without_attempts(tmp_path):
+    bad = ModelResponse(status="confirmed", artifacts={"bad.tex": "oops"}, notes=[])
+
+    result, prompts = _run_checked_step(tmp_path, [bad], attempts=0)
+
+    assert len(prompts) == 1
+    assert result.not_applied_reason == "bad.tex is not allowed"

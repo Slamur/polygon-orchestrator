@@ -1,0 +1,25 @@
+## Re-request: the check rejected your response
+
+You have already answered this task, but the orchestrator checked the response before
+applying it and rejected it — nothing of it is applied:
+
+````
+{{ reason }}
+````
+
+Answer the task again in full, by the same rules, with what the check reports fixed:
+the whole response as it should be applied, not only the fixed files (in revision mode —
+relative to the current files above, as before). Keep everything the check doesn't
+concern as it was in your rejected response, below. If you can't fix it without data the
+task doesn't give — `uncertain`, as usual.
+
+### The files of your rejected response
+
+{% for file in rejected_files %}
+#### `{{ file.name }}`
+
+````
+{{ file.content }}
+````
+
+{% endfor %}

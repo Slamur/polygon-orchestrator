@@ -42,6 +42,12 @@ An incomplete response — missing some of the files the step must return
 with a separate call (`MISSING_ARTIFACTS_PROMPT`): it is shown
 the files already returned, and it returns only the missing ones.
 
+A response that fails the step's check (`validate_artifacts`) is requested again, up to
+`CHECK_REVISIONS` times per call of the step (`CHECK_FAILED_PROMPT`): the model is shown
+the check's message and its rejected files and answers the task again in full. The
+pipeline sets the number for its run (`llm generate --revise-attempts`), 0 by default —
+outside the pipeline nothing is re-requested.
+
 This module implements steps 1-5 once (`run_generative_step`); the concrete
 modules in `orchestrator/steps/*.py` only know which spec section to read,
 how to lay out the artifacts into the `problems/<id>/...` directories and what goes into the
@@ -50,6 +56,7 @@ upstream hash — they don't duplicate this loop themselves.
 
 from __future__ import annotations
 
+import contextvars
 import datetime
 import json
 import re
@@ -101,6 +108,10 @@ TEMPLATES_DIR = Path("templates")
 # prompt hash: it doesn't set the step's result — it only asks to add what the
 # main prompt required anyway.
 MISSING_ARTIFACTS_PROMPT = "missing_artifacts.md.j2"
+CHECK_FAILED_PROMPT = "check_failed.md.j2"
+# How many times a response that failed the step's check is requested again (see the module
+# docstring): set by the pipeline for its run, so the steps' `run_step` don't carry it.
+CHECK_REVISIONS: contextvars.ContextVar[int] = contextvars.ContextVar("check_revisions", default=0)
 
 # The directory (in the problem directory) with the previous versions of files the step
 # overwrote or renamed: `.llm_backup/<time>/<path in the problem directory>`.
@@ -883,6 +894,20 @@ def _add_generated_artifacts(
     return dropped
 
 
+def render_check_failed_prompt(
+    reason: str, rejected: dict[str, str], *, prompts_dir: Path = PROMPTS_DIR
+) -> str:
+    """The re-request block (`CHECK_FAILED_PROMPT`): why the check rejected the response and
+    the files of the rejected response."""
+    context = {
+        "reason": reason,
+        "rejected_files": [
+            {"name": name, "content": content.rstrip("\n")} for name, content in rejected.items()
+        ],
+    }
+    return _jinja_env(prompts_dir).get_template(CHECK_FAILED_PROMPT).render(**context)
+
+
 def _plan_and_check(
     response: Any,
     revision: StepRevision | None,
@@ -890,28 +915,30 @@ def _plan_and_check(
     generated: GeneratedArtifacts | None,
     validate_artifacts: Callable[[dict[str, str]], None] | None,
     partial_apply: bool,
-) -> tuple[_ApplyPlan, str | None, list[str]]:
+) -> tuple[_ApplyPlan, str | None, list[str], bool]:
     """`_plan_response` + checking the step's final set of files. Returns
     the plan, the reason why the response isn't applied in full (`None` —
-    it's applied), and the missing files (`MissingArtifactsError`)."""
+    it's applied), the missing files (`MissingArtifactsError`) and whether the reason is
+    the step's check (`validate_artifacts`), not a conflict of the files."""
     plan = _plan_response(response, revision, resolve_path)
     dropped: set[str] = set()
     if generated is not None:
         dropped = _add_generated_artifacts(plan, generated, resolve_path)
     reason: str | None = None
     missing: list[str] = []
+    check_failed = False
     if plan.conflicts and not partial_apply:
         reason = "the files of this step are applied only all together"
     elif validate_artifacts is not None:
         try:
             validate_artifacts(plan.final_artifacts)
         except MissingArtifactsError as exc:
-            reason, missing = str(exc), exc.missing
+            reason, missing, check_failed = str(exc), exc.missing, True
         except ValueError as exc:
-            reason = str(exc)
+            reason, check_failed = str(exc), True
     if reason is not None:
         plan = _whole_step_conflict(response, plan, ignored=dropped)
-    return plan, reason, missing
+    return plan, reason, missing, check_failed
 
 
 def _merge_missing_artifacts(
@@ -1267,7 +1294,9 @@ def run_generative_step(
             discard_pending_response(problem_id, step_name, problems_dir=problems_dir)
             raise StepUncertainError(step_name, problem_id, response.notes)
 
-    def plan_and_check(response: ModelResponse) -> tuple[_ApplyPlan, str | None, list[str]]:
+    def plan_and_check(
+        response: ModelResponse,
+    ) -> tuple[_ApplyPlan, str | None, list[str], bool]:
         return _plan_and_check(
             response,
             revision,
@@ -1290,7 +1319,7 @@ def run_generative_step(
     check_status(response)
     if saved_response is None:
         save_pending(response)
-    plan, whole_step_reason, missing = plan_and_check(response)
+    plan, whole_step_reason, missing, check_failed = plan_and_check(response)
     if missing and saved_response is None:
         # An incomplete response: the missing files — with one re-request, not a new
         # call in full (`MISSING_ARTIFACTS_PROMPT`).
@@ -1306,9 +1335,36 @@ def run_generative_step(
         cache_entry.status = response.status
         check_status(response)
         save_pending(response)
-        plan, whole_step_reason, _ = plan_and_check(response)
+        plan, whole_step_reason, _, check_failed = plan_and_check(response)
+    rejected: list[str] = []
+    while (
+        check_failed
+        and whole_step_reason is not None
+        and saved_response is None
+        and len(rejected) < CHECK_REVISIONS.get()
+    ):
+        # The step's check rejected the response: the whole task again, with the reason.
+        rejected.append(whole_step_reason)
+        retry_prompt = (
+            user_prompt.rstrip("\n")
+            + "\n\n"
+            + render_check_failed_prompt(
+                whole_step_reason, response.artifacts, prompts_dir=prompts_dir
+            )
+        )
+        response = model_router.call_model(
+            step_name, system_prompt, retry_prompt, context_documents=context_documents
+        )
+        cache_entry.status = response.status
+        check_status(response)
+        save_pending(response)
+        plan, whole_step_reason, _, check_failed = plan_and_check(response)
 
     notes = list(response.notes)
+    notes.extend(
+        _note("response", "retried", f"the check rejected the response ({reason}) — asked again")
+        for reason in rejected
+    )
     notes.extend(plan.notes)
 
     artifacts = plan.artifacts
