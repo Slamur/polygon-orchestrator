@@ -65,7 +65,9 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   `orchestrator/checks/std_checkers/`). A solution with verdict X in its name may
   get OK or X on an example (`tl_ok` — OK or TL, `tl_ml` — OK, TL or RE), anything else is an error
   (`ALLOWED_VERDICTS`); a solution without the `tl` verdict that ran on an example
-  longer than half the TL (and fit into it) — a warning. For an
+  longer than half the TL (and fit into it) — a warning; so is a `wa` that gets WA on
+  an example (by solutions.md it should pass them; the solution stages don't check
+  this themselves). For an
   interactive problem the solution and `interactor.cpp` are connected with pipes,
   the checker judges the interactor's `tout`, the answer — the `tout` of Main correct (the examples' `output`
   in the spec are dialogue lines, not the answer); a solution that didn't finish
