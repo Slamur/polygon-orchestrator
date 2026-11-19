@@ -2632,6 +2632,49 @@ files; if the data for them is insufficient — `uncertain`, as usual.
 
 ---
 
+## Re-requesting a rejected response — `check_failed.md.j2`
+
+If the step's check (`validate_artifacts` — the file set, the step's own checks, files
+still missing after the re-request above) rejects a response, the orchestrator requests it
+again up to `--revise-attempts N` times per call (`llm generate`, 1 by default; outside the
+pipeline — never): the block `prompts/check_failed.md.j2` with the check's message and the
+rejected files is appended to the same user prompt, and the new response replaces the
+rejected one as a whole. Each re-request adds a note `kind: retried`. If the last response
+is rejected too — it isn't applied (a conflict, CLAUDE.md, "Conflicts"). `llm apply` has
+no re-request.
+
+Like `missing_artifacts.md.j2`, the block isn't part of the steps' prompt hash.
+
+`````
+## Re-request: the check rejected your response
+
+You have already answered this task, but the orchestrator checked the response before
+applying it and rejected it — nothing of it is applied:
+
+````
+{{ reason }}
+````
+
+Answer the task again in full, by the same rules, with what the check reports fixed:
+the whole response as it should be applied, not only the fixed files (in revision mode —
+relative to the current files above, as before). Keep everything the check doesn't
+concern as it was in your rejected response, below. If you can't fix it without data the
+task doesn't give — `uncertain`, as usual.
+
+### The files of your rejected response
+
+{% for file in rejected_files %}
+#### `{{ file.name }}`
+
+````
+{{ file.content }}
+````
+
+{% endfor %}
+`````
+
+---
+
 ## General remarks on all prompts
 
 - All `user.md.j2` are rendered from the spec object after Pydantic/YAML validation

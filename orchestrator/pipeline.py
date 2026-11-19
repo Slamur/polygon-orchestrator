@@ -55,9 +55,11 @@ from orchestrator.step_order import (
     LLM_STEPS,
     MECHANICAL_STEPS,
     ON_DEMAND_STEPS,
+    SOLUTION_STAGES,
     STEP_ORDER,
     SURVIVOR_RECHECK_STEPS,
     SURVIVORS_STEP,
+    TESTS_GATE_STEP,
 )
 from orchestrator.steps import (
     checker_draft,
@@ -72,6 +74,7 @@ from orchestrator.steps import (
     tutorial_draft,
 )
 from orchestrator.steps.base import (
+    CHECK_REVISIONS,
     CONFLICTS_REPORT,
     CONSTRAINTS_ARTIFACT,
     PROBLEMS_DIR,
@@ -80,9 +83,10 @@ from orchestrator.steps.base import (
     StepRevision,
     StepUncertainError,
 )
-from orchestrator.steps.solutions import SOLUTION_STEPS, STAGES
+from orchestrator.steps.solutions import GATES, SOLUTION_STEPS, STAGES
 from orchestrator.steps.solutions_check import STATUS_FAILED as GATE_FAILED
 from orchestrator.steps.solutions_check import GateFailedError
+from orchestrator.steps.tests_check import REVISING_STEPS as TESTS_REVISING_STEPS
 from orchestrator.steps.tests_check import TESTS_GATE
 
 logger = logging.getLogger(__name__)
@@ -133,7 +137,8 @@ OUTCOME_CONFLICT = "conflict"
 OUTCOME_NO_PENDING = "no_pending_response"
 # A local run of solutions (`GATE_STEPS`) found solutions that don't behave as named.
 OUTCOME_FAILED = "failed"
-# Not a step: the steps after `tests_survivors` run again (`_survivor_rounds`).
+# Not a step: the steps after `tests_survivors` run again (`_survivor_rounds`), or the steps
+# a failed local run reported on revise with its report (`_revising_steps`).
 OUTCOME_RECHECK = "recheck"
 
 
@@ -587,6 +592,7 @@ def run_pipeline(
     only_step: str | None = None,
     tutorial_refs: list[str] | None = None,
     survivor_rounds: int = 1,
+    revise_attempts: int = 0,
     prompts_dir: Path = PROMPTS_DIR,
     problems_dir: Path = PROBLEMS_DIR,
     templates_dir: Path = TEMPLATES_DIR,
@@ -621,6 +627,13 @@ def run_pipeline(
     `survivor_rounds` — how many times `tests_survivors` may extend the plan in one run
     (`_survivor_rounds`); `0` — it doesn't run.
 
+    `revise_attempts` — automatic revision in the same run (`llm generate
+    --revise-attempts`; nothing with `apply_pending`): a response that fails its step's
+    check is requested again up to that many times per call (`base.CHECK_REVISIONS`); without
+    `only_step`, a failed local run (`GATE_STEPS`) — up to that many times per local run —
+    makes the steps it reported on revise with its report (`_revising_steps`), and the
+    pipeline goes on from the first of them.
+
     It stops (without raising an exception) at the first `StepUncertainError` —
     `result.stopped_uncertain=True`, `result.outcomes` contains everything that
     managed to work. Likewise — on a model response that failed the check
@@ -645,7 +658,7 @@ def run_pipeline(
     def run_steps(steps: list[str], round_reasons: dict[str, str]) -> bool:
         """Runs `steps` into `result`; `False` — the pipeline is stopped. `round_reasons`
         — steps rerun even with a valid cache, and why (a survivor round)."""
-        for step_name in steps_to_run:
+        for step_name in steps:
             module = _STEP_MODULES[step_name]
             logger.info("[%s] step started", step_name)
 
@@ -843,10 +856,65 @@ def run_pipeline(
 
         return True
 
-    if not run_steps(steps_to_run, {}) or only_step is not None or apply_pending:
-        return result
-    _survivor_rounds(result, run_steps, survivor_rounds)
+    revising = only_step is None and not apply_pending
+    gate_revisions: dict[str, int] = {}
+
+    def run_revising(steps: list[str], round_reasons: dict[str, str]) -> bool:
+        """`run_steps`; after a failed local run — the steps it reported on and the rest of
+        `steps` from the first of them, while the run has revisions left."""
+        while not run_steps(steps, round_reasons):
+            failed = result.outcomes[-1]
+            if not revising or failed.status != OUTCOME_FAILED:
+                return False
+            used = gate_revisions.get(failed.step_name, 0)
+            if used >= revise_attempts:
+                return False
+            to_revise = _revising_steps(failed.step_name, problem_id, spec, problems_dir)
+            if not to_revise:
+                return False
+            gate_revisions[failed.step_name] = used + 1
+            result.stopped_uncertain = False
+            result.outcomes.append(
+                StepOutcome(
+                    f"revision {used + 1} of {revise_attempts}",
+                    OUTCOME_RECHECK,
+                    f"'{failed.step_name}' failed — {', '.join(to_revise)} revise with its "
+                    "report, then the steps after them run again",
+                )
+            )
+            start = min(STEP_ORDER.index(step) for step in to_revise)
+            steps = [s for s in STEP_ORDER[start:] if s in to_revise or s in steps]
+            round_reasons = {}
+        return True
+
+    token = CHECK_REVISIONS.set(0 if apply_pending else revise_attempts)
+    try:
+        if not run_revising(steps_to_run, {}) or not revising:
+            return result
+        _survivor_rounds(result, run_revising, survivor_rounds)
+    finally:
+        CHECK_REVISIONS.reset(token)
     return result
+
+
+def _revising_steps(gate_step: str, problem_id: str, spec: Any, problems_dir: Path) -> list[str]:
+    """The steps the failed local run `gate_step` reported on — those that revise with its
+    report on their next run: for `run_tests` — the test steps its errors are routed to, for
+    a solution stage's run — the stage, if it failed on the stage's solutions."""
+    if gate_step == TESTS_GATE_STEP:
+        return [
+            step
+            for step in TESTS_REVISING_STEPS
+            if TESTS_GATE.failed_report(problem_id, step, problems_dir=problems_dir) is not None
+        ]
+    stage = next((s for s, gate in SOLUTION_STAGES.items() if gate == gate_step), None)
+    if stage is None:
+        return []
+    owned = STAGES[stage.removeprefix("solutions_")].owned(Path(problems_dir) / problem_id)
+    report = GATES[gate_step].failed_report(
+        problem_id, spec, list(owned), problems_dir=problems_dir
+    )
+    return [stage] if report is not None else []
 
 
 def _survivor_rounds(result: PipelineResult, run_steps, survivor_rounds: int) -> None:

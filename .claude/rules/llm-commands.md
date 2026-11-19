@@ -17,7 +17,8 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
 
 ## Running: `llm` commands
 
-- `orchestrator <problem> llm generate [--step NAME] [--force | --fresh] [--survivor-rounds N]` —
+- `orchestrator <problem> llm generate [--step NAME] [--force | --fresh] [--survivor-rounds N]
+  [--revise-attempts N]` —
   a run of the problem (all steps or one particular step); steps whose cache
   is valid are skipped automatically (see "Caching by spec hash" in
   `.claude/rules/steps.md`), the rest revise their current files
@@ -28,6 +29,14 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   locally (`run_*`, without the model, `.claude/rules/step-roles/4-solutions.md`): a
   failed run stops the pipeline, its report `llm_reports/<run>.md` ends with a section
   for the author's comment, and the next run lets the stage revise with the report.
+  The same after the test-script: `run_tests` generates the tests and validates them
+  (`.claude/rules/step-roles/3-tests.md`), its errors go to the test steps whose files may
+  cause them. `--revise-attempts N` (1 by default, `0` — stop at once) does it in the
+  same run: after a failed local run the steps it reported on revise with its report and
+  the pipeline goes on from the first of them, up to N times per local run (the console
+  shows it as a `revision K of N` line); a response that fails its step's check is
+  requested again, up to N times per call (`.claude/rules/steps.md`, "Conflicts"). Each
+  attempt is a model call; with `--step` only the re-requests apply.
   After them `tests_survivors` adds tests for the wrong solutions no test catches (or
   no test of a group their spec item says they fail), and
   the code of the plan and the local runs run again — up to `--survivor-rounds N`

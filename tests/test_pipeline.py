@@ -6,7 +6,7 @@ import pytest
 from orchestrator import pipeline
 from orchestrator.llm_client import LLMCallError
 from orchestrator.model_router import ModelResponse
-from orchestrator.step_order import SOLUTION_STAGES
+from orchestrator.step_order import SOLUTION_STAGES, SURVIVOR_RECHECK_STEPS
 
 STAGE_AND_GATE_STEPS = [step for pair in SOLUTION_STAGES.items() for step in pair]
 
@@ -1077,6 +1077,10 @@ def test_survivor_rounds_extend_the_plan_and_rerun_its_code(
     assert called.count("tests_survivors") == survivor_calls
     rechecks = [o for o in result.outcomes if o.status == pipeline.OUTCOME_RECHECK]
     assert len(rechecks) == survivor_calls
+    if rounds == 1:
+        # A round runs only the code of the plan and the local runs, not the whole order.
+        after = result.outcomes[result.outcomes.index(rechecks[0]) + 1 :]
+        assert [o.step_name for o in after] == SURVIVOR_RECHECK_STEPS
     if survivor_calls:
         # The extended plan: the script is written again, the solutions run again.
         assert called[called.index("tests_survivors") + 1] == "test_script_draft"
@@ -1143,3 +1147,115 @@ def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
         _run(problems_dir)
     mock_call.assert_not_called()
+
+
+def _stub_local_tests_failing_on(monkeypatch, problems_dir, broken_generator):
+    """`run_tests` fails while `generators/gen_rand.cpp` is `broken_generator`."""
+    from orchestrator.checks.local_tests import ISSUE_GENERATOR_RUN
+    from orchestrator.checks.local_tests import TestIssue as Issue
+    from orchestrator.steps import tests_check
+
+    issue = Issue(ISSUE_GENERATOR_RUN, "test 2: gen_rand exit code 3", "gen_rand > $", 1)
+    generator = problems_dir / "p1" / "generators" / "gen_rand.cpp"
+
+    def run(*args, **kwargs):
+        broken = generator.read_text(encoding="utf-8") == broken_generator
+        return ([issue] if broken else [], [], 1)
+
+    monkeypatch.setattr(tests_check, "_run", run)
+
+
+def test_failed_local_tests_are_revised_in_the_same_run(spec_file, tmp_path, monkeypatch):
+    problems_dir = tmp_path / "problems"
+    _stub_local_tests_failing_on(monkeypatch, problems_dir, "int main(){}")
+    generators = iter(["int main(){}", "int main() { /* fixed */ }"])
+    responses = dict(_RESPONSES)
+
+    def call(step, *args, **kwargs):
+        if step == "generators_draft":
+            return ModelResponse(status="confirmed", artifacts={"gen_rand.cpp": next(generators)})
+        return responses[step]
+
+    with patch("orchestrator.model_router.call_model", side_effect=call) as mock_call:
+        result = _run(problems_dir, revise_attempts=1)
+
+    assert result.ok
+    names = [o.step_name for o in result.outcomes]
+    gate = names.index("run_tests")
+    assert result.outcomes[gate].status == pipeline.OUTCOME_FAILED
+    assert result.outcomes[gate + 1].status == pipeline.OUTCOME_RECHECK
+    # The test steps revise, the run passes, the pipeline goes on to the end.
+    assert names[gate + 2 : gate + 6] == [
+        "tests_plan",
+        "generators_draft",
+        "test_script_draft",
+        "run_tests",
+    ]
+    assert result.outcomes[gate + 5].status == pipeline.OUTCOME_CONFIRMED
+    assert names[-1] == "tests_survivors"
+    called = [c.args[0] for c in mock_call.call_args_list]
+    assert called.count("generators_draft") == 2
+
+
+def test_revisions_stop_once_the_attempts_run_out(spec_file, tmp_path, monkeypatch):
+    problems_dir = tmp_path / "problems"
+    _stub_local_tests_failing_on(monkeypatch, problems_dir, "int main(){}")
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:
+        result = _run(problems_dir, revise_attempts=1)
+
+    assert not result.ok
+    assert (result.outcomes[-1].step_name, result.outcomes[-1].status) == (
+        "run_tests",
+        pipeline.OUTCOME_FAILED,
+    )
+    rechecks = [o for o in result.outcomes if o.status == pipeline.OUTCOME_RECHECK]
+    assert len(rechecks) == 1
+    called = [c.args[0] for c in mock_call.call_args_list]
+    assert called.count("generators_draft") == 2
+
+
+def test_failed_stage_run_is_revised_in_the_same_run(spec_file, tmp_path, monkeypatch):
+    from orchestrator.checks.solutions_run import SolutionOutcome, SolutionsRunResult
+    from orchestrator.checks.solutions_run import TestOutcome as Outcome
+    from orchestrator.steps import solutions_check
+
+    main = "ma_cpp_sum_draft.cpp"
+    problems_dir = tmp_path / "problems"
+    path = problems_dir / "p1" / "solutions" / main
+
+    def run(*args, full=False, **kwargs):
+        if path.read_text(encoding="utf-8") != "int main(){}":
+            return SolutionsRunResult(full=full)
+        test = Outcome("test 2", "TL", 3.0, generated=True)
+        return SolutionsRunResult(
+            full=True, solutions=[SolutionOutcome(main, "ok", frozenset({"OK"}), tests=[test])]
+        )
+
+    monkeypatch.setattr(solutions_check, "run_solutions", run)
+    mains = iter(["int main(){}", "int main() { /* faster */ }"])
+
+    def call(step, *args, **kwargs):
+        if step == "solutions_main":
+            return ModelResponse(status="confirmed", artifacts={main: next(mains)})
+        return _RESPONSES[step]
+
+    with patch("orchestrator.model_router.call_model", side_effect=call) as mock_call:
+        result = _run(problems_dir, revise_attempts=1)
+
+    assert result.ok
+    called = [c.args[0] for c in mock_call.call_args_list]
+    assert called.count("solutions_main") == 2
+    assert "test 2: TL" in mock_call.call_args_list[called.index("solutions_main", 6)].args[2]
+
+
+def test_no_revisions_without_attempts(spec_file, tmp_path, monkeypatch):
+    problems_dir = tmp_path / "problems"
+    _stub_local_tests_failing_on(monkeypatch, problems_dir, "int main(){}")
+
+    with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
+        result = _run(problems_dir, revise_attempts=0)
+
+    assert not result.ok
+    assert result.outcomes[-1].step_name == "run_tests"
+    assert not [o for o in result.outcomes if o.status == pipeline.OUTCOME_RECHECK]

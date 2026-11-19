@@ -8,6 +8,7 @@ paths:
   - "orchestrator/llm_report.py"
   - "prompts/revise.md.j2"
   - "prompts/missing_artifacts.md.j2"
+  - "prompts/check_failed.md.j2"
   - "docs/PROMPTS.md"
   - "tests/test_steps_base.py"
   - "tests/test_step_revision.py"
@@ -74,8 +75,13 @@ must return (`MissingArtifactsError`) — the model completes once with a
 separate call (`prompts/missing_artifacts.md.j2`: it is shown the
 files already returned, only the missing ones are taken; this block isn't part of the
 step's prompt hash); if files are still missing after it — a conflict, as
-above. A response not applied in full also remains available for
-`llm apply`.
+above. A response that fails the step's check (`validate_artifacts`, including files still
+missing) is requested again up to `base.CHECK_REVISIONS` times per call
+(`prompts/check_failed.md.j2`: the check's message and the rejected files; the model
+answers the task again in full; not part of the prompt hash either; a `retried` note per
+re-request); the pipeline sets the number from `llm generate --revise-attempts N` (1 by
+default), outside it — 0. After the last attempt — a conflict, as above. A response not
+applied in full also remains available for `llm apply`.
 
 ## Caching by spec hash
 

@@ -412,6 +412,7 @@ hint stops the step as `uncertain` too (without calling the model): set the grou
 | `llm generate --force` | Ignore the cache, revise the current files again | **yes** |
 | `llm generate --fresh` | From scratch, without showing the model the current files | **yes** |
 | `llm generate --survivor-rounds N` | Up to N rounds of tests for uncaught wrong solutions (default 1, 0 — none) | **yes** |
+| `llm generate --revise-attempts N` | Automatic revision in the same run (default 1, 0 — stop at once): a response the step's check rejects is requested again with the reason; after a failed local run (`run_tests`, `run_main`, ...) the steps it reported on revise with its report and the run repeats — up to N times each, every attempt is a model call | **yes** |
 | `llm tutorial [--ref SOLUTION ...]` | `statement/<language>/tutorial.tex` from `authoring/draft-tutorial.md`: the model expands your thoughts and adds only what you explicitly ask for ("prove", "spell out"). `--ref` (can be repeated) — files from `solutions/` as context; the list is remembered, new `--ref`s replace it, `--no-ref` clears it. Has `--force` and `--fresh` | **yes** |
 | `llm critic [--lens NAME ...]` | The critic reviews the spec as it is: what to remove, simplify or merge (and what the statement examples may be missing) — into `llm_reports/spec_critic/<lens>.md`, a report per lens (`--lens` rewrites only the reports of the lenses it runs); the spec isn't changed, every finding is for you (values still marked `PROPOSED` / `SUGGESTION` are listed separately). One model call per lens (`statement`, `limits`, `tests`, `solutions`; `--lens` — only the named ones). No cache: every run calls the model | **yes** |
 | `llm apply [--step NAME]` | Apply a saved but unapplied model response (e.g. after a conflict or an error) | no |
@@ -437,14 +438,16 @@ What's important to know:
   `generators_draft`; a generator that fails on a line or a test the validator rejects —
   `tests_plan` (the arguments), `generators_draft` (the code) and `test_script_draft` (how
   it wrote the command). Fix the files by hand, or write what the model should know at the
-  end of the report and run `llm generate` again: those steps revise their files with the
+  end of the report and run `llm generate` again (`--revise-attempts`, 1 by default, already
+  did it once in the same run): those steps revise their files with the
   errors (a step whose files you changed since the run doesn't). A validator that doesn't
   compile or invalid groups in `constraints.yaml` aren't given to the model.
 - **A local run of the solutions failed** (`run_main`, `run_ok`, `run_slow`,
   `run_wrong` — after each solution stage, `local run --full` over its solutions).
   The pipeline stops; `llm_reports/<run>.md` says which solution got which verdict
   on which test. Either fix the files by hand, or write what the model should know at
-  the end of the report and run `llm generate` again: the stage revises its solutions
+  the end of the report and run `llm generate` again (`--revise-attempts`, 1 by default,
+  already did it once in the same run): the stage revises its solutions
   with the report. An error of the problem itself (the validator rejects a test, the
   checker fails) isn't given to the model — fix the tests, the checker or the spec.
   A wrong solution no test from the script catches is only reported.

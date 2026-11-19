@@ -228,6 +228,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="how many times tests_survivors may add tests for wrong solutions the tests "
         "don't catch, rerunning the solutions after each (default 1; 0 — don't add)",
     )
+    generate_parser.add_argument(
+        "--revise-attempts",
+        type=_non_negative_int,
+        default=1,
+        metavar="N",
+        help="automatic revision in the same run: a response that fails its step's check is "
+        "requested again, a failed local run (run_tests, run_main, ...) makes the steps it "
+        "reported on revise with its report — up to N times each (default 1; 0 — stop at once "
+        "as before); every attempt is a model call",
+    )
     generate_parser.set_defaults(handler="cmd_llm_generate")
 
     tutorial_parser = llm_commands.add_parser(
