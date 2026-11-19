@@ -88,7 +88,8 @@ def parse_tests_design(text: str, limits: _Limits) -> dict[str, Any]:
     """Parses and checks `tests_design.yaml`: the generators (as in the plan), the
     named values, the ideas — known ids, groups of `constraints.yaml` (or none without
     groups), entries of one idea on disjoint groups, commands of the design's generators
-    with their parameters only, formulas over known variables. Returns the document as is;
+    with their parameters only and with all of them but `bool` flags, formulas over
+    known variables. Returns the document as is;
     an error — `TestsDesignError`."""
     try:
         design = yaml.safe_load(text)
@@ -163,11 +164,11 @@ def _pairs(items: list[Any]) -> list[tuple[Any, Any]]:
     return [(a, b) for i, a in enumerate(items) for b in items[i + 1 :]]
 
 
-def _check_generators(generators: Any, errors: list[str]) -> dict[str, set[str]]:
+def _check_generators(generators: Any, errors: list[str]) -> dict[str, dict[str, str]]:
     if not isinstance(generators, list) or not generators:
         errors.append("'generators' must be a non-empty list")
         return {}
-    params_by_generator: dict[str, set[str]] = {}
+    params_by_generator: dict[str, dict[str, str]] = {}
     for index, generator in enumerate(generators):
         where = f"generators[{index}]"
         if not isinstance(generator, dict):
@@ -224,7 +225,7 @@ def _check_template(
     template: Any,
     where: str,
     limits: _Limits,
-    params_by_generator: dict[str, set[str]],
+    params_by_generator: dict[str, dict[str, str]],
     errors: list[str],
 ) -> None:
     if not isinstance(template, str) or not template.strip():

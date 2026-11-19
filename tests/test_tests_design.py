@@ -209,6 +209,10 @@ def test_a_group_without_tests_is_an_error():
     [
         ([_idea(["gen_other -n=1"])], "generator 'gen_other' is not in 'generators'"),
         ([_idea(["gen_equal -m=1"])], "'gen_equal' has no parameter 'm'"),
+        (
+            [_idea(["gen_rand -n={n.max}"])],
+            r"'gen_rand' is called without its parameter\(s\) 'maxA'",
+        ),
         ([_idea(["gen_equal -n={m.max}"])], "no variable 'm'"),
         ([_idea(["gen_equal -n={n.max + x}"])], "must be integer arithmetic"),
         ([_idea(["gen_equal -n={n.top}"])], "must be integer arithmetic"),
