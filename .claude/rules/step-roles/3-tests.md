@@ -7,6 +7,8 @@ paths:
   - "prompts/generators_draft/**"
   - "tests/test_step_generators_draft.py"
   - "orchestrator/steps/test_script_draft.py"
+  - "orchestrator/steps/tests_check.py"
+  - "tests/test_tests_check.py"
   - "orchestrator/steps/tests_survivors.py"
   - "prompts/tests_survivors/**"
   - "tests/test_step_tests_survivors.py"
@@ -105,6 +107,24 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      group, a group without lines — the response is a conflict. No `java` or the script
      doesn't expand — not checked here (`local check` reports it); invalid groups in
      `constraints.yaml` — not this step's error, not checked either.
+   - **`run_tests`** (`orchestrator/steps/tests_check.py`) — a mechanical step after
+     `test_script_draft`: `local check --full` without the statement checks — the tests
+     from the script, the lines' groups, the validator on every test (identical tests —
+     a warning only). Any error fails it and stops the pipeline before the solutions.
+     Each error has a kind (`local_tests.TestIssue`) routed to the steps whose files may
+     cause it (`tests_check.ROUTES`): the script doesn't expand, a bad line, the lines'
+     groups — `test_script_draft`; a generator doesn't compile — `generators_draft`; a
+     line calls a generator with no source — `generators_draft`, `test_script_draft`; a
+     generator fails on a line or the validator rejects a test — all three (the design's
+     arguments, the generator's code, the script's command). The validator doesn't compile,
+     invalid groups, no `java` — no step's, the author fixes them. The report
+     (`.cache/run_tests.report.json`) keeps the errors and the hashes of each step's files
+     at the run; while the run's result is a failure, a step's files are the same and
+     nothing else the run reads (the validator, `problem_lib.h`, `constraints.yaml`, the
+     examples) changed, the step reruns even with a valid cache (`forced_rerun_reason`) and
+     revises its files with the errors routed to it and the author's comment from
+     `llm_reports/run_tests.md` (`tests_run` in its prompt). Its revised files make the
+     report outdated for it.
    - **`tests_survivors`** — after the solution stages (`STEP_ORDER`, last): tests for the
      wrong solutions that the local runs `run_slow`/`run_wrong` report as surviving — no
      test from the script gets their declared verdict, the examples don't count — and the

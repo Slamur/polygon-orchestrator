@@ -91,8 +91,9 @@ The minimal safety net instead of a judging loop at this stage:
   tests from the script, the validator on them, finding identical tests and running
   solutions, checking that the declared verdict is reached; local timing,
   without distinguishing MLE and without comparing solutions against each other;
-  the same run, limited to a stage's solutions, — between the solution stages of
-  `llm generate` (`run_main`, `run_ok`, `run_slow`, `run_wrong`);
+  the generation and the validator alone — after the test-script in `llm generate`
+  (`run_tests`), the same run, limited to a stage's solutions, — between the solution
+  stages (`run_main`, `run_ok`, `run_slow`, `run_wrong`);
 - a **timeout wrapper** around any run of a generated binary
   (e.g. running a generator for a smoke test) — just kill the process on
   timeout, without analyzing TLE/MLE separately.
