@@ -61,8 +61,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      so the author edits the design, not the plan. The plan is self-contained:
      the next two steps don't see the spec. The commands don't carry `-group`, the
      script adds it. Before writing, the design and the plan are checked
-     (`parse_tests_design`, `parse_tests_plan`): commands call only the generators and
-     only their parameters, formulas refer to known variables and compute for every
+     (`parse_tests_design`, `parse_tests_plan`): commands call only the generators,
+     only with their parameters and with all of them except `bool` flags (the generators
+     read every parameter with `opt<T>`, testlib fails on a missing one), formulas refer to known variables and compute for every
      group (`{n.lo}` of a group whose dependencies already take `n` up to its max — an
      error), groups exist (not `0`), entries of one idea take disjoint groups, every group
      gets tests; anything wrong — the response is a conflict. The orchestrator reports

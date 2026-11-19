@@ -615,7 +615,8 @@ You are given mandatory rules:
   Reproduce the top-level structure (`generators`, `constants`, `ideas`), the fields of the
   entries and the `status` mark (`confirmed`/`proposed`/`suggestion`) with
   `rationale` without fail: the orchestrator reads the design (it checks that the test
-  commands call only the design's generators and only their parameters, that the formulas
+  commands call only the design's generators, only with their parameters and with all of
+  them except `bool` flags, that the formulas
   refer to the variables of the fixed limits and that the groups exist) and builds the plan
   from it.
 Besides them, samples may be attached — files of other problems that the author

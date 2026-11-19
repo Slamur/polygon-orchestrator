@@ -85,8 +85,8 @@ class TestsPlanError(ValueError):
 def parse_tests_plan(text: str) -> dict[str, Any]:
     """Parses and checks `tests_plan.yaml` (`templates/tests_plan_format.yaml`):
     generators with unique `gen_*`/`upd_*` names and parameters of known
-    types, tests with commands containing only the plan's generators and only their
-    parameters. Returns the document as is; an error — `TestsPlanError`."""
+    types, tests with commands containing only the plan's generators, only with their
+    parameters and with all of them except `bool` flags. Returns the document as is; an error — `TestsPlanError`."""
     try:
         plan = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -99,7 +99,7 @@ def parse_tests_plan(text: str) -> dict[str, Any]:
     if not isinstance(generators, list) or not generators:
         errors.append("'generators' must be a non-empty list")
         generators = []
-    params_by_generator: dict[str, set[str]] = {}
+    params_by_generator: dict[str, dict[str, str]] = {}
     for index, generator in enumerate(generators):
         where = f"generators[{index}]"
         if not isinstance(generator, dict):
@@ -145,13 +145,14 @@ def parse_tests_plan(text: str) -> dict[str, Any]:
     return plan
 
 
-def _check_params(params: Any, where: str, errors: list[str]) -> set[str]:
+def _check_params(params: Any, where: str, errors: list[str]) -> dict[str, str]:
+    """The parameters' names -> their types (`PARAM_TYPES`)."""
     if params is None:
-        return set()
+        return {}
     if not isinstance(params, list):
         errors.append(f"{where} must be a list")
-        return set()
-    names: set[str] = set()
+        return {}
+    names: dict[str, str] = {}
     for index, param in enumerate(params):
         if not isinstance(param, dict) or not isinstance(param.get("name"), str):
             errors.append(f"{where}[{index}] must be a mapping with a 'name'")
@@ -161,7 +162,7 @@ def _check_params(params: Any, where: str, errors: list[str]) -> set[str]:
                 f"{where}[{index}].type must be one of {list(PARAM_TYPES)}, "
                 f"got {param.get('type')!r}"
             )
-        names.add(param["name"])
+        names[param["name"]] = param.get("type")
     return names
 
 
@@ -171,8 +172,11 @@ def _check_status(status: Any, where: str, errors: list[str]) -> None:
 
 
 def _check_command(
-    command: Any, where: str, params_by_generator: dict[str, set[str]], errors: list[str]
+    command: Any, where: str, params_by_generator: dict[str, dict[str, str]], errors: list[str]
 ) -> None:
+    """Every part of the chain calls a known generator with only its parameters and with
+    all of them except `bool` flags: the generators read every parameter with `opt<T>`,
+    and testlib fails on a missing one (a missing flag `opt<bool>` reads as `false`)."""
     if not isinstance(command, str) or not command.strip():
         errors.append(f"{where} must be a non-empty string")
         return
@@ -185,6 +189,7 @@ def _check_command(
         if name not in params_by_generator:
             errors.append(f"{where}: generator '{name}' is not in 'generators'")
             continue
+        given: set[str] = set()
         for token in params:
             match = _COMMAND_PARAM_RE.match(token)
             if not match:
@@ -193,6 +198,18 @@ def _check_command(
                 )
             elif match.group(1) not in params_by_generator[name]:
                 errors.append(f"{where}: '{name}' has no parameter '{match.group(1)}'")
+            else:
+                given.add(match.group(1))
+        missing = [
+            param
+            for param, param_type in params_by_generator[name].items()
+            if param_type != "bool" and param not in given
+        ]
+        if missing:
+            errors.append(
+                f"{where}: '{name}' is called without its parameter(s) "
+                + ", ".join(f"'{param}'" for param in missing)
+            )
 
 
 def check_plan_extends(old: dict[str, Any], new: dict[str, Any]) -> None:
