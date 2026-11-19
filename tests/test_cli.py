@@ -252,8 +252,9 @@ def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    # The six steps up to the solutions, three solution stages and their three local runs.
-    assert out.count("cache hit") == 12
+    # The six steps up to the solutions with the local tests, three solution stages and
+    # their three local runs.
+    assert out.count("cache hit") == 13
 
 
 def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):

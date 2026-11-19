@@ -813,6 +813,25 @@ script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat
 
 ## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
+{% if tests_run %}
+
+## The local generation of the tests failed
+The orchestrator generated the tests from the current files and ran the validator on them
+(see {{ tests_run.report }}).
+These errors may come from the design (the commands' generators and arguments);
+fix what in your files causes them. If your files don't cause an error, keep them as they are for it
+and say so in a `proposed` note.
+{% for issue in tests_run.issues %}
+~~~
+{{ issue.message }}
+~~~
+{% endfor %}
+{% if tests_run.comment %}
+
+### The author's comment
+{{ tests_run.comment }}
+{% endif %}
+{% endif %}
 
 The task: make the test design `tests_design.yaml` by the rules from the system
 message, using the fixed limits above as the only
@@ -921,6 +940,25 @@ be printed in exactly the same form):
 {% for generator in generators %}
 ### {{ generator.name }}.cpp
 {{ generator.plan }}{% endfor %}
+{% if tests_run %}
+
+## The local generation of the tests failed
+The orchestrator generated the tests from the current files and ran the validator on them
+(see {{ tests_run.report }}).
+These errors may come from the generators' code;
+fix what in your files causes them. If your files don't cause an error, keep them as they are for it
+and say so in a `proposed` note.
+{% for issue in tests_run.issues %}
+~~~
+{{ issue.message }}
+~~~
+{% endfor %}
+{% if tests_run.comment %}
+
+### The author's comment
+{{ tests_run.comment }}
+{% endif %}
+{% endif %}
 
 The task: write one file `<name>.cpp` per generator of the plan above by
 the rules from the system message.
@@ -1035,6 +1073,26 @@ script_style: {{ script_style }} — the file `{{ script_name }}`
 {{ constants }}
 ## Test blocks (tests from tests_plan.yaml, in generation order)
 {{ tests }}
+{% if tests_run %}
+
+## The local generation of the tests failed
+The orchestrator generated the tests from the current files and ran the validator on them
+(see {{ tests_run.report }}).
+These errors may come from the script (how it writes the plan's commands and their groups);
+fix what in your files causes them. If your files don't cause an error, keep them as they are for it
+and say so in a `proposed` note.
+{% for issue in tests_run.issues %}
+~~~
+{{ issue.message }}
+~~~
+{% endfor %}
+{% if tests_run.comment %}
+
+### The author's comment
+{{ tests_run.comment }}
+{% endif %}
+{% endif %}
+
 The task: write `{{ script_name }}` from the blocks above and the rules from the system
 message, using the fixed limits as the only source of
 ranges and groups.

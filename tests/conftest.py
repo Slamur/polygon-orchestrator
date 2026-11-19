@@ -41,12 +41,15 @@ def real_local_runs():
 
 @pytest.fixture(autouse=True)
 def _stub_local_runs(request, monkeypatch):
-    """The local runs between the solution stages (`steps.solutions_check`) build and run
-    every solution on every test — in the pipeline tests they pass without running anything;
-    the tests of the runs themselves request `real_local_runs`."""
+    """The local runs (`run_tests` — `steps.tests_check`, between the solution stages —
+    `steps.solutions_check`) build and run generators and solutions on every test — in the
+    pipeline tests they pass without running anything; the tests of the runs themselves
+    request `real_local_runs`."""
     if "real_local_runs" in request.fixturenames:
         return
-    from orchestrator.steps import solutions_check
+    from orchestrator.steps import solutions_check, tests_check
+
+    monkeypatch.setattr(tests_check, "_run", lambda *args, **kwargs: ([], [], 0))
 
     monkeypatch.setattr(
         solutions_check,
