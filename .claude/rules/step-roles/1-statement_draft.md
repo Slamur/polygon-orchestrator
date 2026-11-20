@@ -29,7 +29,8 @@ For a problem with test groups (a non-empty `constraints.test_groups_hint` in th
 the step also gets the hint (as the author wrote it) and the variables' names and
 descriptions — in the hash only then — and the rules `templates/tutorials/scoring.md`
 (attached only then), and also writes `statement/<language>/scoring.tex`: the Scoring
-block, a subtasks table (points, extra constraints, necessary subtasks, feedback) as
+block, a subtasks table (points, extra constraints, necessary subtasks, feedback, the
+"points per test" mark of an `each_test` group) as
 in `examples/number/roots-subtasks`. Its source is the spec's hint, not
 `constraints.yaml`: the step runs before `constraints_pick`. A group without points —
 `uncertain` from the model. `test_groups_needed: true` without a hint — `uncertain` before the model is called (`_check_groups_are_set`, a

@@ -51,8 +51,11 @@ from orchestrator.steps.tests_plan import (
     TESTS_PLAN_ARTIFACT,
     check_plan_extends,
     dump_plan_part,
+    each_test_counts,
+    each_test_errors,
     parse_tests_plan,
 )
+from orchestrator.test_groups import TestGroupsError, parse_test_groups
 
 STEP_NAME = "tests_survivors"
 INPUTS_KEY = f"{STEP_NAME}: inputs"
@@ -157,6 +160,26 @@ def hash_inputs(
         for s in inputs["survivors"]
     ]
     return _build_context_sections(spec), upstream
+
+
+def each_test_targets(plan: dict[str, Any], constraints_yaml: str) -> list[dict[str, Any]]:
+    """For the prompt: each `each_test` group with its points, its number of tests in the
+    current plan (`None` — a loop) and the larger numbers it may grow to (divisors of the
+    points: every test of the group is worth the same)."""
+    try:
+        groups = parse_test_groups(constraints_yaml) or []
+    except TestGroupsError:
+        return []
+    counts = each_test_counts(list(plan.get("tests") or []), groups)
+    targets = []
+    for group in groups:
+        if group.name not in counts:
+            continue
+        count = counts[group.name]
+        points = group.points or 0
+        larger = [n for n in range(1, points + 1) if points % n == 0 and n > (count or 0)]
+        targets.append({"name": group.name, "points": points, "count": count, "allowed": larger})
+    return targets
 
 
 def compute_input_hash(
@@ -277,6 +300,7 @@ def run_step(
         "main": inputs["main"],
         "survivors": inputs["survivors"],
         "time_limit_seconds": inputs["time_limit_seconds"],
+        "each_test_groups": each_test_targets(current_plan, upstream[CONSTRAINTS_ARTIFACT]),
     }
 
     def resolve_artifact_path(filename: str) -> Path:
@@ -288,7 +312,15 @@ def run_step(
 
     def validate_artifacts(artifacts: dict[str, str]) -> None:
         check_artifact_names(STEP_NAME, {TESTS_PLAN_ARTIFACT}, artifacts)
-        check_plan_extends(current_plan, parse_tests_plan(artifacts[TESTS_PLAN_ARTIFACT]))
+        plan = parse_tests_plan(artifacts[TESTS_PLAN_ARTIFACT])
+        check_plan_extends(current_plan, plan)
+        try:
+            groups = parse_test_groups(upstream[CONSTRAINTS_ARTIFACT])
+        except TestGroupsError:
+            groups = None  # not this step's error
+        errors = each_test_errors(plan, groups)
+        if errors:
+            raise ValueError(f"{TESTS_PLAN_ARTIFACT}: " + "; ".join(errors))
 
     return run_generative_step(
         step_name=STEP_NAME,

@@ -37,10 +37,14 @@ test_groups:                    # only if groups are needed; otherwise there's n
     variables:                  # the group's own bounds, by variable name; absent — the full ones
       <name>: {min: <number | expression>, max: <number | expression>}  # either or both
     special_property: "<the special property of the group's tests | null>"
-    points: <points for passing all tests of the group; all groups sum to 100>
+    points: <the group's points; all groups sum to 100>
     dependencies: [<names of the groups that must be passed for this group's points>]
     feedback_policy: <points | icpc | complete | none>   # what a contestant sees on the group;
                                 # icpc (the first error) unless the spec sets another
+    points_policy: <complete_group | each_test>   # complete_group — the points only for passing
+                                # all tests of the group; each_test — for each passed test, all
+                                # tests worth the same (the number of tests divides the points);
+                                # complete_group unless the spec sets another
     status: <confirmed | proposed>
 
 validator:                      # validator.cpp implements this section 1-to-1

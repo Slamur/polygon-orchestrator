@@ -317,15 +317,17 @@ orchestrator problems/my-task polygon push   # create the problem on Polygon and
 Then — tests, the package and checking solutions in Polygon by hand. If you edited
 the problem in Polygon — `polygon pull` before the next `push`.
 
-A problem with subtasks (`test_groups` in `authoring/constraints.yaml`): the spec needs
-`script_style: "groups"`. `llm generate` doesn't write a `constraints.yaml` whose groups
+A problem with subtasks (`test_groups` in `authoring/constraints.yaml`; a group's
+`points_policy` — `complete_group`, the points for all its tests, or `each_test`, for
+each passed test, see `docs/SPEC_FORMAT.md`): the spec needs `script_style: "groups"`. `llm generate` doesn't write a `constraints.yaml` whose groups
 are invalid (unknown or later dependencies, points not summing to 100, `validator.groups`
-of unknown groups) or a test-script with a line without `-group=<N>` of a known group or
-a group without lines — the response goes to `.llm_conflicts/`. After the
+of unknown groups) or a test-script with a line without `-group=<N>` of a known group, a
+group without lines or an `each_test` group whose number of lines doesn't divide its
+points — the response goes to `.llm_conflicts/`. After the
 test-script, `push` enables groups and points on Polygon, puts each generated test
 into the group of its `-group=<name>` script marker and the examples into group 0,
-places a group's points on its last test and sets each group's feedback and
-dependencies; `statement/<language>/scoring.tex` goes to the statement's scoring
+places a group's points on its last test (an `each_test` group's — equally on each of
+its tests) and sets each group's points policy, feedback and dependencies; `statement/<language>/scoring.tex` goes to the statement's scoring
 section. `pull` compares the groups on Polygon with `constraints.yaml` three-way, like
 files: groups changed only on Polygon (points, dependencies, feedback, added or removed
 groups) are written into its `test_groups`; changed on both sides — a conflict, the local
@@ -485,8 +487,10 @@ the `-group=<N>` marker on its script line, the examples are group 0. `local che
 marker or of an unknown group, a group without tests — errors. `local run --full` shows
 under each solution its points and each group's result, e.g. `points 30/100: 1 OK, 2 WA on
 test 14, 3 OK, no points (depends on 2)`: a group's points need all its tests OK and the
-groups it depends on earned. A solution with a declared mistake doesn't stop at the
-first one here: it skips only the rest of a group after the group's first non-OK test.
+groups it depends on earned; an `each_test` group gives its share for each OK test
+(`2 2/3 OK, first WA on test 7`). A solution with a declared mistake doesn't stop at the
+first one here: it skips only the rest of a `complete_group` group after the group's
+first non-OK test.
 The verdict in the name still means the verdict on the full score.
 
 `local run`: each solution from `solutions/` is built and

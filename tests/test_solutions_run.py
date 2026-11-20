@@ -700,6 +700,29 @@ def test_full_with_test_groups_reports_groups_and_points(tmp_path):
     assert summary["groups"][1]["failed_on"] == {"test": "test 4", "verdict": "WA"}
 
 
+def test_full_runs_an_each_test_group_whole(tmp_path):
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
+        GROUPS_SCRIPT,
+    )
+    (problem_dir / "authoring" / "constraints.yaml").write_text(
+        GROUPS_CONSTRAINTS.replace('["1"]\n', '["1"]\n    points_policy: each_test\n'),
+        encoding="utf-8",
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    wa = _by_name(result)["wa_py_seven_draft.py"]
+    # Group 2 (each_test, 2 tests of 15 points): both tests are run, both fail.
+    assert [(t.test, t.verdict) for t in wa.tests if t.generated] == [
+        ("test 3", "OK"),
+        ("test 4", "WA"),
+        ("test 5", "WA"),
+        ("test 6", "OK"),
+    ]
+    assert wa.points == 30
+    assert wa.group_line.startswith("points 30/100: 1 OK, 2 0/2 OK, first WA on test 4")
+
+
 def test_without_test_groups_there_are_no_points(tmp_path):
     problem_dir = _full_problem(
         tmp_path,

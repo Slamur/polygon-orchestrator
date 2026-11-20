@@ -17,7 +17,7 @@ from typing import Any
 
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
-from orchestrator.checks.test_groups import TestGroup, check_test_groups
+from orchestrator.checks.test_groups import TestGroup, check_test_groups, test_group
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptRenderError,
@@ -303,7 +303,7 @@ def check_script_groups(script: str, script_name: str, constraints_yaml: str) ->
         lines = [line.text for line in expand_script(script)]
     except (ScriptCheckUnavailable, ScriptRenderError):
         return
-    groups = [TestGroup(hint.name, hint.points or 0) for hint in hints]
+    groups = [test_group(hint) for hint in hints]
     errors = script_group_errors(groups, lines)
     if errors:
         raise ValueError(

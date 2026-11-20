@@ -242,7 +242,7 @@ If the user prompt has a "Test groups (subtasks)" section — the problem has
 subtasks, and you're also given scoring.md (its rules are mandatory just like
 statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
 the subtasks table by scoring.md, strictly by the given groups — their order, points,
-dependencies, feedback policy and variable bounds as is. Don't make up what the author
+dependencies, feedback and points policies and variable bounds as is. Don't make up what the author
 didn't set: a group without points — `uncertain` with the field
 (`constraints.test_groups_hint[i].points`).
 
@@ -300,7 +300,7 @@ the solution.
 The problem has subtasks (the rules of the Scoring block — scoring.md). The groups as the
 author set them, in order (None — not set):
 {% for g in statement_draft.test_groups %}
-- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}
+- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}; points_policy {{ g.points_policy }}
 {% endfor %}
 
 The problem's variables (a subtask's `variables` narrow their bounds):
@@ -459,7 +459,8 @@ What to do when the asymptotics are given explicitly:
    - `dependencies` — from the hint; absent — `[]`. Don't add dependencies the
      author didn't give: if you think a group should depend on another one —
      an entry in `notes` with `kind: suggestion`;
-   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it).
+   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it);
+   - `points_policy` — from the hint (`complete_group` when the hint doesn't set it).
 4. For each `special_guarantees` from the spec — make sure it's formulated
    so that it can be checked in the validator, and formulate it as a
    concrete check in `validator.checks` (see item 5).
@@ -565,7 +566,7 @@ The inputs of the statement's examples (an illustration of the format — the va
 
 ## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
-- name={{ g.name }}, subset_of={{ g.subset_of }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}
+- name={{ g.name }}, subset_of={{ g.subset_of }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}, points_policy={{ g.points_policy }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 
@@ -710,6 +711,17 @@ How the design's tests work:
   The templates don't carry `-group`: the script adds `-group=<the group>` to each line
   itself. The distribution of tests over groups that the spec doesn't set is your
   decision: `status: proposed` with a justification.
+- A group with `points_policy: each_test` gives points for each passed test, every test
+  worth the same, so the number of its tests must divide its points (the request lists
+  the allowed numbers for each such group). Count its tests over all the entries that go
+  into it — every template of an entry is one test in each of its groups — and pick one of
+  the allowed numbers that suits the group: drop the weakest of your own ideas or add
+  variations of the strongest ones (other sizes, structures, seeds) until the count
+  matches; don't split one check into near-identical tests just to fill the count. An
+  entry with `repeat` going into such a group gives as many tests as its loop runs times
+  the templates — pick the range so the total fits. The orchestrator counts the tests and
+  rejects a design whose count doesn't fit; with `repeat` the count is checked once the
+  test script is expanded.
 
 This is the base design of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
@@ -814,6 +826,15 @@ script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat
 
 ## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
+{% if each_test_groups %}
+
+## Groups with points for each test (points_policy: each_test)
+Every test of such a group is worth the same whole number of points, so the number of its
+tests must divide its points.
+{% for g in each_test_groups %}
+- group {{ g.name }}: {{ g.points }} points; the number of its tests may be {{ g.allowed | join(", ") }}{% if g.kept %} — counting the {{ g.kept }} test(s) the plan keeps in it for wrong solutions, so your design gives it that many fewer{% endif %}
+{% endfor %}
+{% endif %}
 {% if tests_run %}
 
 ## The local generation of the tests failed
@@ -1575,7 +1596,12 @@ What to do for EACH surviving solution:
    list of names, as in the current plan) — the groups whose limits allow the input that
    catches the solution; the commands don't carry `-group`, the script adds it. For a
    solution the request lists with groups it passes, the tests go into exactly these
-   groups (each of them), within their limits.
+   groups (each of them), within their limits. A group with `points_policy: each_test`
+   gives points for each passed test, every test worth the same, so its number of tests
+   must stay a divisor of its points: the request lists, for each such group, how many
+   tests it has and the numbers it may grow to. Adding tests to such a group, add as many
+   as it takes to reach one of them (e.g. the catching test and a few variations of it —
+   other seeds or sizes).
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and
@@ -1629,6 +1655,14 @@ The inputs of the statement's examples (the generated tests are printed in exact
 The problem's TL (limits.yaml): {{ time_limit_seconds }}s.
 {% endif %}
 
+{% if each_test_groups %}
+## Groups with points for each test (points_policy: each_test)
+The number of tests of such a group must divide its points.
+{% for g in each_test_groups %}
+- group {{ g.name }}: {{ g.points }} points, {% if g.count is none %}a loop (`repeat`) in the current plan{% else %}{{ g.count }} test(s) now{% endif %}; it may grow to {{ g.allowed | join(", ") }} test(s)
+{% endfor %}
+
+{% endif %}
 ## The current plan (authoring/tests_plan.yaml) — keep it, only add
 ~~~yaml
 {{ plan }}
@@ -2073,7 +2107,9 @@ a proposed value here must have a mark and an explanation in `notes`:
   completely — `name` (1, 2, ...), its limits (`variables` — the group's own `min`/`max`
   of variables from `constraints.variables`, `{N: {max: 1000}}`; `special_property` —
   everything that isn't a bound of one variable; `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
-  groups), `feedback_policy` — keep what the author wrote as is, mark each value you
+  groups), `feedback_policy`, `points_policy` (`each_test` — only if the draft gives
+  points for each passed test of the group, otherwise omit it) — keep what the author
+  wrote as is, mark each value you
   filled in yourself `# PROPOSED, REVIEW ME`, and set `generation.script_style:
   "groups"` (a spec with groups and `flat` doesn't validate). Without any sign of
   subtasks in the draft — no groups: `test_groups_hint` empty, `test_groups_needed`

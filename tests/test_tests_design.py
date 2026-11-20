@@ -7,6 +7,7 @@ from orchestrator.steps.tests_design import (
     PLAN_HEADER,
     TestsDesignError,
     build_tests_plan,
+    each_test_targets,
     parse_limits,
     parse_tests_design,
     plan_from_design,
@@ -290,3 +291,62 @@ def test_plan_from_design_gives_a_valid_plan_with_a_header():
     plan = parse_tests_plan(text)
     assert plan["problem_id"] == "example-problem"
     assert len(plan["tests"]) == 3
+
+
+# Group 2 gives its 30 points for each passed test: 1, 2, 3, 5, 6, 10, 15 or 30 tests.
+EACH_TEST_CONSTRAINTS = CONSTRAINTS.replace(
+    '    dependencies: ["1"]\n', '    dependencies: ["1"]\n    points_policy: each_test\n'
+)
+
+
+def test_each_test_group_needs_a_number_of_tests_dividing_its_points():
+    ideas = [
+        _idea(["gen_rand -n={n.max} -maxA={a.max}", "gen_equal -n={n.max}"]),
+        _idea(["gen_equal -n={n.lo}", "gen_equal -n={n.max / 2}"], groups=["2"], idea_id="own[0]"),
+    ]
+
+    with pytest.raises(TestsDesignError) as exc_info:
+        _build(ideas, constraints=EACH_TEST_CONSTRAINTS)
+
+    message = str(exc_info.value)
+    assert "test group 2 (30 points, points_policy each_test) has 4 test(s)" in message
+    assert "divide 30: 1, 2, 3, 5, 6, 10, 15, 30" in message
+
+    ideas[1]["tests"].append("gen_rand -n={n.lo} -maxA={a.max}")
+    plan = _build(ideas, constraints=EACH_TEST_CONSTRAINTS)
+    assert sum(len(b["commands"]) for b in plan["tests"] if b["group"] == "2") == 5
+
+
+def test_each_test_count_includes_the_kept_tests_for_wrong_solutions():
+    current = {
+        "generators": GENERATORS,
+        "tests": [
+            {
+                "description": "trap",
+                "group": ["2", "3"],
+                "status": "proposed",
+                "covers": ["solutions/wa_cpp_off.cpp"],
+                "commands": ["gen_equal -n=7"],
+            }
+        ],
+    }
+    limits = parse_limits(EACH_TEST_CONSTRAINTS)
+    assert each_test_targets(limits, current) == [
+        {"name": "2", "points": 30, "allowed": [1, 2, 3, 5, 6, 10, 15, 30], "kept": 1}
+    ]
+
+    with pytest.raises(TestsDesignError, match=r"has 4 test\(s\).*\(3 from the design, 1 kept"):
+        _build(
+            [_idea(["gen_equal -n={n.max}", "gen_equal -n={n.min}", "gen_equal -n={n.lo}"])],
+            constraints=EACH_TEST_CONSTRAINTS,
+            current_plan=current,
+        )
+
+
+def test_repeat_in_an_each_test_group_is_counted_after_the_script_is_expanded():
+    # A loop's number of tests isn't known in the design: the plan isn't rejected for it,
+    # the expanded script's lines are counted (`check_script_groups`, `run_tests`).
+    ideas = [_idea(["gen_equal -n=n"], repeat="n = {n.min}..{n.max}")]
+
+    parse_tests_design(_design(ideas), parse_limits(EACH_TEST_CONSTRAINTS))
+    _build(ideas, constraints=EACH_TEST_CONSTRAINTS)

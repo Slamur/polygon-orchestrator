@@ -395,7 +395,7 @@ class SolutionOutcome:
         return text
 
     @property
-    def points(self) -> int | None:
+    def points(self) -> int | float | None:
         if self.groups is None:
             return None
         return sum(g.points for g in self.groups)
@@ -407,7 +407,7 @@ class SolutionOutcome:
             return None
         total = sum(g.group.points for g in self.groups)
         details = ", ".join(g.describe() for g in self.groups)
-        return f"points {self.points}/{total}: {details}"
+        return f"points {self.points:g}/{total}: {details}"
 
     def summary(self) -> dict:
         """See `SolutionsRunResult.summary`."""
@@ -950,8 +950,10 @@ def _run_generated(
             result.progress(f"running {name} on generated tests")
         program = program_for(solution.path)
         # With test groups a solution with a declared mistake goes through every group,
-        # but skips the rest of a group after its first test without OK.
+        # but skips the rest of a `complete_group` group after its first test without OK
+        # (an `each_test` group is run whole: its points are counted per test).
         by_groups = result.test_groups is not None and outcome.required is not None
+        each_test = {g.name for g in result.test_groups or () if g.each_test}
         failed_groups: set[str] = set()
         for test in answered:
             if by_groups and test.group in failed_groups:
@@ -965,7 +967,7 @@ def _run_generated(
                 replace(tested, command=test.command, generated=True, group=test.group)
             )
             if by_groups:
-                if tested.verdict != VERDICT_OK and test.group is not None:
+                if tested.verdict != VERDICT_OK and test.group not in (None, *each_test):
                     failed_groups.add(test.group)
             elif outcome.required is not None and tested.verdict in outcome.required:
                 outcome.stopped_early = True

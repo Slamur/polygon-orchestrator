@@ -55,5 +55,7 @@ tests:                          # the script's blocks in generation order (tests
                                 # the parameter values — numbers or names from constants
       - "<gen_x -n=maxN -k=1 | upd_y>"
     repeat: "<if the block is a loop: over which values, e.g. n = minN..smallMaxN | null>"
+                                # never in a group with points_policy each_test: the number of its
+                                # tests must be known and divide its points
     rationale: |                # only with status: proposed | suggestion
       <why such tests and parameters>

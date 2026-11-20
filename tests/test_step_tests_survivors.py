@@ -238,3 +238,67 @@ def test_uncaught_groups_are_part_of_the_input(spec, problem_dir, monkeypatch):
     after = tests_survivors.compute_input_hash(PROBLEM_ID, spec, _upstream(spec, problem_dir))
 
     assert after != before
+
+
+# --- each_test groups: the number of tests stays a divisor of the points ----------------
+
+EACH_TEST_CONSTRAINTS = (
+    "test_groups:\n"
+    '  - name: "1"\n    points: 4\n    points_policy: each_test\n'
+    '  - name: "2"\n    points: 96\n'
+)
+
+
+def _run_with_each_test_group(spec, problem_dir, monkeypatch, new_commands: list[str]):
+    current = _plan()
+    current["tests"][0]["group"] = "1"
+    (problem_dir / "authoring" / "tests_plan.yaml").write_text(
+        yaml.safe_dump(current, sort_keys=False), encoding="utf-8"
+    )
+    _run_gates(spec, problem_dir, monkeypatch, caught=False)
+    plan = copy.deepcopy(current)
+    plan["tests"].append(
+        {
+            "description": "The right bound",
+            "group": "1",
+            "status": "proposed",
+            "rationale": "the off-by-one solution misses the last element",
+            "covers": [f"solutions/{WRONG}"],
+            "commands": new_commands,
+            "repeat": None,
+        }
+    )
+    upstream = {
+        "constraints.yaml": EACH_TEST_CONSTRAINTS,
+        tests_survivors.INPUTS_KEY: tests_survivors.load_inputs(
+            PROBLEM_ID, spec, problems_dir=problem_dir.parent
+        ),
+    }
+    response = ModelResponse(status="proposed", artifacts={"tests_plan.yaml": yaml.safe_dump(plan)})
+    with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
+        result = tests_survivors.run_step(
+            PROBLEM_ID,
+            spec,
+            upstream,
+            prompts_dir=PROMPTS_DIR,
+            problems_dir=problem_dir.parent,
+            templates_dir=TEMPLATES_DIR,
+        )
+    return result, mock_call.call_args.args[2]
+
+
+def test_survivor_tests_keep_an_each_test_group_divisible(spec, problem_dir, monkeypatch):
+    result, prompt = _run_with_each_test_group(spec, problem_dir, monkeypatch, ["gen_rand -n=1"])
+
+    assert result.not_applied_reason is None
+    assert "- group 1: 4 points, 1 test(s) now; it may grow to 2, 4 test(s)" in prompt
+
+
+def test_survivor_tests_that_break_an_each_test_group_are_rejected(spec, problem_dir, monkeypatch):
+    result, _ = _run_with_each_test_group(
+        spec, problem_dir, monkeypatch, ["gen_rand -n=1", "gen_rand -n=2"]
+    )
+
+    assert "test group 1 (4 points, points_policy each_test) has 3 test(s)" in (
+        result.not_applied_reason or ""
+    )

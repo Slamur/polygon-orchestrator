@@ -19,10 +19,14 @@ Then, by docs/POLYGON_API.md:
 1. `problem.enableGroups` (`testset=tests`) and `problem.enablePoints`;
 2. `problem.setTestGroup` with `testIndices` — one call per group, only for the
    tests whose group on Polygon differs;
-3. `problem.saveTest` with `testPoints` — the group's points on its last test (the
-   largest index), 0 on the others; only for the tests whose points differ;
-4. `problem.saveTestGroup` for each group: `pointsPolicy=COMPLETE_GROUP` (the
-   points only for passing every test of the group), `feedbackPolicy` from
+3. `problem.saveTest` with `testPoints` — a `complete_group` group: its points on its
+   last test (the largest index), 0 on the others; an `each_test` group: its points
+   divided by its number of tests on each test (a number of tests that doesn't divide
+   the points — an error before any change, `constraints.yaml` "points_policy"); only
+   for the tests whose points differ;
+4. `problem.saveTestGroup` for each group: `pointsPolicy` from `points_policy`
+   (`complete_group` -> `COMPLETE_GROUP`, the points only for passing every test of the
+   group; `each_test` -> `EACH_TEST`, for each passed test), `feedbackPolicy` from
    `feedback_policy` (`icpc` -> `ICPC`, the first error), `dependencies` — the
    group names joined with a comma. A group exists on Polygon once a test is
    in it (`saveTestGroup` only edits one), so a group without tests is an error
@@ -91,6 +95,9 @@ NO_GROUPS_MESSAGE = f"no test_groups in {CONSTRAINTS_FILENAME}, skipped"
 _TESTSET = "tests"
 
 POINTS_POLICY = "COMPLETE_GROUP"
+# `points_policy` of constraints.yaml -> `pointsPolicy` of `problem.saveTestGroup`.
+POINTS_POLICIES = {"complete_group": POINTS_POLICY, "each_test": "EACH_TEST"}
+POINTS_POLICY_NAMES = {value: key for key, value in POINTS_POLICIES.items()}
 EXAMPLES_FEEDBACK_POLICY = "COMPLETE"
 # `feedback_policy` of constraints.yaml -> `feedbackPolicy` of `problem.saveTestGroup`.
 FEEDBACK_POLICIES = {"icpc": "ICPC", "points": "POINTS", "complete": "COMPLETE", "none": "NONE"}
@@ -126,6 +133,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     by_name = {group.name: group for group in groups}
     assignment = assign_groups(tests, by_name)
     _check_every_group_has_tests(assignment, by_name)
+    _check_each_test_counts(assignment, by_name)
     points = _test_points(assignment, by_name)
 
     client.call("problem.enableGroups", {**params, "testset": _TESTSET, "enable": "true"})
@@ -236,6 +244,7 @@ def read_groups(problem_dir: Path) -> list[GroupSettings] | None:
                 float(hint.points),
                 tuple(hint.dependencies or ()),
                 FEEDBACK_POLICIES[hint.feedback_policy],
+                POINTS_POLICIES[hint.points_policy],
             )
             for hint in hints
         ),
@@ -332,12 +341,32 @@ def _check_every_group_has_tests(assignment: dict[int, str], groups: dict[str, G
         )
 
 
+def _check_each_test_counts(assignment: dict[int, str], groups: dict[str, GroupSettings]):
+    """Every test of an `EACH_TEST` group is worth the same whole number of points: its
+    number of tests on Polygon must divide its points."""
+    problems = []
+    for name, group in groups.items():
+        count = sum(1 for assigned in assignment.values() if assigned == name)
+        if group.points_policy == POINTS_POLICIES["each_test"] and group.points % count:
+            problems.append(
+                f"group {name} ({group.points:g} points, each_test) has {count} test(s) on "
+                f"Polygon — the number of tests must divide the points"
+            )
+    if problems:
+        raise PolygonStepError(f"{CONSTRAINTS_FILENAME}: " + "; ".join(problems))
+
+
 def _test_points(assignment: dict[int, str], groups: dict[str, GroupSettings]) -> dict[int, float]:
-    """Test index -> its points: the group's points on its last test, 0 elsewhere."""
+    """Test index -> its points: a `COMPLETE_GROUP` group's points on its last test, 0
+    on its other tests; an `EACH_TEST` group's points divided equally among its tests."""
     points = dict.fromkeys(assignment, 0.0)
     for name, group in groups.items():
-        last = max(index for index, assigned in assignment.items() if assigned == name)
-        points[last] = group.points
+        indices = [index for index, assigned in assignment.items() if assigned == name]
+        if group.points_policy == POINTS_POLICIES["each_test"]:
+            for index in indices:
+                points[index] = group.points / len(indices)
+        else:
+            points[max(indices)] = group.points
     return points
 
 

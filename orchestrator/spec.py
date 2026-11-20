@@ -156,6 +156,14 @@ class Variable(BaseModel):
 FEEDBACK_POLICIES = ("points", "icpc", "complete", "none")
 DEFAULT_FEEDBACK_POLICY = "icpc"
 
+# How a test group's points are given (`pointsPolicy` of `problem.saveTestGroup`):
+# `complete_group` — only for passing every test of the group (the default), `each_test` —
+# for each passed test, every test of the group worth the same: the group's points divided
+# by its number of tests, so that number must divide the points (`allowed_test_counts`).
+POINTS_POLICIES = ("complete_group", "each_test")
+DEFAULT_POINTS_POLICY = "complete_group"
+EACH_TEST = "each_test"
+
 
 class GroupVariableLimit(BaseModel):
     """A test group's own bounds of one of `constraints.variables`: a number or an
@@ -196,6 +204,7 @@ class TestGroupHint(BaseModel):
     points: int | None = None
     dependencies: list[str] | None = None
     feedback_policy: Literal[FEEDBACK_POLICIES] = DEFAULT_FEEDBACK_POLICY  # type: ignore[valid-type]
+    points_policy: Literal[POINTS_POLICIES] = DEFAULT_POINTS_POLICY  # type: ignore[valid-type]
 
 
 class Constraints(BaseModel):
@@ -237,6 +246,13 @@ class Constraints(BaseModel):
         return self
 
 
+def allowed_test_counts(points: int) -> list[int]:
+    """The numbers of tests an `each_test` group with `points` may have: every test worth
+    the same whole number of points — the divisors of `points` (`0` points — any number,
+    `[]` here)."""
+    return [count for count in range(1, points + 1) if points % count == 0]
+
+
 def check_test_groups(groups: list[TestGroupHint], where: str) -> None:
     """Group names — distinct positive numbers (`0` — the statement examples, implicit),
     `dependencies` and `subset_of` — names of the listed groups, other than the group itself.
@@ -254,6 +270,11 @@ def check_test_groups(groups: list[TestGroupHint], where: str) -> None:
     for index, group in enumerate(groups):
         if group.points is not None and group.points < 0:
             raise ValueError(f"{where}[{index}].points must be >= 0")
+        if group.points_policy == EACH_TEST and not group.points:
+            raise ValueError(
+                f"{where}[{index}]: points_policy each_test needs positive points — "
+                "each test of the group gets an equal share of them"
+            )
         for field, refs in (
             ("dependencies", group.dependencies or []),
             ("subset_of", [group.subset_of] if group.subset_of is not None else []),

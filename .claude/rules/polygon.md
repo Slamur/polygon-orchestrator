@@ -34,10 +34,12 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   (`upload_test_groups`, after `upload_test_script`; no groups — nothing is done):
   groups and points are enabled, each generated test goes to the group of the
   `-group=<name>` marker of its script line, the examples — to group `0`
-  (0 points, feedback `COMPLETE`), the group's points — on its last test, each group
-  gets `pointsPolicy=COMPLETE_GROUP`, `feedbackPolicy` and `dependencies` from
-  `constraints.yaml` (`problem.saveTestGroup`); a test without a marker or with an
-  unknown group, a group without tests — an error before any change. The step always reads
+  (0 points, feedback `COMPLETE`); a `complete_group` group's points — on its last test
+  (`pointsPolicy=COMPLETE_GROUP`), an `each_test` group's — divided equally among its
+  tests (`EACH_TEST`); `feedbackPolicy` and `dependencies` from `constraints.yaml`
+  (`problem.saveTestGroup`); a test without a marker or with an unknown group, a group
+  without tests, an `each_test` group whose number of tests doesn't divide its points —
+  an error before any change. The step always reads
   `problem.tests`: regenerated tests (a new script) are assigned again,
   uploading `problems/<problem path>/authoring/` — `spec.yaml`,
   `constraints.yaml` (the whole `constraints_pick` result), `tests_design.yaml`
@@ -124,8 +126,8 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   `test_groups`) are compared with them three-way as well: changed only on Polygon —
   written into the `test_groups` of `constraints.yaml` (the other fields of the groups
   and the rest of the file stay); on both sides — `conflict`, `--overwrite` takes
-  Polygon's; what `constraints.yaml` can't hold (a `pointsPolicy` other than
-  `COMPLETE_GROUP`, groups not enabled) — `differs`, the next push sets them by
+  Polygon's; what `constraints.yaml` can't hold (an `EACH_TEST` group whose tests have
+  different points, groups not enabled) — `differs`, the next push sets them by
   `constraints.yaml`. It refuses
   to work if there are uncommitted edits on Polygon. The problem directory
   is created if it doesn't exist; a local spec isn't needed (`spec.yaml` itself

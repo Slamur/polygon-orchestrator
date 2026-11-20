@@ -25,7 +25,7 @@ from typing import Any
 import yaml
 
 from orchestrator.problem_paths import TESTS_DESIGN_FILENAME, TESTS_PLAN_FILENAME
-from orchestrator.spec import TestGroupHint
+from orchestrator.spec import EACH_TEST, TestGroupHint, allowed_test_counts
 from orchestrator.steps.tests_plan import (
     GENERATOR_NAME_RE,
     TestsPlanError,
@@ -33,6 +33,7 @@ from orchestrator.steps.tests_plan import (
     _check_params,
     _check_status,
     dump_plan_part,
+    each_test_counts,
     parse_tests_plan,
 )
 from orchestrator.test_groups import EXAMPLES_GROUP, TestGroupsError, parse_test_groups
@@ -515,6 +516,7 @@ def build_tests_plan(
     empty = [group for group, blocks in by_group.items() if group is not None and not blocks]
     if empty:
         errors.append(f"test group(s) {empty} get no tests — every group needs some")
+    errors += _each_test_count_errors(by_group, kept, limits)
     if errors:
         raise TestsDesignError(f"{TESTS_DESIGN_FILENAME}: " + "; ".join(errors))
 
@@ -538,6 +540,57 @@ def build_tests_plan(
         "constants": all_constants,
         "tests": [block for group in group_order for block in by_group[group]],
     }
+
+
+def kept_each_test_counts(
+    limits: _Limits, current_plan: dict[str, Any] | None
+) -> dict[str, int | None]:
+    """The `each_test` groups -> how many tests the current plan's blocks for wrong
+    solutions (kept when the plan is rebuilt) put into each."""
+    return each_test_counts(wrong_solution_blocks(current_plan)[0], limits.groups)
+
+
+def each_test_targets(limits: _Limits, current_plan: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """For the prompt: each `each_test` group with its points, the numbers of tests it may
+    have and the tests kept for wrong solutions in it."""
+    kept = kept_each_test_counts(limits, current_plan)
+    return [
+        {
+            "name": group.name,
+            "points": group.points,
+            "allowed": allowed_test_counts(group.points or 0),
+            "kept": kept.get(group.name) or 0,
+        }
+        for group in limits.groups or []
+        if group.points_policy == EACH_TEST
+    ]
+
+
+def _each_test_count_errors(
+    by_group: dict[str | None, list[dict[str, Any]]],
+    kept: list[dict[str, Any]],
+    limits: _Limits,
+) -> list[str]:
+    """An `each_test` group's tests (the design's and the kept ones) must divide its points."""
+    from orchestrator.test_groups import each_test_count_error
+
+    kept_counts = each_test_counts(kept, limits.groups)
+    totals = each_test_counts([b for blocks in by_group.values() for b in blocks], limits.groups)
+    errors = []
+    for group in limits.groups or []:
+        total = totals.get(group.name)
+        if total is None:
+            continue  # not each_test, or a loop (`repeat`): counted once the script is expanded
+        error = each_test_count_error(group.name, group.points or 0, total)
+        if error:
+            from_kept = kept_counts.get(group.name) or 0
+            if from_kept:
+                error += (
+                    f" ({total - from_kept} from the design, {from_kept} kept for wrong "
+                    "solutions — count them too)"
+                )
+            errors.append(error)
+    return errors
 
 
 def _block(idea: dict[str, Any], group: str | None, resolver: _Resolver) -> dict[str, Any]:

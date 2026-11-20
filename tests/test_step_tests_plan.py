@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
+from orchestrator import spec as spec_module
 from orchestrator.model_router import ModelResponse
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import StepRevision, StepUncertainError
@@ -13,6 +14,7 @@ from orchestrator.steps.tests_plan import (
     _build_context_sections,
     compute_input_hash,
     current_artifacts,
+    each_test_errors,
     extra_context_documents,
     parse_tests_plan,
     run_step,
@@ -322,3 +324,40 @@ def test_compute_input_hash_ignores_languages_and_limits(spec):
     assert _hash(other_languages) == _hash(spec)
     assert _hash(spec, other_tl) == _hash(spec)
     assert _hash(spec, {"constraints.yaml": "n_max: 5\n"}) != _hash(spec)
+
+
+def test_prompt_lists_the_allowed_numbers_of_tests_of_each_test_groups(spec, tmp_path):
+    constraints = (
+        "variables:\n  - {name: n, min: 1, max: 100000, description: x}\n"
+        "test_groups:\n"
+        '  - name: "1"\n    points: 12\n    points_policy: each_test\n'
+        '  - name: "2"\n    points: 88\n'
+    )
+
+    _, mock_call = _run(spec, tmp_path, upstream={"constraints.yaml": constraints})
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "- group 1: 12 points; the number of its tests may be 1, 2, 3, 4, 6, 12" in user_prompt
+    assert "group 2:" not in user_prompt
+
+
+def test_each_test_errors_counts_listed_tests_and_leaves_loops_to_the_script():
+    groups = [
+        spec_module.TestGroupHint(name="1", points=12, points_policy="each_test"),
+        spec_module.TestGroupHint(name="2", points=30, points_policy="each_test"),
+        spec_module.TestGroupHint(name="3", points=58),
+    ]
+    plan = {
+        "tests": [
+            {"group": "1", "commands": ["gen -n=1"] * 5, "repeat": None},
+            {"group": ["2", "3"], "commands": ["gen -n=i"], "repeat": "i = 1..7"},
+            {"group": "3", "commands": ["gen -n=2"] * 7, "repeat": None},
+        ]
+    }
+
+    errors = each_test_errors(plan, groups)
+
+    # Group 1: 5 tests don't divide 12; group 2: a loop, counted once the script is
+    # expanded; group 3: complete_group, any number of tests.
+    assert len(errors) == 1
+    assert "test group 1 (12 points" in errors[0]

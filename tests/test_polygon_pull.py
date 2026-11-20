@@ -1664,8 +1664,30 @@ def test_pull_keeps_groups_changed_on_both_sides(problems_dir, polygon):
     assert "points: 50" in path.read_text() and "points: 40" in path.read_text()
 
 
+def test_pull_writes_an_each_test_group(problems_dir, polygon):
+    _grouped_polygon(polygon)
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    polygon.test_groups[1]["pointsPolicy"] = "EACH_TEST"
+    polygon.problems[0]["revision"] = 6
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(item for item in result.items if item.name == "test groups")
+    assert item.status == ITEM_UPDATED
+    assert "1 (40, ICPC, EACH_TEST)" in item.detail
+    text = _constraints_text(problems_dir)
+    first = text.split('  - name: "2"')[0]
+    assert "    points_policy: each_test\n" in first
+    # A complete_group group without the field stays without it.
+    assert text.count("points_policy") == 1
+    assert upload_test_groups.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
 def test_pull_does_not_write_groups_it_cannot_hold(problems_dir, polygon):
     _grouped_polygon(polygon)
+    polygon.tests.append(
+        {"index": 4, "manual": False, "scriptLine": "gen 3 -group=1", "group": "1", "points": 0}
+    )
     pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
     before = _constraints_text(problems_dir)
 
@@ -1675,7 +1697,7 @@ def test_pull_does_not_write_groups_it_cannot_hold(problems_dir, polygon):
 
     item = next(item for item in result.items if item.name == "test groups")
     assert item.status == ITEM_DIFFERS
-    assert "pointsPolicy EACH_TEST" in item.detail
+    assert "EACH_TEST with tests of different points" in item.detail
     assert _constraints_text(problems_dir) == before
 
 
