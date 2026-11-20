@@ -85,7 +85,8 @@ What to do when the asymptotics are given explicitly:
    - `dependencies` — from the hint; absent — `[]`. Don't add dependencies the
      author didn't give: if you think a group should depend on another one —
      an entry in `notes` with `kind: suggestion`;
-   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it).
+   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it);
+   - `points_policy` — from the hint (`complete_group` when the hint doesn't set it).
 4. For each `special_guarantees` from the spec — make sure it's formulated
    so that it can be checked in the validator, and formulate it as a
    concrete check in `validator.checks` (see item 5).

@@ -41,7 +41,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    isn't written either — the whole step response goes to `uncertain`.
    Test groups (`test_groups` of `constraints.yaml`) come from the spec's
    `test_groups_hint` — names, `variables`/`special_property`/`subset_of`, `points`,
-   `dependencies`, `feedback_policy` as the author gave them (missing points —
+   `dependencies`, `feedback_policy`, `points_policy` as the author gave them (missing points —
    `uncertain`, like the groups themselves; dependencies the author didn't give are only a
    `suggestion` note); without the hint there are none — the step doesn't invent groups
    (they are set by the author or `init --draft`), and `test_groups_needed: true`

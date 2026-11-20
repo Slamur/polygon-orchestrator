@@ -78,7 +78,9 @@ a proposed value here must have a mark and an explanation in `notes`:
   completely — `name` (1, 2, ...), its limits (`variables` — the group's own `min`/`max`
   of variables from `constraints.variables`, `{N: {max: 1000}}`; `special_property` —
   everything that isn't a bound of one variable; `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
-  groups), `feedback_policy` — keep what the author wrote as is, mark each value you
+  groups), `feedback_policy`, `points_policy` (`each_test` — only if the draft gives
+  points for each passed test of the group, otherwise omit it) — keep what the author
+  wrote as is, mark each value you
   filled in yourself `# PROPOSED, REVIEW ME`, and set `generation.script_style:
   "groups"` (a spec with groups and `flat` doesn't validate). Without any sign of
   subtasks in the draft — no groups: `test_groups_hint` empty, `test_groups_needed`

@@ -459,7 +459,8 @@ What to do when the asymptotics are given explicitly:
    - `dependencies` — from the hint; absent — `[]`. Don't add dependencies the
      author didn't give: if you think a group should depend on another one —
      an entry in `notes` with `kind: suggestion`;
-   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it).
+   - `feedback_policy` — from the hint (`icpc` when the hint doesn't set it);
+   - `points_policy` — from the hint (`complete_group` when the hint doesn't set it).
 4. For each `special_guarantees` from the spec — make sure it's formulated
    so that it can be checked in the validator, and formulate it as a
    concrete check in `validator.checks` (see item 5).
@@ -565,7 +566,7 @@ The inputs of the statement's examples (an illustration of the format — the va
 
 ## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
-- name={{ g.name }}, subset_of={{ g.subset_of }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}
+- name={{ g.name }}, subset_of={{ g.subset_of }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}, points_policy={{ g.points_policy }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 
@@ -2073,7 +2074,9 @@ a proposed value here must have a mark and an explanation in `notes`:
   completely — `name` (1, 2, ...), its limits (`variables` — the group's own `min`/`max`
   of variables from `constraints.variables`, `{N: {max: 1000}}`; `special_property` —
   everything that isn't a bound of one variable; `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
-  groups), `feedback_policy` — keep what the author wrote as is, mark each value you
+  groups), `feedback_policy`, `points_policy` (`each_test` — only if the draft gives
+  points for each passed test of the group, otherwise omit it) — keep what the author
+  wrote as is, mark each value you
   filled in yourself `# PROPOSED, REVIEW ME`, and set `generation.script_style:
   "groups"` (a spec with groups and `flat` doesn't validate). Without any sign of
   subtasks in the draft — no groups: `test_groups_hint` empty, `test_groups_needed`

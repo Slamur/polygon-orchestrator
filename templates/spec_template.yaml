@@ -57,6 +57,7 @@ constraints:
                                      #     points: 30
                                      #     dependencies: []
                                      #     feedback_policy: "icpc"     # icpc (the first error, default) | points | complete | none
+                                     #     points_policy: "complete_group"  # complete_group (for all tests, default) | each_test
   test_groups_needed: false          # [optional] true without the hint — the steps stop as uncertain: set the hint
   time_limit_seconds: null           # [optional] null — the model proposes the TL
   memory_limit_mb: 256               # [optional] preferably a multiple of 256

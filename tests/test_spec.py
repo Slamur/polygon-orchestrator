@@ -6,6 +6,7 @@ from orchestrator.spec import (
     ProblemSpec,
     SpecValidationError,
     WrongApproach,
+    allowed_test_counts,
     load_spec,
     parse_wrong_approach,
     split_solution_stem,
@@ -460,6 +461,25 @@ def test_test_groups_with_points_and_dependencies_are_loaded(tmp_path):
     first, second = spec.constraints.test_groups_hint
     assert first.feedback_policy == "icpc"
     assert (second.points, second.dependencies, second.feedback_policy) == (70, ["1"], "points")
+    assert first.points_policy == second.points_policy == "complete_group"
+
+
+def test_test_groups_may_mix_points_policies(tmp_path):
+    spec = load_spec(
+        _write_with_groups(
+            tmp_path,
+            '    - name: "1"\n      points: 30\n      points_policy: "each_test"\n'
+            '    - name: "2"\n      points: 70\n',
+        )
+    )
+
+    policies = [group.points_policy for group in spec.constraints.test_groups_hint]
+    assert policies == ["each_test", "complete_group"]
+
+
+def test_allowed_test_counts_are_the_divisors_of_the_points():
+    assert allowed_test_counts(30) == [1, 2, 3, 5, 6, 10, 15, 30]
+    assert allowed_test_counts(7) == [1, 7]
 
 
 def test_test_group_variables_narrow_any_variable(tmp_path):
@@ -526,6 +546,12 @@ def test_test_groups_may_depend_on_several_earlier_groups(tmp_path):
         ('    - name: "1"\n      subset_of: "full"\n', "subset_of"),
         ('    - name: "1"\n      points: -5\n', "points"),
         ('    - name: "1"\n      feedback_policy: "first"\n', "feedback_policy"),
+        ('    - name: "1"\n      points_policy: "each"\n', "points_policy"),
+        ('    - name: "1"\n      points_policy: "each_test"\n', "each_test needs positive points"),
+        (
+            '    - name: "1"\n      points: 0\n      points_policy: "each_test"\n',
+            "each_test needs positive points",
+        ),
     ],
 )
 def test_invalid_test_groups_are_rejected(tmp_path, groups_yaml, message):

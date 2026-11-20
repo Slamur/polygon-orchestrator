@@ -159,12 +159,18 @@ constraints:
     - name: "2"
       special_property: "n is prime" # everything that isn't a bound of one variable
       points: 30
+      points_policy: "each_test"     # complete_group (the default) — the points only if all the
+                                     # group's tests are passed (Polygon's COMPLETE_GROUP); each_test —
+                                     # for each passed test, every test worth points / the number of
+                                     # tests (EACH_TEST): that number must divide the points (30 —
+                                     # 1, 2, 3, 5, 6, 10, 15 or 30 tests), the test design is held to it
     - name: "3"                      # no variables and special_property — the full limits
       points: 50
       dependencies: ["1", "2"]       # the earlier groups that must be passed for this group's points
+                                     # (all their tests passed — for an each_test group too)
     # All fields but name are optional; subset_of — the group whose limits this one narrows.
-    # A group's points are given only if all its tests are passed (on Polygon — the
-    # COMPLETE_GROUP policy). The sample with groups — examples/number/roots-subtasks.
+    # Policies may be mixed: some groups complete_group, some each_test. The sample with
+    # groups — examples/number/roots-subtasks.
   test_groups_needed: false          # [optional] bool, default false — the author's explicit request for
     # a test group structure. If false and test_groups_hint isn't set — the
     # constraints_pick step doesn't propose groups at all. If
