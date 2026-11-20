@@ -41,7 +41,9 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   docstring of `orchestrator/checks/test_script_check.py`.
   With `--full` it also generates tests from the script locally, runs the
   validator on them and shows the ones identical in content, together with the examples, and
-  the script lines corresponding to them (the exit code doesn't depend on them). The cache —
+  the script lines corresponding to them (the exit code doesn't depend on them). With test
+  groups only the tests of one group are compared (the examples — group 0): the same test in
+  several groups is deliberate, e.g. an edge case that fits several groups' limits. The cache —
   `.tests_cache/`: a test's key is the hash of the command and of the build of its generators, so
   renumbering regenerates nothing, editing a generator — only the tests
   with it, tests with vanished keys are deleted (`manifest.txt` — the number, file

@@ -21,7 +21,9 @@ What is done:
    are deleted. `manifest.txt` there — the number, file and command of each
    test, for manual inspection.
 4. Identical tests are searched for by content (`find_equal_tests`), together with
-   the examples: different commands can give the same test. Line endings
+   the examples: different commands can give the same test. With test groups — only
+   within one group (the examples — group 0): the same test in several groups is
+   deliberate. Line endings
    are normalized, the rest is compared byte by byte. This is information for the author,
    not an error: `format_equal_tests` shows which script lines they
    correspond to, the exit code doesn't depend on them.
@@ -55,7 +57,7 @@ from orchestrator.checks.test_script_check import (
 from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.polygon.sync import VALIDATOR_FILENAME
 from orchestrator.problem_paths import is_removed_mark
-from orchestrator.test_groups import group_marker
+from orchestrator.test_groups import EXAMPLES_GROUP, group_marker
 
 TESTS_CACHE_DIRNAME = ".tests_cache"
 MANIFEST_FILENAME = "manifest.txt"
@@ -416,12 +418,16 @@ def _normalized_hash(path: Path) -> str:
 
 def find_equal_tests(problem_dir: Path, tests: list[LocalTest]) -> list[EqualTests]:
     """Groups of tests (and examples) with identical contents — in the order of first
-    appearance."""
-    groups: dict[str, list[str]] = {}
+    appearance. With test groups (some test has a `-group` marker) only the tests of one
+    group are compared, the examples being group 0: the same test in several groups is
+    deliberate (e.g. an edge case that fits several groups' limits), so it isn't reported."""
+    grouped = any(test.group is not None for test in tests)
+    examples_group = EXAMPLES_GROUP if grouped else None
+    groups: dict[tuple[str | None, str], list[str]] = {}
     for name, path in sample_paths(problem_dir):
-        groups.setdefault(_normalized_hash(path), []).append(name)
+        groups.setdefault((examples_group, _normalized_hash(path)), []).append(name)
     for test in tests:
-        groups.setdefault(_normalized_hash(test.path), []).append(test.name)
+        groups.setdefault((test.group, _normalized_hash(test.path)), []).append(test.name)
     return [EqualTests(names) for names in groups.values() if len(names) > 1]
 
 
