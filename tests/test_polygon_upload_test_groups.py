@@ -197,6 +197,38 @@ def test_sends_several_dependencies_of_a_group(problems_dir, spec):
     assert sent == {"0": "", "1": "", "2": "1", "3": "1", "4": "2,3"}
 
 
+EACH_TEST_YAML = GROUPS_YAML.replace(
+    "    feedback_policy: points\n", "    feedback_policy: points\n    points_policy: each_test\n"
+)
+
+
+def test_each_test_group_gets_equal_points_on_every_test(problems_dir, spec):
+    link(problems_dir)
+    _write_constraints(problems_dir, EACH_TEST_YAML)
+    client = FakeTests(
+        ["gen 1 -group=1", "gen 2 -group=1"] + [f"gen {i} -group=2" for i in (3, 4, 5, 6, 7)]
+    )
+
+    _run(spec, problems_dir, client)
+
+    points = {test["index"]: test.get("points", 0) for test in client.tests}
+    # Group 1 (complete_group): all 30 on its last test; group 2 (each_test): 70 / 5.
+    assert points == {1: 0, 2: 0, 3: 30, 4: 14, 5: 14, 6: 14, 7: 14, 8: 14}
+    policies = {name: group["pointsPolicy"] for name, group in client.groups.items()}
+    assert policies == {"0": "COMPLETE_GROUP", "1": "COMPLETE_GROUP", "2": "EACH_TEST"}
+
+
+def test_each_test_group_whose_tests_do_not_divide_its_points_fails(problems_dir, spec):
+    link(problems_dir)
+    _write_constraints(problems_dir, EACH_TEST_YAML)
+    client = FakeTests(["gen 1 -group=1", "gen 2 -group=2", "gen 3 -group=2", "gen 4 -group=2"])
+
+    with pytest.raises(PolygonStepError, match=r"group 2 \(70 points, each_test\) has 3 test"):
+        _run(spec, problems_dir, client)
+
+    assert client.methods() == ["problem.tests"]
+
+
 def test_unchanged_groups_only_read_the_tests(problems_dir, spec):
     link(problems_dir)
     _write_constraints(problems_dir)

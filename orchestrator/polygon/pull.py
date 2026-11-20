@@ -109,11 +109,11 @@ What is compared with what (the names are the same that the polygon steps read):
   `problem.tests`) — only if `authoring/constraints.yaml` has `test_groups`: compared with
   them (`upload_test_groups.groups_digest`) three-way, like files. Changed only on
   Polygon (or `--overwrite`) — written into the `test_groups` of `constraints.yaml`
-  (`_write_test_groups`: points, dependencies, feedback policy; added and removed
-  groups; the other fields of a group and the rest of the file stay); changed locally —
-  `kept`; on both sides or without a base — `conflict`/`differs`, the next push sets
-  them by `constraints.yaml`. What `constraints.yaml` can't hold (a `pointsPolicy`
-  other than `COMPLETE_GROUP`, no groups at all) isn't written — `differs`. Groups not
+  (`_write_test_groups`: points, dependencies, feedback and points policies; added and
+  removed groups; the other fields of a group and the rest of the file stay); changed
+  locally — `kept`; on both sides or without a base — `conflict`/`differs`, the next push
+  sets them by `constraints.yaml`. What `constraints.yaml` can't hold (an `EACH_TEST`
+  group whose tests have different points, no groups at all) isn't written — `differs`. Groups not
   enabled on Polygon (`problem.viewTestGroup` fails with "Test groups are disabled
   ...") count as no groups, another error of it — the part's error;
 - solutions (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
@@ -162,6 +162,7 @@ from orchestrator.polygon.steps.upload_statement import (
 from orchestrator.polygon.steps.upload_test_groups import (
     FEEDBACK_POLICY_NAMES,
     POINTS_POLICY,
+    POINTS_POLICY_NAMES,
     GroupSettings,
     assigned_by_script,
     groups_digest,
@@ -212,6 +213,7 @@ from orchestrator.problem_paths import (
     is_removed_mark,
     problem_id_for,
 )
+from orchestrator.spec import DEFAULT_POINTS_POLICY, EACH_TEST
 from orchestrator.statement_languages import (
     STATEMENT_DIRNAME,
     is_language_dirname,
@@ -842,7 +844,7 @@ class _Puller:
             self.add(_TEST_GROUPS_NAME, ITEM_KEPT, differs)
             return
         if change == _REMOTE or self.overwrite:
-            unwritable = self._write_test_groups(remote)
+            unwritable = self._write_test_groups(remote, tests)
             if unwritable is None:
                 self.add(
                     _TEST_GROUPS_NAME,
@@ -860,10 +862,11 @@ class _Puller:
             "overwrites the groups on Polygon",
         )
 
-    def _write_test_groups(self, remote: list[GroupSettings]) -> str | None:
+    def _write_test_groups(self, remote: list[GroupSettings], tests: list[dict]) -> str | None:
         """Writes the groups on Polygon into the `test_groups` of `constraints.yaml` (the
-        old file — to the backup): the points, dependencies and feedback policy of each
-        group; its other fields (`variables`, ...) stay, a new group gets `status: confirmed`,
+        old file — to the backup): the points, dependencies, feedback and points policies of
+        each group (`points_policy` — only if it isn't the default or the group already has
+        it); an `EACH_TEST` group whose tests have different points can't be written; its other fields (`variables`, ...) stay, a new group gets `status: confirmed`,
         a group that isn't on Polygon is removed. Group `0` (the examples) isn't
         written: push sets it as always. What `constraints.yaml` can't hold — the reason,
         nothing is written."""
@@ -876,8 +879,19 @@ class _Puller:
         for group in groups:
             if not group.name.isdigit():
                 return f"group {group.name!r} on Polygon isn't a number"
-            if group.points_policy != POINTS_POLICY:
+            if group.points_policy not in POINTS_POLICY_NAMES:
                 return f"group {group.name} on Polygon has pointsPolicy {group.points_policy}"
+            if POINTS_POLICY_NAMES[group.points_policy] == EACH_TEST:
+                values = {
+                    float(test.get("points") or 0)
+                    for test in tests
+                    if str(test.get("group", "")) == group.name
+                }
+                if len(values) > 1:
+                    return (
+                        f"group {group.name} on Polygon is EACH_TEST with tests of different "
+                        "points — constraints.yaml holds equal ones"
+                    )
             if group.feedback_policy not in FEEDBACK_POLICY_NAMES:
                 return f"group {group.name} on Polygon has feedbackPolicy {group.feedback_policy}"
         name = _authoring_name(CONSTRAINTS_KEY)
@@ -889,6 +903,9 @@ class _Puller:
             item["points"] = int(group.points) if group.points.is_integer() else group.points
             item["dependencies"] = list(group.dependencies)
             item["feedback_policy"] = FEEDBACK_POLICY_NAMES[group.feedback_policy]
+            policy = POINTS_POLICY_NAMES[group.points_policy]
+            if policy != DEFAULT_POINTS_POLICY or "points_policy" in item:
+                item["points_policy"] = policy
             if group.name not in existing:
                 item["status"] = "confirmed"
             items.append(item)
@@ -1223,6 +1240,7 @@ def _describe_groups(groups: list[GroupSettings]) -> str:
     """Groups in one line for a pull item's detail: `1 (10, ICPC, after 2)`."""
     return ", ".join(
         f"{group.name} ({group.points:g}, {group.feedback_policy}"
+        + (f", {group.points_policy}" if group.points_policy != POINTS_POLICY else "")
         + (f", after {'/'.join(group.dependencies)}" if group.dependencies else "")
         + ")"
         for group in groups
