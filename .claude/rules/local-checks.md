@@ -87,13 +87,16 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   Test groups (`test_groups` in `constraints.yaml`, `orchestrator/checks/test_groups.py`):
   a test's group — the `-group=<N>` marker of its script line, the examples — group 0. The
   validator gets `--group <N>` (the examples — `--group 0`) in `local check --full` and
-  `local run`; a test without the marker or of an unknown group and a group without
-  tests — errors; `local check --full` prints the number of tests per group. With
+  `local run`; a test without the marker or of an unknown group, a group without
+  tests and an `each_test` group whose number of tests doesn't divide its points — errors; `local check --full` prints the number of tests per group. With
   `--full` each solution gets a result per group (passed or the first non-OK test) and
-  points: a group's points — all its tests OK and its dependencies earned; the line
+  points: a `complete_group` group's points — all its tests OK and its dependencies
+  earned; an `each_test` group's — its points / its number of tests for each OK test,
+  if its dependencies are earned (`2 2/3 OK, first WA on test 7`); the line
   `points X/Y: ...` under the solution in the groups, `points` and `groups` in
   `summary()`. A solution with a required verdict doesn't stop at the first one: it
-  skips the rest of a group after the group's first non-OK test. The prefix verdict
+  skips the rest of a `complete_group` group after the group's first non-OK test (an
+  `each_test` group is run whole). The prefix verdict
   rules don't change (the full-score verdict). A solution written from a
   `known_wrong_approaches` item names it in a source comment `spec:
   solutions.known_wrong_approaches[<i>]` (`spec.APPROACH_MARKER_RE`, the solution

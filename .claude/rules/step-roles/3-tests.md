@@ -105,7 +105,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      fails on an unread option). Before writing, the step expands the script with
      FreeMarker (as `local check`, with the dropped functions restored) and checks the
      markers (`check_script_groups`): a line without `-group=<N>` or of an unknown
-     group, a group without lines — the response is a conflict. No `java` or the script
+     group, a group without lines, an `each_test` group whose number of lines doesn't
+     divide its points — the response is a conflict. No `java` or the script
      doesn't expand — not checked here (`local check` reports it); invalid groups in
      `constraints.yaml` — not this step's error, not checked either.
    - **`run_tests`** (`orchestrator/steps/tests_check.py`) — a mechanical step after

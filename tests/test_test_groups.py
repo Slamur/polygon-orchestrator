@@ -87,6 +87,18 @@ def test_check_test_groups():
     assert not any("test 4" in e for e in errors)
 
 
+def test_each_test_group_whose_tests_do_not_divide_its_points():
+    groups = [TestGroup("1", 30, each_test=True), TestGroup("2", 70)]
+    tests = [(f"test {i}", "1", "gen") for i in range(7)] + [("test 9", "2", "gen")]
+
+    errors = check_test_groups(groups, tests)
+
+    assert len(errors) == 1
+    assert "test group 1 (30 points, points_policy each_test) has 7 test(s)" in errors[0]
+    assert errors[0].endswith("divide 30: 1, 2, 3, 5, 6, 10, 15, 30")
+    assert check_test_groups(groups, tests[1:]) == []
+
+
 def test_count_by_group():
     tests = [("t", "2", ""), ("t", "10", ""), ("t", "2", ""), ("t", None, "")]
     assert count_by_group(tests, 3) == "test groups: 0 (examples): 3, 2: 2, 10: 1, ?: 1"
@@ -160,3 +172,53 @@ def test_full_score():
         [("test 1", "1", "OK"), ("test 2", "2", "OK"), ("test 3", "3", "OK")],
     )
     assert sum(r.points for r in results) == 100
+
+
+MIXED = [
+    TestGroup("1", 30),
+    TestGroup("2", 30, ("1",), each_test=True),
+    TestGroup("3", 40, ("2",)),
+]
+
+
+def test_each_test_group_gives_points_for_each_ok_test():
+    results = group_results(
+        MIXED,
+        {"1": 1, "2": 3, "3": 1},
+        [
+            ("test 1", "1", "OK"),
+            ("test 2", "2", "OK"),
+            ("test 3", "2", "WA"),
+            ("test 4", "2", "OK"),
+            ("test 5", "3", "OK"),
+        ],
+    )
+    assert [r.points for r in results] == [30, 20, 0]
+    assert [r.describe() for r in results] == [
+        "1 OK",
+        "2 2/3 OK, first WA on test 3",
+        "3 OK, no points (depends on 2)",
+    ]
+
+
+def test_each_test_group_is_judged_only_after_its_dependencies():
+    results = group_results(
+        MIXED,
+        {"1": 1, "2": 3, "3": 1},
+        [("test 1", "1", "WA")]
+        + [(f"test {i}", "2", "OK") for i in (2, 3)]
+        + [("test 4", "2", "TL"), ("test 5", "3", "OK")],
+    )
+    assert [r.points for r in results] == [0, 0, 0]
+    assert results[1].describe() == "2 2/3 OK, first TL on test 4, no points (depends on 1)"
+
+
+def test_each_test_group_passed_whole_gives_all_its_points():
+    results = group_results(
+        MIXED,
+        {"1": 1, "2": 3, "3": 1},
+        [("test 1", "1", "OK")]
+        + [(f"test {i}", "2", "OK") for i in (2, 3, 4)]
+        + [("test 5", "3", "OK")],
+    )
+    assert [r.points for r in results] == [30, 30, 40]

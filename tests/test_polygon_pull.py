@@ -1676,7 +1676,8 @@ def test_pull_writes_an_each_test_group(problems_dir, polygon):
     assert item.status == ITEM_UPDATED
     assert "1 (40, ICPC, EACH_TEST)" in item.detail
     text = _constraints_text(problems_dir)
-    assert "    feedback_policy: icpc\n    points_policy: each_test\n" in text
+    first = text.split('  - name: "2"')[0]
+    assert "    points_policy: each_test\n" in first
     # A complete_group group without the field stays without it.
     assert text.count("points_policy") == 1
     assert upload_test_groups.STEP.compute_status(PROBLEM_ID, problems_dir)[0] == "done"

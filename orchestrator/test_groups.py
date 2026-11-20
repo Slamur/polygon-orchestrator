@@ -22,7 +22,7 @@ import yaml
 from pydantic import ValidationError
 
 from orchestrator.problem_paths import CONSTRAINTS_FILENAME, find_authoring_file
-from orchestrator.spec import TestGroupHint, check_test_groups
+from orchestrator.spec import TestGroupHint, allowed_test_counts, check_test_groups
 
 EXAMPLES_GROUP = "0"
 TEST_GROUPS_KEY = "test_groups"
@@ -43,6 +43,20 @@ def group_marker(script_line: str) -> str | None:
     output redirection `>`; `None` — no marker."""
     found = _GROUP_MARKER.findall(script_line.split(">", 1)[0])
     return found[-1] if found else None
+
+
+def each_test_count_error(name: str, points: int, count: int) -> str | None:
+    """Why an `each_test` group with `points` can't have `count` tests — every test is
+    worth the same whole number of points, so the count must divide the points; `None` —
+    it can."""
+    if count <= 0 or points % count == 0:
+        return None
+    allowed = ", ".join(str(value) for value in allowed_test_counts(points))
+    return (
+        f"test group {name} ({points} points, points_policy each_test) has {count} test(s) — "
+        f"each test is worth the same whole number of points, so the number of tests must "
+        f"divide {points}: {allowed}"
+    )
 
 
 def constraints_path(problem_dir: Path) -> Path:
