@@ -144,13 +144,6 @@ def parse_tests_design(text: str, limits: _Limits) -> dict[str, Any]:
                 errors.append(f"{where}.repeat must be a string or null")
             else:
                 _check_formulas(repeat, f"{where}.repeat", limits, errors)
-            each_test = sorted(set(groups or ()) & _each_test_names(limits))
-            if each_test:
-                errors.append(
-                    f"{where}.repeat: test group(s) {each_test} have points_policy each_test "
-                    "— list their tests in `tests`, without repeat: the number of tests "
-                    "must be known"
-                )
 
     for idea_id, entries in groups_by_id.items():
         for (first, first_groups), (second, second_groups) in _pairs(entries):
@@ -193,10 +186,6 @@ def _check_generators(generators: Any, errors: list[str]) -> dict[str, dict[str,
         )
         _check_status(generator.get("status"), where, errors)
     return params_by_generator
-
-
-def _each_test_names(limits: _Limits) -> set[str]:
-    return {group.name for group in limits.groups or [] if group.points_policy == EACH_TEST}
 
 
 def _group_names(limits: _Limits) -> list[str]:
@@ -591,7 +580,7 @@ def _each_test_count_errors(
     for group in limits.groups or []:
         total = totals.get(group.name)
         if total is None:
-            continue  # not each_test, or a kept block with repeat: the plan's check says so
+            continue  # not each_test, or a loop (`repeat`): counted once the script is expanded
         error = each_test_count_error(group.name, group.points or 0, total)
         if error:
             from_kept = kept_counts.get(group.name) or 0

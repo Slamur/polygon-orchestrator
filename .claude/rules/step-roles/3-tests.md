@@ -69,8 +69,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      group (`{n.lo}` of a group whose dependencies already take `n` up to its max — an
      error), groups exist (not `0`), entries of one idea take disjoint groups, every group
      gets tests, an `each_test` group (`points_policy`) gets a number of tests dividing its
-     points — counting the kept blocks for wrong solutions — and no entry with `repeat`
-     (its count must be known); anything wrong — the response is a conflict. Why: every
+     points — counting the kept blocks for wrong solutions; a group with a loop
+     (`repeat`) isn't counted here, its count is checked once the script is expanded
+     (`test_script_draft`, `run_tests`) — anything wrong — the response is a conflict. Why: every
      test of an `each_test` group is worth the same whole number of points, and fitting the
      count is what the model gets wrong — so the request lists the allowed numbers of tests
      of each such group (`tests_design.each_test_targets`) and the check says which

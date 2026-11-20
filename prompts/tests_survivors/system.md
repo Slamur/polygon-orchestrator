@@ -45,7 +45,7 @@ What to do for EACH surviving solution:
    must stay a divisor of its points: the request lists, for each such group, how many
    tests it has and the numbers it may grow to. Adding tests to such a group, add as many
    as it takes to reach one of them (e.g. the catching test and a few variations of it —
-   other seeds or sizes), and list them as commands, without `repeat`.
+   other seeds or sizes).
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and

@@ -265,19 +265,16 @@ def each_test_counts(
 
 
 def each_test_errors(plan: dict[str, Any], groups: list[TestGroupHint] | None) -> list[str]:
-    """Why the plan's tests don't fit its `each_test` groups: a loop (`repeat`) in such a
-    group, or a number of tests that doesn't divide the group's points
-    (`test_groups.each_test_count_error`)."""
+    """Why the plan's tests don't fit its `each_test` groups: a number of tests that doesn't
+    divide the group's points (`test_groups.each_test_count_error`). A group with a loop
+    (`repeat`) isn't checked here: its tests are counted once the script is expanded
+    (`test_script_draft`, `run_tests`)."""
     from orchestrator.test_groups import each_test_count_error
 
     points = {group.name: group.points or 0 for group in groups or []}
     errors = []
     for name, count in each_test_counts(list(plan.get("tests") or []), groups).items():
         if count is None:
-            errors.append(
-                f"test group {name} has points_policy each_test: its blocks list their "
-                "commands, without repeat — the number of its tests must be known"
-            )
             continue
         error = each_test_count_error(name, points[name], count)
         if error:

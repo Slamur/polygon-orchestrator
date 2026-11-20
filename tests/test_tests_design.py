@@ -343,13 +343,10 @@ def test_each_test_count_includes_the_kept_tests_for_wrong_solutions():
         )
 
 
-def test_repeat_is_rejected_in_an_each_test_group():
+def test_repeat_in_an_each_test_group_is_counted_after_the_script_is_expanded():
+    # A loop's number of tests isn't known in the design: the plan isn't rejected for it,
+    # the expanded script's lines are counted (`check_script_groups`, `run_tests`).
     ideas = [_idea(["gen_equal -n=n"], repeat="n = {n.min}..{n.max}")]
 
-    with pytest.raises(
-        TestsDesignError, match=r"repeat: test group\(s\) \['2'\] have points_policy"
-    ):
-        parse_tests_design(_design(ideas), parse_limits(EACH_TEST_CONSTRAINTS))
-
-    # In complete_group groups a loop is still fine.
-    parse_tests_design(_design(ideas), parse_limits(CONSTRAINTS))
+    parse_tests_design(_design(ideas), parse_limits(EACH_TEST_CONSTRAINTS))
+    _build(ideas, constraints=EACH_TEST_CONSTRAINTS)

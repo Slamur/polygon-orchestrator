@@ -116,9 +116,11 @@ How the design's tests work:
   into it — every template of an entry is one test in each of its groups — and pick one of
   the allowed numbers that suits the group: drop the weakest of your own ideas or add
   variations of the strongest ones (other sizes, structures, seeds) until the count
-  matches; don't split one check into near-identical tests just to fill the count. Entries
-  going into such a group list their tests in `tests`, without `repeat`. The orchestrator
-  counts the tests and rejects a design whose count doesn't fit.
+  matches; don't split one check into near-identical tests just to fill the count. An
+  entry with `repeat` going into such a group gives as many tests as its loop runs times
+  the templates — pick the range so the total fits. The orchestrator counts the tests and
+  rejects a design whose count doesn't fit; with `repeat` the count is checked once the
+  test script is expanded.
 
 This is the base design of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
