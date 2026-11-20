@@ -44,6 +44,15 @@ script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat
 
 ## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
+{% if each_test_groups %}
+
+## Groups with points for each test (points_policy: each_test)
+Every test of such a group is worth the same whole number of points, so the number of its
+tests must divide its points.
+{% for g in each_test_groups %}
+- group {{ g.name }}: {{ g.points }} points; the number of its tests may be {{ g.allowed | join(", ") }}{% if g.kept %} — counting the {{ g.kept }} test(s) the plan keeps in it for wrong solutions, so your design gives it that many fewer{% endif %}
+{% endfor %}
+{% endif %}
 {% if tests_run %}
 
 ## The local generation of the tests failed

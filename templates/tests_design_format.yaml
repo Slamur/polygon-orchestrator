@@ -57,6 +57,8 @@ ideas:                          # the tests, in generation order within each gro
       - "<gen_x -n={n.max} -k=1 | upd_y>"
       - "<gen_x -n={n.max / 2} -minA={a.lo}>"
     repeat: "<if the entry is a loop: over which values, e.g. n = {n.min}..{n.max} | null>"
+                                # never in a group with points_policy each_test: the number of its
+                                # tests must be known and divide its points
     rationale: |                # only with status: proposed | suggestion
       <why such tests, parameters and groups>
 

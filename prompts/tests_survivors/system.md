@@ -40,7 +40,12 @@ What to do for EACH surviving solution:
    list of names, as in the current plan) — the groups whose limits allow the input that
    catches the solution; the commands don't carry `-group`, the script adds it. For a
    solution the request lists with groups it passes, the tests go into exactly these
-   groups (each of them), within their limits.
+   groups (each of them), within their limits. A group with `points_policy: each_test`
+   gives points for each passed test, every test worth the same, so its number of tests
+   must stay a divisor of its points: the request lists, for each such group, how many
+   tests it has and the numbers it may grow to. Adding tests to such a group, add as many
+   as it takes to reach one of them (e.g. the catching test and a few variations of it —
+   other seeds or sizes), and list them as commands, without `repeat`.
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and

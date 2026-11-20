@@ -322,3 +322,18 @@ def test_compute_input_hash_ignores_languages_and_limits(spec):
     assert _hash(other_languages) == _hash(spec)
     assert _hash(spec, other_tl) == _hash(spec)
     assert _hash(spec, {"constraints.yaml": "n_max: 5\n"}) != _hash(spec)
+
+
+def test_prompt_lists_the_allowed_numbers_of_tests_of_each_test_groups(spec, tmp_path):
+    constraints = (
+        "variables:\n  - {name: n, min: 1, max: 100000, description: x}\n"
+        "test_groups:\n"
+        '  - name: "1"\n    points: 12\n    points_policy: each_test\n'
+        '  - name: "2"\n    points: 88\n'
+    )
+
+    _, mock_call = _run(spec, tmp_path, upstream={"constraints.yaml": constraints})
+
+    user_prompt = mock_call.call_args.args[2]
+    assert "- group 1: 12 points; the number of its tests may be 1, 2, 3, 4, 6, 12" in user_prompt
+    assert "group 2:" not in user_prompt

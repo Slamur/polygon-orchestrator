@@ -28,6 +28,14 @@ The inputs of the statement's examples (the generated tests are printed in exact
 The problem's TL (limits.yaml): {{ time_limit_seconds }}s.
 {% endif %}
 
+{% if each_test_groups %}
+## Groups with points for each test (points_policy: each_test)
+The number of tests of such a group must divide its points.
+{% for g in each_test_groups %}
+- group {{ g.name }}: {{ g.points }} points, {% if g.count is none %}a loop (`repeat`) in the current plan{% else %}{{ g.count }} test(s) now{% endif %}; it may grow to {{ g.allowed | join(", ") }} test(s)
+{% endfor %}
+
+{% endif %}
 ## The current plan (authoring/tests_plan.yaml) — keep it, only add
 ~~~yaml
 {{ plan }}

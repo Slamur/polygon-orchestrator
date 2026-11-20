@@ -711,6 +711,15 @@ How the design's tests work:
   The templates don't carry `-group`: the script adds `-group=<the group>` to each line
   itself. The distribution of tests over groups that the spec doesn't set is your
   decision: `status: proposed` with a justification.
+- A group with `points_policy: each_test` gives points for each passed test, every test
+  worth the same, so the number of its tests must divide its points (the request lists
+  the allowed numbers for each such group). Count its tests over all the entries that go
+  into it — every template of an entry is one test in each of its groups — and pick one of
+  the allowed numbers that suits the group: drop the weakest of your own ideas or add
+  variations of the strongest ones (other sizes, structures, seeds) until the count
+  matches; don't split one check into near-identical tests just to fill the count. Entries
+  going into such a group list their tests in `tests`, without `repeat`. The orchestrator
+  counts the tests and rejects a design whose count doesn't fit.
 
 This is the base design of the problem. Tests aimed at particular wrong solutions
 (an off-by-one, a too slow algorithm) are NOT designed here: the solutions are run
@@ -815,6 +824,15 @@ script_style: {{ generation.script_style }} (`groups` — tests by groups, `flat
 
 ## Fixed limits and test groups (the result of the constraints_pick step)
 {{ constraints_yaml }}
+{% if each_test_groups %}
+
+## Groups with points for each test (points_policy: each_test)
+Every test of such a group is worth the same whole number of points, so the number of its
+tests must divide its points.
+{% for g in each_test_groups %}
+- group {{ g.name }}: {{ g.points }} points; the number of its tests may be {{ g.allowed | join(", ") }}{% if g.kept %} — counting the {{ g.kept }} test(s) the plan keeps in it for wrong solutions, so your design gives it that many fewer{% endif %}
+{% endfor %}
+{% endif %}
 {% if tests_run %}
 
 ## The local generation of the tests failed
@@ -1576,7 +1594,12 @@ What to do for EACH surviving solution:
    list of names, as in the current plan) — the groups whose limits allow the input that
    catches the solution; the commands don't carry `-group`, the script adds it. For a
    solution the request lists with groups it passes, the tests go into exactly these
-   groups (each of them), within their limits.
+   groups (each of them), within their limits. A group with `points_policy: each_test`
+   gives points for each passed test, every test worth the same, so its number of tests
+   must stay a divisor of its points: the request lists, for each such group, how many
+   tests it has and the numbers it may grow to. Adding tests to such a group, add as many
+   as it takes to reach one of them (e.g. the catching test and a few variations of it —
+   other seeds or sizes), and list them as commands, without `repeat`.
 4. The block refers to the solution in `covers` — `solutions/<file name>`; a block may
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and
@@ -1630,6 +1653,14 @@ The inputs of the statement's examples (the generated tests are printed in exact
 The problem's TL (limits.yaml): {{ time_limit_seconds }}s.
 {% endif %}
 
+{% if each_test_groups %}
+## Groups with points for each test (points_policy: each_test)
+The number of tests of such a group must divide its points.
+{% for g in each_test_groups %}
+- group {{ g.name }}: {{ g.points }} points, {% if g.count is none %}a loop (`repeat`) in the current plan{% else %}{{ g.count }} test(s) now{% endif %}; it may grow to {{ g.allowed | join(", ") }} test(s)
+{% endfor %}
+
+{% endif %}
 ## The current plan (authoring/tests_plan.yaml) — keep it, only add
 ~~~yaml
 {{ plan }}

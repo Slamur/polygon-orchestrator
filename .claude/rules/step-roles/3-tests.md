@@ -68,7 +68,13 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      read every parameter with `opt<T>`, testlib fails on a missing one), formulas refer to known variables and compute for every
      group (`{n.lo}` of a group whose dependencies already take `n` up to its max — an
      error), groups exist (not `0`), entries of one idea take disjoint groups, every group
-     gets tests; anything wrong — the response is a conflict. The orchestrator reports
+     gets tests, an `each_test` group (`points_policy`) gets a number of tests dividing its
+     points — counting the kept blocks for wrong solutions — and no entry with `repeat`
+     (its count must be known); anything wrong — the response is a conflict. Why: every
+     test of an `each_test` group is worth the same whole number of points, and fitting the
+     count is what the model gets wrong — so the request lists the allowed numbers of tests
+     of each such group (`tests_design.each_test_targets`) and the check says which
+     numbers fit. The orchestrator reports
      with `uncovered` notes the `specific_test_ideas` items not covered by any block, and
      generators without tests. The design is the
      base one: the author's generators (`generator_ideas`, `status: confirmed`),
@@ -144,7 +150,10 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      them again; some of them caught — the rest are a new input. Output: the same
      `authoring/tests_plan.yaml` with new blocks (`covers: solutions/<name>`, `status:
      proposed`) and new generators; the current plan must stay as is
-     (`tests_plan.check_plan_extends`, otherwise nothing is applied), and its entries are
+     (`tests_plan.check_plan_extends`, otherwise nothing is applied), an `each_test`
+     group's number of tests stays a divisor of its points (`tests_plan.each_test_errors`:
+     the request lists each such group's count and the larger numbers it may grow to, so
+     a test for a survivor comes with variations up to the next one), and its entries are
      written back exactly as they were (`keep_current_entries`), so that the kept
      generators stay cache hits of `generators_draft`. A survivor no block refers to, or
      an uncaught group of it that no block referring to it is in — an `uncovered` note; a solution the model can't catch (it may be correct) — an

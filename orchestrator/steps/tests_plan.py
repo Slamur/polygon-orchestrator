@@ -37,7 +37,7 @@ from orchestrator.problem_paths import (
     authoring_path,
 )
 from orchestrator.references import reference_documents
-from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
+from orchestrator.spec import EACH_TEST, SPEC_REFERENCES_FIELD, ProblemSpec, TestGroupHint
 from orchestrator.steps.base import (
     CONSTRAINTS_ARTIFACT,
     PROBLEMS_DIR,
@@ -236,6 +236,55 @@ def check_plan_extends(old: dict[str, Any], new: dict[str, Any]) -> None:
         )
 
 
+def block_groups(block: dict[str, Any]) -> list[str]:
+    """The groups of a plan's test block: `group` — a name or a list of names."""
+    group = block.get("group")
+    if isinstance(group, list):
+        return [str(name) for name in group]
+    return [str(group)] if group is not None else []
+
+
+def each_test_counts(
+    blocks: list[dict[str, Any]], groups: list[TestGroupHint] | None
+) -> dict[str, int | None]:
+    """Group name -> the number of tests `blocks` put into it, for the `each_test` groups
+    (`points_policy`); `None` — a block of the group is a loop (`repeat`): its number of
+    tests isn't known before the script is expanded."""
+    counts: dict[str, int | None] = {
+        group.name: 0 for group in groups or [] if group.points_policy == EACH_TEST
+    }
+    for block in blocks:
+        for name in block_groups(block):
+            if name not in counts or counts[name] is None:
+                continue
+            if block.get("repeat"):
+                counts[name] = None
+            else:
+                counts[name] += len(block.get("commands") or [])
+    return counts
+
+
+def each_test_errors(plan: dict[str, Any], groups: list[TestGroupHint] | None) -> list[str]:
+    """Why the plan's tests don't fit its `each_test` groups: a loop (`repeat`) in such a
+    group, or a number of tests that doesn't divide the group's points
+    (`test_groups.each_test_count_error`)."""
+    from orchestrator.test_groups import each_test_count_error
+
+    points = {group.name: group.points or 0 for group in groups or []}
+    errors = []
+    for name, count in each_test_counts(list(plan.get("tests") or []), groups).items():
+        if count is None:
+            errors.append(
+                f"test group {name} has points_policy each_test: its blocks list their "
+                "commands, without repeat — the number of its tests must be known"
+            )
+            continue
+        error = each_test_count_error(name, points[name], count)
+        if error:
+            errors.append(error)
+    return errors
+
+
 def plan_generators(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return list(plan.get("generators") or [])
 
@@ -430,6 +479,19 @@ def _current_plan_text(plan_path: Path) -> str | None:
     return plan_path.read_text(encoding="utf-8") if plan_path.is_file() else None
 
 
+def _each_test_targets(constraints_yaml: str, plan_text: str | None) -> list[dict[str, Any]]:
+    """The `each_test` groups for the prompt (`tests_design.each_test_targets`); limits
+    that can't be read — none (the design's check reports them)."""
+    from orchestrator.steps.tests_design import TestsDesignError, each_test_targets, parse_limits
+
+    try:
+        limits = parse_limits(constraints_yaml)
+        plan = yaml.safe_load(plan_text) if plan_text else None
+    except (TestsDesignError, yaml.YAMLError):
+        return []
+    return each_test_targets(limits, plan if isinstance(plan, dict) else None)
+
+
 def _derive(
     spec: ProblemSpec, constraints_yaml: str, plan_path: Path
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
@@ -476,17 +538,17 @@ def run_step(
     from orchestrator.steps.tests_design import plan_from_design
 
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
+    plan_path = primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
+    plan_constraints = constraints_without_limits(constraints_yaml)
     context = {
         "problem_id": spec.problem_id,
         **_build_context_sections(spec),
-        "constraints_yaml": constraints_without_limits(constraints_yaml),
+        "constraints_yaml": plan_constraints,
         "tests_run": _tests_run(upstream_artifacts),
+        "each_test_groups": _each_test_targets(plan_constraints, _current_plan_text(plan_path)),
     }
     input_hash = compute_input_hash(problem_id, spec, upstream_artifacts)
     input_values = compute_input_values(*hash_inputs(problem_id, spec, upstream_artifacts))
-
-    plan_path = primary_artifact_path(problem_id, spec, problems_dir=problems_dir)
-    plan_constraints = constraints_without_limits(constraints_yaml)
 
     def resolve_artifact_path(filename: str) -> Path:
         if filename == TESTS_PLAN_ARTIFACT:
