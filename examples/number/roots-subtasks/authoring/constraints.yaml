@@ -36,6 +36,7 @@ test_groups:
     variables: {N: {max: 10}}
     special_property: null
     points: 10
+    points_policy: each_test
     dependencies: []
     feedback_policy: icpc
     status: confirmed

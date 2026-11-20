@@ -1,7 +1,9 @@
 The problem is scored out of 100 points (the problem consists of subtasks).
 
 Points for a subtask are awarded only if all tests of this subtask
-and of the necessary subtasks are passed.
+and of the necessary subtasks are passed. The exception is the subtasks marked ``points per test'':
+their points are split equally among their tests and awarded for each passed test,
+if all tests of the necessary subtasks are passed.
 
 \begin{center}
 \renewcommand{\arraystretch}{1.3}
@@ -13,7 +15,7 @@ and of the necessary subtasks are passed.
 \parbox{3cm}{\textbf{\centering\\Necessary\\subtasks\\\vspace{2mm}}} &
 \parbox{3cm}{\textbf{\centering\\Verification\\information\\\vspace{2mm}}}
 \\ \hline
-1 & 10 & \centering $N \le 10$ &  & first error \\
+1 & 10 & \centering $N \le 10$ &  & first error; points per test \\
 \hline
 2 & 15 & \centering $N \le 10^3$ & 1 & first error \\
 \hline
