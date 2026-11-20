@@ -242,7 +242,7 @@ If the user prompt has a "Test groups (subtasks)" section — the problem has
 subtasks, and you're also given scoring.md (its rules are mandatory just like
 statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
 the subtasks table by scoring.md, strictly by the given groups — their order, points,
-dependencies, feedback policy and variable bounds as is. Don't make up what the author
+dependencies, feedback and points policies and variable bounds as is. Don't make up what the author
 didn't set: a group without points — `uncertain` with the field
 (`constraints.test_groups_hint[i].points`).
 
@@ -300,7 +300,7 @@ the solution.
 The problem has subtasks (the rules of the Scoring block — scoring.md). The groups as the
 author set them, in order (None — not set):
 {% for g in statement_draft.test_groups %}
-- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}
+- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}; points_policy {{ g.points_policy }}
 {% endfor %}
 
 The problem's variables (a subtask's `variables` narrow their bounds):

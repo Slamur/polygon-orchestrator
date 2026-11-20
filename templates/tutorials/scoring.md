@@ -6,21 +6,26 @@
   and what the contestant sees about its tests.
 
 - The points of a subtask are awarded only if all tests of this subtask and of all
-  its necessary subtasks are passed. The statement examples (subtask 0) are worth no
+  its necessary subtasks are passed (`points_policy: complete_group`, the default).
+  A subtask with `points_policy: each_test` is the exception: its points are split
+  equally among its tests and awarded for each passed test, if all tests of its
+  necessary subtasks are passed. The statement examples (subtask 0) are worth no
   points and aren't in the table.
 
 ## The block's structure
 
 - A sentence with the total of the points (the sum of all subtasks), a paragraph about
-  the "all tests of the subtask and of the necessary subtasks" rule, then a table — one
-  row per subtask in the order of the subtasks, five columns:
+  the "all tests of the subtask and of the necessary subtasks" rule (with `each_test`
+  subtasks — the paragraph for them, see below), then a table — one row per subtask in
+  the order of the subtasks, five columns:
 
   1. the subtask's name (its number);
   2. its points — exactly as the author set them;
   3. its extra constraints;
   4. its necessary subtasks — the names from its `dependencies`, comma-separated,
      the cell is empty if there are none;
-  5. what a contestant sees about the subtask's tests (its `feedback_policy`).
+  5. what a contestant sees about the subtask's tests (its `feedback_policy`); for an
+     `each_test` subtask followed by "; points per test" ("; баллы за каждый тест").
 
 - The cells of a row are separated by `&`, a row ends with `\\` and is followed by `\hline`.
   Numbers in the cells are plain: the name and the points — digits only, without
@@ -50,6 +55,24 @@
   | `none` | none | нет |
 
   In another language — a translation of the English one.
+
+- With `each_test` subtasks the paragraph after the total says how they are scored; the
+  number of points per test isn't written (the number of tests isn't known yet):
+
+  - some subtasks `each_test`: after the "all tests" sentence — "The exception is the
+    subtasks marked "points per test": their points are split equally among their tests
+    and awarded for each passed test, if all tests of the necessary subtasks are passed."
+    ("Исключение — подзадачи с пометкой «баллы за каждый тест»: их баллы делятся поровну
+    между тестами подзадачи и начисляются за каждый пройденный тест, если все тесты
+    необходимых подзадач успешно пройдены.");
+  - every subtask `each_test`: instead of the "all tests" sentence — "The points of each
+    subtask are split equally among its tests and awarded for each passed test, if all
+    tests of the necessary subtasks are passed." ("Баллы за каждую подзадачу делятся
+    поровну между её тестами и начисляются за каждый пройденный тест, если все тесты
+    необходимых подзадач успешно пройдены.").
+
+  A row of an `each_test` subtask: `2 & 15 & \centering $N \le 10^3$ & 1 & первая ошибка;
+  баллы за каждый тест \\`.
 
 ## The sample (a Russian statement, an English one — the same with English words)
 

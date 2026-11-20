@@ -99,7 +99,7 @@ If the user prompt has a "Test groups (subtasks)" section — the problem has
 subtasks, and you're also given scoring.md (its rules are mandatory just like
 statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
 the subtasks table by scoring.md, strictly by the given groups — their order, points,
-dependencies, feedback policy and variable bounds as is. Don't make up what the author
+dependencies, feedback and points policies and variable bounds as is. Don't make up what the author
 didn't set: a group without points — `uncertain` with the field
 (`constraints.test_groups_hint[i].points`).
 

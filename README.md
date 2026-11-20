@@ -317,8 +317,9 @@ orchestrator problems/my-task polygon push   # create the problem on Polygon and
 Then — tests, the package and checking solutions in Polygon by hand. If you edited
 the problem in Polygon — `polygon pull` before the next `push`.
 
-A problem with subtasks (`test_groups` in `authoring/constraints.yaml`; a group's `points_policy` — `complete_group`, the points for all its tests, or `each_test`, for each passed test, see `docs/SPEC_FORMAT.md`): the spec needs
-`script_style: "groups"`. `llm generate` doesn't write a `constraints.yaml` whose groups
+A problem with subtasks (`test_groups` in `authoring/constraints.yaml`; a group's
+`points_policy` — `complete_group`, the points for all its tests, or `each_test`, for
+each passed test, see `docs/SPEC_FORMAT.md`): the spec needs `script_style: "groups"`. `llm generate` doesn't write a `constraints.yaml` whose groups
 are invalid (unknown or later dependencies, points not summing to 100, `validator.groups`
 of unknown groups) or a test-script with a line without `-group=<N>` of a known group, a
 group without lines or an `each_test` group whose number of lines doesn't divide its
