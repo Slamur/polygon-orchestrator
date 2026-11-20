@@ -53,6 +53,7 @@ constraints:
     - name: "1"
       variables: {N: {max: 10}}
       points: 10
+      points_policy: "each_test"
       feedback_policy: "icpc"
     - name: "2"
       variables: {N: {max: 1000}}
