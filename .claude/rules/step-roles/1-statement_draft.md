@@ -55,8 +55,10 @@ Other languages' tables are the author's — `local check` reports them
 `statement/<language>/scoring.tex` from the groups of `constraints.yaml` (name, points,
 dependencies, `feedback_policy`, `points_policy`), `authoring/scoring.yaml` and the number of
 tests of each group, which a passed `run_tests` records in its report (`group_counts`):
-the total (with the Russian plural), the paragraph on how the subtasks are scored (all
-`complete_group`, all `each_test`, mixed — three fixed texts per language), the header
+the total (with the Russian plural), the paragraph on how the subtasks are scored (when a
+subtask is tested, then an item for every value of the last column the table uses, in the
+order of the rows: a `complete_group` value — its points only if all its tests are passed,
+"points per test" — each test scored independently), the header
 and a row per group — the name; the points, for an `each_test` group with the points of
 one test in parentheses (`30 (2)`); the constraints cell or "No additional constraints";
 the necessary subtasks; the last column by `feedback_policy` (`icpc` — "first error", ...)

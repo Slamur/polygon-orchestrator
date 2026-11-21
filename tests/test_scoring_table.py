@@ -32,7 +32,15 @@ def test_complete_group_table():
     groups = [_group("1", 40), _group("2", 60, deps=["1"], feedback="points")]
     table = render_scoring("en", groups, {"1": "$N \\le 10$", "2": None}, {})
     assert table.startswith("The problem is scored out of 100 points")
-    assert "Points for a subtask are awarded only if all tests" in table
+    assert "A subtask is tested if all tests of the necessary subtasks are passed." in table
+    assert (
+        "\\begin{itemize}\n"
+        "\\item ``first error''~--- the subtask's points are awarded only if all tests of "
+        "this subtask are passed;\n"
+        "\\item ``points only''~--- the subtask's points are awarded only if all tests of "
+        "this subtask are passed.\n"
+        "\\end{itemize}"
+    ) in table
     assert "1 & 40 & \\centering $N \\le 10$ &  & first error \\\\\n\\hline" in table
     assert "2 & 60 & \\centering No additional constraints & 1 & points only \\\\" in table
     assert "points per test" not in table
@@ -43,6 +51,8 @@ def test_each_test_points_come_with_the_points_of_one_test():
     table = render_scoring("ru", groups, {"1": "$N \\le 10$", "2": None}, {"1": 15, "2": 7})
     assert "Задача оценивается в 100 баллов" in table
     assert "Подзадача проверяется, если пройдены все тесты необходимых подзадач." in table
+    assert table.count("\\item") == 1
+    assert "\\item <<баллы за каждый тест>>~--- каждый тест подзадачи оценивается" in table
     assert "1 & 30 (2) & \\centering $N \\le 10$ &  & баллы за каждый тест \\\\" in table
     assert (
         "2 & 70 (10) & \\centering Без дополнительных ограничений & 1 & баллы за каждый тест"
@@ -54,7 +64,9 @@ def test_each_test_points_come_with_the_points_of_one_test():
 def test_mixed_policies_explain_the_each_test_subtasks():
     groups = [_group("1", 20, "each_test"), _group("2", 80)]
     table = render_scoring("en", groups, {"1": None, "2": None}, {"1": 4})
-    assert "The exception is the subtasks marked ``points per test''" in table
+    assert "\\item ``points per test''~--- each test of the subtask is scored" in table
+    assert "\\item ``first error''~--- the subtask's points are awarded only if" in table
+    assert table.index("``points per test''~---") < table.index("``first error''~---")
     assert "1 & 20 (5) &" in table
     assert "2 & 80 &" in table and "& first error \\\\" in table
 
