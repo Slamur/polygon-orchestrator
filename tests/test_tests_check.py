@@ -43,7 +43,7 @@ def problem_dir(tmp_path):
 
 def _stub(monkeypatch, *issues, warnings=()):
     monkeypatch.setattr(
-        tests_check, "_run", lambda *args, **kwargs: (list(issues), list(warnings), 3)
+        tests_check, "_run", lambda *args, **kwargs: (list(issues), list(warnings), {None: 3})
     )
 
 
@@ -81,6 +81,24 @@ def test_passing_run_records_a_confirmed_entry(spec, problem_dir, monkeypatch):
     entry = load_cache_entry(PROBLEM_ID, "run_tests", problems_dir=problem_dir.parent)
     assert entry.status == "confirmed"
     assert _routed(problem_dir) == {step: [] for step in REVISING_STEPS}
+
+
+def test_report_keeps_the_tests_per_group_of_a_passed_run_only(spec, problem_dir, monkeypatch):
+    from orchestrator.steps.solutions_check import load_run_report
+
+    counts = {"1": 10, "2": 5, None: 1}
+    monkeypatch.setattr(tests_check, "_run", lambda *args, **kwargs: ([], [], counts))
+    result = _run_gate(spec, problem_dir)
+    assert "16 test(s) generated" in result.notes[0]["explanation"]
+    report = load_run_report(PROBLEM_ID, "run_tests", problems_dir=problem_dir.parent)
+    assert report["group_counts"] == {"1": 10, "2": 5}
+
+    issue = Issue(ISSUE_SCRIPT, "broken", "gen_rand > $", 1)
+    monkeypatch.setattr(tests_check, "_run", lambda *args, **kwargs: ([issue], [], counts))
+    with pytest.raises(GateFailedError):
+        _run_gate(spec, problem_dir)
+    report = load_run_report(PROBLEM_ID, "run_tests", problems_dir=problem_dir.parent)
+    assert "group_counts" not in report
 
 
 @pytest.mark.parametrize(

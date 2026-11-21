@@ -21,7 +21,8 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   table `statement/<code>/scoring.tex` against `test_groups` of `constraints.yaml`
   (`orchestrator/checks/scoring_check.py`): with groups — the file in every statement
   language, a row per group in their order (a row of group 0 with 0 points is allowed),
-  the points, each numeric `min`/`max` of the group's `variables` and of its
+  the points (an `each_test` group's may be followed by the points of one test,
+  `30 (2)`, which must divide them; on a `complete_group` group — an error), each numeric `min`/`max` of the group's `variables` and of its
   `validator.groups` constants among the numbers of its constraints cell (`10^{12}`, `2 \cdot 10^5`), the necessary
   subtasks = `dependencies`; without groups in an existing `constraints.yaml` — a
   `scoring.tex` is an error; the feedback column and the text of the

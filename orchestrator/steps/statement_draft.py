@@ -12,7 +12,9 @@ from typing import Any
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.cache import compute_input_values
 from orchestrator.model_contracts import ModelResponse
+from orchestrator.problem_paths import authoring_path
 from orchestrator.references import reference_documents
+from orchestrator.scoring_table import SCORING_TEXTS_FILENAME, parse_scoring_texts
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.statement_languages import (
     EXAMPLES_DIRNAME,
@@ -58,20 +60,23 @@ _DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$
 
 
 # A problem with test groups (subtasks) — a non-empty `constraints.test_groups_hint` in the
-# spec: the step also writes the Scoring block — the subtasks table — by the rules of
-# `SCORING_TUTORIAL` (attached only then, so editing it doesn't touch the statement cache
-# of problems without groups). Its source is the spec's hint, not `constraints.yaml`: the
-# step runs before `constraints_pick`. Groups wanted without a hint (`test_groups_needed`)
-# stop the step as `uncertain` before the model is called (`_check_groups_are_set`): the
-# points and the subtasks of the published table are the author's. A spec without groups
-# — the step's `scoring.tex` from an earlier run is marked `.removed`.
+# spec: the step also writes the constraints cell of each subtask of the Scoring block's
+# table — `authoring/scoring.yaml` (`SCORING_TEXTS`), by the rules of `SCORING_TUTORIAL`
+# (attached only then, so editing it doesn't touch the statement cache of problems without
+# groups). The rest of the table follows from the groups and the tests: the mechanical
+# `scoring_table` step assembles `scoring.tex` after `run_tests`. Groups wanted without a
+# hint (`test_groups_needed`) stop the step as `uncertain` before the model is called
+# (`_check_groups_are_set`): the points and the subtasks of the published table are the
+# author's. A spec without groups — `scoring.yaml` and `scoring.tex` of an earlier run are
+# marked `.removed`.
+SCORING_TEXTS = SCORING_TEXTS_FILENAME
 SCORING_FILE = "scoring.tex"
 SCORING_TUTORIAL = "tutorials/scoring.md"
 GROUPS_HINT_FIELD = "constraints.test_groups_hint"
 
 
 def has_test_groups(spec: ProblemSpec) -> bool:
-    """The spec gives test groups: the step writes `scoring.tex`."""
+    """The spec gives test groups: the step writes `scoring.yaml`."""
     return bool(spec.constraints.test_groups_hint)
 
 
@@ -118,7 +123,7 @@ def _expected_artifact_names(spec: ProblemSpec) -> set[str]:
     n = len(spec.statement_draft.sample_examples)
     names = set(_FIXED_STATEMENT_FILES) | {f"examples/example_{i}.txt" for i in range(1, n + 1)}
     if has_test_groups(spec):
-        names.add(SCORING_FILE)
+        names.add(SCORING_TEXTS)
     if spec.interactive:
         names.add(INTERACTION_FILE)
         for i in range(1, n + 1):
@@ -187,18 +192,28 @@ def _stale_example_inputs(
 
 
 def _stale_scoring(problem_id: str, spec: ProblemSpec, *, problems_dir: Path) -> dict[str, Path]:
-    """`scoring.tex` in the generation language's directory while the spec has no test
-    groups (they were dropped from it) — it'll be marked `.removed`. Other languages'
-    tables are the author's: `local check` reports them."""
+    """`scoring.yaml` and the generation language's `scoring.tex` while the spec has no
+    test groups (they were dropped from it) — they'll be marked `.removed`. Other
+    languages' tables are the author's: `local check` reports them."""
     if has_test_groups(spec):
         return {}
-    path = artifact_path(problem_id, spec, SCORING_FILE, problems_dir=problems_dir)
-    return {SCORING_FILE: path} if path.is_file() else {}
+    candidates = {
+        name: artifact_path(problem_id, spec, name, problems_dir=problems_dir)
+        for name in (SCORING_TEXTS, SCORING_FILE)
+    }
+    return {name: path for name, path in candidates.items() if path.is_file()}
 
 
-def _validate_statement_artifacts(expected: set[str]) -> Callable[[dict[str, str]], None]:
+def _validate_statement_artifacts(
+    expected: set[str], spec: ProblemSpec
+) -> Callable[[dict[str, str]], None]:
+    """The set of names; `scoring.yaml` — a constraints cell of exactly the spec's groups."""
+    group_names = [group.name for group in spec.constraints.test_groups_hint or []]
+
     def _validate(artifacts: dict[str, str]) -> None:
         check_artifact_names(STEP_NAME, expected, artifacts)
+        if SCORING_TEXTS in artifacts:
+            parse_scoring_texts(artifacts[SCORING_TEXTS], group_names)
 
     return _validate
 
@@ -249,7 +264,10 @@ def artifact_path(
     problem_id: str, spec: ProblemSpec, filename: str, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
     """The path of the step's artifact by its name in the model's response: `examples/...` —
-    in the shared `statement/examples/`, tex files — in the generation language's directory."""
+    in the shared `statement/examples/`, `scoring.yaml` — in `authoring/`, tex files — in
+    the generation language's directory."""
+    if filename == SCORING_TEXTS:
+        return authoring_path(Path(problems_dir) / problem_id, SCORING_TEXTS)
     if filename.startswith(f"{EXAMPLES_DIRNAME}/"):
         return Path(problems_dir) / problem_id / STATEMENT_SUBDIR / filename
     return language_dir(problem_id, spec, problems_dir=problems_dir) / filename
@@ -260,8 +278,7 @@ def current_artifacts(
 ) -> dict[str, Path]:
     """The step's current files on disk: artifact name (as the
     model would return it) -> path — for revision mode (`base.StepRevision`).
-    The 4 tex files, `scoring.tex` — only for a problem with test groups (otherwise it's
-    the author's), `interaction.tex` and the examples' dialogues
+    The 4 tex files, `scoring.yaml` — only for a problem with test groups, `interaction.tex` and the examples' dialogues
     `examples/example_<N>.{input,output}_for_statement.txt` (by ascending
     N) — only for an interactive problem: for a normal one these are the author's input/output for
     statements. Not the model's artifacts: `examples/example_<N>.txt` (they're
@@ -271,7 +288,7 @@ def current_artifacts(
     pull` or the `tutorial_draft` step)."""
     names = [*_FIXED_STATEMENT_FILES, INTERACTION_FILE]
     if has_test_groups(spec):
-        names.append(SCORING_FILE)
+        names.append(SCORING_TEXTS)
     candidates = {
         name: artifact_path(problem_id, spec, name, problems_dir=problems_dir) for name in names
     }
@@ -324,7 +341,7 @@ def run_step(
     drafts, the indexing, `sample_examples`, `known_ambiguities`,
     `preserve_legend_verbatim`); a problem with test groups — also
     `constraints.test_groups_hint` and the variables' names and descriptions, for
-    `scoring.tex` (`_groups_input`) — nothing else from the spec is passed to this step.
+    `scoring.yaml` (`_groups_input`) — nothing else from the spec is passed to this step.
     `context` is built from the `model_dump()` of the whole section, so
     new fields of the section (like `preserve_legend_verbatim`) automatically
     get into both the prompt and `input_hash` — they don't need to be passed here
@@ -347,7 +364,8 @@ def run_step(
     (`spec.interactive`) — also `interaction.tex` (the interaction protocol)
     and the dialogue of each example (`example_<N>.input_for_statement.txt`,
     `example_<N>.output_for_statement.txt`); for a problem with test groups — also
-    `scoring.tex` (the Scoring block, the subtasks table). The set of file names from the model's
+    `authoring/scoring.yaml` (the constraints cell of each subtask of the Scoring block's
+    table; the table itself is assembled by `scoring_table`). The set of file names from the model's
     response is checked BEFORE writing to disk (`_validate_statement_artifacts`):
     missing files are requested from the model once more, and if they are still
     missing or there are extra ones — the response isn't applied at all (a conflict), not a single
@@ -389,7 +407,7 @@ def run_step(
         problems_dir=problems_dir,
         templates_dir=templates_dir,
         extra_context_documents=extra_context_documents(spec, templates_dir=templates_dir),
-        validate_artifacts=_validate_statement_artifacts(expected),
+        validate_artifacts=_validate_statement_artifacts(expected, spec),
         generated_artifacts=GeneratedArtifacts(
             artifacts=_example_inputs(spec),
             stale={

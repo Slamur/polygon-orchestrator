@@ -49,7 +49,7 @@ def _stub_local_runs(request, monkeypatch):
         return
     from orchestrator.steps import solutions_check, tests_check
 
-    monkeypatch.setattr(tests_check, "_run", lambda *args, **kwargs: ([], [], 0))
+    monkeypatch.setattr(tests_check, "_run", lambda *args, **kwargs: ([], [], {}))
 
     monkeypatch.setattr(
         solutions_check,

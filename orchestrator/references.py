@@ -29,6 +29,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from orchestrator.problem_paths import (
+    SCORING_TEXTS_FILENAME,
     TESTS_DESIGN_FILENAME,
     TESTS_PLAN_FILENAME,
     TUTORIAL_FILENAME,
@@ -52,7 +53,12 @@ from orchestrator.statement_languages import read_spec_language
 # the script, if the sample has no plan), `generators_draft` — plan → generators,
 # `test_script_draft` — plan → script.
 REFERENCE_DOCUMENTS: dict[str, list[str]] = {
-    "statement_draft": [SPEC_FILENAME, "statement/{language}/*.tex", "statement/*.tex"],
+    "statement_draft": [
+        SPEC_FILENAME,
+        "statement/{language}/*.tex",
+        "statement/*.tex",
+        SCORING_TEXTS_FILENAME,
+    ],
     "constraints_pick": [SPEC_FILENAME, "constraints.yaml", "validator.cpp"],
     "tests_plan": [
         SPEC_FILENAME,

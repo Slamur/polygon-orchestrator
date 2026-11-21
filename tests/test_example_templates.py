@@ -28,6 +28,7 @@ from orchestrator.problem_paths import (
     iter_problem_dirs,
     problem_id_for,
 )
+from orchestrator.scoring_table import parse_scoring_texts
 from orchestrator.spec import load_spec
 from orchestrator.steps.generators_draft import generator_params
 from orchestrator.steps.test_script_draft import (
@@ -227,8 +228,12 @@ def test_example_test_groups_match_spec_and_plan(example_dir):
     validator_groups = {g["name"] for g in constraints["validator"].get("groups") or []}
     assert validator_groups <= {g["name"] for g in groups}
     assert scoring
+    # the constraints cells the `statement_draft` model writes — of exactly these groups
+    texts = (example_dir / AUTHORING_DIRNAME / "scoring.yaml").read_text(encoding="utf-8")
+    parse_scoring_texts(texts, [g["name"] for g in groups])
     for path in scoring:
-        rows = re.findall(r"^(\d+) & (\d+) &", path.read_text(encoding="utf-8"), re.M)
+        # an `each_test` group's points are followed by those of one test: `10 (1)`
+        rows = re.findall(r"^(\d+) & (\d+)(?: \(\d+\))? &", path.read_text(encoding="utf-8"), re.M)
         assert rows == [(g["name"], str(g["points"])) for g in groups], path
 
 

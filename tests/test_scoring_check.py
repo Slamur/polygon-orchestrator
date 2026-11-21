@@ -161,3 +161,23 @@ def test_local_check_prints_scoring_errors(tmp_path, capsys):
     rc = cli.main(["--base-dir", str(tmp_path), f"problems/{PROBLEM_ID}", "local", "check"])
     assert rc == 1
     assert "statement/en/scoring.tex: missing" in capsys.readouterr().out
+
+
+def test_points_of_one_test_of_an_each_test_group(tmp_path):
+    constraints = _CONSTRAINTS.replace(
+        "    points: 30\n", "    points: 30\n    points_policy: each_test\n", 1
+    )
+    good = _table(_GOOD_ROWS[0].replace("& 30 &", "& 30 (2) &"), *_GOOD_ROWS[1:])
+    assert check_scoring(_problem(tmp_path / "a", {"ru": good, "en": good}, constraints)) == []
+
+    bad = _table(
+        _GOOD_ROWS[0].replace("& 30 &", "& 30 (7) &"),
+        _GOOD_ROWS[1].replace("& 20 &", "& 20 (4) &"),
+        _GOOD_ROWS[2],
+    )
+    errors = check_scoring(_problem(tmp_path / "b", {"ru": bad, "en": good}, constraints))
+    assert errors == [
+        "statement/ru/scoring.tex: subtask 1: points of one test (7) don't divide its 30 points",
+        "statement/ru/scoring.tex: subtask 2: points of one test (4) for a group scored "
+        "only as a whole",
+    ]
