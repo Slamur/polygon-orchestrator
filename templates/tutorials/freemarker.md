@@ -196,6 +196,6 @@ ${rand} -n=${maxN} -minA=${minA} -maxA=${minA} > $
 
 ${rand} -n=${maxN} -minA=${minA} -maxA=${minA + smallA} > $
 
-${rand} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${sort} > $
-${rand} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${sort} --desc > $
+${rand} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${sort} -desc=0 > $
+${rand} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${sort} -desc=1 > $
 ```

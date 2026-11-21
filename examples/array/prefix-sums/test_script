@@ -65,8 +65,8 @@
 </#list>
 
 ${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} > $
-${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} | ${upd_sort} > $
-${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} | ${upd_sort} --desc > $
+${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} | ${upd_sort} -desc=0 > $
+${array_distinct} -n=${maxN} -minA=${minA} -maxA=${maxA} | ${k_rand} -minK=${minK} -maxK=${maxK} | ${upd_sort} -desc=1 > $
 
 <#list [minA, maxA] as startA>
     <#list [minK, maxK] as startK>

@@ -84,7 +84,7 @@ generation:
       purpose: "reads N and the array, chooses K = (the sum of a random prefix) + delta, bringing it within [minK, maxK]"
     - name: "upd_array_sort"
       params: ["desc"]
-      purpose: "reads a ready test and sorts the array in ascending order (with the desc flag — in descending order)"
+      purpose: "reads a ready test and sorts the array in ascending order (with desc=1 — in descending order)"
   specific_test_ideas:
     - "all N from 1 to 10 with small values of A_i and K"
     - "N = N_max, all A_i = A_max"
