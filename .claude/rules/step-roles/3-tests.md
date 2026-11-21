@@ -129,8 +129,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      generator fails on a line or the validator rejects a test — all three (the design's
      arguments, the generator's code, the script's command). The validator doesn't compile,
      invalid groups, no `java` — no step's, the author fixes them. The report
-     (`.cache/run_tests.report.json`) keeps the errors and the hashes of each step's files
-     at the run; while the run's result is a failure, a step's files are the same and
+     (`.cache/run_tests.report.json`) keeps the errors, the hashes of each step's files
+     at the run and, of a passed run, the number of tests of each group (`group_counts`,
+     for `scoring_table` — `.claude/rules/step-roles/1-statement_draft.md`); while the run's result is a failure, a step's files are the same and
      nothing else the run reads (the validator, `problem_lib.h`, `constraints.yaml`, the
      examples) changed, the step reruns even with a valid cache (`forced_rerun_reason`) and
      revises its files with the errors routed to it and the author's comment from

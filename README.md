@@ -388,7 +388,8 @@ The steps in order: `statement_draft` → `constraints_pick` →
 design `tests_design.yaml` from the model; the orchestrator builds the plan
 `tests_plan.yaml` from it, computing the design's formulas for each test group) → `generators_draft` (generators from the plan) → `test_script_draft`
 (the test-script from the plan) → `run_tests` (mechanical: the tests from the script and
-the validator on them, as `local check --full`) → `checker_draft` (only with
+the validator on them, as `local check --full`) → `scoring_table` (mechanical: the
+statement's subtasks table, only with test groups) → `checker_draft` (only with
 `checker.custom_needed: true`) → `interactor_draft` (only for interactive problems)
 → the solutions in stages, each checked by a local run of its solutions on the
 examples and the tests from the script: `solutions_main` → `run_main` →
@@ -398,13 +399,18 @@ test of a group their spec item says they fail; after it
 the generators, the script and the runs again). Separately, only via the `llm tutorial` command, —
 `tutorial_draft` (the tutorial from a draft).
 
-With `constraints.test_groups_hint` in the spec, `statement_draft` also writes the subtasks
-table `statement/<language>/scoring.tex` (points, extra constraints, necessary subtasks,
-feedback — as in `examples/number/roots-subtasks`) from the hint: give each group its
-points there, or the step stops as `uncertain`. `test_groups_needed: true` without the
-hint stops the step as `uncertain` too (without calling the model): set the groups in
-`test_groups_hint`. If you drop the groups from the spec, the step marks the old table
-`scoring.tex.removed`. `local check` compares the tables with `constraints.yaml`.
+With `constraints.test_groups_hint` in the spec, `statement_draft` also writes
+`authoring/scoring.yaml` — the extra constraints of each subtask in the statement's
+language; give each group its points in the hint, or the step stops as `uncertain`.
+`test_groups_needed: true` without the hint stops the step as `uncertain` too (without
+calling the model): set the groups in `test_groups_hint`. The subtasks table
+`statement/<language>/scoring.tex` (as in `examples/number/roots-subtasks`) is assembled
+without the model by `scoring_table`, after `run_tests`: the points (of a subtask scored per
+test — with the points of one test, `30 (2)`), the necessary subtasks and the last column
+come from `constraints.yaml`, the constraints — from `scoring.yaml` (edit it to change
+their wording; `llm generate --step scoring_table` reassembles the table). If you drop the
+groups from the spec, `statement_draft` marks `scoring.yaml` and the table `.removed`.
+`local check` compares the tables with `constraints.yaml`.
 
 | Command | What it does | Model |
 |---|---|---|

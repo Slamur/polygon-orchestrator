@@ -155,8 +155,9 @@ the user can see it) in the same PR.
 │   ├── cli_commands.py              # command implementations, imported from cli.py lazily
 │   ├── step_order.py                # step orders without importing the steps themselves
 │   ├── problem_paths.py, drafts.py, statement_languages.py  # no heavy imports
-│   ├── spec.py, spec_from_draft.py, spec_critic.py, references.py, limits.py, test_groups.py
-│   ├── steps/                       # generative steps (+ the mechanical limits_from_constraints), base.py — shared
+│   ├── spec.py, spec_from_draft.py, spec_critic.py, references.py, limits.py, test_groups.py,
+│   │   scoring_table.py
+│   ├── steps/                       # generative steps (+ the mechanical limits_from_constraints, scoring_table), base.py — shared
 │   ├── pipeline.py, cache.py, llm_report.py
 │   ├── model_router.py              # model classes and effort, vendor-independent
 │   ├── llm_client.py, model_contracts.py  # the LLMClient Protocol and ModelResponse
@@ -168,7 +169,8 @@ the user can see it) in the same PR.
 ├── tests/
 ├── drafts/                          # the author's drafts for `init --draft`; in .gitignore
 └── problems/<problem path>/         # in .gitignore; at any depth
-    ├── authoring/                   # spec.yaml, draft.<ext>, draft-tutorial.md, constraints.yaml, tests_design.yaml, tests_plan.yaml
+    ├── authoring/                   # spec.yaml, draft.<ext>, draft-tutorial.md, constraints.yaml, tests_design.yaml, tests_plan.yaml,
+    │                                # scoring.yaml
     │                                # (model and author only; on Polygon — in Attachments)
     ├── statement/<code>/*.tex, name.txt; statement/examples/example_<N>*.txt
     ├── limits.yaml, problem_lib.h, validator.cpp, checker.cpp, interactor.cpp

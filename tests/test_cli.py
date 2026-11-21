@@ -23,7 +23,7 @@ _RESPONSES = {
             "input_format.tex": "tex",
             "output_format.tex": "tex",
             "notes.tex": "tex",
-            "scoring.tex": "tex",
+            "scoring.yaml": 'constraints:\n  "1": "$N \\\\le 10$"\n',
             "examples/example_1.txt": "1\n",
         },
         notes=[],
@@ -159,7 +159,7 @@ def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tm
     _write_spec(problems_dir, "p1")
     argv = _base_args(problems_dir) + ["problems/p1", "llm"]
 
-    def reject(expected):
+    def reject(expected, spec=None):
         def validate(artifacts):
             raise ValueError("the set of files does not match")
 
@@ -187,7 +187,7 @@ def test_rejected_response_is_reported_and_applied_by_llm_apply(problems_dir, tm
     assert "CONFLICTS.md" in report
     log = (problems_dir / "p1" / cli_commands.LLM_GENERATION_LOG).read_text(encoding="utf-8")
     assert (
-        "not applied: legend.tex, input_format.tex, output_format.tex, notes.tex, scoring.tex "
+        "not applied: legend.tex, input_format.tex, output_format.tex, notes.tex, scoring.yaml "
         "— the response is not applied as a whole" in log
     )
 
@@ -507,7 +507,7 @@ def test_generate_revises_a_failed_local_run_once_by_default(
     from orchestrator.steps import tests_check
 
     issue = Issue(ISSUE_GENERATOR_RUN, "test 2: gen_rand exit code 3", "gen_rand > $", 1)
-    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([issue], [], 1))
+    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([issue], [], {None: 1}))
     _write_spec(problems_dir, "p1")
 
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model) as mock_call:

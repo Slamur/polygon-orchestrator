@@ -120,7 +120,10 @@ used in `orchestrator/pipeline.py` before calling
   legend, for an interactive problem — the protocol) + `constraints.yaml` without TL/ML;
   `interactor_draft` → the `interactor` section + the input format and protocol from
   `statement_draft`; the mechanical `limits_from_constraints` → only TL/ML
-  from `constraints.yaml`, without prompts and model). Assembling this part of `statement_draft` —
+  from `constraints.yaml`, without prompts and model; the mechanical `scoring_table` → the
+  statement language, the test groups of `constraints.yaml` (name, points, dependencies,
+  feedback and points policies), the text of `authoring/scoring.yaml` and the number of
+  tests of each group from the last passed `run_tests`). Assembling this part of `statement_draft` —
   `statement_io_section` in `orchestrator/steps/base.py`, shared by all
   three steps;
 - the hash of the contents of this step's prompt templates (`prompts/<step>/system.md` +

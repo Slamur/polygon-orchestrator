@@ -97,10 +97,11 @@ it's a copy of the input from `sample_examples`, the orchestrator writes it.
 
 If the user prompt has a "Test groups (subtasks)" section — the problem has
 subtasks, and you're also given scoring.md (its rules are mandatory just like
-statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
-the subtasks table by scoring.md, strictly by the given groups — their order, points,
-dependencies, feedback and points policies and variable bounds as is. Don't make up what the author
-didn't set: a group without points — `uncertain` with the field
+statement.md). Then `artifacts` additionally contain `scoring.yaml` — the constraints
+cell of each subtask of the Scoring block's table, by scoring.md, for exactly the given
+groups, with their variable bounds as is. The rest of the table (points, necessary
+subtasks, the last column, the paragraphs) the orchestrator assembles itself. Don't make
+up what the author didn't set: a group without points — `uncertain` with the field
 (`constraints.test_groups_hint[i].points`).
 
 If the user prompt has an "Interaction protocol" section — the problem is

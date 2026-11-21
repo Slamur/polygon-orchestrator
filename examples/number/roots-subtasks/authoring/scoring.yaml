@@ -1,0 +1,9 @@
+# The constraints cell of each subtask of the statement's subtasks table (LaTeX in the
+# statement's language), null — no extra constraints; the `scoring_table` step assembles
+# statement/<language>/scoring.tex from it, the groups and the tests.
+constraints:
+  "1": "$N \\le 10$"
+  "2": "$N \\le 10^3$"
+  "3": "$N \\le 10^6$"
+  "4": "$N \\le 10^{12}$"
+  "5": null

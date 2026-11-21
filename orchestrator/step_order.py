@@ -14,7 +14,8 @@ from __future__ import annotations
 # each next step may depend on the artifacts of the previous ones. `tests_plan`,
 # `generators_draft` and `test_script_draft` — test preparation: the plan, then
 # code from it; `run_tests` — their local generation, a mechanical check: the tests from
-# the script and the validator on them (CLAUDE.md, item 3). `checker_draft` depends on nothing (unlike its neighbors in the
+# the script and the validator on them (CLAUDE.md, item 3); `scoring_table` — the
+# statement's subtasks table, mechanically, once the number of tests of each group is known. `checker_draft` depends on nothing (unlike its neighbors in the
 # order), but is kept next to them — logically it's also part of the problem's test infrastructure,
 # not of the solutions (CLAUDE.md, item 5). `interactor_draft` — there too and for
 # the same reason (CLAUDE.md, item 6). `limits_from_constraints` — right
@@ -32,6 +33,7 @@ STEP_ORDER: list[str] = [
     "generators_draft",
     "test_script_draft",
     "run_tests",
+    "scoring_table",
     "checker_draft",
     "interactor_draft",
     "solutions_main",
@@ -76,7 +78,9 @@ LLM_STEPS: list[str] = [*STEP_ORDER, *ON_DEMAND_STEPS]
 
 # Steps from `STEP_ORDER` without a model call and without prompts: the result is derived
 # mechanically from the files of the previous steps.
-MECHANICAL_STEPS: frozenset[str] = frozenset({"limits_from_constraints", *GATE_STEPS})
+MECHANICAL_STEPS: frozenset[str] = frozenset(
+    {"limits_from_constraints", "scoring_table", *GATE_STEPS}
+)
 
 # Steps whose files, if they exist while the step has never run, are kept as is
 # (an entry accepting them is recorded): `limits.yaml` downloaded by `polygon pull`,

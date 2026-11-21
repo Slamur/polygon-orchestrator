@@ -85,6 +85,8 @@ from orchestrator.steps.solutions_check import (
 logger = logging.getLogger(__name__)
 
 STEP_NAME = "run_tests"
+# The report's key: the number of tests of each group (read by `scoring_table`).
+GROUP_COUNTS_KEY = "group_counts"
 
 TESTS_PLAN_STEP = "tests_plan"
 GENERATORS_STEP = "generators_draft"
@@ -266,7 +268,8 @@ class TestsGate:
         `.cache/run_tests.report.json`). `GateFailedError` — the run failed;
         `revision`/`saved_response` aren't used."""
         problem_dir = Path(problems_dir) / problem_id
-        issues, warnings, count = _run(problem_dir, Path(templates_dir))
+        issues, warnings, counts = _run(problem_dir, Path(templates_dir))
+        count = sum(counts.values())
         failed = bool(issues)
         files = {"other": _digest(_file_hashes(problem_dir, _other_files(problem_dir)))}
         for step in REVISING_STEPS:
@@ -274,7 +277,14 @@ class TestsGate:
         save_run_report(
             problem_id,
             self.STEP_NAME,
-            {"issues": [asdict(issue) for issue in issues], "warnings": warnings, "files": files},
+            {
+                "issues": [asdict(issue) for issue in issues],
+                "warnings": warnings,
+                "files": files,
+                # The tests of each group (`scoring_table`: the points of one test of an
+                # `each_test` group) — only of a passed run.
+                **({} if failed else {GROUP_COUNTS_KEY: _group_counts(counts)}),
+            },
             problems_dir=problems_dir,
         )
 
@@ -323,8 +333,15 @@ class TestsGate:
 TESTS_GATE = TestsGate()
 
 
-def _run(problem_dir: Path, templates_dir: Path) -> tuple[list[TestIssue], list[str], int]:
-    """(errors, warnings, the number of tests) — as `local check --full` finds them."""
+def _group_counts(counts: dict[str | None, int]) -> dict[str, int]:
+    return {group: count for group, count in counts.items() if group is not None}
+
+
+def _run(
+    problem_dir: Path, templates_dir: Path
+) -> tuple[list[TestIssue], list[str], dict[str | None, int]]:
+    """(errors, warnings, the number of tests of each group — `None` for the tests without
+    a group) — as `local check --full` finds them."""
     generated = generate_tests(
         problem_dir, templates_dir, lambda line: logger.info("[%s] %s", STEP_NAME, line)
     )
@@ -339,7 +356,10 @@ def _run(problem_dir: Path, templates_dir: Path) -> tuple[list[TestIssue], list[
     issues += validator_issues
     equal = find_equal_tests(problem_dir, generated.tests)
     warnings = [format_equal_tests(equal, generated.tests)] if equal else []
-    return issues, warnings, len(generated.tests)
+    counts: dict[str | None, int] = {}
+    for test in generated.tests:
+        counts[test.group] = counts.get(test.group, 0) + 1
+    return issues, warnings, counts
 
 
 def _issue_note(issue: TestIssue) -> dict[str, Any]:

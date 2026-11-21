@@ -27,7 +27,7 @@ _RESPONSES = {
             "input_format.tex": "tex",
             "output_format.tex": "tex",
             "notes.tex": "tex",
-            "scoring.tex": "tex",
+            "scoring.yaml": 'constraints:\n  "1": "$N \\\\le 10$"\n',
             "examples/example_1.txt": "1\n",
         },
         notes=[],
@@ -65,9 +65,24 @@ _RESPONSES = {
 # (checker.custom_needed: false), a normal, non-interactive problem, and one solution
 # language without alternative approaches (no other ok solutions); the local runs are a stub
 # without survivors, so no tests for them.
-_SKIPPED_STEPS = {"checker_draft", "interactor_draft", "solutions_ok", "run_ok", "tests_survivors"}
+# `scoring_table` — the fixture's constraints.yaml has no test groups.
+_SKIPPED_STEPS = {
+    "scoring_table",
+    "checker_draft",
+    "interactor_draft",
+    "solutions_ok",
+    "run_ok",
+    "tests_survivors",
+}
 # Steps without a model call (the local runs are a stub in the tests, see conftest.py).
-_MECHANICAL_STEPS = {"limits_from_constraints", "run_tests", "run_main", "run_slow", "run_wrong"}
+_MECHANICAL_STEPS = {
+    "limits_from_constraints",
+    "run_tests",
+    "scoring_table",
+    "run_main",
+    "run_slow",
+    "run_wrong",
+}
 
 
 def _fake_call_model(step, system_prompt, user_prompt, context_documents=None):
@@ -747,7 +762,7 @@ def test_accept_refuses_uncertain_step(spec_file, tmp_path):
 # --- An unapplied model response and `llm apply` ---
 
 
-def _failing_statement_check(expected):
+def _failing_statement_check(expected, spec=None):
     """A check of the statement's file set that rejects any response — like
     a bug in the orchestrator's code that will be fixed later."""
 
@@ -913,6 +928,7 @@ def test_apply_refuses_revision_when_current_files_are_gone(spec_file, tmp_path)
     _edit_legend(spec_file)
     _run_with_failing_statement_check(problems_dir, only_step="statement_draft")
     shutil.rmtree(problems_dir / "p1" / "statement")
+    (problems_dir / "p1" / "authoring" / "scoring.yaml").unlink()
 
     result = _apply(problems_dir, only_step="statement_draft")
 
@@ -1107,7 +1123,7 @@ def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
 
     error = "test 2: gen_rand exit code 3: FAIL Opts: unknown key 'n'"
     issue = Issue(ISSUE_GENERATOR_RUN, error, "gen_rand > $", 1, "gen_rand")
-    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([issue], [], 1))
+    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([issue], [], {None: 1}))
     problems_dir = tmp_path / "problems"
     with patch("orchestrator.model_router.call_model", side_effect=_fake_call_model):
         result = _run(problems_dir)
@@ -1127,7 +1143,7 @@ def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
     responses["generators_draft"] = ModelResponse(
         status="confirmed", artifacts={"gen_rand.cpp": "int main() { /* reads n */ }"}
     )
-    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([], [], 1))
+    monkeypatch.setattr(tests_check, "_run", lambda *a, **kw: ([], [], {None: 1}))
     with patch(
         "orchestrator.model_router.call_model", side_effect=lambda step, *a, **kw: responses[step]
     ) as mock_call:
@@ -1160,7 +1176,7 @@ def _stub_local_tests_failing_on(monkeypatch, problems_dir, broken_generator):
 
     def run(*args, **kwargs):
         broken = generator.read_text(encoding="utf-8") == broken_generator
-        return ([issue] if broken else [], [], 1)
+        return ([issue] if broken else [], [], {None: 1})
 
     monkeypatch.setattr(tests_check, "_run", run)
 
