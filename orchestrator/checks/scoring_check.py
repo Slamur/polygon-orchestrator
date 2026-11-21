@@ -19,8 +19,8 @@ What is checked, in each statement language:
 - the fourth cell, if there is one, — exactly the group's `dependencies` (numbers in any
   order).
 
-The fifth cell (the feedback policy and, for an `each_test` group, the "points per
-test" mark) is words in the statement's language and isn't checked. The parsing is regular expressions with brace depth, not a LaTeX parser: rows
+The fifth cell (the feedback policy or, for an `each_test` group, the "points per
+test" mark instead) is words in the statement's language and isn't checked. The parsing is regular expressions with brace depth, not a LaTeX parser: rows
 are split by `\\\\` and cells by `&` outside braces, `%` comments are dropped.
 """
 

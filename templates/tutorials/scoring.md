@@ -25,7 +25,8 @@
   4. its necessary subtasks — the names from its `dependencies`, comma-separated,
      the cell is empty if there are none;
   5. what a contestant sees about the subtask's tests (its `feedback_policy`); for an
-     `each_test` subtask followed by "; points per test" ("; баллы за каждый тест").
+     `each_test` subtask instead only "points per test" ("баллы за каждый тест"):
+     "first error; points per test" reads as if testing stopped at the first error.
 
 - The cells of a row are separated by `&`, a row ends with `\\` and is followed by `\hline`.
   Numbers in the cells are plain: the name and the points — digits only, without
@@ -71,8 +72,8 @@
     поровну между её тестами и начисляются за каждый пройденный тест, если все тесты
     необходимых подзадач успешно пройдены.").
 
-  A row of an `each_test` subtask: `2 & 15 & \centering $N \le 10^3$ & 1 & первая ошибка;
-  баллы за каждый тест \\`.
+  A row of an `each_test` subtask: `2 & 15 & \centering $N \le 10^3$ & 1 & баллы за каждый
+  тест \\`.
 
 ## The sample (a Russian statement, an English one — the same with English words)
 
