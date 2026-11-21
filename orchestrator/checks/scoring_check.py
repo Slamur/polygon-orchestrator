@@ -10,7 +10,10 @@ What is checked, in each statement language:
 - the table (the first `tabular` of the file) has one row per group, in the groups'
   order: a row is a data row if its first cell is a number (the header rows aren't);
   a row of group `0` (the statement examples) with 0 points is allowed and skipped;
-- the second cell is the group's points (if `constraints.yaml` sets them);
+- the second cell is the group's points (if `constraints.yaml` sets them); an `each_test`
+  group's may be followed by the points of one test in parentheses (`30 (2)`, as the
+  `scoring_table` step writes it), which must divide the group's points — the number of
+  tests isn't known here, so the value itself isn't checked;
 - the third cell mentions the group's extra limits: the numeric `min`/`max` of the
   group's `variables` and of each constant in its `validator.groups` entry — each value
   must occur among the numbers of the cell (`10`, `10^{12}`, `2 \\cdot 10^5`,
@@ -19,8 +22,8 @@ What is checked, in each statement language:
 - the fourth cell, if there is one, — exactly the group's `dependencies` (numbers in any
   order).
 
-The fifth cell (the feedback policy and, for an `each_test` group, the "points per
-test" mark) is words in the statement's language and isn't checked. The parsing is regular expressions with brace depth, not a LaTeX parser: rows
+The fifth cell (the feedback policy or, for an `each_test` group, the "points per
+test" mark instead) is words in the statement's language and isn't checked. The parsing is regular expressions with brace depth, not a LaTeX parser: rows
 are split by `\\\\` and cells by `&` outside braces, `%` comments are dropped.
 """
 
@@ -32,6 +35,7 @@ from pathlib import Path
 
 import yaml
 
+from orchestrator.spec import EACH_TEST
 from orchestrator.statement_languages import STATEMENT_DIRNAME, statement_languages
 from orchestrator.test_groups import (
     EXAMPLES_GROUP,
@@ -153,6 +157,17 @@ def _compare(rows: list[list[str]], groups, limits: dict[str, set[int]]) -> list
         if group.points is not None and _points(row) != group.points:
             cell = row[1] if len(row) > 1 else ""
             errors.append(f"{label}: points {cell or 'none'}, expected {group.points}")
+        per_test = _per_test_points(row)
+        if per_test is not None:
+            if group.points_policy != EACH_TEST:
+                errors.append(
+                    f"{label}: points of one test ({per_test}) for a group scored only as a whole"
+                )
+            elif group.points and (per_test == 0 or group.points % per_test):
+                errors.append(
+                    f"{label}: points of one test ({per_test}) don't divide its "
+                    f"{group.points} points"
+                )
         wanted = set(limits.get(group.name, set()))
         for limit in (group.variables or {}).values():
             wanted.update(
@@ -200,9 +215,22 @@ def _group_limits(problem_dir: Path) -> dict[str, set[int]]:
     return limits
 
 
+# The points cell: the group's points and, for an `each_test` group, those of one test.
+_POINTS_CELL = re.compile(r"^(\d+)(?:\((\d+)\))?$")
+
+
+def _points_match(row: list[str]) -> re.Match[str] | None:
+    return _POINTS_CELL.match(_plain(row[1]) if len(row) > 1 else "")
+
+
 def _points(row: list[str]) -> int | None:
-    plain = _plain(row[1]) if len(row) > 1 else ""
-    return int(plain) if plain.isdigit() else None
+    match = _points_match(row)
+    return int(match.group(1)) if match else None
+
+
+def _per_test_points(row: list[str]) -> int | None:
+    match = _points_match(row)
+    return int(match.group(2)) if match and match.group(2) else None
 
 
 def _plain(cell: str) -> str:

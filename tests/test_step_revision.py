@@ -488,7 +488,7 @@ _PIPELINE_RESPONSES = {
             "input_format.tex": "tex",
             "output_format.tex": "tex",
             "notes.tex": "tex",
-            "scoring.tex": "tex",
+            "scoring.yaml": 'constraints:\n  "1": "$N \\\\le 10$"\n',
             "examples/example_1.txt": "1\n",
         },
     ),

@@ -56,7 +56,7 @@ only its own — see the table below; `polygon.md` is a reference on the
 Polygon interface, not attached to the steps. `interactive.md` (the rules of interactive
 problems) is given to `statement_draft` and the solution stages only for an
 interactive problem — editing it doesn't touch the cache of normal problems.
-`scoring.md` (the Scoring block, the subtasks table `scoring.tex`) is given to
+`scoring.md` (the constraints cells of the subtasks table, `scoring.yaml`) is given to
 `statement_draft` only for a problem with `constraints.test_groups_hint` in the spec —
 likewise.
 
@@ -90,7 +90,7 @@ from `templates/` (`STEP_CONTEXT_DOCUMENTS` in
 
 | Step | Always (`templates/`) | From a directory reference |
 |-----|--------------------|-----------------------|
-| `statement_draft` | `statement.md`; `interactive.md`, `scoring.md` — see above | `spec.yaml`, `statement/<language>/*.tex` |
+| `statement_draft` | `statement.md`; `interactive.md`, `scoring.md` — see above | `spec.yaml`, `statement/<language>/*.tex`, `scoring.yaml` |
 | `constraints_pick` | `limits.md`, `validator.md`, `constraints_format.yaml`, `problem_lib.h` | `spec.yaml`, `constraints.yaml`, `validator.cpp` |
 | `tests_plan` | `tests.md`, `tests_design_format.yaml` | `spec.yaml`, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
 | `generators_draft` | `tests.md`, `problem_lib.h` | `tests_plan.yaml`, `generators/*.cpp` |
@@ -240,10 +240,11 @@ it's a copy of the input from `sample_examples`, the orchestrator writes it.
 
 If the user prompt has a "Test groups (subtasks)" section — the problem has
 subtasks, and you're also given scoring.md (its rules are mandatory just like
-statement.md). Then `artifacts` additionally contain `scoring.tex` — the Scoring block:
-the subtasks table by scoring.md, strictly by the given groups — their order, points,
-dependencies, feedback and points policies and variable bounds as is. Don't make up what the author
-didn't set: a group without points — `uncertain` with the field
+statement.md). Then `artifacts` additionally contain `scoring.yaml` — the constraints
+cell of each subtask of the Scoring block's table, by scoring.md, for exactly the given
+groups, with their variable bounds as is. The rest of the table (points, necessary
+subtasks, the last column, the paragraphs) the orchestrator assembles itself. Don't make
+up what the author didn't set: a group without points — `uncertain` with the field
 (`constraints.test_groups_hint[i].points`).
 
 If the user prompt has an "Interaction protocol" section — the problem is
@@ -350,7 +351,7 @@ Expected files in artifacts:
 - output_format.tex
 - notes.tex
 {% if statement_draft.test_groups is defined %}
-- scoring.tex
+- scoring.yaml
 {% endif %}
 {% if statement_draft.interaction_sketch is defined %}
 - interaction.tex

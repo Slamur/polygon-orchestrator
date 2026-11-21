@@ -141,11 +141,11 @@ def test_expected_names_exact_match_passes(spec):
     spec2 = _with_examples(spec, 2)
     expected = _expected_artifact_names(spec2)
     assert expected == set(_all_files(2))
-    _validate_statement_artifacts(expected)(_all_files(2))
+    _validate_statement_artifacts(expected, spec2)(_all_files(2))
 
 
 def test_validate_reports_missing_file(spec):
-    validate = _validate_statement_artifacts(_expected_artifact_names(spec))
+    validate = _validate_statement_artifacts(_expected_artifact_names(spec), spec)
     artifacts = _all_files(1)
     del artifacts["notes.tex"]
     with pytest.raises(MissingArtifactsError, match="missing.*notes.tex"):
@@ -153,7 +153,8 @@ def test_validate_reports_missing_file(spec):
 
 
 def test_validate_reports_extra_example(spec):
-    validate = _validate_statement_artifacts(_expected_artifact_names(_with_examples(spec, 2)))
+    spec2 = _with_examples(spec, 2)
+    validate = _validate_statement_artifacts(_expected_artifact_names(spec2), spec2)
     with pytest.raises(ValueError, match="unexpected.*examples/example_3.txt"):
         validate(_all_files(3))
 
@@ -528,11 +529,12 @@ def test_language_goes_to_prompt_and_hash(spec, tmp_path):
     assert (tmp_path / "valid-spec" / "statement" / "en" / "legend.tex").is_file()
 
 
-# --- test groups: scoring.tex ---------------------------------------------------
+# --- test groups: scoring.yaml ---------------------------------------------------
 
 
 def test_groups_expected_names_and_rules_include_scoring(groups_spec):
-    assert "scoring.tex" in _expected_artifact_names(groups_spec)
+    assert "scoring.yaml" in _expected_artifact_names(groups_spec)
+    assert "scoring.tex" not in _expected_artifact_names(groups_spec)
     assert extra_context_documents(groups_spec, templates_dir=TEMPLATES_DIR) == [
         str(TEMPLATES_DIR / "tutorials" / "scoring.md")
     ]
@@ -541,14 +543,14 @@ def test_groups_expected_names_and_rules_include_scoring(groups_spec):
 def test_plain_problem_has_no_scoring(spec, tmp_path):
     from orchestrator.steps.statement_draft import hash_inputs
 
-    assert "scoring.tex" not in _expected_artifact_names(spec)
+    assert "scoring.yaml" not in _expected_artifact_names(spec)
     section, _ = hash_inputs("valid-spec", spec)
     assert "test_groups" not in section and "variables" not in section
     response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         _run(spec, "valid-spec", tmp_path)
     assert "Test groups" not in mock_call.call_args.args[2]
-    assert "scoring.tex" not in mock_call.call_args.args[2]
+    assert "scoring.yaml" not in mock_call.call_args.args[2]
     assert not (tmp_path / "valid-spec" / "statement" / "ru" / "scoring.tex.removed").exists()
 
 
@@ -557,8 +559,15 @@ def test_scoring_of_dropped_groups_is_marked_removed(spec, tmp_path):
     for code in ("ru", "en"):
         (statement_dir / code).mkdir(parents=True)
         (statement_dir / code / "scoring.tex").write_text("table", encoding="utf-8")
-    # not shown to the model as a current file: it isn't revised, only marked
-    assert "scoring.tex" not in current_artifacts("valid-spec", spec, problems_dir=tmp_path)
+    texts = tmp_path / "valid-spec" / "authoring" / "scoring.yaml"
+    texts.parent.mkdir(parents=True)
+    texts.write_text('constraints:\n  "1": null\n', encoding="utf-8")
+    # not shown to the model as current files: they aren't revised, only marked
+    assert (
+        current_artifacts("valid-spec", spec, problems_dir=tmp_path)
+        .keys()
+        .isdisjoint({"scoring.tex", "scoring.yaml"})
+    )
 
     response = ModelResponse(status="confirmed", artifacts=_model_artifacts())
     with patch("orchestrator.model_router.call_model", return_value=response):
@@ -566,7 +575,11 @@ def test_scoring_of_dropped_groups_is_marked_removed(spec, tmp_path):
 
     assert not (statement_dir / "ru" / "scoring.tex").exists()
     assert (statement_dir / "ru" / "scoring.tex.removed").is_file()
-    assert [mark.name for mark, _ in result.removed] == ["scoring.tex.removed"]
+    assert (texts.parent / "scoring.yaml.removed").is_file()
+    assert sorted(mark.name for mark, _ in result.removed) == [
+        "scoring.tex.removed",
+        "scoring.yaml.removed",
+    ]
     # another language's table is the author's: `local check` reports it
     assert (statement_dir / "en" / "scoring.tex").is_file()
 
@@ -581,14 +594,15 @@ def test_groups_needed_without_hint_is_uncertain_without_calling_the_model(spec,
     assert not (tmp_path / "valid-spec").exists()
 
 
-def test_groups_go_to_prompt_hash_and_scoring_is_written(groups_spec, tmp_path):
+def test_groups_go_to_prompt_hash_and_scoring_texts_are_written(groups_spec, tmp_path):
     from orchestrator.steps.statement_draft import hash_inputs
 
     section, _ = hash_inputs("valid-spec", groups_spec)
     assert section["test_groups"][0]["variables"] == {"N": {"min": None, "max": 10}}
     assert [v["name"] for v in section["variables"]] == ["N", "K"]
 
-    artifacts = {**_model_artifacts(), "scoring.tex": "table"}
+    texts = 'constraints:\n  "1": "$N \\\\le 10$"\n'
+    artifacts = {**_model_artifacts(), "scoring.yaml": texts}
     response = ModelResponse(status="confirmed", artifacts=artifacts)
     with patch("orchestrator.model_router.call_model", return_value=response) as mock_call:
         _run(groups_spec, "valid-spec", tmp_path)
@@ -598,9 +612,19 @@ def test_groups_go_to_prompt_hash_and_scoring_is_written(groups_spec, tmp_path):
     assert "- subtask 1: points None; variables N (max 10);" in user_prompt
     assert "dependencies none; feedback_policy icpc" in user_prompt
     assert "- N — the number of vertices" in user_prompt
-    assert "- scoring.tex" in user_prompt
+    assert "- scoring.yaml" in user_prompt
     documents = mock_call.call_args.kwargs.get("context_documents") or mock_call.call_args.args[3]
     assert "tutorials/scoring.md" in documents
-    scoring = tmp_path / "valid-spec" / "statement" / "ru" / "scoring.tex"
-    assert scoring.read_text(encoding="utf-8") == "table"
-    assert "scoring.tex" in current_artifacts("valid-spec", groups_spec, problems_dir=tmp_path)
+    written = tmp_path / "valid-spec" / "authoring" / "scoring.yaml"
+    assert written.read_text(encoding="utf-8") == texts
+    assert not (tmp_path / "valid-spec" / "statement" / "ru" / "scoring.tex").exists()
+    assert "scoring.yaml" in current_artifacts("valid-spec", groups_spec, problems_dir=tmp_path)
+
+
+def test_scoring_texts_of_other_groups_are_rejected(groups_spec):
+    expected = _expected_artifact_names(groups_spec)
+    validate = _validate_statement_artifacts(expected, groups_spec)
+    artifacts = {name: "x" for name in expected}
+    artifacts["scoring.yaml"] = 'constraints:\n  "2": null\n'
+    with pytest.raises(ValueError, match="no constraints of subtask"):
+        validate(artifacts)

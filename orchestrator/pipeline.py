@@ -67,6 +67,7 @@ from orchestrator.steps import (
     generators_draft,
     interactor_draft,
     limits_from_constraints,
+    scoring_table,
     statement_draft,
     test_script_draft,
     tests_plan,
@@ -101,6 +102,7 @@ _STEP_MODULES: dict[str, ModuleType | Any] = {
     "generators_draft": generators_draft,
     "test_script_draft": test_script_draft,
     "run_tests": TESTS_GATE,
+    "scoring_table": scoring_table,
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
     **SOLUTION_STEPS,
@@ -119,6 +121,7 @@ _UPSTREAM_PRODUCERS: dict[str, str] = {
 }
 _STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
     "limits_from_constraints": ("constraints_pick",),
+    "scoring_table": ("constraints_pick",),
     "tests_plan": ("constraints_pick",),
     "generators_draft": ("constraints_pick", "tests_plan"),
     "test_script_draft": ("constraints_pick", "tests_plan"),

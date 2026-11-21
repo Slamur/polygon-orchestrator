@@ -55,6 +55,9 @@ CONSTRAINTS_FILENAME = "constraints.yaml"
 # orchestrator from the test design the model writes.
 TESTS_PLAN_FILENAME = "tests_plan.yaml"
 TESTS_DESIGN_FILENAME = "tests_design.yaml"
+# The constraints cell of each subtask of the statement's subtasks table, written by the
+# `statement_draft` model; the `scoring_table` step assembles `scoring.tex` from it.
+SCORING_TEXTS_FILENAME = "scoring.yaml"
 # A copy of the author's draft (`init --draft`): `draft<extension>`, see
 # `orchestrator/drafts.py`.
 DRAFT_STEM = "draft"
@@ -101,13 +104,14 @@ def is_draft_name(name: str) -> bool:
 
 def is_authoring_name(name: str) -> bool:
     """A file that lies in `authoring/`: the spec, `constraints.yaml`,
-    `tests_design.yaml`, `tests_plan.yaml`, the draft copy, the tutorial draft (by file
-    name, without the directory)."""
+    `tests_design.yaml`, `tests_plan.yaml`, `scoring.yaml`, the draft copy, the tutorial
+    draft (by file name, without the directory)."""
     return name in (
         SPEC_FILENAME,
         CONSTRAINTS_FILENAME,
         TESTS_DESIGN_FILENAME,
         TESTS_PLAN_FILENAME,
+        SCORING_TEXTS_FILENAME,
         TUTORIAL_DRAFT_FILENAME,
     ) or is_draft_name(name)
 
