@@ -405,6 +405,20 @@ def _groups_problem(tmp_path: Path, script: str) -> Path:
     return problem_dir
 
 
+def test_equal_tests_are_compared_within_a_group(tmp_path):
+    # 5 in groups 1 and 2 and 50 in group 2 and in the examples (group 0) — deliberate;
+    # 7 twice in group 1 (the second argument isn't printed) — a real duplicate.
+    problem_dir = _groups_problem(
+        tmp_path,
+        "gen_first 5 -group=1 > $\ngen_first 7 -group=1 > $\ngen_first 7 x -group=1 > $\n"
+        "gen_first 5 -group=2 > $\ngen_first 50 -group=2 > $\n",
+    )
+    result = _generate(problem_dir)
+    assert result.errors == []
+    groups = [group.names for group in find_equal_tests(problem_dir, result.tests)]
+    assert groups == [["test 3", "test 4"]]
+
+
 def test_tests_take_their_group_from_the_marker(tmp_path):
     problem_dir = _groups_problem(tmp_path, "gen_first 5 -group=1 > $\ngen_first 50 > $\n")
     assert [t.group for t in _generate(problem_dir).tests] == ["1", None]
