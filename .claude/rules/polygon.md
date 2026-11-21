@@ -43,10 +43,11 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   `problem.tests`: regenerated tests (a new script) are assigned again,
   uploading `problems/<problem path>/authoring/` — `spec.yaml`,
   `constraints.yaml` (the whole `constraints_pick` result), `tests_design.yaml`
-  (the test design), `tests_plan.yaml` (the test plan), the copies of the draft `draft.<extension>` and of the tutorial draft
+  (the test design), `tests_plan.yaml` (the test plan), `scoring.yaml` (the constraints cells of the subtasks
+  table), the copies of the draft `draft.<extension>` and of the tutorial draft
   `draft-tutorial.md` — as is into the
   Attachments section (by file name, without `authoring/`) (aux files,
-  `upload_attachments`) — so that `polygon pull` restores the problem together
+  `upload_attachments`; the list — `AUTHORING_FILENAMES` in `orchestrator/problem_paths.py`) — so that `polygon pull` restores the problem together
   with the spec, limits, test plan and draft.
   The steps upload only what changed since the last sync with
   Polygon (the base — `revision`/`synced` in `polygon_state.json`, see
@@ -105,7 +106,8 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   there are several problems with that name), compares with it the problem parts
   the orchestrator uses (statement, tutorial, scoring and examples, TL/ML, validator,
   non-standard checker, generators, test-script, solutions, spec,
-  `constraints.yaml`, test plan, draft and tutorial draft from Attachments), downloads into
+  `constraints.yaml`, test design, test plan, `scoring.yaml`, draft and tutorial draft
+  from Attachments), downloads into
   the problem directory those missing locally and rewrites the sync
   base by the current Polygon revision. Files with a modification time in
   the Polygon listing (validator, checker, generators, solutions, `problem_lib.h`,
@@ -119,7 +121,8 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   or there is no base (`differs`) — the local one stays, with `--overwrite` — it is replaced by the version
   from Polygon. Replaced files are moved to `.pull_backup/`. Files that
   aren't on Polygon are listed explicitly and never deleted;
-  files from Attachments (spec, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`, draft, tutorial draft) are compared
+  files from Attachments (spec, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`,
+  `scoring.yaml`, draft, tutorial draft) are compared
   only with their versions in Attachments, and the problem's TL/ML — only with
   `limits.yaml` (the same comparison, by the TL/ML values; they don't touch
   `constraints.yaml`). Test groups on Polygon (if the local `constraints.yaml` has

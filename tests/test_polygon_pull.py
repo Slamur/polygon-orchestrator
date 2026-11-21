@@ -609,6 +609,8 @@ def test_attachments_are_downloaded(problems_dir, polygon):
         {
             "constraints.yaml": _CONSTRAINTS_PICK.encode(),
             "tests_plan.yaml": b"generators: []\n",
+            "tests_design.yaml": b"design\n",
+            "scoring.yaml": b"subtasks: []\n",
             "draft.md": b"idea\n",
             "draft-tutorial.md": b"tutorial draft\n",
             "other.txt": b"x",
@@ -623,6 +625,8 @@ def test_attachments_are_downloaded(problems_dir, polygon):
     assert (problem_dir / "authoring" / "constraints.yaml").read_text() == _CONSTRAINTS_PICK
     assert (problem_dir / "authoring" / "draft.md").read_text() == "idea\n"
     assert (problem_dir / "authoring" / "tests_plan.yaml").read_text() == "generators: []\n"
+    assert (problem_dir / "authoring" / "tests_design.yaml").read_text() == "design\n"
+    assert (problem_dir / "authoring" / "scoring.yaml").read_text() == "subtasks: []\n"
     # Pull doesn't touch other aux files.
     assert not (problem_dir / "other.txt").exists()
     statuses = [(item.name, item.status) for item in result.items]
@@ -689,6 +693,18 @@ def test_local_tests_plan_missing_on_polygon(problems_dir, polygon):
 
     assert _statuses(result)["authoring/tests_plan.yaml"] == ITEM_LOCAL_ONLY
     assert "tests_plan.yaml" not in _synced(problems_dir)
+
+
+@pytest.mark.parametrize("name", ["tests_design.yaml", "scoring.yaml"])
+def test_local_authoring_file_missing_on_polygon(problems_dir, polygon, name):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    assert f"authoring/{name}" not in _statuses(result)
+
+    _write(problems_dir / PROBLEM_ID, f"authoring/{name}", "x: 1\n")
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)[f"authoring/{name}"] == ITEM_LOCAL_ONLY
+    assert name not in _synced(problems_dir)
 
 
 def test_local_tutorial_draft_missing_on_polygon(problems_dir, polygon):

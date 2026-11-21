@@ -9,10 +9,16 @@ Polygon — by file name, without the directory:
   are transferred by `set_constraints` from `limits.yaml`. A file that previous
   versions of `polygon pull` assembled from only TL/ML (`PULLED_CONSTRAINTS_HEADER`)
   isn't the result of `constraints_pick` and isn't uploaded;
+- `tests_design.yaml` — the test design the `tests_plan` model wrote;
 - `tests_plan.yaml` — the test plan (the `tests_plan` step, possibly with the author's
   edits) from which the generators and the test-script were written;
+- `scoring.yaml` — the constraints cells of the statement's subtasks table;
 - `draft<extension>` — a copy of the author's draft from which
-  `init --draft` wrote the spec.
+  `init --draft` wrote the spec;
+- `draft-tutorial.md` — the author's tutorial draft.
+
+The list is `is_authoring_name` (`orchestrator/problem_paths.py`): a new `authoring/`
+file is uploaded (and pulled) once it is added there.
 
 All of this is stored on Polygon so that `polygon pull` can restore the problem
 in full. The files are uploaded as is, byte by byte (`ctx.spec` — the already parsed
@@ -43,51 +49,39 @@ from orchestrator.polygon.sync import (
     CONSTRAINTS_KEY,
     PULLED_CONSTRAINTS_HEADER,
     SPEC_KEY,
-    TESTS_PLAN_KEY,
     digest,
-    is_draft_name,
 )
 from orchestrator.problem_paths import (
+    AUTHORING_FILENAMES,
     DRAFT_STEM,
-    TUTORIAL_DRAFT_FILENAME,
     authoring_dir,
+    is_authoring_name,
 )
 
 STEP_NAME = "upload_attachments"
 
 
 def read_attachments(problem_id: str, problems_dir: Path) -> list[tuple[str, bytes]]:
-    """[(name, contents), ...]: the spec, `constraints.yaml` (if it exists and is the
-    result of `constraints_pick`), `tests_plan.yaml` (if it exists), the
-    draft copies alphabetically, the tutorial draft (if it exists). The name is both the name of the
-    aux file on Polygon and the sync base key. No spec —
-    `PolygonStepError`."""
+    """[(name, contents), ...]: the spec first, then every other `authoring/` file
+    (`is_authoring_name`) alphabetically — except a `constraints.yaml` that isn't the
+    result of `constraints_pick`. The name is both the name of the aux file on Polygon
+    and the sync base key. No spec — `PolygonStepError`."""
     directory = authoring_dir(Path(problems_dir) / problem_id)
     spec_path = directory / SPEC_KEY
     if not spec_path.exists():
         raise PolygonStepError(f"{spec_path} not found")
     attachments = [(SPEC_KEY, spec_path.read_bytes())]
 
-    constraints_path = directory / CONSTRAINTS_KEY
-    if constraints_path.is_file():
-        content = constraints_path.read_bytes()
-        if not content.startswith(PULLED_CONSTRAINTS_HEADER.encode("utf-8")):
-            attachments.append((CONSTRAINTS_KEY, content))
-
-    tests_plan_path = directory / TESTS_PLAN_KEY
-    if tests_plan_path.is_file():
-        attachments.append((TESTS_PLAN_KEY, tests_plan_path.read_bytes()))
-
-    drafts = sorted(
-        path
-        for path in directory.glob(f"{DRAFT_STEM}*")
-        if path.is_file() and is_draft_name(path.name)
-    )
-    attachments.extend((path.name, path.read_bytes()) for path in drafts)
-
-    tutorial_draft_path = directory / TUTORIAL_DRAFT_FILENAME
-    if tutorial_draft_path.is_file():
-        attachments.append((TUTORIAL_DRAFT_FILENAME, tutorial_draft_path.read_bytes()))
+    for path in sorted(directory.iterdir()):
+        name = path.name
+        if name == SPEC_KEY or not path.is_file() or not is_authoring_name(name):
+            continue
+        content = path.read_bytes()
+        if name == CONSTRAINTS_KEY and content.startswith(
+            PULLED_CONSTRAINTS_HEADER.encode("utf-8")
+        ):
+            continue
+        attachments.append((name, content))
     return attachments
 
 
@@ -120,7 +114,7 @@ def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
     return sync_status(
         problem_id,
         problems_dir,
-        key_prefix=(SPEC_KEY, CONSTRAINTS_KEY, TESTS_PLAN_KEY, DRAFT_STEM),
+        key_prefix=(*AUTHORING_FILENAMES, DRAFT_STEM),
         read_items=lambda: _items(read_attachments(problem_id, problems_dir)),
     )
 

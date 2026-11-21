@@ -97,6 +97,19 @@ _COMPONENT_PATTERN = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9_])?$")
 PROBLEM_ID_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
 
 
+# The fixed-name files of `authoring/` (besides them — the draft copies, `is_draft_name`).
+# The single list: `upload_attachments` uploads to Polygon and `polygon pull` downloads
+# exactly these files.
+AUTHORING_FILENAMES = (
+    SPEC_FILENAME,
+    CONSTRAINTS_FILENAME,
+    TESTS_DESIGN_FILENAME,
+    TESTS_PLAN_FILENAME,
+    SCORING_TEXTS_FILENAME,
+    TUTORIAL_DRAFT_FILENAME,
+)
+
+
 def is_draft_name(name: str) -> bool:
     """A copy of the author's draft (`draft<extension>`)."""
     return "/" not in name and PurePosixPath(name).stem == DRAFT_STEM
@@ -106,14 +119,7 @@ def is_authoring_name(name: str) -> bool:
     """A file that lies in `authoring/`: the spec, `constraints.yaml`,
     `tests_design.yaml`, `tests_plan.yaml`, `scoring.yaml`, the draft copy, the tutorial
     draft (by file name, without the directory)."""
-    return name in (
-        SPEC_FILENAME,
-        CONSTRAINTS_FILENAME,
-        TESTS_DESIGN_FILENAME,
-        TESTS_PLAN_FILENAME,
-        SCORING_TEXTS_FILENAME,
-        TUTORIAL_DRAFT_FILENAME,
-    ) or is_draft_name(name)
+    return name in AUTHORING_FILENAMES or is_draft_name(name)
 
 
 def authoring_dir(problem_dir: Path) -> Path:

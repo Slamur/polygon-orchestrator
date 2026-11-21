@@ -81,9 +81,10 @@ What is compared with what (the names are the same that the polygon steps read):
   statements" flag -> `example_<K>.verify_for_statement.txt` (`true`; no flag
   — no file) likewise;
 - aux files (the "Attachments" section, `problem.files` + `problem.viewFile`;
-  uploaded by the `upload_attachments` step) -> `authoring/spec.yaml`,
-  `authoring/constraints.yaml` (the whole `constraints_pick` result), the
-  draft copy `authoring/draft<extension>` — each is compared only with its version in
+  uploaded by the `upload_attachments` step) -> the `authoring/` files
+  (`is_authoring_name`): `spec.yaml`, `constraints.yaml` (the whole `constraints_pick`
+  result), `tests_design.yaml`, `tests_plan.yaml`, `scoring.yaml`, the draft copy
+  `draft<extension>`, the tutorial draft — each is compared only with its version in
   Attachments; other aux files aren't touched. A `constraints.yaml` of only
   TL/ML, written by previous versions of pull (`PULLED_CONSTRAINTS_HEADER`),
   gives way to the version from Attachments without `--overwrite`;
@@ -190,7 +191,6 @@ from orchestrator.polygon.sync import (
     STANDARD_CHECKER_PREFIX,
     TEST_GROUPS_KEY,
     TEST_GROUPS_TESTS_KEY,
-    TESTS_PLAN_KEY,
     VALIDATOR_FILE_KEY,
     VALIDATOR_KEY,
     digest,
@@ -205,8 +205,8 @@ from orchestrator.polygon.sync import (
 )
 from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
+    AUTHORING_FILENAMES,
     PROBLEMS_DIR,
-    TUTORIAL_DRAFT_FILENAME,
     ProblemPathError,
     authoring_dir,
     check_new_problem_location,
@@ -938,8 +938,9 @@ class _Puller:
             self.add("solutions", ITEM_ABSENT, "no solutions on Polygon")
 
     def pull_attachments(self) -> None:
-        """The problem's aux files (`is_attachment_name`: the spec, `constraints.yaml`,
-        `tests_plan.yaml`, the draft copy, the tutorial draft), uploaded by the `upload_attachments` step; locally they are
+        """The problem's aux files (`is_attachment_name`: the `authoring/` files — the spec,
+        `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`, `scoring.yaml`, the
+        draft copy, the tutorial draft), uploaded by the `upload_attachments` step; locally they are
         in `authoring/`, the base key is the name on Polygon. Other aux files on
         Polygon aren't touched."""
         remote_names = sorted(
@@ -973,16 +974,9 @@ class _Puller:
                     "no attachment on Polygon",
                     key=CONSTRAINTS_KEY,
                 )
-        if TESTS_PLAN_KEY not in remote_names:
-            self._missing_if_local(
-                _authoring_name(TESTS_PLAN_KEY), "no attachment on Polygon", key=TESTS_PLAN_KEY
-            )
-        if TUTORIAL_DRAFT_FILENAME not in remote_names:
-            self._missing_if_local(
-                _authoring_name(TUTORIAL_DRAFT_FILENAME),
-                "no attachment on Polygon",
-                key=TUTORIAL_DRAFT_FILENAME,
-            )
+        for name in AUTHORING_FILENAMES:
+            if name not in (SPEC_KEY, CONSTRAINTS_KEY) and name not in remote_names:
+                self._missing_if_local(_authoring_name(name), "no attachment on Polygon", key=name)
         directory = authoring_dir(self.problem_dir)
         local_drafts = sorted(
             path.name

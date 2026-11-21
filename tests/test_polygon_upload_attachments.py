@@ -120,6 +120,9 @@ def test_uploads_constraints_and_draft_copies(problems_dir, spec):
     spec_content = _write_spec(problems_dir)
     _write(problems_dir, "constraints.yaml", b"limits: {}\n")
     _write(problems_dir, "tests_plan.yaml", b"generators: []\n")
+    _write(problems_dir, "tests_design.yaml", b"generators: []\n")
+    _write(problems_dir, "scoring.yaml", b"subtasks: []\n")
+    _write(problems_dir, "notes.txt", b"not an authoring file\n")
     _write(problems_dir, "draft-tutorial.md", b"tutorial draft\n")
     _write(problems_dir, "draft.md", b"idea\n")
     _write(problems_dir, "draft", b"idea without extension\n")
@@ -134,6 +137,8 @@ def test_uploads_constraints_and_draft_copies(problems_dir, spec):
         "spec.yaml": spec_content,
         "constraints.yaml": b"limits: {}\n",
         "tests_plan.yaml": b"generators: []\n",
+        "tests_design.yaml": b"generators: []\n",
+        "scoring.yaml": b"subtasks: []\n",
         "draft-tutorial.md": b"tutorial draft\n",
         "draft": b"idea without extension\n",
         "draft.md": b"idea\n",
@@ -143,7 +148,9 @@ def test_uploads_constraints_and_draft_copies(problems_dir, spec):
         "draft",
         "draft-tutorial.md",
         "draft.md",
+        "scoring.yaml",
         "spec.yaml",
+        "tests_design.yaml",
         "tests_plan.yaml",
     ]
 
@@ -181,3 +188,15 @@ def test_incremental_run_uploads_only_changed_attachments(problems_dir, spec):
     status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
     assert status == "stale"
     assert "draft.md" in detail
+
+
+def test_status_stale_when_a_new_authoring_file_appears(problems_dir, spec):
+    link(problems_dir)
+    _write_spec(problems_dir)
+    _run(spec, problems_dir, MagicMock())
+    _write(problems_dir, "scoring.yaml", b"subtasks: []\n")
+
+    status, detail = STEP.compute_status(PROBLEM_ID, problems_dir)
+
+    assert status == "stale"
+    assert "scoring.yaml" in detail
