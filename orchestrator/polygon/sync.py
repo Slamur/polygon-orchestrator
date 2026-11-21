@@ -90,8 +90,7 @@ STANDARD_CHECKER_PREFIX = "std::"
 
 def is_attachment_name(name: str) -> bool:
     """An aux file on Polygon that stores an `authoring/` file of the problem directory
-    (the `upload_attachments` step): the spec, `constraints.yaml`, `tests_plan.yaml`,
-    the draft copy.
+    (the `upload_attachments` step): any `authoring/` file, `is_authoring_name`.
     The key in the sync base is the name itself."""
     return is_authoring_name(name)
 

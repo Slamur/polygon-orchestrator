@@ -612,8 +612,9 @@ Polygon:
 1. The problem's owner gives access on Polygon (**Manage access**, the
    `WRITE` right).
 2. The second participant: `orchestrator problems/<path>/<problem_id> polygon pull` —
-   the problem is found by name, its files are downloaded, and from Attachments — the spec,
-   `constraints.yaml`, the test plan and the draft.
+   the problem is found by name, its files are downloaded, and from Attachments — the
+   `authoring/` files: the spec, `constraints.yaml`, the test design and plan,
+   `scoring.yaml`, the draft and the tutorial draft.
 3. Then the usual cycle: edits → `llm generate` / by hand → `polygon push`.
    If another person managed to push something, `push` stops and asks to
    `pull` first.
