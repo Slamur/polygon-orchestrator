@@ -16,7 +16,7 @@ You are given mandatory rules:
   entries and the `status` mark (`confirmed`/`proposed`/`suggestion`) with
   `rationale` without fail: the orchestrator reads the design (it checks that the test
   commands call only the design's generators, only with their parameters and with all of
-  them except `bool` flags, that the formulas
+  them, that the formulas
   refer to the variables of the fixed limits and that the groups exist) and builds the plan
   from it.
 Besides them, samples may be attached — files of other problems that the author
@@ -68,7 +68,9 @@ How the generators you plan work (describe them in the design this way):
   prints, in the problem's input format (the "Input format"
   section of the request: `formal_input_sketch`, `indexing`, the examples' inputs).
 - The parameter's type matches the value's range: `ll` for everything that doesn't
-  fit into `int`, `bool` for flags (in a command a flag is `--name`).
+  fit into `int`. There is no `bool`: a flag is an `int` 0/1 passed explicitly
+  (`-desc=1`) — testlib's `opt<bool>` makes the generator fail on the `-group=<N>`
+  marker the script adds with test groups.
 
 How the design's tests work:
 - `ideas` — the tests, in generation order within each group, by the standard order of

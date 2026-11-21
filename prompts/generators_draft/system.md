@@ -30,7 +30,8 @@ How to write a generator (the sample generators are built this way too):
   `gen_test` that builds the test and prints it, and its call.
 - The parameters — exactly the generator's `params` in the plan: the same names (the script
   calls the generator by the plan) and types (`int` → `opt<int>`, `ll` →
-  `opt<ll>`, `bool` → `opt<bool>`, `string` → `opt<string>`). Not a single
+  `opt<ll>`, `string` → `opt<string>`; a flag is an `int` 0/1, never `opt<bool>`:
+  it calls `has_opt`, see below). Not a single
   limit of the problem is hardcoded as a constant.
 - The test number is NOT passed to the generator in any form.
 - If the fixed limits have `test_groups`, the script adds `-group=<N>` to every

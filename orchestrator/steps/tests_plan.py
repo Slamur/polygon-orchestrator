@@ -70,10 +70,13 @@ COVERED_LISTS = ("specific_test_ideas",)
 _COVERS_RE = re.compile(r"^(specific_test_ideas)\[(\d+)\]$")
 
 GENERATOR_NAME_RE = re.compile(r"^(?:gen|upd)_[A-Za-z0-9_]+$")
-PARAM_TYPES = ("int", "ll", "bool", "string")
+# No `bool`: testlib's `opt<bool>` calls `has_opt`, after which it fails on any option the
+# generator didn't read — the `-group=<N>` marker of a script with test groups. A flag is an
+# `int` 0/1 passed explicitly, like every other parameter.
+PARAM_TYPES = ("int", "ll", "string")
 PLAN_STATUSES = ("confirmed", "proposed", "suggestion")
-# A parameter in a plan command: `-name=value` or a flag `--name`.
-_COMMAND_PARAM_RE = re.compile(r"^--?([A-Za-z_][A-Za-z0-9_]*)(?:=\S*)?$")
+# A parameter in a plan command: `-name=value`.
+_COMMAND_PARAM_RE = re.compile(r"^-([A-Za-z_][A-Za-z0-9_]*)=\S*$")
 
 
 class TestsPlanError(ValueError):
@@ -86,7 +89,7 @@ def parse_tests_plan(text: str) -> dict[str, Any]:
     """Parses and checks `tests_plan.yaml` (`templates/tests_plan_format.yaml`):
     generators with unique `gen_*`/`upd_*` names and parameters of known
     types, tests with commands containing only the plan's generators, only with their
-    parameters and with all of them except `bool` flags. Returns the document as is; an error — `TestsPlanError`."""
+    parameters and with all of them. Returns the document as is; an error — `TestsPlanError`."""
     try:
         plan = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -175,8 +178,8 @@ def _check_command(
     command: Any, where: str, params_by_generator: dict[str, dict[str, str]], errors: list[str]
 ) -> None:
     """Every part of the chain calls a known generator with only its parameters and with
-    all of them except `bool` flags: the generators read every parameter with `opt<T>`,
-    and testlib fails on a missing one (a missing flag `opt<bool>` reads as `false`)."""
+    all of them: the generators read every parameter with `opt<T>`, and testlib fails on a
+    missing one."""
     if not isinstance(command, str) or not command.strip():
         errors.append(f"{where} must be a non-empty string")
         return
@@ -193,18 +196,12 @@ def _check_command(
         for token in params:
             match = _COMMAND_PARAM_RE.match(token)
             if not match:
-                errors.append(
-                    f"{where}: parameter {token!r} of '{name}' is not -name=value or --name"
-                )
+                errors.append(f"{where}: parameter {token!r} of '{name}' is not -name=value")
             elif match.group(1) not in params_by_generator[name]:
                 errors.append(f"{where}: '{name}' has no parameter '{match.group(1)}'")
             else:
                 given.add(match.group(1))
-        missing = [
-            param
-            for param, param_type in params_by_generator[name].items()
-            if param_type != "bool" and param not in given
-        ]
+        missing = [param for param in params_by_generator[name] if param not in given]
         if missing:
             errors.append(
                 f"{where}: '{name}' is called without its parameter(s) "

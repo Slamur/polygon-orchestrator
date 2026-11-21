@@ -64,8 +64,10 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      the next two steps don't see the spec. The commands don't carry `-group`, the
      script adds it. Before writing, the design and the plan are checked
      (`parse_tests_design`, `parse_tests_plan`): commands call only the generators,
-     only with their parameters and with all of them except `bool` flags (the generators
-     read every parameter with `opt<T>`, testlib fails on a missing one), formulas refer to known variables and compute for every
+     only with their parameters and with all of them (the generators
+     read every parameter with `opt<T>`, testlib fails on a missing one; there is no
+     `bool` type — a flag is an `int` 0/1: testlib's `opt<bool>` calls `has_opt` and then
+     fails on the unread `-group=<N>` marker), formulas refer to known variables and compute for every
      group (`{n.lo}` of a group whose dependencies already take `n` up to its max — an
      error), groups exist (not `0`), entries of one idea take disjoint groups, every group
      gets tests, an `each_test` group (`points_policy`) gets a number of tests dividing its

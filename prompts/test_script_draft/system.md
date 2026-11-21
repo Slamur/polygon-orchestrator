@@ -50,7 +50,7 @@ How to carry the plan over into the script:
   the author can remove it entirely.
 - Each `commands` line — a script line `<chain> > $`: the generator names
   — through their variables, the parameter values — through the
-  `constants` variables (`-n=${maxN}`), a flag `--name` — as is. A block with `repeat` —
+  `constants` variables (`-n=${maxN}`), other values — as is. A block with `repeat` —
   `<#list>` over the described values, the loop variable — under the name
   the commands use it by.
 - Call only the plan's generators and only with their parameters (the "The plan's

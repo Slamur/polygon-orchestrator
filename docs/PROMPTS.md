@@ -617,7 +617,7 @@ You are given mandatory rules:
   entries and the `status` mark (`confirmed`/`proposed`/`suggestion`) with
   `rationale` without fail: the orchestrator reads the design (it checks that the test
   commands call only the design's generators, only with their parameters and with all of
-  them except `bool` flags, that the formulas
+  them, that the formulas
   refer to the variables of the fixed limits and that the groups exist) and builds the plan
   from it.
 Besides them, samples may be attached — files of other problems that the author
@@ -669,7 +669,9 @@ How the generators you plan work (describe them in the design this way):
   prints, in the problem's input format (the "Input format"
   section of the request: `formal_input_sketch`, `indexing`, the examples' inputs).
 - The parameter's type matches the value's range: `ll` for everything that doesn't
-  fit into `int`, `bool` for flags (in a command a flag is `--name`).
+  fit into `int`. There is no `bool`: a flag is an `int` 0/1 passed explicitly
+  (`-desc=1`) — testlib's `opt<bool>` makes the generator fail on the `-group=<N>`
+  marker the script adds with test groups.
 
 How the design's tests work:
 - `ideas` — the tests, in generation order within each group, by the standard order of
@@ -899,7 +901,8 @@ How to write a generator (the sample generators are built this way too):
   `gen_test` that builds the test and prints it, and its call.
 - The parameters — exactly the generator's `params` in the plan: the same names (the script
   calls the generator by the plan) and types (`int` → `opt<int>`, `ll` →
-  `opt<ll>`, `bool` → `opt<bool>`, `string` → `opt<string>`). Not a single
+  `opt<ll>`, `string` → `opt<string>`; a flag is an `int` 0/1, never `opt<bool>`:
+  it calls `has_opt`, see below). Not a single
   limit of the problem is hardcoded as a constant.
 - The test number is NOT passed to the generator in any form.
 - If the fixed limits have `test_groups`, the script adds `-group=<N>` to every
@@ -1045,7 +1048,7 @@ How to carry the plan over into the script:
   the author can remove it entirely.
 - Each `commands` line — a script line `<chain> > $`: the generator names
   — through their variables, the parameter values — through the
-  `constants` variables (`-n=${maxN}`), a flag `--name` — as is. A block with `repeat` —
+  `constants` variables (`-n=${maxN}`), other values — as is. A block with `repeat` —
   `<#list>` over the described values, the loop variable — under the name
   the commands use it by.
 - Call only the plan's generators and only with their parameters (the "The plan's

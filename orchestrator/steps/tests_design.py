@@ -89,7 +89,7 @@ def parse_tests_design(text: str, limits: _Limits) -> dict[str, Any]:
     """Parses and checks `tests_design.yaml`: the generators (as in the plan), the
     named values, the ideas — known ids, groups of `constraints.yaml` (or none without
     groups), entries of one idea on disjoint groups, commands of the design's generators
-    with their parameters only and with all of them but `bool` flags, formulas over
+    with their parameters only and with all of them, formulas over
     known variables. Returns the document as is;
     an error — `TestsDesignError`."""
     try:
