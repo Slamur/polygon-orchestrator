@@ -84,12 +84,12 @@ generators:
     status: confirmed
     params:
       - name: desc
-        type: bool
-        description: the flag of sorting in descending order
+        type: int
+        description: 1 — sort in descending order, 0 — in ascending order
     input: a ready test — N and K on the first line, the array A on the second
     output: the same test with the sorted array
     algorithm: |
-      The array is sorted in ascending order, with the desc flag — in descending order; N and K
+      The array is sorted in ascending order, with desc=1 — in descending order; N and K
       don't change.
 
 constants:
@@ -146,8 +146,8 @@ tests:
       - known_wrong_approaches[3]
     commands:
       - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK
-      - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK | upd_array_sort
-      - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK | upd_array_sort --desc
+      - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK | upd_array_sort -desc=0
+      - gen_array_distinct -n=maxN -minA=minA -maxA=maxA | gen_k_rand -minK=minK -maxK=maxK | upd_array_sort -desc=1
     repeat: null
     rationale: |
       The maximal N catches O(N^2) and slow input/output.

@@ -116,7 +116,7 @@ def test_parse_tests_plan_rejects_broken_structure(change, message):
         ("gen_other -n=1", "generator 'gen_other' is not in 'generators'"),
         ("gen_rand -m=1", "'gen_rand' has no parameter 'm'"),
         ("gen_rand", "'gen_rand' is called without its parameter\\(s\\) 'n'"),
-        ("gen_rand n=1", "is not -name=value or --name"),
+        ("gen_rand n=1", "is not -name=value"),
         ("gen_rand -n=1 | ", "empty part of the chain"),
     ],
 )
@@ -127,7 +127,8 @@ def test_parse_tests_plan_checks_commands_against_generators(command, message):
         parse_tests_plan(yaml.safe_dump(plan))
 
 
-def test_parse_tests_plan_allows_omitting_bool_flags():
+def test_parse_tests_plan_rejects_bool_params():
+    # opt<bool> calls has_opt: testlib then fails on the unread -group marker.
     plan = _plan()
     plan["generators"].append(
         {
@@ -136,10 +137,24 @@ def test_parse_tests_plan_allows_omitting_bool_flags():
             "params": [{"name": "desc", "type": "bool", "description": "descending"}],
         }
     )
-    plan["tests"][0]["commands"] = ["gen_rand -n=1 | upd_sort", "gen_rand -n=1 | upd_sort --desc"]
-    assert parse_tests_plan(yaml.safe_dump(plan))["tests"][0]["commands"][0] == (
-        "gen_rand -n=1 | upd_sort"
+    with pytest.raises(TestsPlanError, match="type must be one of"):
+        parse_tests_plan(yaml.safe_dump(plan))
+
+
+def test_parse_tests_plan_rejects_flags_and_omitted_params():
+    plan = _plan()
+    plan["generators"].append(
+        {
+            "name": "upd_sort",
+            "status": "confirmed",
+            "params": [{"name": "desc", "type": "int", "description": "1 — descending"}],
+        }
     )
+    plan["tests"][0]["commands"] = ["gen_rand -n=1 | upd_sort --desc", "gen_rand -n=1 | upd_sort"]
+    with pytest.raises(TestsPlanError) as exc:
+        parse_tests_plan(yaml.safe_dump(plan))
+    assert "is not -name=value" in str(exc.value)
+    assert "without its parameter(s) 'desc'" in str(exc.value)
 
 
 def test_parse_tests_plan_rejects_invalid_yaml():

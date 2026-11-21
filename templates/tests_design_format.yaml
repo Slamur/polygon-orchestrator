@@ -22,7 +22,7 @@ generators:                     # an entry for each generator of the problem, wi
     status: <confirmed | proposed | suggestion>
     params:                     # command-line parameters (opt<T>("name")); none — []
       - name: "<parameter name>"
-        type: <int | ll | bool | string>
+        type: <int | ll | string>   # no bool: a flag is an int 0/1 (-name=1)
         description: "<meaning and allowed values>"
     input: "<what it reads from standard input (the part of the test from the previous generator of the chain) | null>"
     output: "<what it prints: the whole test or a part of it, in the problem's input format>"

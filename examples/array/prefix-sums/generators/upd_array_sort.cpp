@@ -3,7 +3,8 @@
 int main(int argc, char **argv) {
 	registerGen(argc, argv, 1);
 
-	bool desc = opt<bool>("desc");
+	int desc = opt<int>("desc");
+	ensuref(desc == 0 || desc == 1, "desc must be 0 or 1, found %d", desc);
 
 	int n = ri();
 	ll k = rll();
