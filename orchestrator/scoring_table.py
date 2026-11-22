@@ -45,9 +45,10 @@ class ScoringGroup:
 @dataclass(frozen=True)
 class _Words:
     total: str  # "{points} {unit}" are substituted
-    complete_group: str  # every subtask complete_group
-    all_each_test: str  # every subtask each_test
-    some_each_test: str  # some subtasks each_test
+    rule_intro: str  # before the list of the last column's values
+    rule_item: str  # "{value}" and "{meaning}" are substituted
+    complete_group_meaning: str  # what a feedback value of a complete_group subtask means
+    each_test_meaning: str  # what the each_test mark means
     header: str
     no_constraints: str
     each_test_mark: str
@@ -69,20 +70,16 @@ _HEADER_EN = r"""\textbf{Subtask} &
 _WORDS = {
     "ru": _Words(
         total="Задача оценивается в {points} {unit} (задача состоит из подзадач).",
-        complete_group=(
-            "Баллы за каждую подзадачу начисляются только в случае, если все тесты для этой "
-            "подзадачи\nи необходимых подзадач успешно пройдены."
-        ),
-        all_each_test=(
+        rule_intro=(
             "Подзадача проверяется, если пройдены все тесты необходимых подзадач.\n"
-            "Каждый тест подзадачи оценивается независимо в указанное число баллов."
+            "Баллы за проверенную подзадачу зависят от колонки <<Информация о проверке>>:"
         ),
-        some_each_test=(
-            "Баллы за подзадачу начисляются только в случае, если все тесты для этой "
-            "подзадачи\nи необходимых подзадач успешно пройдены. Исключение~--- подзадачи с "
-            "пометкой <<баллы за каждый тест>>:\nтакая подзадача проверяется, если пройдены все "
-            "тесты необходимых подзадач,\nи каждый её тест оценивается независимо в указанное "
-            "в скобках число баллов."
+        rule_item="<<{value}>>~--- {meaning}",
+        complete_group_meaning=(
+            "баллы за подзадачу начисляются, только если все тесты этой подзадачи пройдены"
+        ),
+        each_test_meaning=(
+            "каждый тест подзадачи оценивается независимо в указанное в скобках число баллов"
         ),
         header=_HEADER_RU,
         no_constraints="Без дополнительных ограничений",
@@ -96,20 +93,17 @@ _WORDS = {
     ),
     "en": _Words(
         total="The problem is scored out of {points} {unit} (the problem consists of subtasks).",
-        complete_group=(
-            "Points for a subtask are awarded only if all tests of this subtask\n"
-            "and of the necessary subtasks are passed."
-        ),
-        all_each_test=(
+        rule_intro=(
             "A subtask is tested if all tests of the necessary subtasks are passed.\n"
-            "Each test of a subtask is scored independently with the given number of points."
+            "The points of a tested subtask depend on the ``Verification information'' column:"
         ),
-        some_each_test=(
-            "Points for a subtask are awarded only if all tests of this subtask\n"
-            "and of the necessary subtasks are passed. The exception is the subtasks marked "
-            "``points per test'':\nsuch a subtask is tested if all tests of the necessary "
-            "subtasks are passed,\nand each of its tests is scored independently with the "
-            "number of points given in parentheses."
+        rule_item="``{value}''~--- {meaning}",
+        complete_group_meaning=(
+            "the subtask's points are awarded only if all tests of this subtask are passed"
+        ),
+        each_test_meaning=(
+            "each test of the subtask is scored independently with the number of points "
+            "given in parentheses"
         ),
         header=_HEADER_EN,
         no_constraints="No additional constraints",
@@ -187,6 +181,33 @@ def _points_cell(group: ScoringGroup, counts: dict[str, int]) -> str:
     return f"{group.points} ({group.points // count})"
 
 
+def _last_cell(words: _Words, group: ScoringGroup) -> str:
+    if group.points_policy == EACH_TEST:
+        return words.each_test_mark
+    return words.feedback.get(group.feedback_policy, group.feedback_policy)
+
+
+def _rule(words: _Words, groups: list[ScoringGroup]) -> str:
+    """The paragraph on how the subtasks are scored: when a subtask is tested, then an
+    item for every value of the last column the table uses, in the order of the rows."""
+    meanings: dict[str, str] = {}
+    for group in groups:
+        meanings.setdefault(
+            _last_cell(words, group),
+            words.each_test_meaning
+            if group.points_policy == EACH_TEST
+            else words.complete_group_meaning,
+        )
+    items = [
+        f"\\item {words.rule_item.format(value=value, meaning=meaning)}"
+        for value, meaning in meanings.items()
+    ]
+    for index in range(len(items) - 1):
+        items[index] += ";"
+    items[-1] += "."
+    return "\n".join([words.rule_intro, "\\begin{itemize}", *items, "\\end{itemize}"])
+
+
 def render_scoring(
     language: str,
     groups: list[ScoringGroup],
@@ -205,28 +226,17 @@ def render_scoring(
     rows = []
     for group in groups:
         constraints = texts.get(group.name) or words.no_constraints
-        last = (
-            words.each_test_mark
-            if group.points_policy == EACH_TEST
-            else words.feedback.get(group.feedback_policy, group.feedback_policy)
-        )
+        last = _last_cell(words, group)
         dependencies = ", ".join(group.dependencies)
         rows.append(
             f"{group.name} & {_points_cell(group, counts)} & \\centering {constraints} & "
             f"{dependencies} & {last} \\\\\n\\hline"
         )
     total = sum(group.points or 0 for group in groups)
-    each_test = [group for group in groups if group.points_policy == EACH_TEST]
-    if not each_test:
-        rule = words.complete_group
-    elif len(each_test) == len(groups):
-        rule = words.all_each_test
-    else:
-        rule = words.some_each_test
     parts = [
         words.total.format(points=total, unit=_points_unit(language, total)),
         "",
-        rule,
+        _rule(words, groups),
         "",
         "\\begin{center}",
         "\\renewcommand{\\arraystretch}{1.3}",
