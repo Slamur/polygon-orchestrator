@@ -163,7 +163,5 @@ def with_string_names(raw: Iterable[dict]) -> list[dict]:
             item["name"] = str(item["name"]).strip()
         if isinstance(item.get("dependencies"), list):
             item["dependencies"] = [str(name).strip() for name in item["dependencies"]]
-        if isinstance(item.get("subset_of"), int):
-            item["subset_of"] = str(item["subset_of"])
         items.append(item)
     return items

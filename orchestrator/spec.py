@@ -196,7 +196,6 @@ class TestGroupHint(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str
-    subset_of: str | None = None
     # The group's own bounds of the problem's variables, by the variable's name in
     # `constraints.variables`; everything else about the group's tests — `special_property`.
     variables: dict[str, GroupVariableLimit] | None = None
@@ -255,7 +254,7 @@ def allowed_test_counts(points: int) -> list[int]:
 
 def check_test_groups(groups: list[TestGroupHint], where: str) -> None:
     """Group names — distinct positive numbers (`0` — the statement examples, implicit),
-    `dependencies` and `subset_of` — names of the listed groups, other than the group itself.
+    `dependencies` — names of the listed groups, other than the group itself.
     `where` — the list's location for the messages: `constraints.test_groups_hint` of the
     spec or `test_groups` of `constraints.yaml` (`orchestrator/test_groups.py`)."""
     names = [group.name for group in groups]
@@ -275,16 +274,12 @@ def check_test_groups(groups: list[TestGroupHint], where: str) -> None:
                 f"{where}[{index}]: points_policy each_test needs positive points — "
                 "each test of the group gets an equal share of them"
             )
-        for field, refs in (
-            ("dependencies", group.dependencies or []),
-            ("subset_of", [group.subset_of] if group.subset_of is not None else []),
-        ):
-            for ref in refs:
-                if ref == group.name or ref not in names:
-                    raise ValueError(
-                        f"{where}[{index}].{field}: {ref!r} must name "
-                        f"another listed group (one of {names})"
-                    )
+        for ref in group.dependencies or []:
+            if ref == group.name or ref not in names:
+                raise ValueError(
+                    f"{where}[{index}].dependencies: {ref!r} must name "
+                    f"another listed group (one of {names})"
+                )
 
 
 def check_group_variables(

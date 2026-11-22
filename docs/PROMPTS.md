@@ -301,7 +301,7 @@ the solution.
 The problem has subtasks (the rules of the Scoring block — scoring.md). The groups as the
 author set them, in order (None — not set):
 {% for g in statement_draft.test_groups %}
-- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}; points_policy {{ g.points_policy }}
+- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}; points_policy {{ g.points_policy }}
 {% endfor %}
 
 The problem's variables (a subtask's `variables` narrow their bounds):
@@ -440,8 +440,7 @@ What to do when the asymptotics are given explicitly:
    256 MB (or a power of two — 32/64/128 — if there are grounds).
 3. Form the test groups only from the spec's `test_groups_hint`: the groups are the
    author's decision, you don't invent them.
-   - If `test_groups_hint` is non-empty — follow its structure and `subset_of`
-     relations.
+   - If `test_groups_hint` is non-empty — follow its structure.
    - If it is empty — the problem has no groups: don't include `test_groups` in
      `constraints.yaml` at all, don't write an empty list and don't leave a
      placeholder comment. If you think groups would make the problem better — only
@@ -449,7 +448,7 @@ What to do when the asymptotics are given explicitly:
    For each group fix the fields of constraints_format.yaml:
    - `name` — as in the hint (numbers 1, 2, ... in order); group 0 — the statement
      examples with the full limits and 0 points — is implicit, don't list it;
-   - `variables`, `special_property`, `subset_of` — from the hint (`variables` — the
+   - `variables`, `special_property` — from the hint (`variables` — the
      group's own `min`/`max` of the named variables, as the author gave them;
      a variable not named — its full bounds);
    - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
@@ -487,8 +486,7 @@ a separate `validator` section, from which item 6 below derives
 - `validator.groups` — only with `test_groups`: an entry for each group whose
   tests have narrower limits than the full ones — `constants` with the variables
   whose bounds the group narrows and their group `min`/`max` as numbers (by its
-  `variables` and `subset_of`: a group narrowing another one has at most its
-  limits; an expression bound of the hint — evaluated at the fixed limits, or kept
+  `variables`; an expression bound of the hint — evaluated at the fixed limits, or kept
   as a check in `checks` if it depends on other values of the test) and `checks` with the group's
   `special_property`, if any, as a concrete check. A group with the full limits
   and no special property has no entry. Plus one entry in `validator.checks`: the
@@ -567,7 +565,7 @@ The inputs of the statement's examples (an illustration of the format — the va
 
 ## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
-- name={{ g.name }}, subset_of={{ g.subset_of }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}, points_policy={{ g.points_policy }}
+- name={{ g.name }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}, points_policy={{ g.points_policy }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 
@@ -2110,7 +2108,7 @@ a proposed value here must have a mark and an explanation in `notes`:
   subtasks (groups, partial points, "for N <= 1000 ..."): then fill in every group
   completely — `name` (1, 2, ...), its limits (`variables` — the group's own `min`/`max`
   of variables from `constraints.variables`, `{N: {max: 1000}}`; `special_property` —
-  everything that isn't a bound of one variable; `subset_of`), `points` (all groups sum to 100), `dependencies` (only earlier
+  everything that isn't a bound of one variable), `points` (all groups sum to 100), `dependencies` (only earlier
   groups), `feedback_policy`, `points_policy` (`each_test` — only if the draft gives
   points for each passed test of the group, otherwise omit it) — keep what the author
   wrote as is, mark each value you

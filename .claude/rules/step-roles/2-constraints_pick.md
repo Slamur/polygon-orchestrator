@@ -40,7 +40,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    "insufficient data" error rather than guess; in that case `validator.cpp`
    isn't written either — the whole step response goes to `uncertain`.
    Test groups (`test_groups` of `constraints.yaml`) come from the spec's
-   `test_groups_hint` — names, `variables`/`special_property`/`subset_of`, `points`,
+   `test_groups_hint` — names, `variables`/`special_property`, `points`,
    `dependencies`, `feedback_policy`, `points_policy` as the author gave them (missing points —
    `uncertain`, like the groups themselves; dependencies the author didn't give are only a
    `suggestion` note); without the hint there are none — the step doesn't invent groups

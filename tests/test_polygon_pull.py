@@ -251,7 +251,7 @@ def test_pull_records_revision_and_baseline(problems_dir, polygon):
 
 def _flat_spec_text() -> str:
     """The fixture spec with a flat script and so without test groups."""
-    hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      variables: {N: {max: 10}}\n'
+    hint = '  test_groups_hint:\n    - name: "1"\n      variables: {N: {max: 10}}\n'
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     assert hint in text
     return text.replace('script_style: "groups"', 'script_style: "flat"').replace(hint, "")

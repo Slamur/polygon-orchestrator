@@ -33,7 +33,6 @@ test_groups:                    # only if groups are needed; otherwise there's n
                                 # always present, isn't listed here
   - name: "<1, 2, ...>"         # the fields — as in the spec's constraints.test_groups_hint;
                                 # names — numbers in order: the validator gets the group as a number
-    subset_of: "<group name | null>"
     variables:                  # the group's own bounds, by variable name; absent — the full ones
       <name>: {min: <number | expression>, max: <number | expression>}  # either or both
     special_property: "<the special property of the group's tests | null>"

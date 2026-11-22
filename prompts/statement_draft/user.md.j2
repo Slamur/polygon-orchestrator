@@ -30,7 +30,7 @@ the solution.
 The problem has subtasks (the rules of the Scoring block — scoring.md). The groups as the
 author set them, in order (None — not set):
 {% for g in statement_draft.test_groups %}
-- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; subset_of {{ g.subset_of }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}; points_policy {{ g.points_policy }}
+- subtask {{ g.name }}: points {{ g.points }}; variables {% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}; special_property {{ g.special_property }}; dependencies {{ (g.dependencies or []) | join(", ") or "none" }}; feedback_policy {{ g.feedback_policy }}; points_policy {{ g.points_policy }}
 {% endfor %}
 
 The problem's variables (a subtask's `variables` narrow their bounds):

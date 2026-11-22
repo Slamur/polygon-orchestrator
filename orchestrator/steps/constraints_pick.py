@@ -84,8 +84,8 @@ def _check_groups_are_set(problem_id: str, spec: ProblemSpec) -> None:
 def check_test_groups_artifact(text: str, spec: ProblemSpec) -> None:
     """The structural check of the test groups in the model's `constraints.yaml`, before it
     is written (`validate_artifacts`: a failure — a conflict, nothing is applied). The
-    groups must read as `orchestrator/test_groups.py` reads them (names, dependencies and
-    `subset_of` of listed groups), their `variables` — the spec's variables within their
+    groups must read as `orchestrator/test_groups.py` reads them (names, dependencies of
+    listed groups), their `variables` — the spec's variables within their
     numeric bounds, every dependency — an earlier group, points — given for
     every group or none, summing to 100 (or to the total of the author's points, when the
     spec's `test_groups_hint` gives points to every group), `validator.groups` — only of

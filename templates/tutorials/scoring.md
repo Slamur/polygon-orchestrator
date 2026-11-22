@@ -35,10 +35,8 @@ constraints:
   `$K \le N - 1$`;
 - `special_property` — the property in the statement's language, in formulas where it
   helps;
-- `subset_of` — the subtask's tests also satisfy all constraints of that subtask: write
-  those constraints out, don't just give the subtask's name;
-- several of these — in one cell, separated by commas;
-- none of these — `null`.
+- both — in one cell, separated by commas;
+- neither — `null`.
 
 The cell is one line of text: no `&`, no `\\`, no lists or line breaks — it sits inside a
 table cell.
