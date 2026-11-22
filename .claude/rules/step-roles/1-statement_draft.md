@@ -33,9 +33,13 @@ For a problem with test groups (a non-empty `constraints.test_groups_hint` in th
 the step also gets the hint (as the author wrote it) and the variables' names and
 descriptions — in the hash only then — and the rules `templates/tutorials/scoring.md`
 (attached only then), and also writes `authoring/scoring.yaml`: the constraints cell of
-each subtask of the Scoring block's table (LaTeX in the statement language, `null` — no
-extra constraints), for exactly the hint's groups (`parse_scoring_texts`, checked before
-writing: otherwise a conflict), as in `examples/number/roots-subtasks`. The rest of the
+each subtask of the Scoring block's table (LaTeX in the statement language: the bounds of
+the group's `variables` and its `special_property` written out; `null` — only for a group
+with neither), for exactly the hint's groups (`parse_scoring_texts`, and a `null` cell of a
+group with `variables` or `special_property` is an error — `_check_constrained_cells`;
+checked before writing: otherwise the response is requested again or is a conflict). Why
+the null check: the table puts the cell as is, and the model once left `null` for groups
+with only variable bounds, assuming the orchestrator would add them. As in `examples/number/roots-subtasks`. The rest of the
 table the model doesn't write: it follows from the groups and the tests, see
 `scoring_table` below. Why: the names, points, necessary subtasks and the last column are
 a fixed enumeration of the groups' fields, and the model got their wording wrong (e.g.

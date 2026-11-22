@@ -15,7 +15,7 @@ from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import authoring_path
 from orchestrator.references import reference_documents
 from orchestrator.scoring_table import SCORING_TEXTS_FILENAME, parse_scoring_texts
-from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
+from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec, TestGroupHint
 from orchestrator.statement_languages import (
     EXAMPLES_DIRNAME,
     STATEMENT_DIRNAME,
@@ -207,15 +207,39 @@ def _stale_scoring(problem_id: str, spec: ProblemSpec, *, problems_dir: Path) ->
 def _validate_statement_artifacts(
     expected: set[str], spec: ProblemSpec
 ) -> Callable[[dict[str, str]], None]:
-    """The set of names; `scoring.yaml` — a constraints cell of exactly the spec's groups."""
-    group_names = [group.name for group in spec.constraints.test_groups_hint or []]
+    """The set of names; `scoring.yaml` — a constraints cell of exactly the spec's groups,
+    not empty for a group with its own constraints (`_check_constrained_cells`)."""
+    groups = spec.constraints.test_groups_hint or []
+    group_names = [group.name for group in groups]
 
     def _validate(artifacts: dict[str, str]) -> None:
         check_artifact_names(STEP_NAME, expected, artifacts)
         if SCORING_TEXTS in artifacts:
-            parse_scoring_texts(artifacts[SCORING_TEXTS], group_names)
+            texts = parse_scoring_texts(artifacts[SCORING_TEXTS], group_names)
+            _check_constrained_cells(groups, texts)
 
     return _validate
+
+
+def _check_constrained_cells(groups: list[TestGroupHint], texts: dict[str, str | None]) -> None:
+    """A group with `variables` or `special_property` has a non-empty cell: the table puts
+    the cell's text as is, so a `null` cell would show "No additional constraints" for a
+    group with its own. `ValueError` naming every such group and what it narrows."""
+    empty = []
+    for group in groups:
+        if texts.get(group.name) is not None:
+            continue
+        own = [f"variables {', '.join(group.variables)}"] if group.variables else []
+        if group.special_property:
+            own.append("special_property")
+        if own:
+            empty.append(f"subtask {group.name} ({'; '.join(own)})")
+    if empty:
+        raise ValueError(
+            f"{SCORING_TEXTS_FILENAME}: the constraints cell is null for "
+            f"{', '.join(empty)} — a subtask with its own constraints has them all written "
+            "out in its cell, the orchestrator adds nothing to it (tutorials/scoring.md)"
+        )
 
 
 def compute_input_hash(

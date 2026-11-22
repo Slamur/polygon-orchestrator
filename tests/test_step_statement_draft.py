@@ -4,6 +4,7 @@ from unittest.mock import patch
 import pytest
 
 from orchestrator.model_router import ModelResponse
+from orchestrator.spec import TestGroupHint as GroupHint
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import MissingArtifactsError, StepUncertainError
 from orchestrator.steps.statement_draft import (
@@ -628,3 +629,33 @@ def test_scoring_texts_of_other_groups_are_rejected(groups_spec):
     artifacts["scoring.yaml"] = 'constraints:\n  "2": null\n'
     with pytest.raises(ValueError, match="no constraints of subtask"):
         validate(artifacts)
+
+
+def _groups_validate(groups_spec, groups):
+    constraints = groups_spec.constraints.model_copy(update={"test_groups_hint": groups})
+    spec = groups_spec.model_copy(update={"constraints": constraints})
+    expected = _expected_artifact_names(spec)
+    artifacts = {name: "x" for name in expected}
+    return _validate_statement_artifacts(expected, spec), artifacts
+
+
+def test_null_cell_of_a_constrained_group_is_rejected(groups_spec):
+    groups = [
+        GroupHint(name="1", variables={"N": {"max": 10}, "K": {"max": 3}}),
+        GroupHint(name="2", special_property="the graph is a tree"),
+        GroupHint(name="3"),
+    ]
+    validate, artifacts = _groups_validate(groups_spec, groups)
+    artifacts["scoring.yaml"] = 'constraints:\n  "1": null\n  "2": null\n  "3": null\n'
+    with pytest.raises(
+        ValueError,
+        match=r"null for subtask 1 \(variables N, K\), subtask 2 \(special_property\) —",
+    ):
+        validate(artifacts)
+
+
+def test_null_cell_only_of_an_unconstrained_group_is_accepted(groups_spec):
+    groups = [GroupHint(name="1", variables={"N": {"max": 10}}), GroupHint(name="2")]
+    validate, artifacts = _groups_validate(groups_spec, groups)
+    artifacts["scoring.yaml"] = 'constraints:\n  "1": "$N \\\\le 10$"\n  "2": null\n'
+    validate(artifacts)
