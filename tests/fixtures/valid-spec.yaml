@@ -43,7 +43,6 @@ constraints:
     - "the graph is connected by definition"
   test_groups_hint:
     - name: "1"
-      subset_of: null
       variables: {N: {max: 10}}
   time_limit_seconds: 2.0
   memory_limit_mb: 256

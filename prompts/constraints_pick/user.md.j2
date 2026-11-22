@@ -28,7 +28,7 @@ The inputs of the statement's examples (an illustration of the format — the va
 
 ## The author's ideas on test groups (if any)
 {% for g in constraints.test_groups_hint %}
-- name={{ g.name }}, subset_of={{ g.subset_of }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}, points_policy={{ g.points_policy }}
+- name={{ g.name }}, variables={% if g.variables %}{% for name, lim in g.variables.items() %}{{ name }} ({% if lim.min is not none %}min {{ lim.min }}{% endif %}{% if lim.min is not none and lim.max is not none %}, {% endif %}{% if lim.max is not none %}max {{ lim.max }}{% endif %}){% if not loop.last %}, {% endif %}{% endfor %}{% else %}None{% endif %}, special_property={{ g.special_property }}, points={{ g.points }}, dependencies={{ g.dependencies }}, feedback_policy={{ g.feedback_policy }}, points_policy={{ g.points_policy }}
 {% endfor %}
 test_groups_needed: {{ constraints.test_groups_needed }}
 

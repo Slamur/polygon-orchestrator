@@ -32,7 +32,6 @@ limits:
 
 test_groups:
   - name: "1"
-    subset_of: null
     variables: {N: {max: 10}}
     special_property: null
     points: 10
@@ -41,7 +40,6 @@ test_groups:
     feedback_policy: icpc
     status: confirmed
   - name: "2"
-    subset_of: null
     variables: {N: {max: 1000}}
     special_property: null
     points: 15
@@ -49,7 +47,6 @@ test_groups:
     feedback_policy: icpc
     status: confirmed
   - name: "3"
-    subset_of: null
     variables: {N: {max: 1000000}}
     special_property: null
     points: 15
@@ -57,7 +54,6 @@ test_groups:
     feedback_policy: icpc
     status: confirmed
   - name: "4"
-    subset_of: null
     variables: {N: {max: 1000000000000}}
     special_property: null
     points: 20
@@ -65,7 +61,6 @@ test_groups:
     feedback_policy: icpc
     status: confirmed
   - name: "5"
-    subset_of: null
     variables: null
     special_property: null
     points: 40

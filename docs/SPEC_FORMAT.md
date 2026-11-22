@@ -168,7 +168,8 @@ constraints:
       points: 50
       dependencies: ["1", "2"]       # the earlier groups that must be passed for this group's points
                                      # (all their tests passed — for an each_test group too)
-    # All fields but name are optional; subset_of — the group whose limits this one narrows.
+    # All fields but name are optional. A group lists all its own limits — not by reference
+    # to another group.
     # Policies may be mixed: some groups complete_group, some each_test. The sample with
     # groups — examples/number/roots-subtasks.
   test_groups_needed: false          # [optional] bool, default false — the author's explicit request for

@@ -65,8 +65,7 @@ What to do when the asymptotics are given explicitly:
    256 MB (or a power of two — 32/64/128 — if there are grounds).
 3. Form the test groups only from the spec's `test_groups_hint`: the groups are the
    author's decision, you don't invent them.
-   - If `test_groups_hint` is non-empty — follow its structure and `subset_of`
-     relations.
+   - If `test_groups_hint` is non-empty — follow its structure.
    - If it is empty — the problem has no groups: don't include `test_groups` in
      `constraints.yaml` at all, don't write an empty list and don't leave a
      placeholder comment. If you think groups would make the problem better — only
@@ -74,7 +73,7 @@ What to do when the asymptotics are given explicitly:
    For each group fix the fields of constraints_format.yaml:
    - `name` — as in the hint (numbers 1, 2, ... in order); group 0 — the statement
      examples with the full limits and 0 points — is implicit, don't list it;
-   - `variables`, `special_property`, `subset_of` — from the hint (`variables` — the
+   - `variables`, `special_property` — from the hint (`variables` — the
      group's own `min`/`max` of the named variables, as the author gave them;
      a variable not named — its full bounds);
    - `points` — from the hint (`confirmed`); if the hint doesn't give them for some
@@ -112,8 +111,7 @@ a separate `validator` section, from which item 6 below derives
 - `validator.groups` — only with `test_groups`: an entry for each group whose
   tests have narrower limits than the full ones — `constants` with the variables
   whose bounds the group narrows and their group `min`/`max` as numbers (by its
-  `variables` and `subset_of`: a group narrowing another one has at most its
-  limits; an expression bound of the hint — evaluated at the fixed limits, or kept
+  `variables`; an expression bound of the hint — evaluated at the fixed limits, or kept
   as a check in `checks` if it depends on other values of the test) and `checks` with the group's
   `special_property`, if any, as a concrete check. A group with the full limits
   and no special property has no entry. Plus one entry in `validator.checks`: the

@@ -336,7 +336,7 @@ def test_flat_script_with_test_groups_raises(tmp_path, groups):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
     text = text.replace('script_style: "groups"', 'script_style: "flat"')
     if groups is not None:
-        hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      variables: {N: {max: 10}}\n'
+        hint = '  test_groups_hint:\n    - name: "1"\n      variables: {N: {max: 10}}\n'
         assert hint in text
         text = text.replace(hint, groups)
     path = tmp_path / "valid-spec.yaml"
@@ -352,7 +352,7 @@ def test_flat_script_with_test_groups_raises(tmp_path, groups):
 
 def test_flat_script_without_test_groups_is_accepted(tmp_path):
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
-    hint = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      variables: {N: {max: 10}}\n'
+    hint = '  test_groups_hint:\n    - name: "1"\n      variables: {N: {max: 10}}\n'
     text = text.replace('script_style: "groups"', 'script_style: "flat"').replace(hint, "")
     path = tmp_path / "valid-spec.yaml"
     path.write_text(text, encoding="utf-8")
@@ -441,7 +441,7 @@ def test_wrong_approach_without_verdict_raises(tmp_path):
 
 def _write_with_groups(tmp_path, groups_yaml: str) -> Path:
     text = (FIXTURES_DIR / "valid-spec.yaml").read_text(encoding="utf-8")
-    old = '  test_groups_hint:\n    - name: "1"\n      subset_of: null\n      variables: {N: {max: 10}}\n'
+    old = '  test_groups_hint:\n    - name: "1"\n      variables: {N: {max: 10}}\n'
     assert old in text
     path = tmp_path / "valid-spec.yaml"
     path.write_text(text.replace(old, "  test_groups_hint:\n" + groups_yaml), encoding="utf-8")
