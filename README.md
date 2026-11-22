@@ -400,8 +400,9 @@ the generators, the script and the runs again). Separately, only via the `llm tu
 `tutorial_draft` (the tutorial from a draft).
 
 With `constraints.test_groups_hint` in the spec, `statement_draft` also writes
-`authoring/scoring.yaml` — the extra constraints of each subtask in the statement's
-language; give each group its points in the hint, or the step stops as `uncertain`.
+`authoring/scoring.yaml` — the constraints cell of each subtask in the statement's
+language (its variable bounds and special property; empty only for a subtask with the
+full constraints); give each group its points in the hint, or the step stops as `uncertain`.
 `test_groups_needed: true` without the hint stops the step as `uncertain` too (without
 calling the model): set the groups in `test_groups_hint`. The subtasks table
 `statement/<language>/scoring.tex` (as in `examples/number/roots-subtasks`) is assembled
