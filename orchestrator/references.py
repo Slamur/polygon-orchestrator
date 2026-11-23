@@ -81,6 +81,7 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     "solutions_ok": [SPEC_FILENAME, "solutions/*"],
     "solutions_slow": [SPEC_FILENAME, "solutions/*"],
     "solutions_wrong": [SPEC_FILENAME, "solutions/*"],
+    "solutions_groups": [SPEC_FILENAME, "solutions/*"],
     "checker_draft": [SPEC_FILENAME, "checker.cpp"],
     "interactor_draft": [SPEC_FILENAME, "interactor.cpp"],
 }
@@ -97,6 +98,7 @@ STEP_SECTIONS: dict[str, str] = {
     "solutions_ok": "solutions",
     "solutions_slow": "solutions",
     "solutions_wrong": "solutions",
+    "solutions_groups": "solutions",
     "checker_draft": "checker",
     "interactor_draft": "interactor",
 }

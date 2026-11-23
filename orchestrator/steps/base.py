@@ -201,6 +201,9 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "solutions_wrong": [
         "tutorials/solutions.md",
     ],
+    "solutions_groups": [
+        "tutorials/solutions.md",
+    ],
     "checker_draft": [
         "tutorials/checker.md",
         "problem_lib.h",

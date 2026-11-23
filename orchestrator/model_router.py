@@ -32,6 +32,8 @@ __all__ = [
 # (constraints_pick, solutions_main) — through the strong model. The other solution
 # stages build on the code of the main solution (a translation to another language, a
 # minimal change of an ok solution) — the medium model with high effort.
+# solutions_groups looks for solutions specific to particular test groups — an
+# algorithmic idea of its own, not the author's one carried over: the strong model.
 # Test preparation is split into three steps, so that the substantive part goes
 # separately from the voluminous one. tests_plan — test design: generators
 # composed from the author's ideas and the edge cases of the input, with
@@ -80,6 +82,7 @@ STEP_TO_MODEL: dict[str, str] = {
     "solutions_ok": "medium-model",
     "solutions_slow": "medium-model",
     "solutions_wrong": "medium-model",
+    "solutions_groups": "strong-model",
     "tests_survivors": "medium-model",
     "checker_draft": "medium-model",
     "interactor_draft": "strong-model",
@@ -109,6 +112,7 @@ STEP_TO_EFFORT: dict[str, str] = {
     "solutions_ok": "high",
     "solutions_slow": "high",
     "solutions_wrong": "high",
+    "solutions_groups": "high",
     "tests_survivors": "high",
     "checker_draft": "high",
     "interactor_draft": "high",
