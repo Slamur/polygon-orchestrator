@@ -341,6 +341,10 @@ it fails is an error (the stage's local run fails and the stage revises the solu
 group it passes but the item doesn't name — a warning. Add the comment by hand to a
 solution you write yourself, if you want this check for it.
 
+A solution not written from an item can name the groups it passes in the comment
+`passes groups: [2]` (the same syntax as an item's `[...]`), and `local run --full`
+compares them the same way.
+
 ---
 
 ## Command reference

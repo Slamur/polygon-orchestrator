@@ -107,6 +107,10 @@ compared with its results (`_judge_spec_groups`):
   `tl_ml` may come from a `tl` or `ml` item) or naming a group the problem doesn't have —
   a warning. Without the marker or without `[...]` in the item nothing is compared.
 
+A solution not written from an item may name the groups it passes in the comment
+`passes groups: [2, 3]` (`spec.PASSED_GROUPS_RE`); without a spec marker they are
+compared the same way. A comment whose groups don't parse — a warning.
+
 `SolutionsRunResult.summary()` — the same outcome in a machine-readable form: the
 status of each solution (`STATUS_*`; `survived` — the declared verdict on no
 generated test), the test that caught it and, with test groups, the points, the result
@@ -173,7 +177,7 @@ from orchestrator.problem_paths import (
     find_authoring_file,
     is_removed_mark,
 )
-from orchestrator.spec import find_approach_marker, parse_wrong_approach
+from orchestrator.spec import find_approach_marker, find_passed_groups, parse_wrong_approach
 from orchestrator.steps.statement_draft import dialogue_filenames
 from orchestrator.test_groups import EXAMPLES_GROUP
 
@@ -766,10 +770,21 @@ def _judge_all_spec_groups(parsed: dict, spec: dict | None, result: SolutionsRun
 
 def _judge_spec_groups(outcome: SolutionOutcome, source: str, items: list) -> None:
     """One solution: the groups it passed against its spec item's `[...]`, the item —
-    by the marker in its `source`; the findings go into `group_mismatches` (errors) and
-    `group_warnings`."""
+    by the marker in its `source`, or against its `passes groups: [...]` comment; the
+    findings go into `group_mismatches` (errors)
+    and `group_warnings`."""
+    if outcome.groups is None:
+        return
     index = find_approach_marker(source)
-    if index is None or outcome.groups is None:
+    if index is None:
+        passed = find_passed_groups(source)
+        if passed is None:
+            return
+        where = "its 'passes groups' comment"
+        if passed is False:
+            outcome.group_warnings.append(f"{where} isn't a list of group numbers and ranges")
+            return
+        _compare_groups(outcome, set(passed), where)
         return
     outcome.spec_item = index
     where = f"solutions.known_wrong_approaches[{index}]"
@@ -788,7 +803,14 @@ def _judge_spec_groups(outcome: SolutionOutcome, source: str, items: list) -> No
         return
     if approach.passed_groups is None:
         return
-    listed = set(approach.passed_groups)
+    _compare_groups(outcome, set(approach.passed_groups), where)
+
+
+def _compare_groups(outcome: SolutionOutcome, listed: set[str], where: str) -> None:
+    """The groups the solution passed against `listed` (named by `where`): a listed group
+    not passed — an error (a warning for its own time/memory verdict), a group not listed
+    but passed — `uncaught_groups`."""
+    assert outcome.groups is not None
     names = {g.group.name for g in outcome.groups}
     unknown = sorted(listed - names, key=lambda name: (len(name), name))
     if unknown:

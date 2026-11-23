@@ -757,3 +757,40 @@ def test_full_compares_groups_with_the_spec_item_of_the_solution(tmp_path):
     summary = {s["name"]: s for s in result.summary()["solutions"]}["wa_py_seven_draft.py"]
     assert summary["status"] == "unexpected"
     assert any("passes group 3" in w for w in result.warnings)
+
+
+def test_full_compares_groups_with_the_passes_groups_comment(tmp_path):
+    comment = "# passes groups: [1-2]\n"
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": comment + WA_ON_SEVEN_PY},
+        GROUPS_SCRIPT,
+    )
+    (problem_dir / "authoring" / "constraints.yaml").write_text(
+        GROUPS_CONSTRAINTS, encoding="utf-8"
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    wa = _by_name(result)["wa_py_seven_draft.py"]
+    assert wa.spec_item is None
+    assert wa.group_mismatches == [
+        "group 2: WA on test 4, its 'passes groups' comment says it passes the group"
+    ]
+    assert result.failed
+    # A group it passes but doesn't name: no test of the group catches it.
+    assert wa.uncaught_groups == ["3"]
+
+
+def test_a_malformed_passes_groups_comment_is_a_warning(tmp_path):
+    comment = "# passes groups: [two]\n"
+    problem_dir = _full_problem(
+        tmp_path,
+        {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": comment + WA_ON_SEVEN_PY},
+        GROUPS_SCRIPT,
+    )
+    (problem_dir / "authoring" / "constraints.yaml").write_text(
+        GROUPS_CONSTRAINTS, encoding="utf-8"
+    )
+    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    wa = _by_name(result)["wa_py_seven_draft.py"]
+    assert wa.uncaught_groups == [] and not result.failed
+    assert any("isn't a list of group numbers" in w for w in result.warnings)

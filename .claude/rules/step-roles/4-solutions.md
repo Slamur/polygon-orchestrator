@@ -58,8 +58,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    item — locally it's allowed OK, TL or RE (the address space cap turns a memory
    shortage into RE), and missing both is only a warning, as for `tl` and `ml`.
    Beyond the solutions described in the spec, a stage may propose its own (another or
-   a faster `ok` in `solutions_ok`, likely contestant mistakes in `slow`/`wrong`) — see
-   "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
+   a faster `ok` in `solutions_ok`, likely contestant mistakes in `slow`/`wrong`) — see "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
 
    A stage owns solutions by their names (`Stage.owned`): `main` — Main correct as
    Polygon chooses it (`upload_solutions._choose_main`: the file with the `ma`
@@ -77,7 +76,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    fails). A wrong solution that no test from the script catches (`survived`, the
    examples don't count) isn't a failure — it's in the report, and `tests_survivors`
    adds tests for it (`.claude/rules/step-roles/3-tests.md`); so does a wrong solution that
-   passes a test group its spec item says it fails (the tests go into that group). The
+   passes a test group its spec item says it fails (the tests go into that group). A
+   solution not written from a spec item may name its groups in the comment `passes
+   groups: [...]`: it is judged the same way. The
    run's input is the contents of everything it reads and the `known_wrong_approaches`
    items (their groups are compared with the results), so an unchanged input doesn't run the tests again:
    a run that failed fails again at once. Its report — `llm_reports/<run>.md`, with a

@@ -217,7 +217,10 @@ def test_caught_solution_that_passes_a_named_group_is_a_survivor(spec, problem_d
 
     assert not [n for n in result.notes if n["kind"] == "uncovered"]
     prompt = mock_call.call_args.args[2]
-    assert "it passes test group(s) 3, which its spec item says it fails" in prompt
+    assert (
+        "it passes test group(s) 3, which its spec item or its `passes groups` comment says it fails"
+        in prompt
+    )
 
 
 def test_test_outside_the_uncaught_group_gets_an_uncovered_note(spec, problem_dir, monkeypatch):

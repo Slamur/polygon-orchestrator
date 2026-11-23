@@ -426,6 +426,21 @@ def find_approach_marker(source: str) -> int | None:
     return int(match.group(1)) if match is not None else None
 
 
+# The comment by which a solution not written from a spec item names the test groups it
+# passes completely: `// passes groups: [2, 3]`, in the syntax of an item's `[...]`.
+PASSED_GROUPS_RE = re.compile(r"\bpasses groups:\s*\[([^\]\n]*)\]")
+
+
+def find_passed_groups(source: str) -> tuple[str, ...] | None | bool:
+    """The groups of the first `PASSED_GROUPS_RE` in `source`; `None` — no marker,
+    `False` — a marker whose groups aren't a list of numbers and ranges."""
+    match = PASSED_GROUPS_RE.search(source)
+    if match is None:
+        return None
+    groups = _parse_groups(match.group(1))
+    return False if groups is None else groups
+
+
 class Solutions(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

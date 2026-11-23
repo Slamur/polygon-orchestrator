@@ -1563,7 +1563,8 @@ particular wrong solutions stop passing them. The plan is already made, its gene
 test-script are written, and all solutions of the problem were run on these tests: the
 solutions in the request ("Surviving solutions") never got the verdict their name
 declares on a test from the script — the statement's examples don't count — or, in a
-problem with test groups, passed every test of a group that its spec item says it fails
+problem with test groups, passed every test of a group that its spec item (or the `passes groups` comment of a
+solution not written from a spec item) says it fails
 (the request names these groups: the solution is caught elsewhere, but not in them). Each of them
 is a deliberately wrong solution (a wrong answer, too slow, too much memory), and the
 tests must catch it. You don't write code: the generators and the script are written
@@ -1682,7 +1683,7 @@ The number of tests of such a group must divide its points.
 ## Surviving solutions — no test from the script gets their verdict, or no test of a named group catches them
 {% for survivor in survivors %}
 
-### {{ survivor.name }} (declared verdict: {{ survivor.verdict }}{% if survivor.max_seconds is not none %}; the longest local time on the current tests: {{ survivor.max_seconds }}s{% endif %}{% if survivor.caught_on_example %}; only a statement example catches it{% endif %}{% if survivor.get("uncaught_groups") %}; its verdict is caught, but it passes test group(s) {{ survivor.uncaught_groups | join(", ") }}, which its spec item says it fails{% endif %})
+### {{ survivor.name }} (declared verdict: {{ survivor.verdict }}{% if survivor.max_seconds is not none %}; the longest local time on the current tests: {{ survivor.max_seconds }}s{% endif %}{% if survivor.caught_on_example %}; only a statement example catches it{% endif %}{% if survivor.get("uncaught_groups") %}; its verdict is caught, but it passes test group(s) {{ survivor.uncaught_groups | join(", ") }}, which its spec item or its `passes groups` comment says it fails{% endif %})
 ~~~
 {{ survivor.code }}
 ~~~
