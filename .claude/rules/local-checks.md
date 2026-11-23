@@ -112,11 +112,9 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   `llm generate` the solution goes to `tests_survivors` with these groups); a group with tests not run isn't judged; a
   marker of an item not in the spec or with another verdict (`tl_ml` may come from a
   `tl`/`ml` item), a named group the problem doesn't have — warnings. No marker or no
-  `[...]` — nothing is compared. A model's own solution for particular groups (a
-  `SUGGESTION` of a solution stage) names them in the comment `passes groups: [2, 3]`
-  (`spec.SUGGESTED_GROUPS_RE`): without a spec marker they are compared the same way,
-  but a named group not passed is only a warning (the model's idea, not the author's
-  order); groups that don't parse — a warning.
+  `[...]` — nothing is compared. A solution not written from an item may name its
+  groups in the comment `passes groups: [2, 3]` (`spec.PASSED_GROUPS_RE`): without a
+  spec marker they are compared the same way; groups that don't parse — a warning.
   `SolutionsRunResult.summary()` — the same outcome as plain data (per solution: a status
   `expected` / `unexpected` / `survived` / `not_run` and the test that caught it) for
   the steps that act on the run.

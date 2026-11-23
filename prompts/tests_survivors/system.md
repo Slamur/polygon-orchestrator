@@ -4,7 +4,7 @@ test-script are written, and all solutions of the problem were run on these test
 solutions in the request ("Surviving solutions") never got the verdict their name
 declares on a test from the script — the statement's examples don't count — or, in a
 problem with test groups, passed every test of a group that its spec item (or the `passes groups` comment of a
-solution proposed by a model) says it fails
+solution not written from a spec item) says it fails
 (the request names these groups: the solution is caught elsewhere, but not in them). Each of them
 is a deliberately wrong solution (a wrong answer, too slow, too much memory), and the
 tests must catch it. You don't write code: the generators and the script are written

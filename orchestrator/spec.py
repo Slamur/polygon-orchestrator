@@ -426,16 +426,15 @@ def find_approach_marker(source: str) -> int | None:
     return int(match.group(1)) if match is not None else None
 
 
-# The comment a model's own solution for particular test groups (a `SUGGESTION` file of
-# a solution stage, not written from a spec item) carries: `// passes groups: [2, 3]` —
-# the groups it is meant to pass completely, in the syntax of an item's `[...]`.
-SUGGESTED_GROUPS_RE = re.compile(r"\bpasses groups:\s*\[([^\]\n]*)\]")
+# The comment by which a solution not written from a spec item names the test groups it
+# passes completely: `// passes groups: [2, 3]`, in the syntax of an item's `[...]`.
+PASSED_GROUPS_RE = re.compile(r"\bpasses groups:\s*\[([^\]\n]*)\]")
 
 
-def find_suggested_groups(source: str) -> tuple[str, ...] | None | bool:
-    """The groups of the first `SUGGESTED_GROUPS_RE` in `source`; `None` — no marker,
+def find_passed_groups(source: str) -> tuple[str, ...] | None | bool:
+    """The groups of the first `PASSED_GROUPS_RE` in `source`; `None` — no marker,
     `False` — a marker whose groups aren't a list of numbers and ranges."""
-    match = SUGGESTED_GROUPS_RE.search(source)
+    match = PASSED_GROUPS_RE.search(source)
     if match is None:
         return None
     groups = _parse_groups(match.group(1))

@@ -1,5 +1,5 @@
 """Comparing the test groups a solution passed with the `[...]` of its
-`known_wrong_approaches` item or with the `passes groups: [...]` comment of a suggestion
+`known_wrong_approaches` item or with its `passes groups: [...]` comment
 (`solutions_run._judge_spec_groups`) — without running
 anything: the group results are built by hand."""
 
@@ -13,7 +13,7 @@ from orchestrator.checks.solutions_run import (
     _judge_spec_groups,
 )
 from orchestrator.checks.test_groups import GroupResult, TestGroup
-from orchestrator.spec import find_approach_marker, find_suggested_groups
+from orchestrator.spec import find_approach_marker, find_passed_groups
 
 ITEMS = [
     "wa (py) [1, 2]: an off-by-one bound",
@@ -155,23 +155,22 @@ def test_a_named_group_the_problem_does_not_have_is_a_warning():
 
 
 def test_passes_groups_comment_is_found_in_any_comment_style():
-    assert find_suggested_groups("// passes groups: [1-3, 5]\n") == ("1", "2", "3", "5")
-    assert find_suggested_groups("# passes groups: []\n") == ()
-    assert find_suggested_groups("# passes groups: [x]\n") is False
-    assert find_suggested_groups("int main() {}\n") is None
+    assert find_passed_groups("// passes groups: [1-3, 5]\n") == ("1", "2", "3", "5")
+    assert find_passed_groups("# passes groups: []\n") == ()
+    assert find_passed_groups("# passes groups: [x]\n") is False
+    assert find_passed_groups("int main() {}\n") is None
 
 
-def test_a_suggestion_failing_its_groups_is_only_a_warning():
+def test_passes_groups_comment_is_compared_like_a_spec_item():
     outcome = _outcome("wa", _groups(("1", ("test 2", "WA")), ("2", None), ("3", None)))
     outcome.tests = []
-    _judge_spec_groups(outcome, "# SUGGESTION: small n\n# passes groups: [1]\n", ITEMS)
+    _judge_spec_groups(outcome, "# passes groups: [1]\n", ITEMS)
     assert outcome.spec_item is None
-    assert outcome.group_mismatches == []
-    assert outcome.group_warnings[0] == (
+    assert outcome.group_mismatches == [
         "group 1: WA on test 2, its 'passes groups' comment says it passes the group"
-    )
+    ]
     assert outcome.uncaught_groups == ["2", "3"]
-    assert outcome.status != STATUS_UNEXPECTED
+    assert outcome.status == STATUS_UNEXPECTED
 
 
 def test_the_spec_item_marker_wins_over_a_passes_groups_comment():
