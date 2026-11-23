@@ -51,7 +51,7 @@ The number of tests of such a group must divide its points.
 ## Surviving solutions — no test from the script gets their verdict, or no test of a named group catches them
 {% for survivor in survivors %}
 
-### {{ survivor.name }} (declared verdict: {{ survivor.verdict }}{% if survivor.max_seconds is not none %}; the longest local time on the current tests: {{ survivor.max_seconds }}s{% endif %}{% if survivor.caught_on_example %}; only a statement example catches it{% endif %}{% if survivor.get("uncaught_groups") %}; its verdict is caught, but it passes test group(s) {{ survivor.uncaught_groups | join(", ") }}, which its spec item says it fails{% endif %})
+### {{ survivor.name }} (declared verdict: {{ survivor.verdict }}{% if survivor.max_seconds is not none %}; the longest local time on the current tests: {{ survivor.max_seconds }}s{% endif %}{% if survivor.caught_on_example %}; only a statement example catches it{% endif %}{% if survivor.get("uncaught_groups") %}; its verdict is caught, but it passes test group(s) {{ survivor.uncaught_groups | join(", ") }}, which its spec item or its `passes groups` comment says it fails{% endif %})
 ~~~
 {{ survivor.code }}
 ~~~

@@ -9,7 +9,7 @@ doesn't allow or didn't build (`STATUS_UNEXPECTED`, `STATUS_NOT_RUN`), or the pr
 itself has errors (the validator rejects a test, the checker fails). A wrong solution
 that no generated test catches (`STATUS_SURVIVED`) isn't a failure: it's reported,
 the tests for it are a separate matter. The same goes for a wrong solution that passes a
-test group its spec item says it fails (`uncaught_groups`): it is a survivor too, with
+test group its spec item (or its `passes groups` comment) says it fails (`uncaught_groups`): it is a survivor too, with
 those groups, even if a test of another group catches it.
 
 The step's input is the contents of everything the run reads (the judged solutions,
@@ -395,7 +395,7 @@ def _notes(
         else:
             explanation = (
                 f"no test of group(s) {', '.join(survivor['uncaught_groups'])} catches it, "
-                f"its spec item says it fails them"
+                f"its spec item or its 'passes groups' comment says it fails them"
             )
         notes.append({"field": survivor["name"], "kind": "survived", "explanation": explanation})
     notes += [{"field": "run", "kind": "warning", "explanation": w} for w in warnings]
