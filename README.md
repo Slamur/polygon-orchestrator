@@ -341,6 +341,13 @@ it fails is an error (the stage's local run fails and the stage revises the solu
 group it passes but the item doesn't name — a warning. Add the comment by hand to a
 solution you write yourself, if you want this check for it.
 
+If a group's limits are special and the model sees an algorithm correct exactly under
+them, the `slow`/`wrong` stages may propose such a solution on their own (a `SUGGESTION`
+file named by its verdict on the whole test set). It names its groups in the comment
+`passes groups: [2]`, and `local run --full` compares them the same way, except that a
+named group it fails is only a warning: you didn't order it, so the stage isn't revised
+for it. The same comment works in a solution you write yourself.
+
 ---
 
 ## Command reference

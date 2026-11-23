@@ -241,14 +241,28 @@ Mandatory rules (each item says which stages it is about):
      (`wrong`: an unhandled case, a wrong greedy, an overflow; `slow`: an asymptotics worse
      than declared but borderline at the maximal variable values)
      — as a separate solution of your stage's verdicts built as in
-     item 3, in the language in which this mistake is most natural.
+     item 3, in the language in which this mistake is most natural;
+   - (`slow`, `wrong`, only with test groups) a solution for particular groups: if a
+     group's limits in the "Fixed limits" section are special (e.g. a small N, all
+     values equal, a chain instead of a tree) and you see an algorithm that is correct
+     exactly under them and different from the author's (not just the author's idea
+     done slower — that's what the `tl` items are for), you may write it. Its verdict in
+     the file name is the one it gets on the whole test set beyond those limits (`wa`,
+     `tl`, `re`, ...), and it goes to the stage of that verdict. Right after the
+     `SUGGESTION` line put the comment `passes groups: [<groups>]` — the groups it is
+     meant to pass completely, in the syntax of an item's `[...]` (`[2]`, `[1-3]`); the
+     local run compares them with its results. It's optional: a group with its own
+     limits doesn't mean it has a special solution, so don't make one up, and don't
+     write one for a group whose limits only make the author's solution fit. At most one
+     such file per group, separately from the limit below.
    The first line of such a file is the comment `SUGGESTION: <what the idea is>`
    (in the language's comment syntax), and for each file — an entry in `notes` with
    `kind: suggestion` (`field` — the file name): what the idea is and how it's useful
    to the author. An idea without code (e.g. there is a solution, but it's too big for
    a draft) — only as an entry in `notes` with `kind: suggestion`. Propose
    only what's really different from the author's solutions and from each
-   other, no more than three files; if there's nothing to propose — don't.
+   other, no more than three files besides the solutions for particular groups; if
+   there's nothing to propose — don't.
    A response with your own ideas — no lower than `status: proposed`.
 
 If `solutions.algorithm_hint` is empty or too vague to write a
