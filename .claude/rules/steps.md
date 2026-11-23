@@ -200,8 +200,9 @@ the model may propose its own — with `kind: suggestion` in `notes` (and no low
 - the solution stages — another correct solution (`solutions_ok`; better asymptotics than
   `intended_complexity` — with a remark on whether to reconsider the limits;
   noticeably simpler) and likely contestant mistakes that aren't in
-  `known_wrong_approaches` — as separate files; with test groups, also a solution
-  correct only under a group's special limits (`solutions_slow`/`solutions_wrong` by its
+  `known_wrong_approaches` — as separate files; with test groups, also a solution for a
+  group no other solution covers yet — correct only under its special limits or a slower
+  one fitting its smaller limits (`solutions_slow`/`solutions_wrong` by its
   verdict on the whole set, with a `passes groups: [...]` comment the local run checks) —
   optional: a group doesn't have to have a special solution;
 - `tests_plan` — edge cases of the input not covered by

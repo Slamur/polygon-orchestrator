@@ -59,8 +59,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    shortage into RE), and missing both is only a warning, as for `tl` and `ml`.
    Beyond the solutions described in the spec, a stage may propose its own (another or
    a faster `ok` in `solutions_ok`, likely contestant mistakes in `slow`/`wrong`, and,
-   with test groups, a solution correct only under a group's special limits — in
-   `slow`/`wrong` by its verdict on the whole set, with the comment `passes groups:
+   with test groups, a solution for a group not yet covered by one — correct only under
+   its special limits or a slower one fitting its smaller limits — in `slow`/`wrong` by
+   its verdict on the whole set, with the comment `passes groups:
    [...]`) — see "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
 
    A stage owns solutions by their names (`Stage.owned`): `main` — Main correct as
