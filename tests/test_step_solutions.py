@@ -593,7 +593,25 @@ def test_stages_own_solutions_by_name(tmp_path):
             "tl_ok_java_slowio_draft.java",
         ],
         "wrong": ["re_cpp_stack_draft.cpp", "wa_py_bound_draft.py"],
+        "groups": [],
     }
+
+
+def test_group_solutions_are_owned_by_their_comment(tmp_path):
+    _write_solutions(tmp_path, ["ma_cpp_sum_draft.cpp", "tl_cpp_slow_draft.cpp"])
+    solutions = tmp_path / "solutions"
+    (solutions / "wa_cpp_small_draft.cpp").write_text(
+        "// passes groups: [1]\nint main() {}\n", encoding="utf-8"
+    )
+    # Written from a spec item: the item names its groups, the stage of its verdict owns it.
+    (solutions / "wa_cpp_item_draft.cpp").write_text(
+        "// spec: solutions.known_wrong_approaches[0]\n// passes groups: [1]\n",
+        encoding="utf-8",
+    )
+    owned = _owned(tmp_path)
+    assert owned["groups"] == ["wa_cpp_small_draft.cpp"]
+    assert owned["wrong"] == ["wa_cpp_item_draft.cpp"]
+    assert owned["slow"] == ["tl_cpp_slow_draft.cpp"]
 
 
 def test_stages_write_by_the_main_verdict():
@@ -638,6 +656,7 @@ def test_skip_detail_by_what_the_spec_orders(spec):
         "ok": False,
         "slow": True,
         "wrong": True,
+        "groups": True,
     }
     two_languages = _solutions_update(spec, languages=["cpp", "java"])
     assert STAGES["ok"].skip_detail(two_languages) is None

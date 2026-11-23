@@ -345,6 +345,14 @@ A solution not written from an item can name the groups it passes in the comment
 `passes groups: [2]` (the same syntax as an item's `[...]`), and `local run --full`
 compares them the same way.
 
+For each test group with limits of its own (`variables` or `special_property`),
+`solutions_groups` asks the model whether it sees a solution specific to that group — an
+algorithm correct under its special property, or a slower one that fits its smaller bounds
+— given how every solution did on each group. The answer for each group, found or not, is
+in `llm_reports/solutions_groups.md`; a found solution is named by its verdict on the whole
+test set and carries `SUGGESTION: ...` and `passes groups: [...]`, which `run_groups`
+checks. One strong-model call for all groups; nothing to ask (no such group) — skipped.
+
 ---
 
 ## Command reference
@@ -398,7 +406,9 @@ statement's subtasks table, only with test groups) → `checker_draft` (only wit
 → the solutions in stages, each checked by a local run of its solutions on the
 examples and the tests from the script: `solutions_main` → `run_main` →
 `solutions_ok` → `run_ok` → `solutions_slow` → `run_slow` → `solutions_wrong` →
-`run_wrong` → `tests_survivors` (tests for the wrong solutions no test catches, or no
+`run_wrong` → `solutions_groups` → `run_groups` (only with test groups that have limits of
+their own: for each such group the model says whether it sees a solution specific to it, and
+writes it if so) → `tests_survivors` (tests for the wrong solutions no test catches, or no
 test of a group their spec item says they fail; after it
 the generators, the script and the runs again). Separately, only via the `llm tutorial` command, —
 `tutorial_draft` (the tutorial from a draft).
@@ -456,7 +466,7 @@ What's important to know:
   errors (a step whose files you changed since the run doesn't). A validator that doesn't
   compile or invalid groups in `constraints.yaml` aren't given to the model.
 - **A local run of the solutions failed** (`run_main`, `run_ok`, `run_slow`,
-  `run_wrong` — after each solution stage, `local run --full` over its solutions).
+  `run_wrong`, `run_groups` — after each solution stage, `local run --full` over its solutions).
   The pipeline stops; `llm_reports/<run>.md` says which solution got which verdict
   on which test. Either fix the files by hand, or write what the model should know at
   the end of the report and run `llm generate` again (`--revise-attempts`, 1 by default,

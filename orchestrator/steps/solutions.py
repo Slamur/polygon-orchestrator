@@ -12,11 +12,16 @@ the next one:
   from the code of the main one;
 - `solutions_slow` — `tl`, `tl_ok`, `tl_ml`, `ml` solutions; `solutions_wrong` — `wa`, `re`, `il`:
   from the code of the `ok` ones, the `known_wrong_approaches` items of the stage's
-  verdicts (the item's verdict prefix is mandatory, `spec.parse_wrong_approach`).
+  verdicts (the item's verdict prefix is mandatory, `spec.parse_wrong_approach`);
+- `solutions_groups` — with test groups: given how each solution did on each group with
+  its own limits, the model says for each such group whether it sees a solution specific
+  to it, and writes it if so — named by its verdict on the whole test set, with the
+  comment `passes groups: [...]` the local run checks.
 
 A stage owns the solutions by their names (`Stage.owned`): `solutions_main` — Main correct
 (`upload_solutions._choose_main`, the solution with the `ma` verdict first),
-`solutions_ok` — the other correct ones, the others — by the verdict. Revision mode shows the
+`solutions_ok` — the other correct ones, `solutions_groups` — the solutions with a
+`passes groups` comment not written from a spec item, the others — by the verdict. Revision mode shows the
 model only the stage's files, and a response with a file of another stage isn't applied.
 If its local run failed and nothing it read has changed since, the stage reruns
 (`forced_rerun_reason`) and revises its solutions with the run's report: the report is
@@ -43,6 +48,9 @@ from orchestrator.polygon.steps.upload_solutions import (
 from orchestrator.references import reference_documents
 from orchestrator.spec import (
     ProblemSpec,
+    TestGroupHint,
+    find_approach_marker,
+    find_passed_groups,
     parse_wrong_approach,
     split_solution_stem,
 )
@@ -63,6 +71,7 @@ from orchestrator.steps.base import (
     statement_io_section,
 )
 from orchestrator.steps.solutions_check import Gate
+from orchestrator.test_groups import TestGroupsError, load_test_groups, parse_test_groups
 
 # The solutions directory inside a directory reference, see `extra_context_documents`.
 SOLUTIONS_SUBDIR = "solutions"
@@ -83,6 +92,9 @@ MAIN_LANGUAGES = ("cpp", "java", "py")
 
 SLOW_VERDICTS = frozenset({"tl", "tle", "tl_ok", "tl_ml", "ml", "mle"})
 WRONG_VERDICTS = frozenset({"wa", "re", "il"})
+# The verdicts of a solution for particular test groups on the whole test set: it fails
+# the groups beyond its limits — a `tl_ok` may pass them all, an `il` is interactive.
+GROUP_VERDICTS = frozenset({"wa", "re", "tl", "tle", "tl_ml", "ml", "mle"})
 # Languages in which a `tl_ok` solution with slow input/output makes sense.
 _SLOWIO_LANGUAGES = frozenset({"java", "py"})
 
@@ -129,6 +141,33 @@ def main_solution(files: dict[str, Path]) -> str | None:
         return None
 
 
+def claims_groups(source: str) -> bool:
+    """A solution for particular test groups: a `passes groups` comment and no spec item
+    marker (a solution written from an item names its groups in the item)."""
+    return find_passed_groups(source) is not None and find_approach_marker(source) is None
+
+
+def _group_solutions(files: dict[str, Path]) -> set[str]:
+    """The names of the solutions for particular test groups among `files`."""
+    names = set()
+    for name, path in files.items():
+        if _verdict(name) not in GROUP_VERDICTS:
+            continue
+        try:
+            source = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if claims_groups(source):
+            names.add(name)
+    return names
+
+
+def special_groups(groups: list[TestGroupHint] | None) -> list[TestGroupHint]:
+    """The test groups with limits of their own (`variables` or `special_property`): the
+    others have the problem's full limits, a solution specific to them is a full one."""
+    return [g for g in groups or [] if g.variables or g.special_property]
+
+
 @dataclass(frozen=True)
 class Stage:
     """A solution stage: `key` — `main`, `ok`, `slow` or `wrong`."""
@@ -153,15 +192,19 @@ class Stage:
         """The stage's solutions in the problem directory."""
         files = solution_files(problem_dir)
         main = main_solution(files)
-        return {name: path for name, path in files.items() if self._owns(name, main)}
+        claimed = _group_solutions(files) if self.key in ("slow", "wrong", "groups") else set()
+        return {name: path for name, path in files.items() if self._owns(name, main, claimed)}
 
-    def _owns(self, name: str, main: str | None) -> bool:
+    def _owns(self, name: str, main: str | None, claimed: set[str]) -> bool:
         verdict = _verdict(name)
         if self.key == "main":
             return name == main
         if self.key == "ok":
             return verdict in CORRECT_VERDICTS and name != main
-        return verdict in (SLOW_VERDICTS if self.key == "slow" else WRONG_VERDICTS)
+        if self.key == "groups":
+            return name in claimed
+        verdicts = SLOW_VERDICTS if self.key == "slow" else WRONG_VERDICTS
+        return verdict in verdicts and name not in claimed
 
     def _may_write(self, name: str, current: set[str]) -> bool:
         """Whether the model may return `name` in this stage: a file of the stage's own."""
@@ -172,6 +215,8 @@ class Stage:
             return verdict == MAIN_VERDICT
         if self.key == "ok":
             return verdict == "ok"
+        if self.key == "groups":
+            return verdict in GROUP_VERDICTS
         return verdict in (SLOW_VERDICTS if self.key == "slow" else WRONG_VERDICTS)
 
     def judged(self, problem_dir: Path) -> list[str]:
@@ -185,13 +230,22 @@ class Stage:
 
     # --- whether the stage is needed ----------------------------------------------
 
-    def skip_detail(self, spec: ProblemSpec, **_: Any) -> str | None:
+    def skip_detail(
+        self,
+        spec: ProblemSpec,
+        *,
+        problem_id: str | None = None,
+        problems_dir: Path = PROBLEMS_DIR,
+        **_: Any,
+    ) -> str | None:
         """Why the stage isn't needed for this problem; `None` — it is."""
         solutions = spec.solutions
         if solutions is None:
             return _SOLUTIONS_SECTION_SKIP
         if self.key == "main":
             return None
+        if self.key == "groups":
+            return _groups_skip_detail(problem_id, problems_dir)
         if self.key == "ok":
             if len(normalized_languages(spec)) > 1 or solutions.alternative_approaches:
                 return None
@@ -248,6 +302,8 @@ class Stage:
         if self.key == "ok":
             solutions["main_language"] = main_language(spec)
             solutions["alternative_approaches"] = spec.solutions.alternative_approaches or []
+        if self.key == "groups":
+            solutions["main_language"] = main_language(spec)
         if self.key in ("slow", "wrong"):
             verdicts = SLOW_VERDICTS if self.key == "slow" else WRONG_VERDICTS
             solutions["wanted_verdicts"] = [
@@ -282,12 +338,33 @@ class Stage:
         report = self.gate.failed_report(
             problem_id, spec, list(self.owned(problem_dir)), problems_dir=problems_dir
         )
-        return {
+        inputs: dict[str, Any] = {
             "references": {
                 name: path.read_text(encoding="utf-8") for name, path in sorted(references.items())
             },
             "local_run": report,
         }
+        if self.key == "groups":
+            inputs["group_results"] = self._group_results(problem_id, spec, problems_dir)
+        return inputs
+
+    def _group_results(
+        self, problem_id: str, spec: ProblemSpec, problems_dir: Path
+    ) -> dict[str, dict[str, str]]:
+        """How each solution of the earlier stages did on each test group, by their current
+        local runs (a run whose input changed since — none of its solutions); the stage's
+        own solutions aren't among them: their results would make it its own input."""
+        own = set(self.owned(Path(problems_dir) / problem_id))
+        results: dict[str, dict[str, str]] = {}
+        for stage, gate in SOLUTION_STAGES.items():
+            if stage == self.STEP_NAME:
+                continue
+            for name, groups in (
+                GATES[gate].current_group_results(problem_id, spec, problems_dir=problems_dir)
+            ).items():
+                if name not in own:
+                    results[name] = groups
+        return dict(sorted(results.items()))
 
     def _inputs(self, problem_id: str, upstream_artifacts: dict[str, Any] | None) -> dict:
         if not upstream_artifacts or self.INPUTS_KEY not in upstream_artifacts:
@@ -317,6 +394,10 @@ class Stage:
         references = self._inputs(problem_id, upstream_artifacts)["references"]
         upstream = {CONSTRAINTS_ARTIFACT: constraints_yaml}
         upstream.update({f"{SOLUTIONS_SUBDIR}/{name}": code for name, code in references.items()})
+        if self.key == "groups":
+            upstream["group results"] = self._inputs(problem_id, upstream_artifacts)[
+                "group_results"
+            ]
         return self._section(spec), upstream
 
     def compute_input_hash(
@@ -408,6 +489,12 @@ class Stage:
             "references": inputs["references"],
             "local_run": inputs["local_run"],
         }
+        if self.key == "groups":
+            context["groups"] = [
+                g.model_dump(mode="json", include={"name", "variables", "special_property"})
+                for g in special_groups(parse_test_groups(upstream[CONSTRAINTS_ARTIFACT]))
+            ]
+            context["group_results"] = inputs["group_results"]
         current = set(self.current_artifacts(problem_id, spec, problems_dir=problems_dir))
 
         def resolve_artifact_path(filename: str) -> Path:
@@ -420,12 +507,24 @@ class Stage:
 
         def validate_artifacts(artifacts: dict[str, str]) -> None:
             names = []
-            for filename in artifacts:
+            for filename, content in artifacts.items():
                 name = resolve_artifact_path(filename).name
                 if not self._may_write(name, current):
                     raise ValueError(
                         f"Step '{self.STEP_NAME}' returned '{name}', which is not a solution "
                         f"of this stage ({_STAGE_FILES[self.key]})"
+                    )
+                claims = claims_groups(content)
+                if self.key == "groups" and not claims:
+                    raise ValueError(
+                        f"Step '{self.STEP_NAME}' returned '{name}' without a 'passes groups: "
+                        "[...]' comment naming the test groups it passes"
+                    )
+                if self.key in ("slow", "wrong") and claims:
+                    raise ValueError(
+                        f"Step '{self.STEP_NAME}' returned '{name}' with a 'passes groups' "
+                        "comment, but not written from a spec item: solutions for particular "
+                        "test groups are the 'solutions_groups' step's"
                     )
                 names.append(name)
             if self.key == "main" and len(set(names) | current) > 1:
@@ -458,9 +557,27 @@ _STAGE_FILES = {
     "ok": "ok_<language>_<idea>_<author>",
     "slow": "/".join(sorted(SLOW_VERDICTS)),
     "wrong": "/".join(sorted(WRONG_VERDICTS)),
+    "groups": "/".join(sorted(GROUP_VERDICTS)) + " with a 'passes groups' comment",
 }
 
-STAGES: dict[str, Stage] = {key: Stage(key) for key in ("main", "ok", "slow", "wrong")}
+
+def _groups_skip_detail(problem_id: str | None, problems_dir: Path) -> str | None:
+    """`solutions_groups` isn't needed: no test group with limits of its own. Invalid
+    groups aren't a skip: the step reports them."""
+    if problem_id is None:
+        return None
+    try:
+        groups = load_test_groups(Path(problems_dir) / problem_id)
+    except TestGroupsError:
+        return None
+    if not groups:
+        return "constraints.yaml has no test groups — no solutions for particular groups"
+    if not special_groups(groups):
+        return "no test group has limits of its own — no solutions for particular groups"
+    return None
+
+
+STAGES: dict[str, Stage] = {key: Stage(key) for key in ("main", "ok", "slow", "wrong", "groups")}
 GATES: dict[str, Gate] = {
     gate: Gate(
         step_name=gate,

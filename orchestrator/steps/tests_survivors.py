@@ -3,9 +3,10 @@ CLAUDE.md, "Role of each generative step", item 3.
 
 The base test plan (`tests_plan`) doesn't design tests for particular wrong solutions:
 they are added here, and only for the solutions that the local runs of
-`solutions_slow` and `solutions_wrong` report as surviving — no test from the script
-gets their declared verdict (the examples don't count), or no test of a group catches a
-solution whose spec item says it fails the group (`uncaught_groups`: the tests are
+`solutions_slow`, `solutions_wrong` and `solutions_groups` report as surviving — no test
+from the script gets their declared verdict (the examples don't count), or no test of a
+group catches a solution whose spec item (or `passes groups` comment) says it fails the
+group (`uncaught_groups`: the tests are
 added in those groups). The response is the same
 `authoring/tests_plan.yaml` with new blocks (`covers: solutions/<name>`) and, if
 needed, new generators; the current plan is kept as is (`tests_plan.check_plan_extends`).
@@ -61,7 +62,7 @@ STEP_NAME = "tests_survivors"
 INPUTS_KEY = f"{STEP_NAME}: inputs"
 
 # The local runs whose survivors get tests.
-SURVIVOR_RUNS = ("run_slow", "run_wrong")
+SURVIVOR_RUNS = ("run_slow", "run_wrong", "run_groups")
 # The `covers` of a block for a surviving solution: `solutions/<name>`.
 COVERS_PREFIX = f"{SOLUTIONS_SUBDIR}/"
 

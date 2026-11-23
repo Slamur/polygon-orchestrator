@@ -276,3 +276,33 @@ def test_real_run_fails_on_a_wrong_main_solution(real_local_runs, spec, problem_
     report = load_run_report(PROBLEM_ID, "run_main", problems_dir=problem_dir.parent)
     assert [f["name"] for f in report["failures"]] == [MAIN_NAME]
     assert report["failures"][0]["unexpected"][0]["verdict"] == "WA"
+
+
+def test_run_records_the_results_per_group_while_its_input_is_current(
+    spec, problem_dir, monkeypatch
+):
+    from orchestrator.checks.test_groups import GroupResult, TestGroup
+
+    wrong = GATES["run_wrong"]
+    (problem_dir / "solutions" / "wa_py_off_draft.py").write_text("print(2)\n", encoding="utf-8")
+    outcome = SolutionOutcome(
+        "wa_py_off_draft.py",
+        "wa",
+        frozenset({"OK", "WA"}),
+        tests=[Outcome("test 2", "WA", generated=True)],
+        required=frozenset({"WA"}),
+        groups=[
+            GroupResult(TestGroup("1", 50), 1, 1, None, True),
+            GroupResult(TestGroup("2", 50), 1, 1, ("test 2", "WA"), False),
+        ],
+    )
+    _stub_run(monkeypatch, _result_with(outcome))
+
+    _run_gate(wrong, spec, problem_dir)
+
+    expected = {"wa_py_off_draft.py": {"1": "OK", "2": "WA"}}
+    assert wrong.current_group_results(PROBLEM_ID, spec, problems_dir=problem_dir.parent) == (
+        expected
+    )
+    (problem_dir / "solutions" / "wa_py_off_draft.py").write_text("print(3)\n", encoding="utf-8")
+    assert wrong.current_group_results(PROBLEM_ID, spec, problems_dir=problem_dir.parent) == {}

@@ -51,7 +51,9 @@ In scope:
   for those the local runs of the solutions report as not caught (`tests_survivors`);
 - optional drafts of author solutions (ok/wa/tl/ml/...) for later
   manual review by the author — in stages (the main `ok`, the other `ok`, time/memory,
-  wrong answers), each stage checked by a local run of its solutions before the next one;
+  wrong answers, and — with test groups that have limits of their own — solutions specific
+  to particular groups, where the model sees them), each stage checked by a local run of
+  its solutions before the next one;
   a failed run makes the stage revise its solutions with the run's report — in the same
   run up to `--revise-attempts` times, then the pipeline stops and the next `llm generate`
   does it again (`.claude/rules/step-roles/4-solutions.md`);
@@ -94,7 +96,7 @@ The minimal safety net instead of a judging loop at this stage:
   without distinguishing MLE and without comparing solutions against each other;
   the generation and the validator alone — after the test-script in `llm generate`
   (`run_tests`), the same run, limited to a stage's solutions, — between the solution
-  stages (`run_main`, `run_ok`, `run_slow`, `run_wrong`);
+  stages (`run_main`, `run_ok`, `run_slow`, `run_wrong`, `run_groups`);
 - a **timeout wrapper** around any run of a generated binary
   (e.g. running a generator for a smoke test) — just kill the process on
   timeout, without analyzing TLE/MLE separately.

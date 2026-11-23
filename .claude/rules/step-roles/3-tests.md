@@ -139,9 +139,9 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      report outdated for it. With `llm generate --revise-attempts N` (1 by default) the
      steps revise and the run repeats in the same `llm generate`, up to N times.
    - **`tests_survivors`** — after the solution stages (`STEP_ORDER`, last): tests for the
-     wrong solutions that the local runs `run_slow`/`run_wrong` report as surviving — no
+     wrong solutions that the local runs `run_slow`/`run_wrong`/`run_groups` report as surviving — no
      test from the script gets their declared verdict, the examples don't count — and the
-     wrong solutions that pass a test group their spec item says they fail
+     wrong solutions that pass a test group their spec item (or `passes groups` comment) says they fail
      (`uncaught_groups`, `.claude/rules/local-checks.md`): survivors with those groups,
      even if another group catches them, whose tests go into those groups
      (`solutions_check.Gate.current_survivors`: only of a passed run whose input is still
@@ -162,7 +162,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      generators stay cache hits of `generators_draft`. A survivor no block refers to, or
      an uncaught group of it that no block referring to it is in — an `uncovered` note; a solution the model can't catch (it may be correct) — an
      `uncertain` note, the author decides. After the step `llm generate` runs
-     `SURVIVOR_RECHECK_STEPS` (`generators_draft` … `run_wrong`) again; with
+     `SURVIVOR_RECHECK_STEPS` (`generators_draft` … `run_groups`) again; with
      `--survivor-rounds N` (1 by default, `0` — the step doesn't run) the step runs up
      to N times in one run, again even with the same survivors
      (`pipeline._survivor_rounds`).

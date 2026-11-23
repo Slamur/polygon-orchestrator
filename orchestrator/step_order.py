@@ -22,7 +22,9 @@ from __future__ import annotations
 # after `constraints_pick`, from whose TL/ML it derives `limits.yaml`.
 # The solutions — in stages, after everything they are run with (tests, checker,
 # interactor): each stage is checked by a local run (`run_*`) before the next one,
-# which builds on its solutions (CLAUDE.md, item 4). `tests_survivors` — last: tests
+# which builds on its solutions (CLAUDE.md, item 4); `solutions_groups` — after all of
+# them: it is given how each solution does on each test group and looks for solutions
+# specific to particular groups. `tests_survivors` — last: tests
 # for the wrong solutions the local runs report as uncaught; after it the pipeline
 # runs `SURVIVOR_RECHECK_STEPS` again (CLAUDE.md, item 3).
 STEP_ORDER: list[str] = [
@@ -44,6 +46,8 @@ STEP_ORDER: list[str] = [
     "run_slow",
     "solutions_wrong",
     "run_wrong",
+    "solutions_groups",
+    "run_groups",
     "tests_survivors",
 ]
 
@@ -53,6 +57,7 @@ SOLUTION_STAGES: dict[str, str] = {
     "solutions_ok": "run_ok",
     "solutions_slow": "run_slow",
     "solutions_wrong": "run_wrong",
+    "solutions_groups": "run_groups",
 }
 # The local generation of the tests: the tests from the script and the validator on them.
 TESTS_GATE_STEP = "run_tests"
@@ -64,7 +69,7 @@ SURVIVORS_STEP = "tests_survivors"
 # What `tests_survivors` changes and what checks it: the code of the extended plan and the
 # local runs over the new tests (the rest of these steps are cache hits).
 SURVIVOR_RECHECK_STEPS: list[str] = STEP_ORDER[
-    STEP_ORDER.index("generators_draft") : STEP_ORDER.index("run_wrong") + 1
+    STEP_ORDER.index("generators_draft") : STEP_ORDER.index("run_groups") + 1
 ]
 
 # Steps by a separate command, outside `STEP_ORDER`: `llm generate` doesn't run them,
@@ -89,7 +94,10 @@ ADOPTED_STEPS: frozenset[str] = frozenset({"limits_from_constraints", *SOLUTION_
 
 # Steps whose prompts lie in a directory shared with other steps (`prompts/<dir>/`), not in
 # `prompts/<step>/`; the user prompt tells the model which of them it is.
-PROMPT_DIRS: dict[str, str] = {stage: "solutions" for stage in SOLUTION_STAGES}
+# `solutions_groups` has prompts of its own: its task isn't writing ordered solutions.
+PROMPT_DIRS: dict[str, str] = {
+    stage: "solutions" for stage in SOLUTION_STAGES if stage != "solutions_groups"
+}
 
 
 def prompt_dir_name(step_name: str) -> str:

@@ -200,7 +200,9 @@ the model may propose its own — with `kind: suggestion` in `notes` (and no low
 - the solution stages — another correct solution (`solutions_ok`; better asymptotics than
   `intended_complexity` — with a remark on whether to reconsider the limits;
   noticeably simpler) and likely contestant mistakes that aren't in
-  `known_wrong_approaches` — as separate files;
+  `known_wrong_approaches` — as separate files; `solutions_groups` asks about each test
+  group with limits of its own explicitly — a solution specific to it, or why none
+  (`.claude/rules/step-roles/4-solutions.md`);
 - `tests_plan` — edge cases of the input not covered by
   those ordered by the author — as separate generators and plan blocks with
   `status: suggestion` (`generators_draft` and `test_script_draft` carry

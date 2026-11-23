@@ -96,7 +96,7 @@ from `templates/` (`STEP_CONTEXT_DOCUMENTS` in
 | `generators_draft` | `tests.md`, `problem_lib.h` | `tests_plan.yaml`, `generators/*.cpp` |
 | `tests_survivors` | `tests.md`, `tests_plan_format.yaml` | `tests_plan.yaml`, `solutions/*` |
 | `test_script_draft` | `tests.md`, `freemarker.md`, `test_script_functions.ftl` | `constraints.yaml`, `tests_plan.yaml`, `test_script`, `test_script_groups` |
-| `solutions_main`, `solutions_ok`, `solutions_slow`, `solutions_wrong` | `solutions.md`; `solutions/*.<language>` — for the languages from `solutions.languages` without an `ok` solution in the references | `spec.yaml`, `solutions/*` in the languages from `solutions.languages` |
+| `solutions_main`, `solutions_ok`, `solutions_slow`, `solutions_wrong`, `solutions_groups` | `solutions.md`; `solutions/*.<language>` — for the languages from `solutions.languages` without an `ok` solution in the references | `spec.yaml`, `solutions/*` in the languages from `solutions.languages` |
 | `checker_draft` | `checker.md`, `problem_lib.h` | `spec.yaml`, `checker.cpp` |
 | `interactor_draft` | `interactive.md`, `problem_lib.h` | `spec.yaml`, `interactor.cpp` |
 
@@ -1542,6 +1542,212 @@ See {{ local_run.report }}.
 
 The task: write the solution drafts of your stage by the rules from the system message.
 These are drafts for the author's manual review, not final code.
+```
+
+---
+
+## Step 6 (after the solutions, optional) — `solutions_groups`
+
+With test groups, after the solution stages: for each group with limits of its own
+(`variables` or `special_property` in `constraints.yaml`) the model is given how every
+solution did on each group in the local runs and says whether it sees a solution specific
+to the group — an algorithm correct under the group's special property, or a slower one
+fitting its smaller bounds — and writes it if so. Such a solution is named by its verdict on
+the whole test set and names its groups in a `passes groups: [...]` comment, which the local
+run `run_groups` checks; an answer — found or not — for each group goes to `notes`. One
+call for all groups, the strong model.
+
+### system.md
+
+```
+You look for solutions specific to particular test groups (subtasks) of a competitive
+programming contest problem being prepared in Polygon. The author solutions are
+already written and checked: the request gives the main correct solution and how each
+solution of the problem did on each test group in a local run. You are asked about
+each test group with limits of its own (the "Groups to consider" section): is there an
+approach that solves this group thanks to its limits, though it doesn't solve the whole
+problem? Such a solution shows the author the group can be solved the way a contestant
+would, and its run checks that the group's tests actually stop it beyond the group.
+
+You are given mandatory rules:
+- solutions.md — about how solutions are written and named; the "Solutions in Polygon"
+  section has the naming scheme `<verdict>_<language>_<description>_<author>.<extension>`.
+Besides them, samples may be attached — files of other problems that the author
+listed in the spec as references; there may be no samples at all. These are solutions/*
+— the reference of HOW the author wants to see a solution in each language — and spec.yaml
+of the same problem; for a language without an `ok` sample — solution skeletons
+`solutions/<verdict>_<description>.<ext>`. Files from one directory belong to one problem,
+none of them has anything to do with yours: take the structure and the input/output from
+them, not the content.
+
+What to do for EACH group of the "Groups to consider" section:
+1. Read the group's limits: its bounds of the variables and its `special_property`,
+   against the problem's full limits ("Fixed limits" section).
+2. Think whether the group admits an approach of its own:
+   - an algorithm correct exactly under its special property (e.g. all values equal,
+     a sorted array, a chain instead of a tree, a value determined by the index) — a
+     formula, a greedy, a simpler structure that the general case breaks;
+   - or a slower algorithm that fits its smaller bounds (e.g. a brute force for a small N).
+   The group's results table helps: if a solution of the problem already passes this
+   group and fails beyond it for the same reason (e.g. a `tl` solution for a small-N
+   group), the group already has its solution — don't write another one of the same
+   kind. The main solution and the other correct ones pass every group: they don't count.
+3. If you see such an approach and are confident it is correct under the group's limits —
+   write it (item 4 below). If not — don't make one up: a group with limits of its own
+   doesn't have to have a solution of its own, and "no" is a normal answer.
+4. A solution for a group:
+   - one file per group at most, in the main language (the "Languages" section), unless
+     the approach is natural only in another of `languages`;
+   - named by the verdict it gets on the WHOLE test set — beyond the group's limits:
+     `wa` (wrong answer beyond the special property), `tl` (too slow beyond the bounds),
+     `tl_ml` (too slow and far over 256 MB at once), `ml` (far over 256 MB), `re` (a crash,
+     e.g. an index out of the bounds of an array sized for the group). Never `ok`,
+     `tl_ok`, `ma`: such a solution doesn't solve the problem. `<description>` names the
+     idea (`formula`, `greedy_right`, `brute`), not the group;
+   - its first lines are the comments `SUGGESTION: <the idea, in one line>` and
+     `passes groups: [<groups>]` — the groups it passes completely, in the syntax `[2]`,
+     `[1-3]`, `[1, 4]` (`// ...` in C++ and Java, `# ...` in Python). Name every group
+     whose limits it handles, not only the one you wrote it for (e.g. a brute force for
+     n <= 15 passes every group with n <= 15). The orchestrator runs it on all tests and
+     compares: a named group it doesn't pass is an error, and it gets the run's report to
+     fix the solution; a group it passes but doesn't name gets tests that catch it;
+   - the structure and the input/output — as in the main solution from the request (it
+     reads the same input and prints the same output), a separate function computing the
+     answer; the algorithm is yours, not a modified main solution. Only ASCII in the
+     source code. No `BUG:` comment: the solution is correct within its groups;
+   - the types by the group's ranges of values: the group may still have large values or
+     large answers (e.g. a sum over a maximal N) even if its property is simple.
+5. In `notes`, an entry for EACH group of "Groups to consider", with `field`
+   `test_groups[<name>]` and `kind: suggestion`: either `found: <file name> — <the idea
+   and why it is correct under the group's limits>`, or `none: <why — e.g. the limits
+   only make the general algorithm fit, the slow solutions already cover the group, or
+   no idea that uses the property>`. A group without an entry is a group you skipped.
+
+Don't write anything else: no solutions for groups outside "Groups to consider" (their
+limits are the full ones), no correct or wrong solutions of the problem as a whole — those
+are the solution stages' work. Don't trace the solutions by hand on the examples or the
+tests: the orchestrator runs them.
+
+`status`: `proposed` if you wrote at least one file (each is your own idea for the
+author's review), otherwise `confirmed`. `uncertain` — only if the request lacks something
+needed to read the input or the groups (e.g. the input format is ambiguous), with the field
+named in `notes`.
+```
+
+### user.md.j2
+
+```
+The problem spec (problem_id: {{ problem_id }}):
+
+## Legend (the author's sketch — for understanding the terms)
+{{ statement.legend_sketch }}
+
+## Input format
+{{ statement.formal_input_sketch }}
+
+## Output format
+{{ statement.formal_output_sketch }}
+
+## Indexing
+{{ statement.indexing }}
+{% if statement.interaction_sketch is defined %}
+
+## Interaction protocol
+The problem is interactive (the rules — interactive.md): the solution communicates with the
+interactor by the protocol below. The input format above and the examples'
+input are the test the interactor reads, the solution doesn't see it.
+{{ statement.interaction_sketch }}
+{% endif %}
+
+## Statement examples
+{% for ex in statement.sample_examples %}
+### Example {{ loop.index }}
+Input:
+{{ ex.input }}
+{% if ex.output %}
+Output:
+{{ ex.output }}
+{% else %}
+Output: the author didn't give it.
+{% endif %}
+{% endfor %}
+
+## The author's algorithm (of the main solution)
+{{ solutions.algorithm_hint }}
+
+## The declared asymptotics of the main solution
+{{ constraints.intended_complexity }}
+
+## Fixed limits and test groups (the result of the constraints_pick step, without TL/ML)
+{{ constraints_yaml }}
+
+## Languages
+languages: {{ solutions.languages }} (the main one: {{ solutions.main_language }})
+
+## Groups to consider
+{% for group in groups %}
+### Group {{ group.name }}
+{% if group.variables %}
+Bounds of its own: {% for name, limit in group.variables.items() %}{{ name }}{% if limit.min is not none %} >= {{ limit.min }}{% endif %}{% if limit.min is not none and limit.max is not none %},{% endif %}{% if limit.max is not none %} <= {{ limit.max }}{% endif %}{% if not loop.last %}; {% endif %}{% endfor %}
+
+{% endif %}
+{% if group.special_property %}
+Special property: {{ group.special_property }}
+{% endif %}
+
+{% endfor %}
+## How the solutions did on the test groups (a local run)
+{% if group_results %}
+{% for name, groups in group_results.items() %}
+- {{ name }}: {% for group, verdict in groups.items() %}{{ group }} {{ verdict }}{% if not loop.last %}, {% endif %}{% endfor %}
+
+{% endfor %}
+(`OK` — every test of the group passed, otherwise the verdict of its first test that
+didn't; `not run` — the group's tests have no expected output.)
+{% else %}
+(no results: the local runs haven't recorded any)
+{% endif %}
+{% if references %}
+
+## The main solution
+{% for name, code in references.items() %}
+### {{ name }}
+~~~
+{{ code }}
+~~~
+{% endfor %}
+{% endif %}
+{% if local_run %}
+
+## The local run of your solutions failed
+See {{ local_run.report }}.
+{% for failure in local_run.failures %}
+### {{ failure.name }} ({{ failure.status }})
+{% if failure.error %}
+{{ failure.error }}
+{% endif %}
+{% for test in failure.unexpected %}
+- {{ test.test }}: {{ test.verdict }}{% if test.command %} — generated by `{{ test.command }}`{% endif %}
+
+{% if test.comment %}
+  {{ test.comment }}
+{% endif %}
+{% endfor %}
+{% if failure.group_mismatches is defined %}
+{% for mismatch in failure.group_mismatches %}
+- {{ mismatch }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% if local_run.comment %}
+
+### The author's comment
+{{ local_run.comment }}
+{% endif %}
+{% endif %}
+
+The task: for each group of "Groups to consider", say whether you see a solution specific to
+it, and write it if you do — by the rules from the system message.
 ```
 
 ---

@@ -65,9 +65,11 @@ _RESPONSES = {
 # (checker.custom_needed: false), a normal, non-interactive problem, and one solution
 # language without alternative approaches (no other ok solutions); the local runs are a stub
 # without survivors, so no tests for them.
-# `scoring_table` — the fixture's constraints.yaml has no test groups.
+# `scoring_table`, `solutions_groups` — the fixture's constraints.yaml has no test groups.
 _SKIPPED_STEPS = {
     "scoring_table",
+    "solutions_groups",
+    "run_groups",
     "checker_draft",
     "interactor_draft",
     "solutions_ok",
@@ -1275,3 +1277,47 @@ def test_no_revisions_without_attempts(spec_file, tmp_path, monkeypatch):
     assert not result.ok
     assert result.outcomes[-1].step_name == "run_tests"
     assert not [o for o in result.outcomes if o.status == pipeline.OUTCOME_RECHECK]
+
+
+def test_solutions_groups_runs_only_with_groups_of_their_own(spec_file, tmp_path):
+    problems_dir = tmp_path / "problems"
+    group_solution = "// passes groups: [1]\nint main(){}"
+    responses = {
+        **_RESPONSES,
+        "solutions_groups": ModelResponse(
+            status="proposed", artifacts={"tl_cpp_brute_draft.cpp": group_solution}, notes=[]
+        ),
+    }
+    with patch(
+        "orchestrator.model_router.call_model",
+        side_effect=lambda step, *args, **kwargs: responses[step],
+    ) as mock_call:
+        first = _run(problems_dir)
+        # Groups with limits of their own appear (as if the author edited constraints.yaml).
+        constraints = problems_dir / "p1" / "authoring" / "constraints.yaml"
+        constraints.write_text(
+            _CONSTRAINTS_YAML + "test_groups:\n  - name: '1'\n    variables:\n      N: {max: 10}\n"
+            "    points: 100\n",
+            encoding="utf-8",
+        )
+        mock_call.reset_mock()
+        stage = _run(problems_dir, only_step="solutions_groups")
+        gate = _run(problems_dir, only_step="run_groups")
+
+    statuses = {o.step_name: o.status for o in first.outcomes}
+    assert statuses["solutions_groups"] == pipeline.OUTCOME_SKIPPED_OPTIONAL
+    assert [(o.step_name, o.status) for o in stage.outcomes] == [
+        ("solutions_groups", pipeline.OUTCOME_PROPOSED)
+    ]
+    assert [(o.step_name, o.status) for o in gate.outcomes] == [
+        ("run_groups", pipeline.OUTCOME_CONFIRMED)
+    ]
+    assert [c.args[0] for c in mock_call.call_args_list] == ["solutions_groups"]
+    problem_dir = problems_dir / "p1"
+    path = problem_dir / "solutions" / "tl_cpp_brute_draft.cpp"
+    assert path.read_text(encoding="utf-8") == group_solution
+    # A `tl` solution, but the groups stage's: the slow stage doesn't own it.
+    from orchestrator.steps.solutions import STAGES
+
+    assert "tl_cpp_brute_draft.cpp" not in STAGES["slow"].owned(problem_dir)
+    assert "tl_cpp_brute_draft.cpp" in STAGES["groups"].owned(problem_dir)

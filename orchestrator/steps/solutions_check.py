@@ -63,11 +63,17 @@ from orchestrator.steps.base import (
     StepResult,
     StepRevision,
 )
+from orchestrator.test_groups import EXAMPLES_GROUP
 
 logger = logging.getLogger(__name__)
 
 # The cache entry's status of a run that failed.
 STATUS_FAILED = "failed"
+# The key of the report with how each judged solution did on each test group.
+GROUP_RESULTS_KEY = "group_results"
+# The version of what `.cache/<run>.report.json` records, part of the run's input: raised
+# when the report gets something new, so that the runs with an old report run again.
+REPORT_FORMAT = 2
 
 
 # What the run reads besides the solutions — relative to the problem directory.
@@ -102,7 +108,7 @@ class Gate:
     step_name: str
     stage_step: str
     judged: Callable[[Path], list[str]]
-    skip: Callable[[ProblemSpec], str | None]
+    skip: Callable[..., str | None]
 
     # Instead of the model class and the prompt hash in the cache entry.
     MODEL: ClassVar[str] = "none"
@@ -116,8 +122,8 @@ class Gate:
     def INPUTS_KEY(self) -> str:  # noqa: N802
         return f"{self.step_name}: inputs"
 
-    def skip_detail(self, spec: ProblemSpec, **_: Any) -> str | None:
-        return self.skip(spec)
+    def skip_detail(self, spec: ProblemSpec, **kwargs: Any) -> str | None:
+        return self.skip(spec, **kwargs)
 
     def load_inputs(
         self, problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
@@ -154,6 +160,9 @@ class Gate:
             "known_wrong_approaches": (
                 spec.solutions.known_wrong_approaches if spec.solutions is not None else None
             ),
+            # What the report records: a run whose report lacks something a later step reads
+            # (`GROUP_RESULTS_KEY`) runs again.
+            "report_format": REPORT_FORMAT,
         }
         return section, {f"file: {name}": digest for name, digest in inputs["files"].items()}
 
@@ -201,6 +210,19 @@ class Gate:
             return []
         report = load_run_report(problem_id, self.step_name, problems_dir=problems_dir)
         return list((report or {}).get("survivors", []))
+
+    def current_group_results(
+        self, problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
+    ) -> dict[str, dict[str, str]]:
+        """How each solution the last run judged did on each test group — if its input is
+        still the same; otherwise none."""
+        entry = load_cache_entry(problem_id, self.step_name, problems_dir=problems_dir)
+        if entry is None:
+            return {}
+        upstream = {self.INPUTS_KEY: self.load_inputs(problem_id, spec, problems_dir=problems_dir)}
+        if self.compute_input_hash(problem_id, spec, upstream) != entry.input_hash:
+            return {}
+        return group_results(problem_id, self.step_name, problems_dir=problems_dir)
 
     def failed_report(
         self,
@@ -274,6 +296,7 @@ class Gate:
                 "survivors": survivors,
                 "errors": summary["errors"],
                 "warnings": result.warnings,
+                GROUP_RESULTS_KEY: _group_results(judged_outcomes),
             },
             problems_dir=problems_dir,
         )
@@ -327,6 +350,39 @@ class Gate:
                 f"Step '{self.step_name}' for '{problem_id}': its input files aren't loaded"
             )
         return upstream_artifacts[self.INPUTS_KEY]
+
+
+def _group_results(outcomes: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
+    """How each judged solution did on each test group: `OK`, the verdict of the group's
+    first non-OK test, or `not run` (tests without an expected output); the examples
+    (group 0) aren't a test group. Without times: they differ from run to run, and
+    `solutions_groups` takes this as input."""
+    results: dict[str, dict[str, str]] = {}
+    for outcome in outcomes:
+        if not outcome.get("groups"):
+            continue
+        results[outcome["name"]] = {
+            group["name"]: (
+                "OK"
+                if group["passed"]
+                else group["failed_on"]["verdict"]
+                if group["failed_on"] is not None
+                else "not run"
+            )
+            for group in outcome["groups"]
+            if group["name"] != EXAMPLES_GROUP
+        }
+    return results
+
+
+def group_results(
+    problem_id: str, step_name: str, *, problems_dir: Path = PROBLEMS_DIR
+) -> dict[str, dict[str, str]]:
+    """The results per test group of the last run `step_name` (`_group_results`); a
+    report without them — none."""
+    report = load_run_report(problem_id, step_name, problems_dir=problems_dir) or {}
+    results = report.get(GROUP_RESULTS_KEY)
+    return results if isinstance(results, dict) else {}
 
 
 def read_author_comment(problem_dir: Path, step_name: str) -> str | None:
