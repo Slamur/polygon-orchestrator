@@ -3,7 +3,9 @@ paths:
   - "orchestrator/steps/solutions.py"
   - "orchestrator/steps/solutions_check.py"
   - "prompts/solutions/**"
+  - "prompts/solutions_groups/**"
   - "tests/test_step_solutions.py"
+  - "tests/test_step_solutions_groups.py"
   - "tests/test_solutions_check.py"
   - "orchestrator/step_order.py"
   - "docs/PROMPTS.md"
@@ -19,7 +21,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
 4. **The solutions** — drafts with declared verdicts (ok/wa/tl/tl_ok/tl_ml/ml/re/il),
    which the author must double-check and probably rewrite themselves — these aren't
    final solutions. They are written in stages, one model call per stage over the
-   shared prompts `prompts/solutions/` (`step_order.PROMPT_DIRS`), and each stage is
+   shared prompts `prompts/solutions/` (`step_order.PROMPT_DIRS`; `solutions_groups` — its
+   own `prompts/solutions_groups/`), and each stage is
    checked by a local run of its solutions before the next one builds on them
    (`orchestrator/steps/solutions.py`, `orchestrator/steps/solutions_check.py`):
 
@@ -29,6 +32,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    | `solutions_ok` | the other `ok` solutions: the main idea in the other languages (`ok_<language>_<idea>_<author>` with the main one's `<idea>`), `alternative_approaches` | the main solution | `run_ok`: all `ok` ones against the output of the main one |
    | `solutions_slow` | `tl`, `tl_ok`, `tl_ml`, `tle`, `ml`, `mle` | all `ok` solutions | `run_slow` |
    | `solutions_wrong` | `wa`, `re`, `il` | all `ok` solutions | `run_wrong` |
+| `solutions_groups` | with test groups: solutions specific to particular groups (below) | the main solution and every solution's result per group | `run_groups` |
 
    The input of every stage: its part of the `solutions` section
    (`algorithm_hint`; `main` — the main language, `ok` — `languages` and
@@ -60,9 +64,31 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    Beyond the solutions described in the spec, a stage may propose its own (another or
    a faster `ok` in `solutions_ok`, likely contestant mistakes in `slow`/`wrong`) — see "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
 
+   **`solutions_groups`** — runs only if `constraints.yaml` has a test group with limits of
+   its own (`variables` or `special_property`; `solutions.special_groups`), otherwise
+   `skipped`. One call for all such groups, the strong model. Its input: the spec part of
+   the other stages (`algorithm_hint`, `languages`, the statement's input/output,
+   `intended_complexity`, `constraints.yaml` without TL/ML), the main solution, the groups
+   to consider, and how every solution of the earlier stages did on each group — `OK`, the
+   verdict of the group's first non-OK test or `not run`, without times
+   (`solutions_check.GROUP_RESULTS_KEY` in each local run's report, taken only from a run
+   whose input is still current). For each group the model says in `notes`
+   (`test_groups[<name>]`, `kind: suggestion`) whether it sees a solution specific to the
+   group — an algorithm correct under its special property or a slower one fitting its
+   bounds, not one a solution of the earlier stages already is — and writes it if so: at
+   most one file per group, named by its verdict on the whole test set (`wa`, `re`, `tl`,
+   `tle`, `tl_ml`, `ml`, `mle` — `solutions.GROUP_VERDICTS`), with the comments
+   `SUGGESTION: ...` and `passes groups: [...]` (every group whose limits it handles). A
+   response file without the comment or with another verdict isn't applied. `run_groups`
+   judges these solutions like the other runs: a named group not passed — the run fails
+   and the stage revises; a group passed but not named — a survivor for `tests_survivors`.
+
    A stage owns solutions by their names (`Stage.owned`): `main` — Main correct as
    Polygon chooses it (`upload_solutions._choose_main`: the file with the `ma`
-   verdict first), `ok` — the other correct ones, `slow`/`wrong` — by the verdict.
+   verdict first), `ok` — the other correct ones, `groups` — the solutions with a `passes
+   groups` comment not written from a spec item (`solutions.claims_groups`), `slow`/`wrong`
+   — the rest by the verdict; `slow`/`wrong` may not write a file with the comment and
+   without a spec item marker.
    Revision mode shows the model only the stage's files; a response with a file of
    another stage isn't applied (a conflict). Solutions that exist while the stage has
    never run (written by the author or before the stages) are kept as is, like

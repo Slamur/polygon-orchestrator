@@ -24,6 +24,7 @@ stronger model; mechanical/boilerplate steps — through a faster/cheaper one.
 | `constraints_pick`          | high        | strong model             |
 | `solutions_main`            | high        | strong model             |
 | `solutions_ok`, `solutions_slow`, `solutions_wrong` | medium — built on the code of the checked ok solutions | medium model, high effort |
+| `solutions_groups`          | medium — an algorithmic idea of its own for a group, checked by a local run | strong model, high effort |
 | `checker_draft`              | high (with incomplete `custom_comparison_notes`) | medium model |
 | `statement_draft` (LaTeX)   | medium      | medium model              |
 | `tests_plan`                | medium — designing the base tests | medium model, high effort |
