@@ -103,8 +103,7 @@ What is compared with what (the names are the same that the polygon steps read):
 - the other source files `*.cpp` (`problem.files`) -> `generators/`
   (`generator_source_names`: everything that isn't the validator, the checker or the
   interactor);
-- the test-script (`problem.script`, testset `tests`) -> `test_script` (or an
-  already existing local `test_script_groups`); compared without empty lines
+- the test-script (`problem.script`, testset `tests`) -> `test_script`; compared without empty lines
   (`normalize_script`) — Polygon drops them on saving;
 - test groups (`problem.viewTestGroup` + the tests' groups and points from
   `problem.tests`) — only if `authoring/constraints.yaml` has `test_groups`: compared with
@@ -171,10 +170,7 @@ from orchestrator.polygon.steps.upload_test_groups import (
     remote_groups,
     tests_digest,
 )
-from orchestrator.polygon.steps.upload_test_script import (
-    SCRIPT_FILENAMES,
-    normalize_script,
-)
+from orchestrator.polygon.steps.upload_test_script import normalize_script
 from orchestrator.polygon.sync import (
     CHECKER_FILE_KEY,
     CHECKER_KEY,
@@ -207,6 +203,7 @@ from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
     AUTHORING_FILENAMES,
     PROBLEMS_DIR,
+    TEST_SCRIPT_FILENAME,
     ProblemPathError,
     authoring_dir,
     check_new_problem_location,
@@ -788,14 +785,16 @@ class _Puller:
             self.add("generators", ITEM_ABSENT, "no generator source files on Polygon")
 
     def pull_script(self) -> None:
-        existing = [name for name in SCRIPT_FILENAMES if (self.problem_dir / name).exists()]
-        local_name = existing[0] if existing else SCRIPT_FILENAMES[0]
         content = self._call_raw("problem.script", {"testset": _TESTSET})
         if not content.strip():
-            self._missing_on_polygon(local_name, "empty test script on Polygon", key=SCRIPT_KEY)
+            self._missing_on_polygon(
+                TEST_SCRIPT_FILENAME, "empty test script on Polygon", key=SCRIPT_KEY
+            )
             return
         # Like `upload_test_script`: empty lines that Polygon drops don't count.
-        self._sync_file(local_name, lambda: content, key=SCRIPT_KEY, normalize=normalize_script)
+        self._sync_file(
+            TEST_SCRIPT_FILENAME, lambda: content, key=SCRIPT_KEY, normalize=normalize_script
+        )
 
     def pull_test_groups(self) -> None:
         """The test groups on Polygon against the `test_groups` of `constraints.yaml`

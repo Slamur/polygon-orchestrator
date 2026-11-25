@@ -601,7 +601,7 @@ problems/<problem path>/   your problems (not in git)
   statement/examples/        examples — shared by all languages
   limits.yaml                the actual TL/ML (can be edited by hand)
   validator.cpp, checker.cpp, interactor.cpp
-  generators/*.cpp, test_script, test_script_groups
+  generators/*.cpp, test_script
   solutions/*
   llm_reports/<step>.md      the report of the step's last run — read it first
   llm_reports/accept.md      what the last llm accept accepted

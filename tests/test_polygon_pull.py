@@ -375,7 +375,7 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
     _write(problem_dir, "statement/ru/legend.tex", "local legend")
     _write(problem_dir, "statement/examples/example_1.txt", "1 2\n")
     _write(problem_dir, "validator.cpp", "local validator")
-    _write(problem_dir, "test_script_groups", "local script")
+    _write(problem_dir, "test_script", "local script")
     _write(problem_dir, "solutions/ma_cpp_sum_author.cpp", "// ok\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
@@ -386,11 +386,11 @@ def test_differing_files_are_kept_with_polygon_version_in_baseline(problems_dir,
     assert statuses["statement/ru/input_format.tex"] == ITEM_DOWNLOADED
     assert statuses["statement/examples/example_1.txt"] == ITEM_SAME
     assert statuses["validator.cpp"] == ITEM_DIFFERS
-    assert statuses["test_script_groups"] == ITEM_DIFFERS
+    assert statuses["test_script"] == ITEM_DIFFERS
     assert statuses["solutions/ma_cpp_sum_author.cpp"] == ITEM_SAME
     assert (problem_dir / "statement" / "ru" / "legend.tex").read_text() == "local legend"
     assert (problem_dir / "validator.cpp").read_text() == "local validator"
-    assert not (problem_dir / "test_script").exists()
+    assert (problem_dir / "test_script").read_text() == "local script"
     synced = _synced(problems_dir)
     # The base has the version from Polygon: push compares the local one with it and uploads.
     assert synced["statement/ru/legend.tex"] == pull_module.digest("L")

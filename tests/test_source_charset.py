@@ -8,7 +8,6 @@ def test_is_source_file_by_suffix_and_script_name():
     assert is_source_file(Path("solutions/ok.java"))
     assert is_source_file(Path("solutions/ok.py"))
     assert is_source_file(Path("test_script"))
-    assert is_source_file(Path("test_script_groups"))
     assert not is_source_file(Path("statement/ru/legend.tex"))
     assert not is_source_file(Path("authoring/constraints.yaml"))
 

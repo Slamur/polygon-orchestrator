@@ -23,7 +23,7 @@ Besides them, samples may be attached — files of other problems that the autho
 listed in the spec as references; there may be no samples at all. For this step
 these are tests_design.yaml (that problem's design; it may be missing), tests_plan.yaml
 (that problem's plan — what a design like yours is built into: named values instead
-of formulas), test_script (or test_script_groups),
+of formulas), test_script,
 constraints.yaml (the counterpart of the "Fixed limits" section in the request) and
 spec.yaml of the same problem.
 

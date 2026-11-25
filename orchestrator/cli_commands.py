@@ -92,9 +92,8 @@ from orchestrator.polygon.pull import pull_problem
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import STATUS_DONE as POLYGON_STATUS_DONE
 from orchestrator.polygon.steps.base import PolygonStepError
-from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.polygon.sync import VALIDATOR_FILENAME, describe_keys
-from orchestrator.problem_paths import EXAMPLES_DIR, ProblemPathError
+from orchestrator.problem_paths import EXAMPLES_DIR, TEST_SCRIPT_FILENAME, ProblemPathError
 from orchestrator.spec import (
     SpecInitError,
     prepare_spec_init,
@@ -791,28 +790,23 @@ def cmd_local_run(args: argparse.Namespace) -> int:
 
 
 def _check_scripts(problem_dir: Path) -> bool:
-    scripts = [problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()]
-    if not scripts:
-        print(f"no test script (expected one of: {', '.join(SCRIPT_FILENAMES)}) — skipped")
+    script = problem_dir / TEST_SCRIPT_FILENAME
+    if not script.is_file():
+        print(f"no test script ({TEST_SCRIPT_FILENAME}) — skipped")
         return True
-    ok = True
-    for script in scripts:
-        try:
-            result = check_script(script.read_text(encoding="utf-8"), script.name)
-        except ScriptCheckUnavailable as exc:
-            print(f"{script.name}: check unavailable — {exc}", file=sys.stderr)
-            ok = False
-            continue
-        except ScriptRenderError as exc:
-            print(f"{script.name}: FreeMarker failed to expand the script:\n{exc}")
-            ok = False
-            continue
-        if result.failed:
-            print(result.report)
-            ok = False
-        else:
-            print(f"{script.name}: ok, no identical or invalid lines")
-    return ok
+    try:
+        result = check_script(script.read_text(encoding="utf-8"), script.name)
+    except ScriptCheckUnavailable as exc:
+        print(f"{script.name}: check unavailable — {exc}", file=sys.stderr)
+        return False
+    except ScriptRenderError as exc:
+        print(f"{script.name}: FreeMarker failed to expand the script:\n{exc}")
+        return False
+    if result.failed:
+        print(result.report)
+        return False
+    print(f"{script.name}: ok, no identical or invalid lines")
+    return True
 
 
 def _check_statement(problem_dir: Path, tex_files: list[tuple[Path, str]]) -> bool:

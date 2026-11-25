@@ -213,7 +213,7 @@ generation:
     # particular wrong solution) — it's a separate list of "what must
     # be tested", which the author formulates themselves, without
     # deriving it from the legend/asymptotics.
-  script_style: "groups"             # [required] "flat" | "groups" — a simple script (test_script) or by test groups (test_script_groups)
+  script_style: "groups"             # [required] "flat" | "groups" — a simple script or by test groups (the file is test_script in both)
     # A problem with test groups (a non-empty constraints.test_groups_hint or
     # test_groups_needed: true) needs "groups": the spec with "flat" doesn't validate.
   references:                        # [optional] references only for the tests_plan, generators_draft and test_script_draft steps, added to the shared ones
@@ -372,9 +372,9 @@ part from the directory (`REFERENCE_DOCUMENTS` in `orchestrator/references.py`):
 |-----|-------------------|
 | `statement_draft` | `statement/<the sample's main language>/*.tex` (for a sample not yet moved — `statement/*.tex`), except the tutorial `tutorial.tex` (for an interactive problem — and `interaction.tex`) |
 | `constraints_pick` | `authoring/constraints.yaml`, `validator.cpp` |
-| `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_design.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` |
+| `tests_plan` | `authoring/constraints.yaml`, `authoring/tests_design.yaml`, `authoring/tests_plan.yaml`, `test_script` |
 | `generators_draft` | `authoring/tests_plan.yaml`, `generators/*.cpp` (without the spec — a "plan → generators" pair) |
-| `test_script_draft` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script`, `test_script_groups` (without the spec) |
+| `test_script_draft` | `authoring/constraints.yaml`, `authoring/tests_plan.yaml`, `test_script` (without the spec) |
 | the solution stages `solutions_*` | `solutions/*` in the languages from `solutions.languages` |
 | `checker_draft` | `checker.cpp` |
 | `interactor_draft` | `interactor.cpp` |

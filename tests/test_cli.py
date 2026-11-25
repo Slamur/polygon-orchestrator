@@ -38,7 +38,7 @@ _RESPONSES = {
         status="confirmed", artifacts={"gen_rand.cpp": "int main(){}"}, notes=[]
     ),
     "test_script_draft": ModelResponse(
-        status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}, notes=[]
+        status="confirmed", artifacts={"test_script": "<#-- fm --#>"}, notes=[]
     ),
     "solutions_main": ModelResponse(
         status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}, notes=[]

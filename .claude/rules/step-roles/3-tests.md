@@ -105,8 +105,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    - **`test_script_draft`** — input: `constants`, `tests` and the signatures of the
      plan's generators (without algorithms — editing a generator's code doesn't invalidate
      the script) + `constraints.yaml` without TL/ML + `generation.script_style`.
-     Output: a FreeMarker test-script (`flat` — `test_script` following the sample from the
-     references; `groups` — `test_script_groups` by the `group`s of the plan's
+     Output: a FreeMarker test-script `test_script` (`flat` — following the sample from the
+     references; `groups` — by the `group`s of the plan's
      blocks, on the same structure if there is no sample: a list of groups, a macro per
      group, one `<#list>` over them). With test groups every script line carries
      `-group=<N>` (the test's group for the local checks and Polygon); generators don't

@@ -354,12 +354,10 @@ def test_local_check_reports_duplicates(tmp_path, capsys):
     problem_dir = tmp_path / "problems" / PROBLEM_ID
     problem_dir.mkdir(parents=True)
     (problem_dir / "test_script").write_text(DUPLICATES_SCRIPT, encoding="utf-8")
-    (problem_dir / "test_script_groups").write_text("gen -n=1 > $\n", encoding="utf-8")
 
     assert _check_cli(tmp_path) == 1
     out = capsys.readouterr().out
     assert '"gen -n=100 -c=100 > $" — 2 times' in out
-    assert "test_script_groups: ok" in out
 
 
 @pytest.mark.slow

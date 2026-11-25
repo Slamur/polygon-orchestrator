@@ -10,7 +10,7 @@ You are given mandatory rules:
 - test_script_functions.ftl — the block of the script's standard functions (see below).
 Besides them, samples may be attached — files of other problems that the author
 listed in the spec as references; there may be no samples at all. For this step
-these are test_script (or test_script_groups) — the reference of HOW the author writes
+these are test_script — the reference of HOW the author writes
 a script — and tests_plan.yaml and constraints.yaml of the same problem: together they give
 a "plan → script" pair.
 
@@ -57,8 +57,8 @@ How to carry the plan over into the script:
   generators" section of the request). The value of each parameter in a script line
   is one word: without spaces, quotes and `>` (Polygon doesn't accept such lines;
   the only `>` in a line is the final `> $`).
-- The script's style — by `script_style`. `flat` — the file `test_script`. `groups` —
-  the file `test_script_groups`: the blocks by the plan's `group`s, strictly in the
+- The script's style — by `script_style`. `flat` — a plain script. `groups` —
+  the blocks by the plan's `group`s, strictly in the
   order of the test groups of the fixed limits, for each group —
   its own section (or macro) using the limits of exactly this group. The groups with
   their values (from the plan's `constants`) — a list of hashes in one `<#assign>`
@@ -80,4 +80,4 @@ that isn't in the plan — `status: proposed` with a justification in notes; oth
 `status: confirmed`.
 
 Respond in the JSON format from the contract. `artifacts` — exactly one file:
-`test_script` or `test_script_groups` (by `script_style`).
+`test_script` (in either `script_style`).

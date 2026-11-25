@@ -30,6 +30,7 @@ from pathlib import Path
 
 from orchestrator.problem_paths import (
     SCORING_TEXTS_FILENAME,
+    TEST_SCRIPT_FILENAME,
     TESTS_DESIGN_FILENAME,
     TESTS_PLAN_FILENAME,
     TUTORIAL_FILENAME,
@@ -65,8 +66,7 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
         "constraints.yaml",
         TESTS_DESIGN_FILENAME,
         TESTS_PLAN_FILENAME,
-        "test_script",
-        "test_script_groups",
+        TEST_SCRIPT_FILENAME,
     ],
     "generators_draft": [TESTS_PLAN_FILENAME, "generators/*.cpp"],
     # A sample's plan with its tests for wrong solutions and the solutions themselves.
@@ -74,8 +74,7 @@ REFERENCE_DOCUMENTS: dict[str, list[str]] = {
     "test_script_draft": [
         "constraints.yaml",
         TESTS_PLAN_FILENAME,
-        "test_script",
-        "test_script_groups",
+        TEST_SCRIPT_FILENAME,
     ],
     "solutions_main": [SPEC_FILENAME, "solutions/*"],
     "solutions_ok": [SPEC_FILENAME, "solutions/*"],

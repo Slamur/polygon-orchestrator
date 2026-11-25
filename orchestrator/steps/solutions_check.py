@@ -53,7 +53,7 @@ from orchestrator.checks.solutions_run import (
 )
 from orchestrator.llm_report import COMMENT_MARKER, report_path
 from orchestrator.model_contracts import ModelResponse
-from orchestrator.problem_paths import CONSTRAINTS_FILENAME, authoring_path
+from orchestrator.problem_paths import CONSTRAINTS_FILENAME, TEST_SCRIPT_FILENAME, authoring_path
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
     PROBLEMS_DIR,
@@ -83,8 +83,7 @@ _PROBLEM_FILES = (
     "interactor.cpp",
     "problem_lib.h",
     "limits.yaml",
-    "test_script",
-    "test_script_groups",
+    TEST_SCRIPT_FILENAME,
 )
 _PROBLEM_DIRS = ("generators", "statement/examples")
 _SOLUTIONS_DIRNAME = "solutions"

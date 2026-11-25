@@ -31,7 +31,7 @@ SCRIPT_FUNCTIONS = (TEMPLATES_DIR / "test_script_functions.ftl").read_text(encod
 
 @pytest.fixture
 def spec():
-    # script_style: groups — the test_script_groups file.
+    # script_style: groups — the same test_script file.
     return load_spec(FIXTURES_DIR / "valid-spec.yaml")
 
 
@@ -57,14 +57,14 @@ def _run(spec, tmp_path, artifacts):
 
 
 def test_writes_script_by_style_from_the_plan(spec, tmp_path):
-    result, mock_call = _run(spec, tmp_path, {"test_script_groups": SCRIPT_FUNCTIONS + "body\n"})
+    result, mock_call = _run(spec, tmp_path, {"test_script": SCRIPT_FUNCTIONS + "body\n"})
 
-    assert (tmp_path / "valid-spec" / "test_script_groups").read_text(encoding="utf-8") == (
+    assert (tmp_path / "valid-spec" / "test_script").read_text(encoding="utf-8") == (
         SCRIPT_FUNCTIONS + "body\n"
     )
     assert result.notes == []
     user_prompt = mock_call.call_args.args[2]
-    assert "the file `test_script_groups`" in user_prompt
+    assert "the file `test_script`" in user_prompt
     assert "gen_rand -n=maxN" in user_prompt
     assert "n_max: 100000" in user_prompt
     assert "time_limit_seconds" not in user_prompt
@@ -73,8 +73,8 @@ def test_writes_script_by_style_from_the_plan(spec, tmp_path):
 
 
 def test_response_without_the_script_is_incomplete(spec, tmp_path):
-    first = ModelResponse(status="confirmed", artifacts={"test_script": SCRIPT_FUNCTIONS})
-    retry = ModelResponse(status="confirmed", artifacts={"test_script_groups": SCRIPT_FUNCTIONS})
+    first = ModelResponse(status="confirmed", artifacts={})
+    retry = ModelResponse(status="confirmed", artifacts={"test_script": SCRIPT_FUNCTIONS})
     with patch("orchestrator.model_router.call_model", side_effect=[first, retry]) as mock_call:
         run_step(
             "valid-spec",
@@ -86,7 +86,7 @@ def test_response_without_the_script_is_incomplete(spec, tmp_path):
         )
 
     assert mock_call.call_count == 2
-    assert (tmp_path / "valid-spec" / "test_script_groups").exists()
+    assert (tmp_path / "valid-spec" / "test_script").exists()
 
 
 def test_compute_input_hash_ignores_generator_algorithms(spec):
@@ -102,12 +102,12 @@ def test_compute_input_hash_ignores_generator_algorithms(spec):
 
 
 @pytest.mark.parametrize(
-    "bad_name", ["other/test_script_groups", "../test_script", "dir/test_script", "gen_rand.cpp"]
+    "bad_name", ["test_script_groups", "../test_script", "dir/test_script", "gen_rand.cpp"]
 )
 def test_foreign_file_is_set_aside_and_the_script_applied(spec, tmp_path, bad_name):
-    result, _ = _run(spec, tmp_path, {"test_script_groups": SCRIPT_FUNCTIONS, bad_name: "x"})
+    result, _ = _run(spec, tmp_path, {"test_script": SCRIPT_FUNCTIONS, bad_name: "x"})
 
-    assert (tmp_path / "valid-spec" / "test_script_groups").is_file()
+    assert (tmp_path / "valid-spec" / "test_script").is_file()
     [(filename, _)] = result.conflicts
     assert filename == bad_name
     assert result.conflicts_dir is not None
@@ -160,16 +160,12 @@ def test_restore_script_functions_without_sections_goes_to_top():
 
 
 def test_run_step_restores_dropped_script_functions_with_note(spec, tmp_path):
-    result, _ = _run(
-        spec, tmp_path, {"test_script_groups": '<#assign desc = "Functions"/>\n\nbody\n'}
-    )
+    result, _ = _run(spec, tmp_path, {"test_script": '<#assign desc = "Functions"/>\n\nbody\n'})
 
-    script = (tmp_path / "valid-spec" / "test_script_groups").read_text(encoding="utf-8")
+    script = (tmp_path / "valid-spec" / "test_script").read_text(encoding="utf-8")
     for name in ("div", "ceil", "min", "max", "pow", "fact", "contains"):
         assert f"<#function {name} " in script
-    assert [(note["field"], note["kind"]) for note in result.notes] == [
-        ("test_script_groups", "restored")
-    ]
+    assert [(note["field"], note["kind"]) for note in result.notes] == [("test_script", "restored")]
 
 
 @pytest.mark.parametrize(
@@ -203,14 +199,12 @@ def test_fix_script_comparisons_keeps_non_comparisons(line):
 
 def test_run_step_fixes_script_comparisons_with_note(spec, tmp_path):
     result, _ = _run(
-        spec, tmp_path, {"test_script_groups": SCRIPT_FUNCTIONS + "<#if n >= 2>\ngen > $\n</#if>\n"}
+        spec, tmp_path, {"test_script": SCRIPT_FUNCTIONS + "<#if n >= 2>\ngen > $\n</#if>\n"}
     )
 
-    written = (tmp_path / "valid-spec" / "test_script_groups").read_text(encoding="utf-8")
+    written = (tmp_path / "valid-spec" / "test_script").read_text(encoding="utf-8")
     assert "<#if n gte 2>" in written
-    assert [(note["field"], note["kind"]) for note in result.notes] == [
-        ("test_script_groups", "restored")
-    ]
+    assert [(note["field"], note["kind"]) for note in result.notes] == [("test_script", "restored")]
 
 
 GROUPS_CONSTRAINTS = (
@@ -235,7 +229,7 @@ def test_script_group_errors():
 
 def _run_with_groups(spec, tmp_path, rendered):
     response = ModelResponse(
-        status="confirmed", artifacts={"test_script_groups": SCRIPT_FUNCTIONS + "body\n"}
+        status="confirmed", artifacts={"test_script": SCRIPT_FUNCTIONS + "body\n"}
     )
     lines = [ScriptLine(index, text) for index, text in enumerate(rendered, 1)]
     with (
@@ -256,13 +250,13 @@ def test_script_with_lines_of_every_group_is_written(spec, tmp_path):
     result = _run_with_groups(spec, tmp_path, ["gen -group=1 > $", "gen -group=2 > $"])
 
     assert result.not_applied_reason is None
-    assert (tmp_path / "valid-spec" / "test_script_groups").is_file()
+    assert (tmp_path / "valid-spec" / "test_script").is_file()
 
 
 def test_script_without_group_markers_is_not_written(spec, tmp_path):
     result = _run_with_groups(spec, tmp_path, ["gen -group=1 > $", "gen -n=5 > $"])
 
-    assert not (tmp_path / "valid-spec" / "test_script_groups").exists()
+    assert not (tmp_path / "valid-spec" / "test_script").exists()
     assert "line 2: no -group=<N> marker" in result.not_applied_reason
     assert "test group 2 has no tests in the script" in result.not_applied_reason
     assert (tmp_path / "valid-spec" / ".cache" / "test_script_draft.response.json").is_file()
@@ -270,7 +264,7 @@ def test_script_without_group_markers_is_not_written(spec, tmp_path):
 
 @pytest.mark.parametrize("exc", [ScriptCheckUnavailable("no java"), ScriptRenderError("bad")])
 def test_script_that_cannot_be_expanded_is_written_unchecked(spec, tmp_path, exc):
-    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": "body\n"})
+    response = ModelResponse(status="confirmed", artifacts={"test_script": "body\n"})
     with (
         patch("orchestrator.model_router.call_model", return_value=response),
         patch("orchestrator.steps.test_script_draft.expand_script", side_effect=exc),
@@ -285,7 +279,7 @@ def test_script_that_cannot_be_expanded_is_written_unchecked(spec, tmp_path, exc
         )
 
     assert result.not_applied_reason is None
-    assert (tmp_path / "valid-spec" / "test_script_groups").is_file()
+    assert (tmp_path / "valid-spec" / "test_script").is_file()
 
 
 @pytest.mark.slow
@@ -296,7 +290,7 @@ def test_script_groups_are_checked_on_the_expanded_script(spec, tmp_path):
         SCRIPT_FUNCTIONS
         + "<#list 1..2 as g>\n    gen -n=${g} -group=${g} > $\n</#list>\ngen -n=9 > $\n"
     )
-    response = ModelResponse(status="confirmed", artifacts={"test_script_groups": script})
+    response = ModelResponse(status="confirmed", artifacts={"test_script": script})
     with patch("orchestrator.model_router.call_model", return_value=response):
         result = run_step(
             "valid-spec",

@@ -13,7 +13,7 @@ from pathlib import Path
 # Source files Polygon compiles or runs; other artifacts (`.tex`, `.yaml`)
 # are text in the problem's language.
 SOURCE_SUFFIXES = frozenset({".c", ".cpp", ".h", ".hpp", ".java", ".kt", ".py"})
-SOURCE_NAMES = frozenset({"test_script", "test_script_groups"})
+SOURCE_NAMES = frozenset({"test_script"})
 
 
 def is_source_file(path: Path) -> bool:
