@@ -176,7 +176,7 @@ the user can see it) in the same PR.
     │                                # (model and author only; on Polygon — in Attachments)
     ├── statement/<code>/*.tex, name.txt; statement/examples/example_<N>*.txt
     ├── limits.yaml, problem_lib.h, validator.cpp, checker.cpp, interactor.cpp
-    ├── generators/*.cpp, test_script(_groups), solutions/*
+    ├── generators/*.cpp, test_script, solutions/*
     ├── polygon_state.json           # binding to Polygon + the sync base (not a cache)
     ├── .cache/                      # step cache <step>.json and unapplied responses <step>.response.json
     ├── llm_generation.log, polygon.log, llm_reports/<step>.md

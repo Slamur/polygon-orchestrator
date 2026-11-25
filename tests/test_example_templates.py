@@ -25,6 +25,7 @@ from orchestrator.problem_paths import (
     AUTHORING_DIRNAME,
     EXAMPLES_DIR,
     SPEC_FILENAME,
+    TEST_SCRIPT_FILENAME,
     iter_problem_dirs,
     problem_id_for,
 )
@@ -33,7 +34,6 @@ from orchestrator.spec import load_spec
 from orchestrator.steps.generators_draft import generator_params
 from orchestrator.steps.test_script_draft import (
     SCRIPT_FUNCTIONS_FILENAME,
-    SCRIPT_NAMES,
     fix_script_comparisons,
 )
 from orchestrator.steps.tests_plan import (
@@ -156,21 +156,19 @@ def test_example_test_scripts_contain_standard_functions(example_dir):
     # the sample script — via references: if the sample turns out to have a different set,
     # the model gets two samples contradicting each other.
     functions = (TEMPLATES_DIR / SCRIPT_FUNCTIONS_FILENAME).read_text(encoding="utf-8")
-    for name in SCRIPT_NAMES:
-        script_path = example_dir / name
-        if script_path.exists():
-            assert functions in script_path.read_text(encoding="utf-8"), script_path
+    script_path = example_dir / TEST_SCRIPT_FILENAME
+    if script_path.exists():
+        assert functions in script_path.read_text(encoding="utf-8"), script_path
 
 
 @examples
 def test_example_test_scripts_have_no_comparison_signs_in_directives(example_dir):
     # `>` inside a FreeMarker tag closes the tag — Polygon doesn't save such a script
     # (prompts/rules/freemarker.md, "Comparisons").
-    for name in SCRIPT_NAMES:
-        script_path = example_dir / name
-        if script_path.exists():
-            _, fixed = fix_script_comparisons(script_path.read_text(encoding="utf-8"))
-            assert fixed == 0, script_path
+    script_path = example_dir / TEST_SCRIPT_FILENAME
+    if script_path.exists():
+        _, fixed = fix_script_comparisons(script_path.read_text(encoding="utf-8"))
+        assert fixed == 0, script_path
 
 
 @examples
@@ -224,7 +222,7 @@ def test_example_test_groups_match_spec_and_plan(example_dir):
     assert sum(g["points"] for g in groups) == 100
     assert plan_groups == {g["name"] for g in groups}
     assert spec.generation.script_style == "groups"
-    assert (example_dir / "test_script_groups").is_file()
+    assert (example_dir / TEST_SCRIPT_FILENAME).is_file()
     validator_groups = {g["name"] for g in constraints["validator"].get("groups") or []}
     assert validator_groups <= {g["name"] for g in groups}
     assert scoring

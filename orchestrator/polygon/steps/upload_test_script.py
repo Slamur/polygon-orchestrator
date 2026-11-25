@@ -3,9 +3,8 @@ step `test_script_draft`) to Polygon (`problem.saveScript`,
 `testset=tests`).
 
 The path to the script file is taken from
-`orchestrator.steps.test_script_draft.primary_artifact_path` — the single
-source of truth for the name (`test_script`/`test_script_groups` by
-`generation.script_style`), the flat/groups branching isn't duplicated here.
+`orchestrator.steps.test_script_draft.primary_artifact_path` (`test_script` in either
+`generation.script_style`).
 
 A script with test groups (`generation.script_style == "groups"`) is uploaded the
 same way: each of its lines carries the `-group=<name>` marker, and the tests'
@@ -78,7 +77,7 @@ from orchestrator.polygon.steps.base import (
     sync_status,
 )
 from orchestrator.polygon.sync import SCRIPT_KEY, digest
-from orchestrator.problem_paths import problem_address
+from orchestrator.problem_paths import TEST_SCRIPT_FILENAME, problem_address
 from orchestrator.steps.test_script_draft import (
     primary_artifact_path as script_artifact_path,
 )
@@ -98,9 +97,6 @@ _SAVE_SCRIPT_TIMEOUT_SECONDS = 600
 _GENERATION_POLL_FIRST_DELAY_SECONDS = 5
 _GENERATION_POLL_MAX_DELAY_SECONDS = 120
 _GENERATION_WAIT_SECONDS = 1800
-
-# The possible names of the script file — for `_compute_status`, where there's no spec.
-SCRIPT_FILENAMES = ("test_script", "test_script_groups")
 
 
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
@@ -243,13 +239,10 @@ def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> li
 
 
 def _compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
-    """By the sync base (`sync_status`). The spec isn't available here,
-    so the first existing one of `SCRIPT_FILENAMES` is compared."""
+    """By the sync base (`sync_status`)."""
 
     def read_items() -> dict[str, str]:
-        problem_dir = Path(problems_dir) / problem_id
-        existing = [name for name in SCRIPT_FILENAMES if (problem_dir / name).exists()]
-        script_path = problem_dir / (existing[0] if existing else SCRIPT_FILENAMES[0])
+        script_path = Path(problems_dir) / problem_id / TEST_SCRIPT_FILENAME
         content = _read_script(problem_id, problems_dir, script_path)
         return {SCRIPT_KEY: digest(normalize_script(content))}
 

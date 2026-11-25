@@ -62,6 +62,8 @@ SCORING_TEXTS_FILENAME = "scoring.yaml"
 # `orchestrator/drafts.py`.
 DRAFT_STEM = "draft"
 POLYGON_STATE_FILENAME = "polygon_state.json"
+# The FreeMarker test-script — one file in either `generation.script_style`.
+TEST_SCRIPT_FILENAME = "test_script"
 # The tutorial in `statement/`: an optional file, written by the author, `polygon pull` or
 # the `tutorial_draft` step — from the author's draft `authoring/draft-tutorial.md`.
 TUTORIAL_FILENAME = "tutorial.tex"

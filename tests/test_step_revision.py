@@ -507,7 +507,7 @@ _PIPELINE_RESPONSES = {
         status="confirmed", artifacts={"gen_rand.cpp": "int main(){}"}
     ),
     "test_script_draft": ModelResponse(
-        status="confirmed", artifacts={"test_script_groups": "<#-- fm --#>"}
+        status="confirmed", artifacts={"test_script": "<#-- fm --#>"}
     ),
     "solutions_main": ModelResponse(
         status="confirmed", artifacts={"ma_cpp_sum_draft.cpp": "int main(){}"}

@@ -56,7 +56,7 @@ def test_groups_style_script_is_uploaded(problems_dir, groups_spec):
     # The groups themselves are set by upload_test_groups; the script goes as is.
     link(problems_dir)
     content = "gen_random 1 10 -group=1 > $\n"
-    _write_script(problems_dir, content, name="test_script_groups")
+    _write_script(problems_dir, content, name="test_script")
     client = MagicMock()
 
     message = _run(groups_spec, problems_dir, client)
@@ -66,7 +66,7 @@ def test_groups_style_script_is_uploaded(problems_dir, groups_spec):
         {"problemId": str(POLYGON_ID), "testset": "tests", "source": content},
         timeout=upload_test_script._SAVE_SCRIPT_TIMEOUT_SECONDS,
     )
-    assert "test_script_groups" in message
+    assert "test_script" in message
 
 
 def test_missing_polygon_state_points_to_create_problem(problems_dir, spec):

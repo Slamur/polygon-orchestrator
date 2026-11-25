@@ -54,9 +54,8 @@ from orchestrator.checks.test_script_check import (
     ScriptRenderError,
     check_script,
 )
-from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.polygon.sync import VALIDATOR_FILENAME
-from orchestrator.problem_paths import is_removed_mark
+from orchestrator.problem_paths import TEST_SCRIPT_FILENAME, is_removed_mark
 from orchestrator.test_groups import EXAMPLES_GROUP, group_marker
 
 TESTS_CACHE_DIRNAME = ".tests_cache"
@@ -242,16 +241,9 @@ def generate_tests(
     # Generators are run from the cache directory — the paths must be absolute.
     problem_dir, templates_dir = Path(problem_dir).resolve(), Path(templates_dir).resolve()
     result = LocalTestsResult()
-    # The first existing one: `upload_test_script` chooses the script the same way.
-    script = next(
-        (problem_dir / name for name in SCRIPT_FILENAMES if (problem_dir / name).is_file()), None
-    )
-    if script is None:
-        result.add_issue(
-            TestIssue(
-                ISSUE_SCRIPT, f"no test script (expected one of: {', '.join(SCRIPT_FILENAMES)})"
-            )
-        )
+    script = problem_dir / TEST_SCRIPT_FILENAME
+    if not script.is_file():
+        result.add_issue(TestIssue(ISSUE_SCRIPT, f"no test script ({TEST_SCRIPT_FILENAME})"))
         return result
     try:
         checked = check_script(script.read_text(encoding="utf-8"), script.name)

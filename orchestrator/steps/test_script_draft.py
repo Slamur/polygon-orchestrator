@@ -2,8 +2,8 @@
 generative step", item 3.
 
 The mechanical part: the plan's `tests` blocks (`authoring/tests_plan.yaml`, the
-`tests_plan` step) with its `constants` — into `test_script` (`generation.script_style:
-flat`) or `test_script_groups` (`groups`). The step sees the generators only by the
+`tests_plan` step) with its `constants` — into `test_script` (in either
+`generation.script_style`). The step sees the generators only by the
 plan — the name and parameters, without code: the script calls them the way the plan described them,
 and editing a generator's code doesn't invalidate the script.
 """
@@ -24,6 +24,7 @@ from orchestrator.checks.test_script_check import (
     expand_script,
 )
 from orchestrator.model_contracts import ModelResponse
+from orchestrator.problem_paths import TEST_SCRIPT_FILENAME
 from orchestrator.references import reference_documents
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
@@ -56,7 +57,6 @@ STEP_NAME = "test_script_draft"
 # functions, and the author needs them at hand when editing the script by hand —
 # so the dropped ones are appended mechanically (`restore_script_functions`).
 SCRIPT_FUNCTIONS_FILENAME = "test_script_functions.ftl"
-SCRIPT_NAMES = ("test_script", "test_script_groups")
 _SCRIPT_SECTION_MARKER = '<#assign desc = "{}"/>'
 _FUNCTION_RE = re.compile(r"<#function\s+(\w+)\b.*?</#function>", re.S)
 
@@ -152,41 +152,41 @@ def fix_script_comparisons(script: str) -> tuple[str, int]:
 def _restore_functions_in_artifacts(
     functions_block: str,
 ) -> Callable[[dict[str, str]], tuple[dict[str, str], list[dict[str, Any]]]]:
-    """`postprocess_artifacts` for `run_generative_step`: runs each
+    """`postprocess_artifacts` for `run_generative_step`: runs the
     test-script of the response through `fix_script_comparisons` and
-    `restore_script_functions` and leaves a note on each where something was
+    `restore_script_functions` and leaves a note where something was
     fixed or appended."""
 
     def postprocess(artifacts: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
         result = dict(artifacts)
         notes: list[dict[str, Any]] = []
-        for name in SCRIPT_NAMES:
-            if name not in result:
-                continue
-            result[name], fixed = fix_script_comparisons(result[name])
-            if fixed:
-                notes.append(
-                    {
-                        "field": name,
-                        "kind": "restored",
-                        "explanation": (
-                            f"comparison signs inside FreeMarker directives ({fixed}) replaced "
-                            "by the orchestrator with gt/gte/lt/lte: `>` inside a tag closes the tag"
-                        ),
-                    }
-                )
-            result[name], restored = restore_script_functions(result[name], functions_block)
-            if restored:
-                notes.append(
-                    {
-                        "field": name,
-                        "kind": "restored",
-                        "explanation": (
-                            f"the model didn't copy the standard functions {', '.join(restored)} "
-                            f"from {SCRIPT_FUNCTIONS_FILENAME} — appended by the orchestrator"
-                        ),
-                    }
-                )
+        name = TEST_SCRIPT_FILENAME
+        if name not in result:
+            return result, notes
+        result[name], fixed = fix_script_comparisons(result[name])
+        if fixed:
+            notes.append(
+                {
+                    "field": name,
+                    "kind": "restored",
+                    "explanation": (
+                        f"comparison signs inside FreeMarker directives ({fixed}) replaced "
+                        "by the orchestrator with gt/gte/lt/lte: `>` inside a tag closes the tag"
+                    ),
+                }
+            )
+        result[name], restored = restore_script_functions(result[name], functions_block)
+        if restored:
+            notes.append(
+                {
+                    "field": name,
+                    "kind": "restored",
+                    "explanation": (
+                        f"the model didn't copy the standard functions {', '.join(restored)} "
+                        f"from {SCRIPT_FUNCTIONS_FILENAME} — appended by the orchestrator"
+                    ),
+                }
+            )
         return result, notes
 
     return postprocess
@@ -197,10 +197,6 @@ def _generator_signatures(plan: dict[str, Any]) -> list[dict[str, Any]]:
     to know how to call them."""
     keys = ("name", "params", "input", "output")
     return [{key: generator.get(key) for key in keys} for generator in plan_generators(plan)]
-
-
-def script_name(spec: ProblemSpec) -> str:
-    return "test_script" if spec.generation.script_style == "flat" else "test_script_groups"
 
 
 def hash_inputs(
@@ -265,17 +261,16 @@ def extra_context_documents(
 def primary_artifact_path(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> Path:
-    """The path to the test-script: the name depends on `generation.script_style`
-    (CLAUDE.md, "Directory structure")."""
-    return Path(problems_dir) / problem_id / script_name(spec)
+    """The path to the test-script (CLAUDE.md, "Directory structure")."""
+    return Path(problems_dir) / problem_id / TEST_SCRIPT_FILENAME
 
 
 def current_artifacts(
     problem_id: str, spec: ProblemSpec, *, problems_dir: Path = PROBLEMS_DIR
 ) -> dict[str, Path]:
-    """The step's current files for revision mode: both test-scripts, whichever exist."""
-    problem_dir = Path(problems_dir) / problem_id
-    return existing_artifacts({name: problem_dir / name for name in SCRIPT_NAMES})
+    """The step's current files for revision mode: the test-script, if it exists."""
+    path = Path(problems_dir) / problem_id / TEST_SCRIPT_FILENAME
+    return existing_artifacts({TEST_SCRIPT_FILENAME: path})
 
 
 def script_group_errors(groups: list[TestGroup], lines: list[str]) -> list[str]:
@@ -327,13 +322,12 @@ def run_step(
 
     Input: `constants`, `tests` and the signatures of the plan's generators,
     `constraints.yaml` without TL/ML — the only source of ranges and groups,
-    `generation.script_style`. Output — `test_script` or `test_script_groups`
-    in the problem directory; comparison signs in directives and standard functions
+    `generation.script_style`. Output — `test_script` in the problem directory; comparison signs in directives and standard functions
     dropped by the model are fixed by the orchestrator (`_restore_functions_in_artifacts`).
     """
     constraints_yaml = require_constraints_yaml(STEP_NAME, problem_id, upstream_artifacts)
     plan = load_tests_plan(STEP_NAME, problem_id, upstream_artifacts)
-    name = script_name(spec)
+    name = TEST_SCRIPT_FILENAME
     context = {
         "problem_id": spec.problem_id,
         "script_name": name,
@@ -349,9 +343,9 @@ def run_step(
 
     def resolve_artifact_path(filename: str) -> Path:
         filename = artifact_filename(filename)
-        if filename not in SCRIPT_NAMES:
+        if filename != TEST_SCRIPT_FILENAME:
             raise ValueError(
-                f"Step '{STEP_NAME}' returns only {' or '.join(SCRIPT_NAMES)}, got '{filename}'"
+                f"Step '{STEP_NAME}' returns only {TEST_SCRIPT_FILENAME}, got '{filename}'"
             )
         return Path(problems_dir) / problem_id / filename
 

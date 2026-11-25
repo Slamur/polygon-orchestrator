@@ -58,9 +58,9 @@ from orchestrator.checks.local_tests import (
 from orchestrator.checks.test_groups import check_test_groups, load_test_groups
 from orchestrator.llm_report import report_path
 from orchestrator.model_contracts import ModelResponse
-from orchestrator.polygon.steps.upload_test_script import SCRIPT_FILENAMES
 from orchestrator.problem_paths import (
     CONSTRAINTS_FILENAME,
+    TEST_SCRIPT_FILENAME,
     TESTS_DESIGN_FILENAME,
     TESTS_PLAN_FILENAME,
     authoring_path,
@@ -120,7 +120,7 @@ def _step_files(problem_dir: Path, step_name: str) -> list[Path]:
     if step_name == GENERATORS_STEP:
         directory = problem_dir / GENERATORS_DIRNAME
         return sorted(p for p in directory.rglob("*") if p.is_file()) if directory.is_dir() else []
-    return [problem_dir / name for name in SCRIPT_FILENAMES]
+    return [problem_dir / TEST_SCRIPT_FILENAME]
 
 
 def _other_files(problem_dir: Path) -> list[Path]:
