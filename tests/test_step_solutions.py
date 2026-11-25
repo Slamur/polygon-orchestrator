@@ -539,7 +539,7 @@ def test_interactive_problem_gets_protocol_and_rules():
 
     spec = _interactive_with_solutions()
     documents = extra_context_documents(spec, templates_dir=TEMPLATES_DIR)
-    assert documents[0] == str(TEMPLATES_DIR / "tutorials" / "interactive.md")
+    assert documents[0] == "rules/interactive.md"
     section = statement_io_section(spec, include_output_and_legend=True)
     assert section["interaction_sketch"] == spec.statement_draft.interaction_sketch
     # The validator and generators don't need the protocol: they work with the test.

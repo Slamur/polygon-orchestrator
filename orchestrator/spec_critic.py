@@ -41,7 +41,7 @@ from orchestrator.spec import _REVIEW_MARK, SPEC_TEMPLATE, spec_validation_error
 from orchestrator.spec_from_draft import context_documents as spec_context_documents
 from orchestrator.spec_from_draft import revise_spec_by_findings
 from orchestrator.steps.base import (
-    INTERACTIVE_TUTORIAL,
+    INTERACTIVE_RULES,
     PROMPTS_DIR,
     STATUS_CONFIRMED,
     STATUS_PROPOSED,
@@ -68,7 +68,7 @@ ACTIONS = ("remove", "simplify", "merge", "question", "gap")
 GAP = "gap"
 
 LENSES_DIRNAME = "lenses"
-INTERACTIVE_LENS_TUTORIALS = ("statement", "solutions")
+INTERACTIVE_LENS_RULES = ("statement", "solutions")
 
 FieldPath = tuple[str | int, ...]
 
@@ -82,7 +82,7 @@ class Lens:
 
     name: str
     fields: tuple[str, ...]
-    tutorials: tuple[str, ...]
+    rules: tuple[str, ...]
     excluded: tuple[str, ...] = ()
     gap_fields: tuple[str, ...] = ()
 
@@ -98,32 +98,32 @@ class Lens:
 
 _TEST_GROUP_FIELDS = ("constraints.test_groups_hint", "constraints.test_groups_needed")
 
-# In the order of the spec's sections. `tutorials/interactive.md` is added to the
-# `INTERACTIVE_LENS_TUTORIALS` lenses of an interactive problem.
+# In the order of the spec's sections. `rules/interactive.md` is added to the
+# `INTERACTIVE_LENS_RULES` lenses of an interactive problem.
 LENSES: dict[str, Lens] = {
     lens.name: lens
     for lens in (
         Lens(
             "statement",
             ("title", "statement_draft"),
-            ("tutorials/statement.md",),
+            ("rules/statement.md",),
             gap_fields=("statement_draft.sample_examples",),
         ),
         Lens(
             "limits",
             ("constraints",),
-            ("tutorials/limits.md", "tutorials/validator.md"),
+            ("rules/limits.md", "rules/validator.md"),
             excluded=_TEST_GROUP_FIELDS,
         ),
         Lens(
             "tests",
             ("generation", *_TEST_GROUP_FIELDS),
-            ("tutorials/tests.md", "tutorials/limits.md"),
+            ("rules/tests.md", "rules/limits.md"),
         ),
         Lens(
             "solutions",
             ("solutions", "checker", "interactor"),
-            ("tutorials/solutions.md", "tutorials/checker.md"),
+            ("rules/solutions.md", "rules/checker.md"),
         ),
     )
 }
@@ -398,6 +398,7 @@ def critic_documents(
     lens: Lens,
     *,
     templates_dir: Path = TEMPLATES_DIR,
+    prompts_dir: Path = PROMPTS_DIR,
     examples_dir: Path = EXAMPLES_DIR,
 ) -> dict[str, str]:
     """The documents of the `lens` critic: the spec format and the sample specs (from
@@ -406,19 +407,15 @@ def critic_documents(
     templates_dir = Path(templates_dir)
     documents = spec_context_documents(templates_dir=templates_dir, examples_dir=examples_dir)
     del documents[SPEC_TEMPLATE]
-    tutorials = list(lens.tutorials)
+    rules = list(lens.rules)
     try:
         data = yaml.safe_load(spec_text)
     except yaml.YAMLError:
         data = None
-    if (
-        isinstance(data, dict)
-        and data.get("interactor")
-        and lens.name in INTERACTIVE_LENS_TUTORIALS
-    ):
-        tutorials.append(INTERACTIVE_TUTORIAL)
-    for name in tutorials:
-        documents[name] = (templates_dir / name).read_text(encoding="utf-8")
+    if isinstance(data, dict) and data.get("interactor") and lens.name in INTERACTIVE_LENS_RULES:
+        rules.append(INTERACTIVE_RULES)
+    for name in rules:
+        documents[name] = (Path(prompts_dir) / name).read_text(encoding="utf-8")
     return documents
 
 
@@ -513,7 +510,11 @@ def _call_critic(
         read_system_prompt(STEP_NAME, prompts_dir=prompts_dir),
         user_prompt,
         context_documents=critic_documents(
-            spec_text, lens, templates_dir=templates_dir, examples_dir=examples_dir
+            spec_text,
+            lens,
+            templates_dir=templates_dir,
+            prompts_dir=prompts_dir,
+            examples_dir=examples_dir,
         ),
     )
     if response.status not in _VALID_STATUSES:

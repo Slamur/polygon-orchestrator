@@ -104,7 +104,7 @@ def restore_script_functions(script: str, functions_block: str) -> tuple[str, li
 
 # A FreeMarker directive taking the tail of a line: `<#if value >= n>`. Inside
 # a tag `>` closes the tag (`<#if value>` + the text `= n>`), so comparisons
-# are written as words (`gt`/`gte`/`lt`/`lte`, templates/tutorials/freemarker.md),
+# are written as words (`gt`/`gte`/`lt`/`lte`, prompts/rules/freemarker.md),
 # but the model writes signs from time to time. The bounds of the expression are taken by the end of
 # the line, not by the first `>` — otherwise it can't be restored.
 _DIRECTIVE_LINE_RE = re.compile(

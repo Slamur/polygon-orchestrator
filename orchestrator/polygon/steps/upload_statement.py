@@ -10,7 +10,7 @@ any further"). Polygon computes the answer for these tests itself
 from the main solution once it's uploaded by a separate (not yet
 written) step — this is a deliberate order, not a mistake.
 
-The examples' `testIndex` is always 1..N without a shift: templates/tutorials/statement.md
+The examples' `testIndex` is always 1..N without a shift: prompts/rules/statement.md
 requires the example tests to be the first tests.
 
 The parameters of `problem.saveTest` — by docs/POLYGON_API.md. The "use

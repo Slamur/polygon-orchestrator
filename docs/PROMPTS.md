@@ -47,13 +47,12 @@ can parse the response uniformly and decide whether to stop the pipeline or not)
   are empty.
 
 The prompts below rely on this contract and don't duplicate the rules from
-`templates/tutorials/*.md` — they refer to them directly as mandatory
+`prompts/rules/*.md` — they refer to them directly as mandatory
 instructions attached to the call (in a real call they are passed as part of the context/system
 message, here shown as a logical reference). The rules are split by topic
 (`statement.md`, `limits.md`, `validator.md`, `tests.md`, `freemarker.md`,
 `solutions.md`, `checker.md`, `interactive.md`, `scoring.md`), and each step gets
-only its own — see the table below; `polygon.md` is a reference on the
-Polygon interface, not attached to the steps. `interactive.md` (the rules of interactive
+only its own — see the table below. `interactive.md` (the rules of interactive
 problems) is given to `statement_draft` and the solution stages only for an
 interactive problem — editing it doesn't touch the cache of normal problems.
 `scoring.md` (the constraints cells of the subtasks table, `scoring.yaml`) is given to
@@ -62,9 +61,10 @@ likewise.
 
 ## Attached templates as samples
 
-The materials attached to the steps lie in two directories:
+The materials attached to the steps lie in three directories:
 
-- `templates/` — shared by all problems: the rules `tutorials/*.md`,
+- `prompts/rules/` — the rules for the steps (`<topic>.md`), shared by all problems.
+- `templates/` — shared by all problems:
   `problem_lib.h` (a template — copied into `problems/<problem path>/problem_lib.h`,
   from there uploaded to Polygon by the `upload_problem_lib` step), `testlib.h`,
   solution skeletons `solutions/<verdict>_<description>.<language>` (`ok.cpp`,
@@ -127,8 +127,9 @@ no code changes are needed — it's picked up automatically; `system.md` needs e
 only if the sample shows a new technique not yet mentioned in the "CARRY OVER"
 list.
 
-The header of an attached document is the file path: relative to `templates/`
-for files inside it (`tutorials/limits.md`), otherwise the path as written in
+The header of an attached document is the file path: relative to `prompts/`
+for the rules (`rules/limits.md`), relative to `templates/` for files inside it
+(`problem_lib.h`), otherwise the path as written in
 the spec (`examples/array/prefix-sums/validator.cpp`,
 `problems/old-task/validator.cpp`). By it the model
 groups the samples by problem; in the prompts the files are named briefly, by the name
@@ -2491,9 +2492,9 @@ the named ones). Each gets the whole spec, with the `# PROPOSED, REVIEW ME` /
 its lens: the lens's focus (`lenses/<lens>.md`, below) and its fields go into
 `user.md.j2` (`lens_focus`, `lens_fields`, `lens_excluded`, `lens_gap_fields`). Attached are
 `docs/SPEC_FORMAT.md`, the sample specs from `examples/` and the rules of the
-steps that read the lens's fields (`tutorials/statement.md`;
-`tutorials/{limits,validator}.md`; `tutorials/{tests,limits}.md`;
-`tutorials/{solutions,checker}.md`; plus `tutorials/interactive.md` for the
+steps that read the lens's fields (`rules/statement.md`;
+`rules/{limits,validator}.md`; `rules/{tests,limits}.md`;
+`rules/{solutions,checker}.md`; plus `rules/interactive.md` for the
 statement and solutions lenses of an interactive problem). The response is
 `critique.yaml` — findings that only remove, simplify or merge values (and `gap`
 on the statement examples, report only); what to do with each is decided by the
@@ -2517,7 +2518,7 @@ You are given:
 - examples/<path>/spec.yaml — specs of sample problems: a calibration of the
   normal amount of detail. These are other problems: compare the manner, not
   the content.
-- templates/tutorials/*.md — the rules followed by the later steps that read
+- rules/*.md — the rules followed by the later steps that read
   your fields: what they need from the spec.
 
 You review the spec through one lens, given in the user message: its question
@@ -2928,7 +2929,7 @@ task doesn't give — `uncertain`, as usual.
   (`orchestrator/spec.py`) — that is, by the time the template is rendered the field types
   are already checked, and "raw" invalid values mustn't get into the prompt.
 - No `system.md` may contain the texts of
-  `tutorials/*.md` themselves — they're passed by the API call
+  `rules/*.md` themselves — they're passed by the API call
   separately (as part of the context/documents), so as not to duplicate them and not
   diverge from the original on edits. `system.md` has only references to
   particular sections and the extracted mandatory rules.

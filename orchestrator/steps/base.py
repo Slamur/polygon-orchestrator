@@ -143,14 +143,18 @@ PROBLEM_LIB_FILENAME = "problem_lib.h"
 # always gets them, `statement_draft` and the solution stages — only for an
 # interactive problem (via `extra_context_documents`), so that editing them doesn't
 # invalidate the cache of these steps for normal problems.
-INTERACTIVE_TUTORIAL = "tutorials/interactive.md"
+INTERACTIVE_RULES = "rules/interactive.md"
 
-# The mandatory context documents per step (paths relative to templates_dir),
-# see CLAUDE.md, "How to use the attached materials": tutorials/*.md
-# are rules, not reference material. The rules are split by topic, and a step
-# gets only the topics it needs: editing one topic invalidates the cache only of
-# the steps that read it (tutorials/polygon.md — a reference on the Polygon interface,
-# not attached to any step). `constraints_format.yaml` — the format of the
+# The directory of the rules for the steps inside prompts_dir: a context document
+# whose path starts with it (`rules/limits.md`) is read from prompts_dir, any
+# other one — from templates_dir.
+RULES_DIRNAME = "rules"
+
+# The mandatory context documents per step (`rules/*.md` — relative to prompts_dir,
+# the rest — relative to templates_dir), see CLAUDE.md, "How to use the attached
+# materials": rules/*.md are rules, not reference material. The rules are split by
+# topic, and a step gets only the topics it needs: editing one topic invalidates the
+# cache only of the steps that read it. `constraints_format.yaml` — the format of the
 # `constraints_pick` result, which the following steps and the
 # orchestrator read (mandatory even with a spec without references), and problem_lib.h —
 # the base to extend. The prompts (prompts/<step>/system.md) only refer to these
@@ -158,62 +162,62 @@ INTERACTIVE_TUTORIAL = "tutorials/interactive.md"
 # call (see `call_model` in `model_router.py` and `LLMClient.generate`), not
 # retold.
 #
-# An entry with `*` is a glob pattern relative to templates_dir: all
+# An entry with `*` is a glob pattern relative to its directory: all
 # matching files are attached (in sorted order). Samples (files of other problems)
 # aren't listed here — they depend on the references of a particular spec, see
 # the steps' `extra_context_documents` and `orchestrator/references.py`.
 STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
     "statement_draft": [
-        "tutorials/statement.md",
+        "rules/statement.md",
     ],
     "constraints_pick": [
-        "tutorials/limits.md",
-        "tutorials/validator.md",
+        "rules/limits.md",
+        "rules/validator.md",
         "constraints_format.yaml",
         "problem_lib.h",
     ],
     "tests_plan": [
-        "tutorials/tests.md",
+        "rules/tests.md",
         "tests_design_format.yaml",
     ],
     "generators_draft": [
-        "tutorials/tests.md",
+        "rules/tests.md",
         "problem_lib.h",
     ],
     "tests_survivors": [
-        "tutorials/tests.md",
+        "rules/tests.md",
         "tests_plan_format.yaml",
     ],
     "test_script_draft": [
-        "tutorials/tests.md",
-        "tutorials/freemarker.md",
+        "rules/tests.md",
+        "rules/freemarker.md",
         "test_script_functions.ftl",
     ],
     "solutions_main": [
-        "tutorials/solutions.md",
+        "rules/solutions.md",
     ],
     "solutions_ok": [
-        "tutorials/solutions.md",
+        "rules/solutions.md",
     ],
     "solutions_slow": [
-        "tutorials/solutions.md",
+        "rules/solutions.md",
     ],
     "solutions_wrong": [
-        "tutorials/solutions.md",
+        "rules/solutions.md",
     ],
     "solutions_groups": [
-        "tutorials/solutions.md",
+        "rules/solutions.md",
     ],
     "checker_draft": [
-        "tutorials/checker.md",
+        "rules/checker.md",
         "problem_lib.h",
     ],
     "interactor_draft": [
-        INTERACTIVE_TUTORIAL,
+        INTERACTIVE_RULES,
         "problem_lib.h",
     ],
     "tutorial_draft": [
-        "tutorials/tutorial.md",
+        "rules/tutorial.md",
     ],
 }
 
@@ -543,39 +547,50 @@ def read_system_prompt(step_name: str, *, prompts_dir: Path = PROMPTS_DIR) -> st
     )
 
 
-def _expand_context_entry(step_name: str, entry: str, templates_dir: Path) -> list[str]:
+def is_rules_document(rel_path: str) -> bool:
+    """Whether the context document `rel_path` is one of the rules for the steps
+    (`rules/<topic>.md`, read from prompts_dir)."""
+    parts = PurePosixPath(rel_path).parts
+    return len(parts) > 1 and parts[0] == RULES_DIRNAME
+
+
+def _context_root(rel_path: str, templates_dir: Path, prompts_dir: Path) -> Path:
+    """The directory a `STEP_CONTEXT_DOCUMENTS` entry is relative to."""
+    return Path(prompts_dir) if is_rules_document(rel_path) else Path(templates_dir)
+
+
+def _expand_context_entry(step_name: str, entry: str, root: Path) -> list[str]:
     """Expands a `STEP_CONTEXT_DOCUMENTS` entry into a list of paths relative to
-    `templates_dir`: an ordinary path — as is, a glob entry (with `*`) — into all
-    matching files in sorted order (the order is part of
+    `root` (its directory, see `_context_root`): an ordinary path — as is, a glob
+    entry (with `*`) — into all matching files in sorted order (the order is part of
     `compute_prompt_hash`, so it must be deterministic).
     """
     if "*" not in entry:
-        if not (templates_dir / entry).exists():
+        if not (root / entry).exists():
             raise FileNotFoundError(
                 f"Step '{step_name}': context document '{entry}' from "
-                f"STEP_CONTEXT_DOCUMENTS not found at {templates_dir / entry}"
+                f"STEP_CONTEXT_DOCUMENTS not found at {root / entry}"
             )
         return [entry]
 
     matches = sorted(
-        path.relative_to(templates_dir).as_posix()
-        for path in templates_dir.glob(entry)
-        if path.is_file()
+        path.relative_to(root).as_posix() for path in root.glob(entry) if path.is_file()
     )
     if not matches:
         raise FileNotFoundError(
             f"Step '{step_name}': context document pattern '{entry}' from "
-            f"STEP_CONTEXT_DOCUMENTS matches no files in {templates_dir}"
+            f"STEP_CONTEXT_DOCUMENTS matches no files in {root}"
         )
     return matches
 
 
-def _context_document_key(path: Path, templates_dir: Path) -> str:
+def _context_document_key(path: Path, templates_dir: Path, prompts_dir: Path) -> str:
     """The name under which a document from `extra_paths` is attached to the call.
 
     A file inside `templates_dir` gets the same kind of key as the documents of the
     fixed list — the path relative to `templates_dir`
-    (`problem_lib.h`). This way it isn't attached a second
+    (`problem_lib.h`), a file of the rules — relative to `prompts_dir`
+    (`rules/interactive.md`). This way it isn't attached a second
     time if two references lead to it (a shared directory and a per-step file from
     it), and the key (it's part of `compute_prompt_hash`) doesn't depend on how
     `templates_dir` itself is written — relative or absolute. A file outside
@@ -586,8 +601,16 @@ def _context_document_key(path: Path, templates_dir: Path) -> str:
     name under which the step returns its own `constraints.yaml` — and the key
     (and with it the prompt hash) is the same as before these files moved into `authoring/`.
     """
+    resolved = path.resolve()
     try:
-        return path.resolve().relative_to(templates_dir.resolve()).as_posix()
+        key = resolved.relative_to(Path(prompts_dir).resolve()).as_posix()
+    except ValueError:
+        pass
+    else:
+        if is_rules_document(key):
+            return key
+    try:
+        return resolved.relative_to(templates_dir.resolve()).as_posix()
     except ValueError:
         if path.parent.name == AUTHORING_DIRNAME and is_authoring_name(path.name):
             return str(path.parent.parent / path.name)
@@ -598,16 +621,19 @@ def load_context_documents(
     step_name: str,
     *,
     templates_dir: Path = TEMPLATES_DIR,
+    prompts_dir: Path = PROMPTS_DIR,
     extra_paths: list[str] | None = None,
 ) -> dict[str, str]:
     """Reads the context documents for the step `step_name`.
 
     Order: first the fixed list `STEP_CONTEXT_DOCUMENTS[step_name]`
-    (paths relative to `templates_dir`; glob entries are expanded into a
+    (the rules `rules/*.md` — relative to `prompts_dir`, the rest — relative to
+    `templates_dir`; glob entries are expanded into a
     sorted list of files), then `extra_paths` — paths
     relative to the repository root, specific to a particular call of the step
     (the spec's reference files, see `orchestrator/references.py`), not to
-    all calls of the step in general.
+    all calls of the step in general; a rules entry (`rules/interactive.md`) among them
+    is, as in the fixed list, relative to `prompts_dir`.
 
     A missing file (or a glob entry without a single match) is a clear
     error BEFORE calling the model, stating the path and where it came from
@@ -617,12 +643,17 @@ def load_context_documents(
     documents: dict[str, str] = {}
 
     for entry in STEP_CONTEXT_DOCUMENTS.get(step_name, []):
-        for rel_path in _expand_context_entry(step_name, entry, Path(templates_dir)):
-            documents[rel_path] = (Path(templates_dir) / rel_path).read_text(encoding="utf-8")
+        root = _context_root(entry, templates_dir, prompts_dir)
+        for rel_path in _expand_context_entry(step_name, entry, root):
+            documents[rel_path] = (root / rel_path).read_text(encoding="utf-8")
 
     for rel_path in extra_paths or []:
-        path = Path(rel_path)
-        key = _context_document_key(path, Path(templates_dir))
+        if is_rules_document(rel_path):
+            path = Path(prompts_dir) / rel_path
+            key = rel_path
+        else:
+            path = Path(rel_path)
+            key = _context_document_key(path, Path(templates_dir), Path(prompts_dir))
         if key in documents:
             continue
         if not path.exists():
@@ -1262,7 +1293,10 @@ def run_generative_step(
                 + render_revision_prompt(revision, input_values, prompts_dir=prompts_dir)
             )
         context_documents = load_context_documents(
-            step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
+            step_name,
+            templates_dir=templates_dir,
+            prompts_dir=prompts_dir,
+            extra_paths=extra_context_documents,
         )
         response = model_router.call_model(
             step_name, system_prompt, user_prompt, context_documents=context_documents

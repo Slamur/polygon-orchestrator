@@ -68,7 +68,7 @@ class LLMClient(Protocol):
         `effort` — one of `STEP_TO_EFFORT` in `model_router.py`; vendors without
         a notion of effort are free to ignore it.
         `context_documents` — a "document path" -> "contents" map
-        (`tutorials/*.md`, `problem_lib.h`, `generators/*.cpp`, etc.,
+        (`rules/*.md`, `problem_lib.h`, `generators/*.cpp`, etc.,
         see `orchestrator/steps/base.py:STEP_CONTEXT_DOCUMENTS`), which the step
         must attach as mandatory rules/samples — not a retelling from
         memory. `None`/an empty map — behave as before (without documents).

@@ -121,6 +121,7 @@ concerns, — read the rule yourself:
 | spec format | `docs/SPEC_FORMAT.md` |
 | prompt templates | `docs/PROMPTS.md` |
 | Polygon API (check parameter names against it, don't guess) | `docs/POLYGON_API.md` |
+| the Polygon interface (a reference for people, not attached to steps) | `docs/POLYGON_UI.md` |
 | installation, command reference for the user | `README.md`, `docs/SETUP.md` |
 
 Comments in code and documents refer to sections as `CLAUDE.md,
@@ -147,11 +148,10 @@ the user can see it) in the same PR.
 ├── .claude/rules/                   # rules by topic, see above; step-roles/ — step roles
 ├── templates/                       # shared by all problems, the compile-check include dir; the author's templates —
 │                                    # don't touch the structure: problem_lib.h, testlib.h, *_format.yaml,
-│                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons),
-│                                    # tutorials/*.md (rules for the steps; polygon.md — reference, not attached to steps)
+│                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons)
 ├── examples/<input kind>/<gist>/    # sample problems in the problems/<problem path>/ layout
 ├── prompts/<step>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2,
-│                                          #   check_failed.md.j2
+│                                          #   check_failed.md.j2; rules/*.md — rules for the steps
 ├── orchestrator/
 │   ├── cli.py                       # parser and Tab completion; NO heavy imports (the shell runs it on every Tab)
 │   ├── cli_commands.py              # command implementations, imported from cli.py lazily
@@ -196,7 +196,7 @@ the user can see it) in the same PR.
   (marked for manual review), its own ideas beyond the spec — `kind: suggestion`.
 - Prompts are vendor-independent: model names and vendor specifics live
   only in `LLMClient` implementations, model classes — in `model_router.py`.
-- `templates/tutorials/*.md` are mandatory rules for the model, not a reference;
+- `prompts/rules/*.md` are mandatory rules for the model, not a reference;
   samples from `examples/` and `templates/` are extended, not reinvented.
 - CLI: `orchestrator [--base-dir ...] <problem> <init|llm|local|polygon> ...`;
   the groups are split by cost: `llm` (and `init --draft`) calls the model,

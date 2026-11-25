@@ -103,7 +103,7 @@ def test_writes_tutorial_from_draft_statement_and_refs(problems_dir, problem_dir
     assert "// ok solution" in prompt
     assert "// wa solution" not in prompt
     assert mock_call.call_args.args[0] == STEP
-    assert list(mock_call.call_args.kwargs["context_documents"]) == ["tutorials/tutorial.md"]
+    assert list(mock_call.call_args.kwargs["context_documents"]) == ["rules/tutorial.md"]
 
 
 def test_prompt_shows_only_the_examples_of_the_spec(problems_dir, problem_dir):

@@ -118,13 +118,13 @@ def test_generate_sends_user_prompt_via_stdin_and_system_prompt_with_documents_v
     _generate(
         system_prompt="system text",
         user_prompt="user text",
-        context_documents={"tutorials/statement.md": "RULES"},
+        context_documents={"rules/statement.md": "RULES"},
     )
 
     call = fake.calls[0]
     assert call["input"] == "user text"
     assert call["system_prompt"].startswith("system text")
-    assert "--- Attached document: tutorials/statement.md ---\nRULES" in call["system_prompt"]
+    assert "--- Attached document: rules/statement.md ---\nRULES" in call["system_prompt"]
     assert "user text" not in call["command"]
 
 

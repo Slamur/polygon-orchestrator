@@ -8,7 +8,7 @@ from the file name by the `<verdict>_<language>_<description>_<author>.<ext>` sc
 (`prompts/solutions/system.md`, rule 5):
 
 - `MA` (Main correct — the reference for generating the tests' answers,
-  `templates/tutorials/solutions.md`, "Solutions in Polygon") is assigned only
+  `prompts/rules/solutions.md`, "Solutions in Polygon") is assigned only
   if Polygon doesn't have one yet (Polygon rejects a second `MA`): then the file with the
   `ma` verdict gets it (`ma_cpp_bfs_draft.cpp`, the main solution of the
   `solutions_main` step); without one — an `ok` file chosen by the language priority

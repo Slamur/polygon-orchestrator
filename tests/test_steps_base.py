@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 from unittest.mock import patch
 
@@ -7,6 +8,7 @@ from orchestrator.cache import load_cache_entry, load_pending_response
 from orchestrator.model_router import ModelResponse
 from orchestrator.steps.base import (
     CONFLICTS_REPORT,
+    RULES_DIRNAME,
     STEP_CONTEXT_DOCUMENTS,
     StepUncertainError,
     ensure_problem_lib,
@@ -18,11 +20,14 @@ from orchestrator.steps.base import (
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "cpp"
 TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 
 def _write_prompt(prompts_dir: Path, step_name: str, user_template: str) -> None:
+    """The step's prompts and the real rules for the steps (`prompts/rules/`)."""
     step_dir = prompts_dir / step_name
     step_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(PROMPTS_DIR / RULES_DIRNAME, prompts_dir / RULES_DIRNAME, dirs_exist_ok=True)
     (step_dir / "system.md").write_text("system rules", encoding="utf-8")
     (step_dir / "user.md.j2").write_text(user_template, encoding="utf-8")
 
@@ -76,11 +81,22 @@ def _write_template_doc(templates_dir: Path, rel_path: str, content: str) -> Pat
     return path
 
 
-def test_load_context_documents_reads_fixed_list_for_step(tmp_path):
-    for rel_path in STEP_CONTEXT_DOCUMENTS["statement_draft"]:
-        _write_template_doc(tmp_path, rel_path, f"content of {rel_path}")
+def _write_fixed_docs(root: Path, step_name: str, content: str | None = None) -> tuple[Path, Path]:
+    """The step's fixed documents under `root`: the rules into `root/prompts`, the rest
+    into `root/templates`. Returns `(prompts_dir, templates_dir)`."""
+    prompts_dir, templates_dir = root / "prompts", root / "templates"
+    for rel_path in STEP_CONTEXT_DOCUMENTS[step_name]:
+        base = prompts_dir if rel_path.startswith(f"{RULES_DIRNAME}/") else templates_dir
+        _write_template_doc(base, rel_path, content or f"content of {rel_path}")
+    return prompts_dir, templates_dir
 
-    documents = load_context_documents("statement_draft", templates_dir=tmp_path)
+
+def test_load_context_documents_reads_fixed_list_for_step(tmp_path):
+    prompts_dir, templates_dir = _write_fixed_docs(tmp_path, "statement_draft")
+
+    documents = load_context_documents(
+        "statement_draft", templates_dir=templates_dir, prompts_dir=prompts_dir
+    )
 
     assert list(documents) == STEP_CONTEXT_DOCUMENTS["statement_draft"]
     for rel_path in STEP_CONTEXT_DOCUMENTS["statement_draft"]:
@@ -92,19 +108,20 @@ def test_load_context_documents_unknown_step_has_no_fixed_documents(tmp_path):
 
 
 def test_load_context_documents_missing_fixed_document_raises(tmp_path):
-    with pytest.raises(FileNotFoundError, match="tutorials/limits.md"):
-        load_context_documents("constraints_pick", templates_dir=tmp_path)
+    with pytest.raises(FileNotFoundError, match="rules/limits.md"):
+        load_context_documents("constraints_pick", templates_dir=tmp_path, prompts_dir=tmp_path)
 
 
 def test_load_context_documents_appends_extra_paths_after_fixed_list(tmp_path):
-    templates_dir = tmp_path / "templates"
-    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
-        _write_template_doc(templates_dir, rel_path, "fixed content")
+    prompts_dir, templates_dir = _write_fixed_docs(tmp_path, "constraints_pick", "fixed content")
     extra_file = tmp_path / "extra.cpp"
     extra_file.write_text("extra content", encoding="utf-8")
 
     documents = load_context_documents(
-        "constraints_pick", templates_dir=templates_dir, extra_paths=[str(extra_file)]
+        "constraints_pick",
+        templates_dir=templates_dir,
+        prompts_dir=prompts_dir,
+        extra_paths=[str(extra_file)],
     )
 
     assert list(documents) == [*STEP_CONTEXT_DOCUMENTS["constraints_pick"], str(extra_file)]
@@ -114,9 +131,7 @@ def test_load_context_documents_appends_extra_paths_after_fixed_list(tmp_path):
 def test_authoring_files_of_a_reference_are_keyed_without_authoring_dir(tmp_path):
     # The key is part of the prompt hash: moving the spec and constraints.yaml into
     # authoring/ mustn't make the steps stale.
-    templates_dir = tmp_path / "templates"
-    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
-        _write_template_doc(templates_dir, rel_path, "fixed content")
+    prompts_dir, templates_dir = _write_fixed_docs(tmp_path, "constraints_pick", "fixed content")
     reference = tmp_path / "examples" / "array" / "sums"
     paths = [
         _write_template_doc(reference, "authoring/spec.yaml", "spec"),
@@ -125,7 +140,10 @@ def test_authoring_files_of_a_reference_are_keyed_without_authoring_dir(tmp_path
     ]
 
     documents = load_context_documents(
-        "constraints_pick", templates_dir=templates_dir, extra_paths=[str(path) for path in paths]
+        "constraints_pick",
+        templates_dir=templates_dir,
+        prompts_dir=prompts_dir,
+        extra_paths=[str(path) for path in paths],
     )
 
     assert documents[str(reference / "spec.yaml")] == "spec"
@@ -152,19 +170,27 @@ def test_load_context_documents_glob_without_matches_raises(tmp_path, monkeypatc
 
 
 def test_load_context_documents_keys_extra_paths_inside_templates_dir_relatively(tmp_path):
-    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
-        _write_template_doc(tmp_path, rel_path, "fixed content")
-    extra_file = _write_template_doc(tmp_path, "examples/some-task/validator.cpp", "extra content")
-    already_attached = tmp_path / STEP_CONTEXT_DOCUMENTS["constraints_pick"][0]
+    prompts_dir, templates_dir = _write_fixed_docs(tmp_path, "constraints_pick", "fixed content")
+    extra_file = _write_template_doc(
+        templates_dir, "examples/some-task/validator.cpp", "extra content"
+    )
+    already_attached = templates_dir / "problem_lib.h"
+    attached_rules = prompts_dir / "rules/limits.md"
 
     documents = load_context_documents(
         "constraints_pick",
-        templates_dir=tmp_path,
-        extra_paths=[str(extra_file), str(already_attached)],
+        templates_dir=templates_dir,
+        prompts_dir=prompts_dir,
+        extra_paths=[
+            str(extra_file),
+            str(already_attached),
+            str(attached_rules),
+            "rules/limits.md",
+        ],
     )
 
     # The key doesn't depend on how templates_dir is written, and a file from the fixed
-    # list isn't attached a second time.
+    # list (by its path or, for the rules, by its key) isn't attached a second time.
     assert list(documents) == [
         *STEP_CONTEXT_DOCUMENTS["constraints_pick"],
         "examples/some-task/validator.cpp",
@@ -173,13 +199,29 @@ def test_load_context_documents_keys_extra_paths_inside_templates_dir_relatively
 
 
 def test_load_context_documents_missing_extra_path_raises(tmp_path):
-    for rel_path in STEP_CONTEXT_DOCUMENTS["constraints_pick"]:
-        _write_template_doc(tmp_path, rel_path, "fixed content")
+    prompts_dir, templates_dir = _write_fixed_docs(tmp_path, "constraints_pick", "fixed content")
 
     with pytest.raises(FileNotFoundError, match="extra_context_documents"):
         load_context_documents(
-            "constraints_pick", templates_dir=tmp_path, extra_paths=["no/such/file.cpp"]
+            "constraints_pick",
+            templates_dir=templates_dir,
+            prompts_dir=prompts_dir,
+            extra_paths=["no/such/file.cpp"],
         )
+
+
+def test_load_context_documents_reads_extra_rules_from_prompts_dir(tmp_path):
+    prompts_dir, templates_dir = _write_fixed_docs(tmp_path, "constraints_pick", "fixed content")
+    _write_template_doc(prompts_dir, "rules/interactive.md", "interactive rules")
+
+    documents = load_context_documents(
+        "constraints_pick",
+        templates_dir=templates_dir,
+        prompts_dir=prompts_dir,
+        extra_paths=["rules/interactive.md"],
+    )
+
+    assert documents["rules/interactive.md"] == "interactive rules"
 
 
 # --- run_generative_step -----------------------------------------------------
@@ -480,7 +522,7 @@ def test_run_generative_step_passes_context_documents_to_call_model(tmp_path):
         )
 
     context_documents = mock_call.call_args.kwargs["context_documents"]
-    assert "tutorials/limits.md" in context_documents
+    assert "rules/limits.md" in context_documents
 
 
 def test_run_generative_step_extra_context_documents_none_is_backward_compatible(tmp_path):

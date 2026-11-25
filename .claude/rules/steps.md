@@ -176,7 +176,7 @@ This rule applies to the prompts of all steps (see `prompts/*/system.md`):
   give a variable's upper bound, `max: null`) — the model may propose
   an option, but must explicitly mark it as `status: proposed` (not
   `status: confirmed`), and state what the assumption is based on.
-- References to sources beyond the attached `tutorials/*.md` (e.g.
+- References to sources beyond the attached `rules/*.md` (e.g.
   to testlib documentation) are allowed, but must be explicit URLs, not
   a retelling "from memory".
 - The orchestrator (Python code) must distinguish these two cases mechanically:

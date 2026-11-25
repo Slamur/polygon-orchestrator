@@ -46,7 +46,7 @@ __all__ = [
 # code, but little reasoning, so the medium model with medium effort — otherwise
 # one call would reason longer than the timeout.
 # statement_draft — the medium model: the task there is mostly about formatting
-# by explicit rules from tutorials/statement.md, not about reasoning, so
+# by explicit rules from rules/statement.md, not about reasoning, so
 # it doesn't need an Opus level (see CLAUDE.md).
 # checker_draft — an optional step: formally mechanical when
 # `checker.custom_comparison_notes` is complete and unambiguous (translating a text

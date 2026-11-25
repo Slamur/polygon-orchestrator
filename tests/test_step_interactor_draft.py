@@ -84,7 +84,7 @@ def test_compute_input_hash_ignores_legend(spec):
 
 def test_interactive_rules_are_a_fixed_context_document():
     documents = load_context_documents(STEP_NAME, templates_dir=TEMPLATES_DIR)
-    assert "tutorials/interactive.md" in documents
+    assert "rules/interactive.md" in documents
 
 
 def test_confirmed_writes_interactor_cpp(spec, tmp_path):

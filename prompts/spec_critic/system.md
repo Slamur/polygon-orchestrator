@@ -10,7 +10,7 @@ You are given:
 - examples/<path>/spec.yaml — specs of sample problems: a calibration of the
   normal amount of detail. These are other problems: compare the manner, not
   the content.
-- templates/tutorials/*.md — the rules followed by the later steps that read
+- rules/*.md — the rules followed by the later steps that read
   your fields: what they need from the spec.
 
 You review the spec through one lens, given in the user message: its question
