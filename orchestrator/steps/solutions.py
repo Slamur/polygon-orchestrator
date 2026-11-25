@@ -57,7 +57,7 @@ from orchestrator.spec import (
 from orchestrator.step_order import SOLUTION_STAGES
 from orchestrator.steps.base import (
     CONSTRAINTS_ARTIFACT,
-    INTERACTIVE_TUTORIAL,
+    INTERACTIVE_RULES,
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -614,7 +614,7 @@ def extra_context_documents(
     language from `templates/solutions/*.<language>` (if any) are attached instead of a sample: the way
     the author wants to see input/output in this language is set even without
     references. The skeletons go before the reference files. For an interactive problem
-    the `INTERACTIVE_TUTORIAL` rules are attached first (as for
+    the `INTERACTIVE_RULES` rules are attached first (as for
     `statement_draft`). If there's no `solutions` section — `None`: the step
     doesn't run anyway.
     """
@@ -628,7 +628,7 @@ def extra_context_documents(
             return True
         return _solution_parts(Path(rel_path))[1] in languages
 
-    rules = [str(Path(templates_dir) / INTERACTIVE_TUTORIAL)] if spec.interactive else []
+    rules = [INTERACTIVE_RULES] if spec.interactive else []
     references = reference_documents(step_name, spec, keep=keep) or []
     covered = {
         language

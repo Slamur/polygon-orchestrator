@@ -136,7 +136,7 @@ def compute_prompt_hash(
     the contents of all of this step's context documents
     (`orchestrator.steps.base.STEP_CONTEXT_DOCUMENTS[step_name]` +
     `extra_context_documents`, see `orchestrator.steps.base.
-    load_context_documents`) — otherwise editing tutorials/*.md/problem_lib.h/
+    load_context_documents`) — otherwise editing rules/*.md/problem_lib.h/
     generators/*.cpp etc. wouldn't invalidate the cache of the steps that depend on them.
     This is our own result cache (`problems/<id>/.cache/<step>.json`),
     unrelated to Anthropic prompt caching.
@@ -214,7 +214,10 @@ def _read_prompt_inputs(
     from orchestrator.steps import base as steps_base
 
     context_documents = steps_base.load_context_documents(
-        step_name, templates_dir=templates_dir, extra_paths=extra_context_documents
+        step_name,
+        templates_dir=templates_dir,
+        prompts_dir=prompts_dir,
+        extra_paths=extra_context_documents,
     )
     return system_text, user_text, context_documents
 

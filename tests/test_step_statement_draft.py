@@ -304,7 +304,7 @@ def test_interactive_expected_names_include_protocol_and_dialogues(interactive_s
 
 def test_interactive_extra_context_documents_has_interactive_rules(interactive_spec):
     assert extra_context_documents(interactive_spec, templates_dir=TEMPLATES_DIR) == [
-        str(TEMPLATES_DIR / "tutorials" / "interactive.md")
+        "rules/interactive.md"
     ]
 
 
@@ -328,7 +328,7 @@ def test_interactive_writes_protocol_and_dialogues(interactive_spec, tmp_path):
     assert 'Query "? y"' in user_prompt
     assert "- examples/example_1.input_for_statement.txt" in user_prompt
     documents = mock_call.call_args.kwargs.get("context_documents") or mock_call.call_args.args[3]
-    assert "tutorials/interactive.md" in documents
+    assert "rules/interactive.md" in documents
 
 
 def test_interactive_without_dialogues_is_not_applied(interactive_spec, tmp_path):
@@ -536,9 +536,7 @@ def test_language_goes_to_prompt_and_hash(spec, tmp_path):
 def test_groups_expected_names_and_rules_include_scoring(groups_spec):
     assert "scoring.yaml" in _expected_artifact_names(groups_spec)
     assert "scoring.tex" not in _expected_artifact_names(groups_spec)
-    assert extra_context_documents(groups_spec, templates_dir=TEMPLATES_DIR) == [
-        str(TEMPLATES_DIR / "tutorials" / "scoring.md")
-    ]
+    assert extra_context_documents(groups_spec, templates_dir=TEMPLATES_DIR) == ["rules/scoring.md"]
 
 
 def test_plain_problem_has_no_scoring(spec, tmp_path):
@@ -615,7 +613,7 @@ def test_groups_go_to_prompt_hash_and_scoring_texts_are_written(groups_spec, tmp
     assert "- N — the number of vertices" in user_prompt
     assert "- scoring.yaml" in user_prompt
     documents = mock_call.call_args.kwargs.get("context_documents") or mock_call.call_args.args[3]
-    assert "tutorials/scoring.md" in documents
+    assert "rules/scoring.md" in documents
     written = tmp_path / "valid-spec" / "authoring" / "scoring.yaml"
     assert written.read_text(encoding="utf-8") == texts
     assert not (tmp_path / "valid-spec" / "statement" / "ru" / "scoring.tex").exists()

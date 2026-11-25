@@ -45,7 +45,7 @@ exactly what the critic should catch.
   justification doesn't argue for the value;
 - `docs/SPEC_FORMAT.md` and the sample specs from `examples/` — general
   calibration of what a normal amount of detail is (not about this problem);
-- the `templates/tutorials/*.md` of its lens — what the steps that read the
+- the `prompts/rules/*.md` of its lens — what the steps that read the
   lens's fields need from them (so "simpler" doesn't drop something a step
   requires).
 

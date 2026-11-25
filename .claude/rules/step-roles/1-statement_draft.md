@@ -6,7 +6,7 @@ paths:
   - "orchestrator/scoring_table.py"
   - "orchestrator/steps/scoring_table.py"
   - "tests/test_scoring_table.py"
-  - "templates/tutorials/scoring.md"
+  - "prompts/rules/scoring.md"
   - "orchestrator/step_order.py"
   - "docs/PROMPTS.md"
   - "tests/test_prompts_doc_sync.py"
@@ -23,7 +23,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    a statement draft in this language in `problems/<problem path>/statement/<language>/` — separate `.tex` files for
    the legend/input/output/notes (the set of names is checked before writing to
    disk), following the structure and style rules from
-   `templates/tutorials/statement.md`. The input of each example in
+   `prompts/rules/statement.md`. The input of each example in
    `examples/example_<N>.txt` is a copy from `sample_examples`: it is written by
    the orchestrator, not the model (`GeneratedArtifacts` in
    `orchestrator/steps/base.py`); example files that are no longer in the
@@ -31,7 +31,7 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
 
 For a problem with test groups (a non-empty `constraints.test_groups_hint` in the spec)
 the step also gets the hint (as the author wrote it) and the variables' names and
-descriptions — in the hash only then — and the rules `templates/tutorials/scoring.md`
+descriptions — in the hash only then — and the rules `prompts/rules/scoring.md`
 (attached only then), and also writes `authoring/scoring.yaml`: the constraints cell of
 each subtask of the Scoring block's table (LaTeX in the statement language: the bounds of
 the group's `variables` and its `special_property` written out; `null` — only for a group

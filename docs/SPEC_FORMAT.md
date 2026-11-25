@@ -101,7 +101,7 @@ statement_draft:
     # false (default) — the standard rule: the introductory fiction
     # paragraph is shortened to 2-3 lines, while the description of the problem model (process,
     # rules, definitions, question) stays in the legend in full; into the
-    # input/output format only the description of the data is moved (see tutorials/statement.md).
+    # input/output format only the description of the data is moved (see prompts/rules/statement.md).
     # true — for problems where the legend itself is substantive and relies on
     # real facts/history, rather than just wrapping the formal
     # setting: the model must keep the factual density of
@@ -180,7 +180,7 @@ constraints:
     # test_groups_needed: true and test_groups_hint isn't set — the steps stop as
     # uncertain before calling the model: they don't invent groups, set test_groups_hint.
   time_limit_seconds: null           # [optional] if null — the model proposes, marking it as a black-box proposal
-  memory_limit_mb: 256               # [optional], preferably a multiple of 256 (see tutorials/limits.md)
+  memory_limit_mb: 256               # [optional], preferably a multiple of 256 (see prompts/rules/limits.md)
   uncertain_points:                  # [optional] what the author themselves isn't sure about — a focus for the step
     - "not sure 10^6 for group 3 isn't too generous for checking TL without input optimizations"
   references: []                     # [optional] references only for constraints_pick (see "References")
@@ -270,7 +270,7 @@ checker:
   standard: "ncmp"                   # [optional] the name of a standard checker OR null
   custom_needed: false                # [required] bool
   custom_comparison_notes: null       # [required if custom_needed=true] — how to compare answers,
-                                       # precision for real numbers, etc. (see tutorials/checker.md)
+                                       # precision for real numbers, etc. (see prompts/rules/checker.md)
   references: []                      # [optional] references only for checker_draft (see "References")
 
 # ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 ---
 paths:
   - "templates/**"
+  - "prompts/rules/**"
   - "examples/**"
   - "orchestrator/references.py"
   - "docs/SPEC_FORMAT.md"
@@ -8,19 +9,21 @@ paths:
   - "tests/test_references.py"
 ---
 
-# Attached materials: templates/, examples/, references
+# Attached materials: prompts/rules/, templates/, examples/, references
 
 ## How to use the attached materials
 
 
-- `templates/tutorials/*.md` (except `polygon.md`) are **rules**, not reference
+- `prompts/rules/*.md` are **rules**, not reference
   material "for general knowledge". Prompts must explicitly instruct
   the model to follow them as mandatory constraints, not as advice.
   The rules are split by topic, and a step gets only the ones it needs
   (`STEP_CONTEXT_DOCUMENTS`), so editing one topic invalidates the cache
   only of the steps that read it. The files are written for the model: each is
-  self-contained, without references to other rule files. `polygon.md` is a reference
-  on the Polygon interface, it isn't attached to any step.
+  self-contained, without references to other rule files. They are attached under
+  the key `rules/<topic>.md` (relative to `prompts/`, see `RULES_DIRNAME` in
+  `orchestrator/steps/base.py`). The reference on the Polygon interface for people,
+  not attached to any step, is `docs/POLYGON_UI.md`.
 - `templates/problem_lib.h` and the files of the sample problems
   `examples/<problem path>/` (`validator.cpp`, `checker.cpp`,
   `generators/*.cpp`, `test_script`, `solutions/*`)

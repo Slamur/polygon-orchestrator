@@ -13,7 +13,7 @@ from orchestrator.cache import (
     load_cache_entry,
     save_cache_entry,
 )
-from orchestrator.steps.base import STEP_CONTEXT_DOCUMENTS
+from orchestrator.steps.base import STEP_CONTEXT_DOCUMENTS, is_rules_document
 
 
 def _write_prompt(
@@ -59,6 +59,7 @@ def test_compute_input_hash_changes_when_upstream_artifacts_change():
 
 def test_compute_prompt_hash_stable_when_files_unchanged(tmp_path):
     _write_prompt(tmp_path, "constraints_pick", "rule v1", "user v1")
+    _write_step_context_docs(tmp_path, None, "constraints_pick")
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=tmp_path)
     h2 = compute_prompt_hash("constraints_pick", prompts_dir=tmp_path)
     assert h1 == h2
@@ -66,6 +67,7 @@ def test_compute_prompt_hash_stable_when_files_unchanged(tmp_path):
 
 def test_compute_prompt_hash_changes_when_system_md_changes(tmp_path):
     _write_prompt(tmp_path, "constraints_pick", "rule v1")
+    _write_step_context_docs(tmp_path, None, "constraints_pick")
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=tmp_path)
 
     _write_prompt(tmp_path, "constraints_pick", "rule v2")
@@ -76,6 +78,7 @@ def test_compute_prompt_hash_changes_when_system_md_changes(tmp_path):
 
 def test_compute_prompt_hash_changes_when_user_template_changes(tmp_path):
     _write_prompt(tmp_path, "constraints_pick", "rule v1", "user v1")
+    _write_step_context_docs(tmp_path, None, "constraints_pick")
     h1 = compute_prompt_hash("constraints_pick", prompts_dir=tmp_path)
 
     _write_prompt(tmp_path, "constraints_pick", "rule v1", "user v2")
@@ -90,22 +93,27 @@ def _write_context_doc(templates_dir: Path, rel_path: str, content: str) -> None
     path.write_text(content, encoding="utf-8")
 
 
-def _write_step_context_docs(templates_dir: Path, step_name: str) -> None:
+def _write_step_context_docs(prompts_dir: Path, templates_dir: Path | None, step_name: str) -> None:
+    """The step's fixed documents: the rules into prompts_dir, the rest into templates_dir
+    (`None` — only the rules, the rest is read from the real templates/)."""
     for rel_path in STEP_CONTEXT_DOCUMENTS[step_name]:
-        _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
+        if is_rules_document(rel_path):
+            _write_context_doc(prompts_dir, rel_path, f"{rel_path} v1")
+        elif templates_dir is not None:
+            _write_context_doc(templates_dir, rel_path, f"{rel_path} v1")
 
 
 def test_compute_prompt_hash_changes_when_context_document_changes(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
-    _write_step_context_docs(templates_dir, "constraints_pick")
+    _write_step_context_docs(prompts_dir, templates_dir, "constraints_pick")
 
     h1 = compute_prompt_hash(
         "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
     )
 
-    _write_context_doc(templates_dir, "tutorials/limits.md", "limits v2")
+    _write_context_doc(prompts_dir, "rules/limits.md", "limits v2")
     h2 = compute_prompt_hash(
         "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
     )
@@ -117,8 +125,8 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
-    _write_step_context_docs(templates_dir, "constraints_pick")
-    _write_context_doc(templates_dir, "tutorials/statement.md", "statement v1")
+    _write_step_context_docs(prompts_dir, templates_dir, "constraints_pick")
+    _write_context_doc(prompts_dir, "rules/statement.md", "statement v1")
 
     h1 = compute_prompt_hash(
         "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
@@ -126,7 +134,7 @@ def test_compute_prompt_hash_unaffected_by_other_steps_context_document(tmp_path
 
     # constraints_pick doesn't read statement.md (it's a document of statement_draft) —
     # editing it mustn't invalidate the cache of constraints_pick.
-    _write_context_doc(templates_dir, "tutorials/statement.md", "statement v2")
+    _write_context_doc(prompts_dir, "rules/statement.md", "statement v2")
     h2 = compute_prompt_hash(
         "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
     )
@@ -138,7 +146,7 @@ def test_compute_prompt_hash_includes_extra_context_documents(tmp_path):
     prompts_dir = tmp_path / "prompts"
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "tests_plan", "rule v1", "user v1")
-    _write_step_context_docs(templates_dir, "tests_plan")
+    _write_step_context_docs(prompts_dir, templates_dir, "tests_plan")
     extra_file = tmp_path / "extra_gen.cpp"
     extra_file.write_text("extra v1", encoding="utf-8")
 
@@ -165,7 +173,7 @@ def test_compute_prompt_hash_missing_context_document_raises(tmp_path):
     templates_dir = tmp_path / "templates"
     _write_prompt(prompts_dir, "constraints_pick", "rule v1", "user v1")
 
-    with pytest.raises(FileNotFoundError, match="tutorials/limits.md"):
+    with pytest.raises(FileNotFoundError, match="rules/limits.md"):
         compute_prompt_hash(
             "constraints_pick", prompts_dir=prompts_dir, templates_dir=templates_dir
         )

@@ -22,6 +22,7 @@ from orchestrator.steps.base import (
     LLM_BACKUP_DIRNAME,
     LLM_CONFLICTS_DIRNAME,
     REVISE_PROMPT,
+    RULES_DIRNAME,
     StepRevision,
     run_generative_step,
 )
@@ -42,6 +43,7 @@ def prompts_dir(tmp_path):
     (step_dir / "system.md").write_text("system rules", encoding="utf-8")
     (step_dir / "user.md.j2").write_text("context: {{ problem_id }}", encoding="utf-8")
     shutil.copyfile(PROMPTS_DIR / REVISE_PROMPT, directory / REVISE_PROMPT)
+    shutil.copytree(PROMPTS_DIR / RULES_DIRNAME, directory / RULES_DIRNAME)
     return directory
 
 

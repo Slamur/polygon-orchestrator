@@ -365,13 +365,13 @@ def test_critic_sees_the_spec_without_marks_and_draft(tmp_path, fake_model):
         assert DRAFT.strip() not in call["user"]
         assert "spec_template.yaml" not in call["documents"]
         assert "docs/SPEC_FORMAT.md" in call["documents"]
-        assert "tutorials/interactive.md" not in call["documents"]
+        assert "rules/interactive.md" not in call["documents"]
     documents = {call["lens"]: call["documents"] for call in fake.calls}
-    assert "tutorials/tests.md" in documents["tests"]
-    assert "tutorials/tests.md" not in documents["statement"]
-    assert "tutorials/statement.md" in documents["statement"]
-    assert "tutorials/validator.md" in documents["limits"]
-    assert "tutorials/checker.md" in documents["solutions"]
+    assert "rules/tests.md" in documents["tests"]
+    assert "rules/tests.md" not in documents["statement"]
+    assert "rules/statement.md" in documents["statement"]
+    assert "rules/validator.md" in documents["limits"]
+    assert "rules/checker.md" in documents["solutions"]
     tests_prompt = fake.calls[LENS_NAMES.index("tests")]["user"]
     assert "Test excess. The tests plan step" in tests_prompt
     assert "- `constraints.test_groups_hint`" in tests_prompt
@@ -385,7 +385,7 @@ def test_interactive_rules_only_for_the_lenses_that_need_them(tmp_path, fake_mod
     fake = fake_model()
     _run(tmp_path, spec=SPEC + "interactor:\n  behavior_notes: adaptive\n")
 
-    with_rules = [c["lens"] for c in fake.calls if "tutorials/interactive.md" in c["documents"]]
+    with_rules = [c["lens"] for c in fake.calls if "rules/interactive.md" in c["documents"]]
     assert with_rules == ["statement", "solutions"]
 
 

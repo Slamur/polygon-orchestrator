@@ -22,7 +22,7 @@ from orchestrator.statement_languages import (
     language_name,
 )
 from orchestrator.steps.base import (
-    INTERACTIVE_TUTORIAL,
+    INTERACTIVE_RULES,
     PROBLEMS_DIR,
     PROMPTS_DIR,
     TEMPLATES_DIR,
@@ -61,7 +61,7 @@ _DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$
 
 # A problem with test groups (subtasks) — a non-empty `constraints.test_groups_hint` in the
 # spec: the step also writes the constraints cell of each subtask of the Scoring block's
-# table — `authoring/scoring.yaml` (`SCORING_TEXTS`), by the rules of `SCORING_TUTORIAL`
+# table — `authoring/scoring.yaml` (`SCORING_TEXTS`), by the rules of `SCORING_RULES`
 # (attached only then, so editing it doesn't touch the statement cache of problems without
 # groups). The rest of the table follows from the groups and the tests: the mechanical
 # `scoring_table` step assembles `scoring.tex` after `run_tests`. Groups wanted without a
@@ -71,7 +71,7 @@ _DIALOGUE_NAME = re.compile(r"^example_(\d+)\.(input|output)_for_statement\.txt$
 # marked `.removed`.
 SCORING_TEXTS = SCORING_TEXTS_FILENAME
 SCORING_FILE = "scoring.tex"
-SCORING_TUTORIAL = "tutorials/scoring.md"
+SCORING_RULES = "rules/scoring.md"
 GROUPS_HINT_FIELD = "constraints.test_groups_hint"
 
 
@@ -238,7 +238,7 @@ def _check_constrained_cells(groups: list[TestGroupHint], texts: dict[str, str |
         raise ValueError(
             f"{SCORING_TEXTS_FILENAME}: the constraints cell is null for "
             f"{', '.join(empty)} — a subtask with its own constraints has them all written "
-            "out in its cell, the orchestrator adds nothing to it (tutorials/scoring.md)"
+            "out in its cell, the orchestrator adds nothing to it (rules/scoring.md)"
         )
 
 
@@ -337,14 +337,14 @@ def extra_context_documents(
     `orchestrator/references.py`). The single signature with all steps is needed by
     `pipeline.py` to compute `compute_prompt_hash` the same way.
 
-    An interactive problem also gets the `INTERACTIVE_TUTORIAL` rules (before the
+    An interactive problem also gets the `INTERACTIVE_RULES` rules (before the
     references): normal problems don't need them, and editing them doesn't touch the
     statement cache of normal problems.
     """
     references = reference_documents(STEP_NAME, spec) or []
-    rules = [str(Path(templates_dir) / INTERACTIVE_TUTORIAL)] if spec.interactive else []
+    rules = [INTERACTIVE_RULES] if spec.interactive else []
     if has_test_groups(spec):
-        rules.append(str(Path(templates_dir) / SCORING_TUTORIAL))
+        rules.append(SCORING_RULES)
     return [*rules, *references] or None
 
 

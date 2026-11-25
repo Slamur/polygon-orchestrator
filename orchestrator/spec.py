@@ -339,11 +339,11 @@ class Generation(BaseModel):
 
 
 # `tl_ok` — "TL or OK": a solution borderline in time or a solution without
-# input/output speedup (`templates/tutorials/solutions.md`); `tl_ml` — "TL or ML": a
+# input/output speedup (`prompts/rules/solutions.md`); `tl_ml` — "TL or ML": a
 # solution too slow and too memory-hungry at once (which limit it hits first isn't
 # known in advance; locally a memory shortage shows up as RE); `il` —
 # Idleness limit exceeded in an interactive problem (a solution without flushing the buffer,
-# `templates/tutorials/interactive.md`).
+# `prompts/rules/interactive.md`).
 _ALLOWED_VERDICTS = {"ok", "wa", "tl", "tl_ok", "tl_ml", "tle", "ml", "mle", "re", "il"}
 
 

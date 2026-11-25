@@ -165,7 +165,7 @@ def test_example_test_scripts_contain_standard_functions(example_dir):
 @examples
 def test_example_test_scripts_have_no_comparison_signs_in_directives(example_dir):
     # `>` inside a FreeMarker tag closes the tag — Polygon doesn't save such a script
-    # (templates/tutorials/freemarker.md, "Comparisons").
+    # (prompts/rules/freemarker.md, "Comparisons").
     for name in SCRIPT_NAMES:
         script_path = example_dir / name
         if script_path.exists():
