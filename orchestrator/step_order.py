@@ -121,7 +121,7 @@ POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
     "upload_attachments",
     "set_constraints",
-    "upload_problem_lib",
+    "upload_resources",
     "upload_validator",
     "upload_checker",
     "upload_interactor",

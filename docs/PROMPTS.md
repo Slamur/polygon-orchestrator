@@ -66,7 +66,7 @@ The materials attached to the steps lie in three directories:
 - `prompts/rules/` — the rules for the steps (`<topic>.md`), shared by all problems.
 - `templates/` — shared by all problems:
   `problem_lib.h` (a template — copied into `problems/<problem path>/resources/problem_lib.h`,
-  from there uploaded to Polygon by the `upload_problem_lib` step),
+  from there uploaded to Polygon by the `upload_resources` step),
   solution skeletons `solutions/<verdict>_<description>.<language>` (`ok.cpp`,
   `ok.java`, `ok.py`, `tl_ok_slowio.java`, `tl_ok_slowio.py` — the input/output and the structure of a solution
   without an algorithm).

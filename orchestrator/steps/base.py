@@ -137,7 +137,7 @@ INVALID_NAMES_SUBDIR = "invalid_names"
 # edits for a particular problem are overwritten neither by the template, nor by
 # `llm generate`, nor by `polygon push`. The copy is created by `ensure_problem_lib` —
 # before the compile-check of the generated `.cpp` and in the polygon step
-# `upload_problem_lib`; `polygon pull` downloads the resource file from
+# `upload_resources`; `polygon pull` downloads the resource file from
 # Polygon into it. The model is given the template (`STEP_CONTEXT_DOCUMENTS`).
 PROBLEM_LIB_FILENAME = "problem_lib.h"
 

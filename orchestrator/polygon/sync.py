@@ -14,8 +14,9 @@ differs from `synced` — and only if the revision on Polygon still equals
 was changed bypassing the orchestrator — see `orchestrator/polygon/pipeline.py`). `polygon pull`
 rewrites the base by what's on Polygon now.
 
-The key is the file's path relative to `problems/<problem_id>/` (a resource file — by its
-name: `problem_lib.h`, not `resources/problem_lib.h`), except for a few "non-files":
+The key is the file's path relative to `problems/<problem_id>/` (`resources/testlib.h`;
+`problem_lib.h` is the exception — by its name, not `resources/problem_lib.h`, as before
+the other resources were synced), except for a few "non-files":
 the TL/ML, the name of the assigned validator/checker, the problem's name in the statement of
 each language.
 The hash is always computed from what lies/would lie locally — so
@@ -51,6 +52,8 @@ from orchestrator.problem_paths import (
 
 LIMITS_KEY = "limits"
 PROBLEM_LIB_KEY = "problem_lib.h"
+# The other resource files — by their path, `resources/<name>` (`resource_key`).
+RESOURCE_KEY_PREFIX = "resources/"
 VALIDATOR_FILE_KEY = "validator.cpp"
 VALIDATOR_KEY = "validator"  # the name of the file assigned as the validator
 CHECKER_FILE_KEY = "checker.cpp"
@@ -203,6 +206,11 @@ def _statement_label(key: str) -> str:
     return key
 
 
+def resource_key(name: str) -> str:
+    """The base key of the resource file `name` (as on Polygon)."""
+    return PROBLEM_LIB_KEY if name == PROBLEM_LIB_KEY else RESOURCE_KEY_PREFIX + name
+
+
 def is_stamped_key(key: str) -> bool:
     """Whether the key has a stamp in the Polygon listing (see `remote_stamps`)."""
     return (
@@ -214,7 +222,7 @@ def is_stamped_key(key: str) -> bool:
             INTERACTOR_FILE_KEY,
         )
         or is_attachment_name(key)
-        or key.startswith(("generators/", "solutions/"))
+        or key.startswith(("generators/", "solutions/", RESOURCE_KEY_PREFIX))
     )
 
 
@@ -241,8 +249,7 @@ def remote_stamps(
     sources = {file["name"]: file for file in files.get("sourceFiles") or []}
     by_key: dict[str, dict] = {}
     for file in files.get("resourceFiles") or []:
-        if file["name"] == PROBLEM_LIB_KEY:
-            by_key[PROBLEM_LIB_KEY] = file
+        by_key[resource_key(file["name"])] = file
     for file in files.get("auxFiles") or []:
         if is_attachment_name(file["name"]):
             by_key[file["name"]] = file
