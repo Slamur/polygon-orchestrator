@@ -120,14 +120,15 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      `constraints.yaml` — not this step's error, not checked either.
    - **`run_tests`** (`orchestrator/steps/tests_check.py`) — a mechanical step after
      `test_script_draft`: `local check --full` without the statement checks — the tests
-     from the script, the lines' groups, the validator on every test (identical tests —
-     a warning only). Any error fails it and stops the pipeline before the solutions.
+     from the script, the lines' groups, the validator on every test, tests identical in
+     content (in one test group or in groups one of which depends on the other, directly
+     or not; examples equal only to each other — no step's). Any error fails it and stops the pipeline before the solutions.
      Each error has a kind (`local_tests.TestIssue`) routed to the steps whose files may
      cause it (`tests_check.ROUTES`): the script doesn't expand, a bad line, the lines'
      groups — `test_script_draft`; a generator doesn't compile — `generators_draft`; a
      line calls a generator with no source — `generators_draft`, `test_script_draft`; a
-     generator fails on a line or the validator rejects a test — all three (the design's
-     arguments, the generator's code, the script's command). The validator doesn't compile,
+     generator fails on a line, the validator rejects a test or tests come out identical
+     — all three (the design's arguments, the generator's code, the script's command). The validator doesn't compile,
      invalid groups, no `java` — no step's, the author fixes them. The report
      (`.cache/run_tests.report.json`) keeps the errors, the hashes of each step's files
      at the run and, of a passed run, the number of tests of each group (`group_counts`,

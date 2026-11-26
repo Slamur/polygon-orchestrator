@@ -108,7 +108,13 @@ How the design's tests work:
   don't need to think through each group's numbers — the formulas do that; think about
   which constructions are valid where. A group's tests are better taken from its own
   range, beyond the groups it depends on (`dependencies`, `{n.lo}`): smaller tests are
-  already there. Every group gets tests; group 0 — the statement examples — gets none.
+  already there. A group is judged only after every group it depends on, directly or
+  through other groups, is passed — so a test that comes out the same there adds nothing:
+  a fixed test, or one that doesn't depend on the seed (the script's `-group` marker
+  changes the seed), goes into the earliest group whose limits it fits and not into the
+  groups that depend on it; groups independent of each other may share it. The
+  orchestrator generates the tests and reports identical ones — in one group or along the
+  dependencies — as errors to revise. Every group gets tests; group 0 — the statement examples — gets none.
   The templates don't carry `-group`: the script adds `-group=<the group>` to each line
   itself. The distribution of tests over groups that the spec doesn't set is your
   decision: `status: proposed` with a justification.

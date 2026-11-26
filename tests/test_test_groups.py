@@ -8,6 +8,7 @@ from orchestrator.checks.test_groups import (
     count_by_group,
     group_results,
     load_test_groups,
+    upstream_groups,
 )
 from orchestrator.test_groups import group_marker
 
@@ -222,3 +223,20 @@ def test_each_test_group_passed_whole_gives_all_its_points():
         + [("test 5", "3", "OK")],
     )
     assert [r.points for r in results] == [30, 30, 40]
+
+
+def test_upstream_groups_is_the_transitive_closure_of_dependencies():
+    groups = [
+        TestGroup("1", 10),
+        TestGroup("2", 20, ("1",)),
+        TestGroup("3", 30, ("1",)),
+        TestGroup("4", 40, ("2", "3")),
+        TestGroup("5", 0, ("4",)),
+    ]
+    assert upstream_groups(groups) == {
+        "1": frozenset(),
+        "2": {"1"},
+        "3": {"1"},
+        "4": {"1", "2", "3"},
+        "5": {"1", "2", "3", "4"},
+    }

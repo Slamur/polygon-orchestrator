@@ -4,6 +4,8 @@ import pytest
 
 from orchestrator.cache import load_cache_entry
 from orchestrator.checks.local_tests import (
+    ISSUE_EQUAL_EXAMPLES,
+    ISSUE_EQUAL_TESTS,
     ISSUE_GENERATOR_BUILD,
     ISSUE_GENERATOR_MISSING,
     ISSUE_GENERATOR_RUN,
@@ -110,6 +112,8 @@ def test_report_keeps_the_tests_per_group_of_a_passed_run_only(spec, problem_dir
         (ISSUE_GENERATOR_RUN, set(REVISING_STEPS)),
         (ISSUE_VALIDATOR_REJECT, set(REVISING_STEPS)),
         (ISSUE_VALIDATOR_BUILD, set()),
+        (ISSUE_EQUAL_TESTS, set(REVISING_STEPS)),
+        (ISSUE_EQUAL_EXAMPLES, set()),
     ],
 )
 def test_failed_run_routes_each_error_to_the_steps_that_may_cause_it(
