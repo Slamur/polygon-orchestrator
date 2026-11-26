@@ -554,13 +554,14 @@ interactor. Polygon's "verify input/output for statements" flag is stored in
 `push` stops if the problem on Polygon was changed bypassing the orchestrator
 (or there are uncommitted edits there), and suggests running `pull` first.
 
-Resource files (`testlib.h`): `push` uploads only the problem's own copies from
+Resource files (`testlib.h` and the statement files `olymp.sty`, `problem.tex`,
+`statements.ftl`): `push` uploads only the problem's own copies from
 `problems/<problem>/resources/`, never the defaults of `resources/`, so Polygon keeps
 updating its `testlib.h` itself. `pull` compares Polygon's version with the one the problem
 uses (its own, else the default); if they differ, Polygon's is written into the problem's
 `resources/`, and from then on the problem builds with it — it no longer follows updates of
-the default in this repository. Polygon's statement files (`olymp.sty`, `problem.tex`,
-`statements.ftl`) aren't synced.
+the default in this repository. To change, say, `olymp.sty` for one problem, put your
+version into its `resources/`: the next `push` uploads it.
 
 The problem's tutorial is the optional `statement/<language>/tutorial.tex`: you write it or
 the model does from your draft (`llm tutorial`). `polygon push` uploads it together with the statement,

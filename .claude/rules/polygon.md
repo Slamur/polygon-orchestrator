@@ -18,7 +18,8 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   is stored in `problems/<problem path>/polygon_state.json`) and transferring the
   actual TL/ML from `problems/<problem path>/limits.yaml` via
   `problem.updateInfo` (`set_constraints`), uploading the problem's resource files `problems/<problem path>/resources/*` —
-  `problem_lib.h` and the problem's own versions of external resources (`testlib.h`),
+  `problem_lib.h` and the problem's own versions of external resources (`testlib.h`,
+  the statement files `olymp.sty`, `problem.tex`, `statements.ftl`),
   never the defaults of `resources/` (`upload_resources`), uploading
   `problems/<problem path>/validator.cpp` and setting it as the validator
   (`upload_validator`), setting the checker (`upload_checker`: for
@@ -122,14 +123,14 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   or there is no base (`differs`) — the local one stays, with `--overwrite` — it is replaced by the version
   from Polygon. Replaced files are moved to `.pull_backup/`. Files that
   aren't on Polygon are listed explicitly and never deleted.
-  A resource file other than `problem_lib.h` (`testlib.h`) is compared with the version
+  A resource file other than `problem_lib.h` (`testlib.h`, the statement files `olymp.sty`,
+  `problem.tex`, `statements.ftl`) is compared with the version
   the problem uses now: its own `resources/<name>` — three-way, as above; without it — the
   default of `resources/` of the repository: the same — nothing is written, different —
   Polygon's is written into the problem's `resources/` and the problem uses it from then on
   (push doesn't upload it back: it equals the base, so Polygon's testlib auto-update stays
   on; and the problem no longer follows updates of the default). Resources with no local
-  version at all (Polygon's statement files `olymp.sty`, `problem.tex`, `statements.ftl`)
-  are skipped. Files
+  version at all (neither own nor a default) are skipped. Files
   from Attachments (spec, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`,
   `scoring.yaml`, draft, tutorial draft) are compared
   only with their versions in Attachments, and the problem's TL/ML — only with
