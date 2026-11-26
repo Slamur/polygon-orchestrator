@@ -84,6 +84,8 @@
 
 - (Strongly preferred) Don't make several runs of a generator with identical parameters differing only in the random seed.
 
+- No two tests may be identical in content — within one test group, or in groups one of which depends on the other (directly or through other groups): the dependent group is judged only after the other is passed, so the copy adds nothing. The orchestrator generates the tests and reports such copies as errors.
+
 ## The generation script (optional)
 
 - The generation script is a pseudo-program describing the order of calling the generators.
