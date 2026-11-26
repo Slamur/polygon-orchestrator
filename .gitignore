@@ -12,6 +12,11 @@ problems/*
 drafts/*
 !drafts/.gitkeep
 
+# contests: contest.yaml (the Polygon contest id, the problem list) and the contest's
+# statement files — as private as the problems
+contests/*
+!contests/.gitkeep
+
 # the orchestrator's service files in the sample problems (the samples themselves are committed):
 # step cache, model logs and reports, the Polygon binding (the author's personal problemId), backups of pull,
 # llm generate and local fix, files a step proposed to delete.

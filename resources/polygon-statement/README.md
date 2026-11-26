@@ -16,6 +16,10 @@ They are the defaults `polygon pull` compares a problem's statement files on Pol
 (`orchestrator/resources.py`): the same — nothing is written; different — Polygon's version
 goes to the problem's `resources/`. `polygon push` uploads only a problem's own versions.
 
+A new contest on Polygon gets the same `olymp.sty` and `statements.ftl` (checked in 2026-11,
+up to line breaks): they are also the defaults of a contest's statement files
+(`orchestrator/contests.py`).
+
 ## How to update
 
 Create a problem on Polygon, download these three files from its "Resource files" and put

@@ -29,6 +29,7 @@ def base(tmp_path):
     _touch(tmp_path / "problems" / ".hidden" / "spec.yaml")
     _touch(tmp_path / "problems" / "stray-file")
     _touch(tmp_path / "examples" / "array" / "prefix-sums" / "spec.yaml")
+    _touch(tmp_path / "contests" / "2026" / "round-1" / "contest.yaml")
     return tmp_path
 
 
@@ -44,6 +45,7 @@ def test_completer_lists_problem_addresses_in_both_roots(base):
         "problems/contest/pulled-only",
         "problems/my-task",
         "examples/array/prefix-sums",
+        "contests/2026/round-1",
     ]
 
 

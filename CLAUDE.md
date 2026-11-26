@@ -73,7 +73,9 @@ In scope:
   statement with tutorial and examples, generators, test-script, solutions and
   `authoring/` files in Attachments; only what changed since the last
   sync is uploaded, after each step that uploaded something — `problem.commitChanges`;
-  the reverse direction — `polygon pull`. Details — `.claude/rules/polygon.md`.
+  the reverse direction — `polygon pull`; a contest (`contests/<contest path>/contest.yaml`)
+  — only `polygon status`, its problems on Polygon against the config (the API can only
+  read a contest). Details — `.claude/rules/polygon.md`.
   The remaining integration steps (other files, packages) — later.
 
 Out of scope (deliberately, to be added separately later):
@@ -159,7 +161,7 @@ the user can see it) in the same PR.
 │   ├── cli.py                       # parser and Tab completion; NO heavy imports (the shell runs it on every Tab)
 │   ├── cli_commands.py              # command implementations, imported from cli.py lazily
 │   ├── step_order.py                # step orders without importing the steps themselves
-│   ├── problem_paths.py, drafts.py, statement_languages.py, resources.py  # no heavy imports
+│   ├── problem_paths.py, drafts.py, statement_languages.py, resources.py, contests.py  # no heavy imports
 │   ├── spec.py, spec_from_draft.py, spec_critic.py, references.py, limits.py, test_groups.py,
 │   │   scoring_table.py
 │   ├── steps/                       # generative steps (+ the mechanical limits_from_constraints, scoring_table), base.py — shared
@@ -173,6 +175,8 @@ the user can see it) in the same PR.
 ├── githooks/pre-push, .github/workflows/ci.yml  # ruff check, ruff format --check, pytest on every PR
 ├── tests/
 ├── drafts/                          # the author's drafts for `init --draft`; in .gitignore
+├── contests/<contest path>/         # in .gitignore; contest.yaml (Polygon contest id, problems),
+│                                    # resources/ — the contest's own statement files
 └── problems/<problem path>/         # in .gitignore; at any depth
     ├── authoring/                   # spec.yaml, draft.<ext>, draft-tutorial.md, constraints.yaml, tests_design.yaml, tests_plan.yaml,
     │                                # scoring.yaml
@@ -264,7 +268,7 @@ open the PR by hand in the web interface.
 
 It is also assumed that `git config core.hooksPath
 githooks` has been run in the clone (see `docs/SETUP.md`) — `githooks/pre-push` blocks the push if
-the branch name or commit messages contain the `problem_id` of any problem in `problems/` (the name of a problem directory at any depth) or the name (without extension) of any draft in `drafts/` at any depth (except drafts of the sample problems from `examples/` — by the problem directory name or its `problem_id`).
+the branch name or commit messages contain the `problem_id` of any problem in `problems/` (the name of a problem directory at any depth) or the name (without extension) of any draft in `drafts/` at any depth (except drafts of the sample problems from `examples/` — by the problem directory name or its `problem_id`), or the name of any contest directory in `contests/`.
 The hook is a safety net, not a replacement for the rules in the section below.
 
 ### Parallel work with subagents
@@ -288,8 +292,8 @@ subagents — this is a standing permission from the author:
 
 ## Confidentiality of problems/
 
-`problems/` (together with the problem specs `problems/<problem path>/authoring/spec.yaml`) and
-`drafts/` (problem drafts for `init --draft`) are in `.gitignore`
+`problems/` (together with the problem specs `problems/<problem path>/authoring/spec.yaml`),
+`drafts/` (problem drafts for `init --draft`) and `contests/` (contest configs) are in `.gitignore`
 on purpose: the orchestrator repository
 is public, and the problems themselves are not, until they are published at a
 contest. This is the only barrier between "a problem draft" and "visible to
