@@ -11,7 +11,7 @@ from polygon_sync_helpers import (
 
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import PolygonStepError
-from orchestrator.polygon.steps.upload_problem_lib import make_step
+from orchestrator.polygon.steps.upload_resources import make_step
 from orchestrator.spec import load_spec
 
 LIB_CONTENT = b"#pragma once\n// test stub\n"
@@ -154,3 +154,68 @@ def test_status_not_run_then_done_then_stale(problems_dir, templates_dir, spec):
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
     (templates_dir / "problem_lib.h").write_bytes(LIB_CONTENT)
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+# --- Resources other than problem_lib.h ---
+
+
+def _own(problems_dir, name: str, content: bytes):
+    path = problems_dir / PROBLEM_ID / "resources" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(content)
+    return path
+
+
+def _uploaded_names(client) -> list[str]:
+    return [call.args[1]["name"] for call in client.call.call_args_list]
+
+
+def test_defaults_are_not_uploaded(problems_dir, templates_dir, spec):
+    link(problems_dir)
+    client = MagicMock()
+
+    _run(spec, problems_dir, templates_dir, client)
+
+    assert _uploaded_names(client) == ["problem_lib.h"]
+
+
+def test_own_resource_is_uploaded(problems_dir, templates_dir, spec):
+    link(problems_dir)
+    _own(problems_dir, "testlib.h", b"// own testlib\n")
+    _own(problems_dir, "old.h.removed", b"// removed\n")
+    client = MagicMock()
+
+    message = _run(spec, problems_dir, templates_dir, client)
+
+    assert _uploaded_names(client) == ["problem_lib.h", "testlib.h"]
+    assert client.call.call_args_list[1].args[1]["file"] == b"// own testlib\n"
+    assert "testlib.h" in message
+    assert set(load_polygon_state(PROBLEM_ID, problems_dir=problems_dir).synced) == {
+        "problem_lib.h",
+        "resources/testlib.h",
+    }
+
+
+def test_only_changed_resources_are_uploaded(problems_dir, templates_dir, spec):
+    link(problems_dir)
+    path = _own(problems_dir, "testlib.h", b"// own testlib\n")
+    _run(spec, problems_dir, templates_dir, MagicMock())
+    path.write_bytes(b"// edited testlib\n")
+    client = MagicMock()
+
+    _run(spec, problems_dir, templates_dir, client, incremental=True)
+
+    assert _uploaded_names(client) == ["testlib.h"]
+
+
+def test_status_sees_own_resources(problems_dir, templates_dir, spec):
+    step = make_step(templates_dir)
+    link(problems_dir)
+    path = _own(problems_dir, "testlib.h", b"// own testlib\n")
+    _run(spec, problems_dir, templates_dir, MagicMock())
+    assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    path.write_bytes(b"// edited testlib\n")
+    status, detail = step.compute_status(PROBLEM_ID, problems_dir)
+    assert status == "stale"
+    assert "resources/testlib.h" in detail

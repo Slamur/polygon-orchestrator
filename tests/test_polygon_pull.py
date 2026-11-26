@@ -31,7 +31,7 @@ from orchestrator.polygon.steps import (
     upload_attachments,
     upload_generators,
     upload_interactor,
-    upload_problem_lib,
+    upload_resources,
     upload_solutions,
     upload_statement,
     upload_test_groups,
@@ -41,6 +41,7 @@ from orchestrator.polygon.steps import (
 from orchestrator.polygon.steps.base import PolygonStepError, run_step
 from orchestrator.polygon.steps.upload_test_script import normalize_script
 from orchestrator.polygon.sync import PULLED_CONSTRAINTS_HEADER
+from orchestrator.resources import TESTLIB_DIR, resource_path
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import template_problem_lib_path
 
@@ -277,7 +278,7 @@ def test_push_after_pull_uploads_only_what_differs_from_polygon(tmp_path, proble
 
     for step in (
         set_constraints.STEP,
-        upload_problem_lib.STEP,
+        upload_resources.STEP,
         upload_generators.STEP,
         upload_test_script.STEP,
         upload_solutions.STEP,
@@ -579,6 +580,90 @@ def test_problem_lib_missing_on_polygon(problems_dir, polygon):
 
     assert _statuses(result)["resources/problem_lib.h"] == ITEM_ABSENT
     assert "problem_lib.h" not in _synced(problems_dir)
+
+
+# --- Resources other than problem_lib.h: compared with what the problem uses ---
+
+_TESTLIB = "resources/testlib.h"
+
+
+def test_resource_same_as_default_is_not_written(problems_dir, polygon):
+    polygon.resource_files["testlib.h"] = TESTLIB_DIR.joinpath("testlib.h").read_bytes()
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)[_TESTLIB] == ITEM_SAME
+    assert not (problems_dir / PROBLEM_ID / _TESTLIB).exists()
+    assert _synced(problems_dir)[_TESTLIB] == pull_module.digest(
+        polygon.resource_files["testlib.h"]
+    )
+
+
+def test_resource_different_from_default_becomes_the_problems_own(tmp_path, problems_dir, polygon):
+    polygon.resource_files["testlib.h"] = b"// newer testlib on Polygon\n"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)[_TESTLIB] == ITEM_DOWNLOADED
+    path = problems_dir / PROBLEM_ID / _TESTLIB
+    assert path.read_bytes() == b"// newer testlib on Polygon\n"
+    assert resource_path(problems_dir / PROBLEM_ID, "testlib.h") == path
+    # push doesn't upload it back: it equals the base
+    spec = load_spec(FIXTURES_DIR / "valid-spec.yaml")
+    assert (
+        run_step(
+            upload_resources.STEP,
+            PROBLEM_ID,
+            spec,
+            problems_dir=problems_dir,
+            client=MagicMock(),
+            synced=_synced(problems_dir),
+        ).uploaded
+        == {}
+    )
+
+
+def test_own_resource_is_compared_three_way(problems_dir, polygon):
+    polygon.resource_files["testlib.h"] = b"// polygon\n"
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _write(problems_dir / PROBLEM_ID, _TESTLIB, "// local edits\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)[_TESTLIB] == ITEM_KEPT
+    assert (problems_dir / PROBLEM_ID / _TESTLIB).read_text() == "// local edits\n"
+
+
+def test_resource_without_a_local_version_is_skipped(problems_dir, polygon):
+    polygon.resource_files["olymp.sty"] = b"% statement style\n"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert "resources/olymp.sty" not in _statuses(result)
+    assert not (problems_dir / PROBLEM_ID / "resources" / "olymp.sty").exists()
+    assert "resources/olymp.sty" not in _synced(problems_dir)
+    assert "olymp.sty" not in polygon.downloads()
+
+
+def test_own_resource_missing_on_polygon_is_local_only(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, _TESTLIB, "// own testlib\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)[_TESTLIB] == ITEM_LOCAL_ONLY
+    assert _TESTLIB not in _synced(problems_dir)
+
+
+def test_resource_same_as_default_is_not_downloaded_again(problems_dir, polygon):
+    polygon.resource_files["testlib.h"] = TESTLIB_DIR.joinpath("testlib.h").read_bytes()
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    polygon.problems[0]["revision"] += 1
+    polygon.calls.clear()
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)[_TESTLIB] == ITEM_SAME
+    assert "testlib.h" not in polygon.downloads()
 
 
 def test_different_local_spec_is_kept(problems_dir, polygon):

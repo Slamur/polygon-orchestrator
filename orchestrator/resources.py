@@ -14,6 +14,14 @@ Two levels:
 
 The problem's version comes first: it overrides the default.
 
+Sync with Polygon (`polygon pull`/`push`) treats every resource alike: pull compares a
+resource on Polygon with the version the problem uses now (its own, else the default) and,
+if they differ, writes Polygon's into the problem's `resources/` — from then on the problem
+uses it; push uploads only the problem's own versions, and only those changed since the
+sync base. So a problem that once pulled its own `testlib.h` no longer follows the default
+here: it lives by Polygon's version. Resources with neither version locally (Polygon's
+statement files `olymp.sty`, `problem.tex`, `statements.ftl`) aren't synced.
+
 No heavy imports: `cli.py` imports the problem layout on every Tab.
 """
 
@@ -40,6 +48,16 @@ def problem_resources_dir(problem_dir: Path) -> Path:
 def include_dirs(problem_dir: Path) -> list[Path]:
     """`-I` directories of a C++ build of the problem's sources, in lookup order."""
     return [problem_resources_dir(problem_dir), *_DEFAULT_INCLUDE_DIRS]
+
+
+def default_resource_path(name: str) -> Path | None:
+    """The default version of the resource `name` (`resources/` of the repository);
+    `None` — there is no default for it."""
+    for directory in _DEFAULT_INCLUDE_DIRS:
+        path = directory / name
+        if path.is_file():
+            return path
+    return None
 
 
 def resource_path(problem_dir: Path, name: str) -> Path | None:

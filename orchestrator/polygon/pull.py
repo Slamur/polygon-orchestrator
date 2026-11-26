@@ -121,7 +121,14 @@ What is compared with what (the names are the same that the polygon steps read):
   the tag from the file name, so names not following its scheme get a warning;
 - the resource `problem_lib.h` -> `resources/problem_lib.h` (the problem's copy, see
   `PROBLEM_LIB_FILENAME` in `orchestrator/steps/base.py`; if it isn't on
-  Polygon, push uploads the local one, and without it — the template).
+  Polygon, push uploads the local one, and without it — the template);
+- the other resources (`testlib.h`) -> `resources/<name>` (`orchestrator/resources.py`):
+  if the problem has its own version — three-way, like any file; if not, Polygon's is
+  compared with the default of `resources/` of the repository: the same — nothing is
+  written (`same`), different — written into the problem's `resources/` (`downloaded`), and
+  from then on the problem uses it (push doesn't upload it back: it equals the base).
+  Resources with no local version at all (Polygon's statement files) are skipped; own
+  resources missing on Polygon — `local only`, push uploads them.
 
 Text is compared up to line breaks (`\\r\\n` = `\\n`).
 NOTE: it isn't verified on the real API whether Polygon normalizes the contents
@@ -197,6 +204,7 @@ from orchestrator.polygon.sync import (
     is_draft_name,
     limits_digest,
     remote_stamps,
+    resource_key,
     statement_name_key,
 )
 from orchestrator.problem_paths import (
@@ -210,7 +218,7 @@ from orchestrator.problem_paths import (
     is_removed_mark,
     problem_id_for,
 )
-from orchestrator.resources import PROBLEM_RESOURCES_DIRNAME
+from orchestrator.resources import PROBLEM_RESOURCES_DIRNAME, RESOURCES_DIR, default_resource_path
 from orchestrator.spec import DEFAULT_POINTS_POLICY, EACH_TEST
 from orchestrator.statement_languages import (
     STATEMENT_DIRNAME,
@@ -352,7 +360,7 @@ def pull_problem(
         ("statement/examples", puller.pull_examples),
         ("attachments", puller.pull_attachments),
         (LIMITS_FILENAME, puller.pull_limits),
-        (PROBLEM_LIB_FILENAME, puller.pull_problem_lib),
+        (PROBLEM_RESOURCES_DIRNAME, puller.pull_resources),
         (_VALIDATOR_FILENAME, puller.pull_validator),
         (_CHECKER_FILENAME, puller.pull_checker),
         (INTERACTOR_FILENAME, puller.pull_interactor),
@@ -674,9 +682,18 @@ class _Puller:
         self.add(LIMITS_FILENAME, ITEM_CONFLICT if change == _BOTH else ITEM_DIFFERS, differs)
         self.synced[LIMITS_KEY] = None
 
-    def pull_problem_lib(self) -> None:
-        resources = {file["name"] for file in self._polygon_files().get("resourceFiles") or []}
-        if PROBLEM_LIB_FILENAME not in resources:
+    def pull_resources(self) -> None:
+        """`problem_lib.h` and the other resource files (see the module docstring)."""
+        remote_names = {file["name"] for file in self._polygon_files().get("resourceFiles") or []}
+        self._pull_problem_lib(remote_names)
+        for name in sorted(remote_names - {PROBLEM_LIB_FILENAME}):
+            self._pull_resource(name)
+        self._local_only(
+            PROBLEM_RESOURCES_DIRNAME, remote_names | {PROBLEM_LIB_FILENAME}, pattern="*"
+        )
+
+    def _pull_problem_lib(self, remote_names: set[str]) -> None:
+        if PROBLEM_LIB_FILENAME not in remote_names:
             self._missing_on_polygon(
                 _PROBLEM_LIB_PATH,
                 "no resource file on Polygon",
@@ -685,12 +702,49 @@ class _Puller:
             return
         self._sync_file(
             _PROBLEM_LIB_PATH,
-            lambda: self._call_raw(
-                "problem.viewFile", {"type": "resource", "name": PROBLEM_LIB_FILENAME}
-            ),
+            lambda: self._view_resource(PROBLEM_LIB_FILENAME),
             key=PROBLEM_LIB_KEY,
             stamped=True,
         )
+
+    def _pull_resource(self, name: str) -> None:
+        """A resource other than `problem_lib.h`: the problem's own version — three-way;
+        without it — compared with the default, written only if it differs."""
+        path = f"{PROBLEM_RESOURCES_DIRNAME}/{name}"
+        key = resource_key(name)
+        if (self.problem_dir / path).exists():
+            self._sync_file(path, lambda: self._view_resource(name), key=key, stamped=True)
+            return
+        default = default_resource_path(name)
+        if default is None:
+            return
+        detail = f"compared with the default {default.relative_to(RESOURCES_DIR.parent)}"
+        default_content = default.read_bytes()
+        stamp = self._remote_stamp(key)
+        known = self._known_remote_digest(key, stamp)
+        if known is not None and known == digest(default_content):
+            self.add(path, ITEM_SAME, _join(detail, _NOT_DOWNLOADED_DETAIL))
+            self._record(key, known, stamp, {})
+            return
+        try:
+            remote = self._view_resource(name)
+        except PolygonApiError as exc:
+            self.add(path, ITEM_ERROR, str(exc))
+            self._record(key, None, None, {})
+            return
+        if _same(default_content, remote):
+            self.add(path, ITEM_SAME, detail)
+        else:
+            self._write(path, remote)
+            self.add(
+                path,
+                ITEM_DOWNLOADED,
+                _join(detail, "differs from it, the problem uses Polygon's version from now on"),
+            )
+        self._record(key, digest(remote), stamp, {})
+
+    def _view_resource(self, name: str) -> bytes:
+        return self._call_raw("problem.viewFile", {"type": "resource", "name": name})
 
     def pull_validator(self) -> None:
         polygon_name = self._assigned_name("problem.validator")
