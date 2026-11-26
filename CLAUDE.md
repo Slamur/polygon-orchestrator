@@ -146,9 +146,11 @@ the user can see it) in the same PR.
 .
 ├── CLAUDE.md, README.md, docs/      # see "Where things are described in detail"
 ├── .claude/rules/                   # rules by topic, see above; step-roles/ — step roles
-├── templates/                       # shared by all problems, the compile-check include dir; the author's templates —
-│                                    # don't touch the structure: problem_lib.h, testlib.h, *_format.yaml,
+├── templates/                       # shared by all problems; the author's templates —
+│                                    # don't touch the structure: problem_lib.h, *_format.yaml,
 │                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons)
+├── resources/<source>/              # default external resources, unchanged from upstream: testlib/ (testlib.h,
+│                                    # checkers/ — the standard checkers); a problem's resources/ overrides them
 ├── examples/<input kind>/<gist>/    # sample problems in the problems/<problem path>/ layout
 ├── prompts/<step>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2,
 │                                          #   check_failed.md.j2; rules/*.md — rules for the steps
@@ -156,7 +158,7 @@ the user can see it) in the same PR.
 │   ├── cli.py                       # parser and Tab completion; NO heavy imports (the shell runs it on every Tab)
 │   ├── cli_commands.py              # command implementations, imported from cli.py lazily
 │   ├── step_order.py                # step orders without importing the steps themselves
-│   ├── problem_paths.py, drafts.py, statement_languages.py  # no heavy imports
+│   ├── problem_paths.py, drafts.py, statement_languages.py, resources.py  # no heavy imports
 │   ├── spec.py, spec_from_draft.py, spec_critic.py, references.py, limits.py, test_groups.py,
 │   │   scoring_table.py
 │   ├── steps/                       # generative steps (+ the mechanical limits_from_constraints, scoring_table), base.py — shared
@@ -166,7 +168,7 @@ the user can see it) in the same PR.
 │   ├── llm_clients/                 # ClaudeCodeClient (default), AnthropicClient; __init__ imports nothing
 │   ├── polygon/                     # client, signing, state, sync, pull, steps/, pipeline; __init__ imports nothing
 │   └── checks/                      # compile_check, run_with_timeout, test_script_check, local_tests,
-│                                    # statement_check, solutions_run, std_checkers/, FreemarkerRender.java
+│                                    # statement_check, solutions_run, FreemarkerRender.java
 ├── githooks/pre-push, .github/workflows/ci.yml  # ruff check, ruff format --check, pytest on every PR
 ├── tests/
 ├── drafts/                          # the author's drafts for `init --draft`; in .gitignore
@@ -175,7 +177,8 @@ the user can see it) in the same PR.
     │                                # scoring.yaml
     │                                # (model and author only; on Polygon — in Attachments)
     ├── statement/<code>/*.tex, name.txt; statement/examples/example_<N>*.txt
-    ├── limits.yaml, problem_lib.h, validator.cpp, checker.cpp, interactor.cpp
+    ├── resources/                   # problem_lib.h; testlib.h etc. only if the problem has its own version
+    ├── limits.yaml, validator.cpp, checker.cpp, interactor.cpp
     ├── generators/*.cpp, test_script, solutions/*
     ├── polygon_state.json           # binding to Polygon + the sync base (not a cache)
     ├── .cache/                      # step cache <step>.json and unapplied responses <step>.response.json
@@ -238,8 +241,8 @@ Rules for Claude Code:
    --fast` must pass: CI (`.github/workflows/ci.yml`) checks
    all three on every PR, the tests — fully, including `slow` (building and
    running C++/Java). If the change touches building or running
-   (`orchestrator/checks/`, the steps' compile-check, `.cpp` in `examples/` and
-   `templates/`) — the full `pytest` before push too.
+   (`orchestrator/checks/`, the steps' compile-check, `.cpp` in `examples/`,
+   `templates/` and `resources/`) — the full `pytest` before push too.
 5. **When work on a branch is done** — push and open a PR via `gh`:
    `gh pr create --fill` (or with an explicit summary via `--body`). The PR title and
    description must reflect what was changed and why, not only "what" —

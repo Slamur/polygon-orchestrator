@@ -1,6 +1,8 @@
 ---
 paths:
   - "templates/**"
+  - "resources/**"
+  - "orchestrator/resources.py"
   - "prompts/rules/**"
   - "examples/**"
   - "orchestrator/references.py"
@@ -9,7 +11,7 @@ paths:
   - "tests/test_references.py"
 ---
 
-# Attached materials: prompts/rules/, templates/, examples/, references
+# Attached materials: prompts/rules/, templates/, resources/, examples/, references
 
 ## How to use the attached materials
 
@@ -32,11 +34,21 @@ paths:
   generation step creates a new generator — it must `#include "problem_lib.h"` and
   follow the same naming conventions (`register...`, `opt<T>(...)`,
   the `gen_test` style from `generators/*.cpp`). Each problem has its own copy of
-  `problem_lib.h` (`problems/<problem path>/problem_lib.h`, see
+  `problem_lib.h` (`problems/<problem path>/resources/problem_lib.h`, see
   `PROBLEM_LIB_FILENAME` in `orchestrator/steps/base.py`): the template is only its
   initial content, an edit of the template doesn't reach already existing copies.
-  Compile-check looks for `problem_lib.h` first in the problem directory,
-  then in `templates/`; the model is given the template.
+  The model is given the template.
+- Templates vs resources. `templates/` holds the author's own files the problems start
+  from (`problem_lib.h`, solution skeletons, the spec template, the script functions)
+  and the formats of the model's responses. `resources/` of the repository holds the
+  default external resources — copied from upstream without changes at a pinned version,
+  one directory per source with a README (`resources/testlib/`: `testlib.h` and the
+  standard checkers); they aren't attached to the steps. A problem's resources —
+  Polygon's "Resource files" of the problem — lie in `problems/<problem path>/resources/`:
+  its `problem_lib.h` always, an external resource only when the problem has its own
+  version of it. A C++ build (compile-check, `local` runs) includes the problem's
+  `resources/` first, then the defaults (`include_dirs` in `orchestrator/resources.py`),
+  so the problem's version overrides the default.
 - `templates/` is shared by all problems and is always attached to the steps
   (`STEP_CONTEXT_DOCUMENTS` in `orchestrator/steps/base.py`); also there is
   `constraints_format.yaml` — the format of the `constraints_pick` result, which
