@@ -90,12 +90,15 @@ _SOLUTIONS_DIRNAME = "solutions"
 
 
 class GateFailedError(Exception):
-    """The local run failed: `detail` — for the console, `notes` — for the report."""
+    """The local run failed: `detail` — for the console, `notes` — for the report,
+    `rerun_hint` — the end of `detail` advising to run `llm generate` again, left out when
+    the same run revises with the report (`pipeline.run_pipeline`, `revise_attempts`)."""
 
-    def __init__(self, detail: str, notes: list[dict[str, Any]]):
-        super().__init__(detail)
+    def __init__(self, detail: str, notes: list[dict[str, Any]], rerun_hint: str = ""):
+        super().__init__(detail + rerun_hint)
         self.detail = detail
         self.notes = notes
+        self.rerun_hint = rerun_hint
 
 
 @dataclass(frozen=True)
@@ -325,10 +328,15 @@ class Gate:
             if result.errors:
                 what.append(f"{len(result.errors)} error(s) of the problem")
             raise GateFailedError(
-                f"{', '.join(what)} — see the report; fix the files by hand, or "
-                f"run 'llm generate' again to let {self.stage_step} revise its solutions "
-                "with the report (problem errors: fix the tests, the checker or the spec)",
+                f"{', '.join(what)} — see the report"
+                + (
+                    " (problem errors: fix the tests, the checker or the spec)"
+                    if result.errors
+                    else ""
+                ),
                 notes,
+                "; fix the files by hand, or run 'llm generate' again to let "
+                f"{self.stage_step} revise its solutions with the report",
             )
         passed = {
             "field": "run",

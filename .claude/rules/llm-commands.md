@@ -34,7 +34,8 @@ Addressing problems and groups — in `.claude/rules/cli.md`; the steps that
   cause them. `--revise-attempts N` (1 by default, `0` — stop at once) does it in the
   same run: after a failed local run the steps it reported on revise with its report and
   the pipeline goes on from the first of them, up to N times per local run (the console
-  shows it as a `revision K of N` line); a response that fails its step's check is
+  shows it as a `revision K of N` line, and the failed run's line then doesn't advise
+  running `llm generate` again); a response that fails its step's check is
   requested again, up to N times per call (`.claude/rules/steps.md`, "Conflicts"). Each
   attempt is a model call; with `--step` only the re-requests apply.
   After them `tests_survivors` adds tests for the wrong solutions no test catches (or

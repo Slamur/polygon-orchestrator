@@ -1140,7 +1140,9 @@ def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
     for step in ("tests_plan", "generators_draft", "test_script_draft"):
         assert statuses[step].state == pipeline.STATUS_STALE
 
-    # Each test step revises with the errors; the fixed generator makes the run pass.
+    # The plan and the generators revise with the errors; the generators changed, so the
+    # script, after them, doesn't revise with the same errors. The fixed generator makes
+    # the run pass.
     responses = dict(_RESPONSES)
     responses["generators_draft"] = ModelResponse(
         status="confirmed", artifacts={"gen_rand.cpp": "int main() { /* reads n */ }"}
@@ -1152,12 +1154,9 @@ def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
         result = _run(problems_dir)
 
     assert result.ok
-    calls = mock_call.call_args_list[:3]
-    assert [call.args[0] for call in calls] == [
-        "tests_plan",
-        "generators_draft",
-        "test_script_draft",
-    ]
+    calls = mock_call.call_args_list[:2]
+    assert [call.args[0] for call in calls] == ["tests_plan", "generators_draft"]
+    assert "test_script_draft" not in [call.args[0] for call in mock_call.call_args_list]
     assert all(error in call.args[2] for call in calls)
     plan_outcome = next(o for o in result.outcomes if o.step_name == "tests_plan")
     assert plan_outcome.detail.startswith("the local tests 'run_tests' failed")
@@ -1211,6 +1210,8 @@ def test_failed_local_tests_are_revised_in_the_same_run(spec_file, tmp_path, mon
     ]
     assert result.outcomes[gate + 5].status == pipeline.OUTCOME_CONFIRMED
     assert names[-1] == "tests_survivors"
+    # The run revises itself: the failure doesn't advise running 'llm generate' again.
+    assert "llm generate" not in result.outcomes[gate].detail
     called = [c.args[0] for c in mock_call.call_args_list]
     assert called.count("generators_draft") == 2
 
@@ -1277,6 +1278,8 @@ def test_no_revisions_without_attempts(spec_file, tmp_path, monkeypatch):
     assert not result.ok
     assert result.outcomes[-1].step_name == "run_tests"
     assert not [o for o in result.outcomes if o.status == pipeline.OUTCOME_RECHECK]
+    # Not revised in this run: the failure advises running 'llm generate' again.
+    assert "run 'llm generate' again" in result.outcomes[-1].detail
 
 
 def test_solutions_groups_runs_only_with_groups_of_their_own(spec_file, tmp_path):

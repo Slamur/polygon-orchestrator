@@ -172,6 +172,9 @@ class StepOutcome:
     compile_errors: dict[str, str] = field(default_factory=dict)
     # Written source files with non-ASCII characters (artifact name -> message).
     charset_errors: dict[str, str] = field(default_factory=dict)
+    # A failed local run: the end of `detail` advising to run `llm generate` again —
+    # removed when the same run revises with the run's report (`revise_attempts`).
+    rerun_hint: str = ""
 
 
 @dataclass
@@ -487,7 +490,14 @@ def _run_step_into(
     except GateFailedError as exc:
         # The solutions don't behave as their names say: the report is in `llm_reports/`.
         result.outcomes.append(
-            StepOutcome(step_name, OUTCOME_FAILED, exc.detail, notes=exc.notes, ran=True)
+            StepOutcome(
+                step_name,
+                OUTCOME_FAILED,
+                exc.detail + exc.rerun_hint,
+                notes=exc.notes,
+                ran=True,
+                rerun_hint=exc.rerun_hint,
+            )
         )
         result.stopped_uncertain = True
         return False
@@ -876,6 +886,7 @@ def run_pipeline(
             if not to_revise:
                 return False
             gate_revisions[failed.step_name] = used + 1
+            failed.detail = failed.detail.removesuffix(failed.rerun_hint)
             result.stopped_uncertain = False
             result.outcomes.append(
                 StepOutcome(

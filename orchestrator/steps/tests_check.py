@@ -24,7 +24,11 @@ routed to it (`failed_report`) — and reruns even with a valid cache to revise 
 with them — while the run's result is a failure, its own files are the same as at the run
 and nothing else the run reads (the validator, the limits, the examples) has changed.
 So each step revises with one report once: its revised files make the report outdated
-for it, and the next run of `run_tests` writes a new one.
+for it, and the next run of `run_tests` writes a new one. An error routed to several steps
+goes only to the first of them that hasn't changed its files since the run: once an earlier
+step revised with it (e.g. the plan dropped a duplicated test), the later ones would revise
+with an error that may already be gone — they get the earlier step's changes as their usual
+input instead, and the next run of `run_tests` reports what is left.
 """
 
 from __future__ import annotations
@@ -218,7 +222,9 @@ class TestsGate:
     ) -> dict[str, Any] | None:
         """The last run's errors routed to `step_name` and the author's comment — if the run
         failed, the step's files are the same as at the run and nothing else the run read
-        has changed (see the module docstring); otherwise `None`."""
+        has changed (see the module docstring); otherwise `None`. An error also routed to
+        an earlier test step whose files changed since the run isn't `step_name`'s: that
+        step has already revised with it, and the next run shows whether it is fixed."""
         entry = load_cache_entry(problem_id, self.STEP_NAME, problems_dir=problems_dir)
         if entry is None or entry.status != STATUS_FAILED:
             return None
@@ -227,14 +233,20 @@ class TestsGate:
         recorded = report.get("files") or {}
         if recorded.get("other") != _digest(_file_hashes(problem_dir, _other_files(problem_dir))):
             return None
-        if recorded.get(step_name) != _digest(
-            _file_hashes(problem_dir, _step_files(problem_dir, step_name))
-        ):
+        changed = {
+            step
+            for step in REVISING_STEPS
+            if recorded.get(step)
+            != _digest(_file_hashes(problem_dir, _step_files(problem_dir, step)))
+        }
+        if step_name in changed:
             return None
+        earlier = REVISING_STEPS[: REVISING_STEPS.index(step_name)]
         issues = [
             issue
             for issue in report.get("issues", [])
-            if step_name in ROUTES.get(issue.get("kind", ""), ())
+            if step_name in (routes := ROUTES.get(issue.get("kind", ""), ()))
+            and not any(step in changed for step in earlier if step in routes)
         ]
         if not issues:
             return None
@@ -312,7 +324,7 @@ class TestsGate:
         notes = [_issue_note(issue) for issue in issues]
         notes += [{"field": "tests", "kind": "warning", "explanation": w} for w in warnings]
         if failed:
-            raise GateFailedError(_failure_detail(issues), notes)
+            raise GateFailedError(_failure_detail(issues), notes, _rerun_hint(issues))
         passed = {
             "field": "tests",
             "kind": "passed",
@@ -368,17 +380,27 @@ def _issue_note(issue: TestIssue) -> dict[str, Any]:
     return {"field": field, "kind": "error", "explanation": issue.message}
 
 
+def _routed_steps(issues: list[TestIssue]) -> list[str]:
+    return [step for step in REVISING_STEPS if any(step in ROUTES.get(i.kind, ()) for i in issues)]
+
+
 def _failure_detail(issues: list[TestIssue]) -> str:
-    routed = [
-        step for step in REVISING_STEPS if any(step in ROUTES.get(i.kind, ()) for i in issues)
-    ]
+    detail = f"{len(issues)} error(s) of the tests — see the report"
     unrouted = sum(1 for issue in issues if not ROUTES.get(issue.kind))
-    detail = f"{len(issues)} error(s) of the tests — see the report; fix the files by hand"
-    if routed:
-        detail += f", or run 'llm generate' again to let {', '.join(routed)} revise with the report"
     if unrouted:
         detail += (
             f" ({unrouted} error(s) come from no test step's files — the validator, "
             "the limits or the environment: fix them by hand)"
         )
     return detail
+
+
+def _rerun_hint(issues: list[TestIssue]) -> str:
+    """The advice to run `llm generate` again — dropped when this run revises itself."""
+    routed = _routed_steps(issues)
+    if not routed:
+        return ""
+    return (
+        "; fix the files by hand, or run 'llm generate' again to let "
+        f"{', '.join(routed)} revise with the report"
+    )
