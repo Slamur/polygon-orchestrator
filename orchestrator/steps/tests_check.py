@@ -24,7 +24,11 @@ routed to it (`failed_report`) — and reruns even with a valid cache to revise 
 with them — while the run's result is a failure, its own files are the same as at the run
 and nothing else the run reads (the validator, the limits, the examples) has changed.
 So each step revises with one report once: its revised files make the report outdated
-for it, and the next run of `run_tests` writes a new one.
+for it, and the next run of `run_tests` writes a new one. An error routed to several steps
+goes only to the first of them that hasn't changed its files since the run: once an earlier
+step revised with it (e.g. the plan dropped a duplicated test), the later ones would revise
+with an error that may already be gone — they get the earlier step's changes as their usual
+input instead, and the next run of `run_tests` reports what is left.
 """
 
 from __future__ import annotations
@@ -218,7 +222,9 @@ class TestsGate:
     ) -> dict[str, Any] | None:
         """The last run's errors routed to `step_name` and the author's comment — if the run
         failed, the step's files are the same as at the run and nothing else the run read
-        has changed (see the module docstring); otherwise `None`."""
+        has changed (see the module docstring); otherwise `None`. An error also routed to
+        an earlier test step whose files changed since the run isn't `step_name`'s: that
+        step has already revised with it, and the next run shows whether it is fixed."""
         entry = load_cache_entry(problem_id, self.STEP_NAME, problems_dir=problems_dir)
         if entry is None or entry.status != STATUS_FAILED:
             return None
@@ -227,14 +233,20 @@ class TestsGate:
         recorded = report.get("files") or {}
         if recorded.get("other") != _digest(_file_hashes(problem_dir, _other_files(problem_dir))):
             return None
-        if recorded.get(step_name) != _digest(
-            _file_hashes(problem_dir, _step_files(problem_dir, step_name))
-        ):
+        changed = {
+            step
+            for step in REVISING_STEPS
+            if recorded.get(step)
+            != _digest(_file_hashes(problem_dir, _step_files(problem_dir, step)))
+        }
+        if step_name in changed:
             return None
+        earlier = REVISING_STEPS[: REVISING_STEPS.index(step_name)]
         issues = [
             issue
             for issue in report.get("issues", [])
-            if step_name in ROUTES.get(issue.get("kind", ""), ())
+            if step_name in (routes := ROUTES.get(issue.get("kind", ""), ()))
+            and not any(step in changed for step in earlier if step in routes)
         ]
         if not issues:
             return None

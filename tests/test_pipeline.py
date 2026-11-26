@@ -1140,7 +1140,9 @@ def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
     for step in ("tests_plan", "generators_draft", "test_script_draft"):
         assert statuses[step].state == pipeline.STATUS_STALE
 
-    # Each test step revises with the errors; the fixed generator makes the run pass.
+    # The plan and the generators revise with the errors; the generators changed, so the
+    # script, after them, doesn't revise with the same errors. The fixed generator makes
+    # the run pass.
     responses = dict(_RESPONSES)
     responses["generators_draft"] = ModelResponse(
         status="confirmed", artifacts={"gen_rand.cpp": "int main() { /* reads n */ }"}
@@ -1152,12 +1154,9 @@ def test_failed_local_tests_stop_then_the_test_steps_revise_with_the_report(
         result = _run(problems_dir)
 
     assert result.ok
-    calls = mock_call.call_args_list[:3]
-    assert [call.args[0] for call in calls] == [
-        "tests_plan",
-        "generators_draft",
-        "test_script_draft",
-    ]
+    calls = mock_call.call_args_list[:2]
+    assert [call.args[0] for call in calls] == ["tests_plan", "generators_draft"]
+    assert "test_script_draft" not in [call.args[0] for call in mock_call.call_args_list]
     assert all(error in call.args[2] for call in calls)
     plan_outcome = next(o for o in result.outcomes if o.step_name == "tests_plan")
     assert plan_outcome.detail.startswith("the local tests 'run_tests' failed")

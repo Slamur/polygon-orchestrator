@@ -137,7 +137,10 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      examples) changed, the step reruns even with a valid cache (`forced_rerun_reason`) and
      revises its files with the errors routed to it and the author's comment from
      `llm_reports/run_tests.md` (`tests_run` in its prompt). Its revised files make the
-     report outdated for it. With `llm generate --revise-attempts N` (1 by default) the
+     report outdated for it — and an error also routed to a later step goes no further:
+     the later step gets the earlier one's changes as its usual input, and the next run
+     of `run_tests` shows whether the error is gone (why: otherwise a step revises with an
+     error the plan has already fixed, and its "not my files" answer stops the pipeline). With `llm generate --revise-attempts N` (1 by default) the
      steps revise and the run repeats in the same `llm generate`, up to N times.
    - **`tests_survivors`** — after the solution stages (`STEP_ORDER`, last): tests for the
      wrong solutions that the local runs `run_slow`/`run_wrong`/`run_groups` report as surviving — no

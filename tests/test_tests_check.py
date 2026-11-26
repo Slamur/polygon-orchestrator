@@ -144,9 +144,33 @@ def test_report_is_outdated_for_a_step_once_its_files_change(spec, problem_dir, 
 
     (problem_dir / "generators" / "gen_rand.cpp").write_text("int main(){ }\n", encoding="utf-8")
 
+    # The generators revised with the error: the script, after them, doesn't revise with
+    # it too; the plan, before them, still does.
     routed = _routed(problem_dir)
-    assert routed["generators_draft"] == []
-    assert routed["tests_plan"] == routed["test_script_draft"] == ["test 2: exit code 3"]
+    assert routed["generators_draft"] == routed["test_script_draft"] == []
+    assert routed["tests_plan"] == ["test 2: exit code 3"]
+
+
+def test_an_error_goes_to_later_steps_only_while_earlier_ones_keep_their_files(
+    spec, problem_dir, monkeypatch
+):
+    _stub(
+        monkeypatch,
+        Issue(ISSUE_EQUAL_TESTS, "test 1 = test 2"),
+        Issue(ISSUE_SCRIPT, "test 3: no -group"),
+    )
+    with pytest.raises(GateFailedError):
+        _run_gate(spec, problem_dir)
+
+    # The plan dropped the duplicated test: the generators and the script get it as their
+    # usual input, not the error; an error routed to the script alone stays the script's.
+    (problem_dir / "authoring" / "tests_design.yaml").write_text("ideas: [x]\n", encoding="utf-8")
+
+    assert _routed(problem_dir) == {
+        "tests_plan": [],
+        "generators_draft": [],
+        "test_script_draft": ["test 3: no -group"],
+    }
 
 
 def test_report_is_outdated_for_every_step_once_the_validator_changes(
