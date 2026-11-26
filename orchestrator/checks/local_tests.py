@@ -58,6 +58,7 @@ from orchestrator.checks.test_script_check import (
 )
 from orchestrator.polygon.sync import VALIDATOR_FILENAME
 from orchestrator.problem_paths import TEST_SCRIPT_FILENAME, is_removed_mark
+from orchestrator.resources import TESTLIB_FILENAME, include_dirs, resource_path
 from orchestrator.test_groups import EXAMPLES_GROUP, group_marker
 
 TESTS_CACHE_DIRNAME = ".tests_cache"
@@ -66,7 +67,6 @@ GENERATORS_DIRNAME = "generators"
 EXAMPLES_SUBDIR = "examples"
 _EXAMPLE_NAME = re.compile(r"^example_(\d+)\.txt$")
 _PROBLEM_LIB = "problem_lib.h"
-_TESTLIB = "testlib.h"
 # They change together with the `compile_check` flags: other flags — another build.
 _BUILD_VERSION = "g++ -std=c++17 -O2"
 _COMPILE_TIMEOUT_SECONDS = 60.0
@@ -174,29 +174,28 @@ def _generator_source(problem_dir: Path, name: str) -> Path | None:
     return path if path.is_file() and not is_removed_mark(path) else None
 
 
-def _build_hash(source: Path, problem_dir: Path, templates_dir: Path) -> str:
-    """The hash of everything the build depends on: the source and the shared headers — of the
-    same version the compiler finds (the problem's `-I`, then `templates/`)."""
+def _build_hash(source: Path, problem_dir: Path) -> str:
+    """The hash of everything the build depends on: the source and the resources — of the
+    same version the compiler finds (the problem's, then the default, see
+    `orchestrator/resources.py`)."""
     digest = hashlib.sha256(_BUILD_VERSION.encode("utf-8"))
     digest.update(source.read_bytes())
-    for header in (_PROBLEM_LIB, _TESTLIB):
-        for directory in (problem_dir, templates_dir):
-            path = directory / header
-            if path.is_file():
-                digest.update(path.read_bytes())
-                break
+    for header in (_PROBLEM_LIB, TESTLIB_FILENAME):
+        path = resource_path(problem_dir, header)
+        if path is not None:
+            digest.update(path.read_bytes())
     return digest.hexdigest()
 
 
 def _build_generator(
-    source: Path, build_hash: str, bin_dir: Path, problem_dir: Path, templates_dir: Path
+    source: Path, build_hash: str, bin_dir: Path, problem_dir: Path
 ) -> tuple[Path | None, str]:
     """(binary, error). The build is cached by `build_hash`."""
     target = bin_dir / f"{source.stem}-{build_hash[:16]}.bin"
     if target.is_file():
         return target, ""
     compiled = compile_check(
-        source, [problem_dir, templates_dir], timeout_seconds=_COMPILE_TIMEOUT_SECONDS
+        source, include_dirs(problem_dir), timeout_seconds=_COMPILE_TIMEOUT_SECONDS
     )
     if not compiled.success or compiled.binary_path is None:
         return None, compiled.stderr.strip()
@@ -239,13 +238,11 @@ def _describe_line(line: ScriptLine) -> str:
     return f'"{line.text}"{where}'
 
 
-def generate_tests(
-    problem_dir: Path, templates_dir: Path, progress: Progress | None = None
-) -> LocalTestsResult:
+def generate_tests(problem_dir: Path, progress: Progress | None = None) -> LocalTestsResult:
     """Expands the problem's script and brings the test cache to the current set (see the
     module docstring). An error in a line doesn't prevent generating the rest."""
     # Generators are run from the cache directory — the paths must be absolute.
-    problem_dir, templates_dir = Path(problem_dir).resolve(), Path(templates_dir).resolve()
+    problem_dir = Path(problem_dir).resolve()
     result = LocalTestsResult()
     script = problem_dir / TEST_SCRIPT_FILENAME
     if not script.is_file():
@@ -303,15 +300,13 @@ def generate_tests(
                 if source is None:
                     builds[name] = ("", None, f"no {GENERATORS_DIRNAME}/{name}.cpp")
                 else:
-                    build_hash = _build_hash(source, problem_dir, templates_dir)
+                    build_hash = _build_hash(source, problem_dir)
                     if (
                         progress is not None
                         and not (bin_dir / f"{name}-{build_hash[:16]}.bin").is_file()
                     ):
                         progress(f"building {name}")
-                    binary, error = _build_generator(
-                        source, build_hash, bin_dir, problem_dir, templates_dir
-                    )
+                    binary, error = _build_generator(source, build_hash, bin_dir, problem_dir)
                     builds[name] = (
                         build_hash,
                         binary,
@@ -521,32 +516,28 @@ def equal_test_issues(groups: list[EqualTests], tests: list[LocalTest]) -> list[
 
 def validate_tests(
     problem_dir: Path,
-    templates_dir: Path,
     tests: list[LocalTest],
     groups: list[TestGroup] | None = None,
 ) -> tuple[list[str], bool]:
     """(errors, whether the validator was run) — `validate_test_issues` as messages."""
-    issues, validated = validate_test_issues(problem_dir, templates_dir, tests, groups)
+    issues, validated = validate_test_issues(problem_dir, tests, groups)
     return [issue.message for issue in issues], validated
 
 
 def validate_test_issues(
     problem_dir: Path,
-    templates_dir: Path,
     tests: list[LocalTest],
     groups: list[TestGroup] | None = None,
 ) -> tuple[list[TestIssue], bool]:
     """(errors, whether the validator was run). No `validator.cpp` — it wasn't run.
     The build is cached, as for generators. With `groups` (the problem has test groups)
     a test with a group marker is validated with `--group <N>`."""
-    problem_dir, templates_dir = Path(problem_dir).resolve(), Path(templates_dir).resolve()
+    problem_dir = Path(problem_dir).resolve()
     source = problem_dir / VALIDATOR_FILENAME
     if not source.is_file():
         return [], False
     bin_dir = problem_dir / TESTS_CACHE_DIRNAME / "validator_bin"
-    binary, error = _build_generator(
-        source, _build_hash(source, problem_dir, templates_dir), bin_dir, problem_dir, templates_dir
-    )
+    binary, error = _build_generator(source, _build_hash(source, problem_dir), bin_dir, problem_dir)
     if binary is None:
         return [
             TestIssue(ISSUE_VALIDATOR_BUILD, f"{VALIDATOR_FILENAME}: compilation failed:\n{error}")

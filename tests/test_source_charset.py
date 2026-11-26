@@ -42,12 +42,12 @@ REPO_ROOT = Path(__file__).parent.parent
 
 
 def test_sample_sources_are_ascii():
-    # The model extends the samples' style, comments included (testlib.h is upstream).
+    # The model extends the samples' style, comments included (`resources/` is upstream).
     sources = [
         path
         for root in (REPO_ROOT / "examples", REPO_ROOT / "templates")
         for path in root.rglob("*")
-        if path.is_file() and is_source_file(path) and path.name != "testlib.h"
+        if path.is_file() and is_source_file(path)
     ]
     assert sources
     assert {path.relative_to(REPO_ROOT).as_posix(): charset_error(path) for path in sources} == {

@@ -28,7 +28,6 @@ from orchestrator.checks.test_script_check import ScriptCheckUnavailable, freema
 pytestmark = pytest.mark.slow
 
 PROBLEM_ID = "example-problem"
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 # Without testlib, so that the tests build fast: prints its arguments.
 GEN_ARGS_CPP = (
@@ -95,7 +94,7 @@ def _problem(
 
 
 def _generate(problem_dir: Path):
-    return generate_tests(problem_dir, TEMPLATES_DIR)
+    return generate_tests(problem_dir)
 
 
 def test_parse_chain_splits_stages_and_normalizes_command():
@@ -173,9 +172,10 @@ def test_generator_edit_regenerates_only_its_tests(tmp_path):
 
 def test_problem_lib_edit_regenerates_everything(tmp_path):
     problem_dir = _problem(tmp_path, "gen_args a > $\n")
-    (problem_dir / "problem_lib.h").write_text("// one\n", encoding="utf-8")
+    (problem_dir / "resources").mkdir()
+    (problem_dir / "resources" / "problem_lib.h").write_text("// one\n", encoding="utf-8")
     _generate(problem_dir)
-    (problem_dir / "problem_lib.h").write_text("// two\n", encoding="utf-8")
+    (problem_dir / "resources" / "problem_lib.h").write_text("// two\n", encoding="utf-8")
     assert _generate(problem_dir).generated == 1
 
 
@@ -183,7 +183,7 @@ def test_relative_problem_dir_works(tmp_path, monkeypatch):
     # Generators are run from the cache directory.
     _problem(tmp_path, "gen_args a > $\n")
     monkeypatch.chdir(tmp_path)
-    result = generate_tests(Path("problems") / PROBLEM_ID, TEMPLATES_DIR)
+    result = generate_tests(Path("problems") / PROBLEM_ID)
     assert result.errors == []
     assert result.tests[0].path.read_text() == "a\n"
 
@@ -272,11 +272,11 @@ def test_different_tests_are_not_equal(tmp_path):
 
 def test_validator_rejects_reports_test_and_command(tmp_path):
     problem_dir = _problem(tmp_path, "gen_args ok > $\ngen_args bad > $\n", validator=VALIDATOR_CPP)
-    errors, validated = validate_tests(problem_dir, TEMPLATES_DIR, _generate(problem_dir).tests)
+    errors, validated = validate_tests(problem_dir, _generate(problem_dir).tests)
     assert validated
     assert len(errors) == 1
     assert "test 2" in errors[0] and "gen_args bad" in errors[0]
-    [issue], _ = validate_test_issues(problem_dir, TEMPLATES_DIR, _generate(problem_dir).tests)
+    [issue], _ = validate_test_issues(problem_dir, _generate(problem_dir).tests)
     assert (issue.kind, issue.command, issue.script_line) == (
         ISSUE_VALIDATOR_REJECT,
         "gen_args bad",
@@ -286,7 +286,7 @@ def test_validator_rejects_reports_test_and_command(tmp_path):
 
 def test_no_validator_is_not_an_error(tmp_path):
     problem_dir = _problem(tmp_path, "gen_args a > $\n")
-    assert validate_tests(problem_dir, TEMPLATES_DIR, _generate(problem_dir).tests) == ([], False)
+    assert validate_tests(problem_dir, _generate(problem_dir).tests) == ([], False)
 
 
 def _check(tmp_path: Path, *flags: str) -> int:

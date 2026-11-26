@@ -92,6 +92,7 @@ from orchestrator.problem_paths import (
     is_authoring_name,
     is_removed_mark,
 )
+from orchestrator.resources import include_dirs, problem_resources_dir
 from orchestrator.statement_languages import DEFAULT_LANGUAGE
 from orchestrator.step_order import prompt_dir_name
 
@@ -130,7 +131,8 @@ INVALID_NAMES_SUBDIR = "invalid_names"
 # in nested directories — see `orchestrator/problem_paths.py`). They aren't attached to the
 # call by themselves — only as spec references (`orchestrator/references.py`).
 
-# Each problem has its own copy of `problem_lib.h` — `problems/<problem_id>/problem_lib.h`:
+# Each problem has its own copy of `problem_lib.h` — a resource of the problem,
+# `problems/<problem_id>/resources/problem_lib.h` (see `orchestrator/resources.py`):
 # the template `templates/problem_lib.h` is only its initial content, and the author's
 # edits for a particular problem are overwritten neither by the template, nor by
 # `llm generate`, nor by `polygon push`. The copy is created by `ensure_problem_lib` —
@@ -671,7 +673,7 @@ def template_problem_lib_path(templates_dir: Path = TEMPLATES_DIR) -> Path:
 
 
 def problem_lib_path(problem_id: str, problems_dir: Path = PROBLEMS_DIR) -> Path:
-    return Path(problems_dir) / problem_id / PROBLEM_LIB_FILENAME
+    return problem_resources_dir(Path(problems_dir) / problem_id) / PROBLEM_LIB_FILENAME
 
 
 def ensure_problem_lib(
@@ -1447,8 +1449,7 @@ def run_generative_step(
     if any(path.suffix == ".cpp" for path in to_compile.values()):
         ensure_problem_lib(problem_id, problems_dir=problems_dir, templates_dir=templates_dir)
     compile_results: dict[str, CompileResult] = {
-        # The problem's `problem_lib.h` — before the template's.
-        filename: compile_check(path, [Path(problems_dir) / problem_id, Path(templates_dir)])
+        filename: compile_check(path, include_dirs(Path(problems_dir) / problem_id))
         for filename, path in to_compile.items()
         if path.suffix == ".cpp"
     }

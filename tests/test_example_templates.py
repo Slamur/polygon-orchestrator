@@ -19,6 +19,7 @@ import pytest
 import yaml
 from compile_cache import source_key
 
+from orchestrator import resources
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.limits import LIMITS_FILENAME, extract_limits, parse_limits
 from orchestrator.problem_paths import (
@@ -243,13 +244,12 @@ _EXAMPLE_COMPILE_TIMEOUT_SECONDS = 120.0
 def _compile(cpp_path: Path, cache_dir: Path | None) -> str | None:
     """The compiler's stderr if `cpp_path` didn't build, otherwise None.
 
-    `problem_lib.h` is looked up as in the pipeline's compile-check, first in the problem
-    directory (a sample may have its own copy with the problem's functions), then in
-    `templates/`. A successful build is marked in `cache_dir` by `source_key`
+    The include directories are the pipeline's compile-check ones: the sample's own
+    resources (its `problem_lib.h`), then the default ones. A successful build is marked in `cache_dir` by `source_key`
     (the preprocessed source, the flags, the g++ version): the same input isn't rebuilt
     between pytest runs, a changed one is built honestly."""
     example_dir = next(example for example in EXAMPLE_DIRS if example in cpp_path.parents)
-    include_dirs = [example_dir, TEMPLATES_DIR]
+    include_dirs = resources.include_dirs(example_dir)
     key = source_key(cpp_path, include_dirs) if cache_dir else None
     marker = cache_dir / key if cache_dir and key else None
     if marker is not None and marker.exists():

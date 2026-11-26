@@ -63,7 +63,7 @@ def test_seeds_problem_copy_from_template_and_uploads_it(problems_dir, templates
 
     message = _run(spec, problems_dir, templates_dir, client)
 
-    assert (problems_dir / PROBLEM_ID / "problem_lib.h").read_bytes() == LIB_CONTENT
+    assert (problems_dir / PROBLEM_ID / "resources" / "problem_lib.h").read_bytes() == LIB_CONTENT
 
     client.call.assert_called_once()
     method, params = client.call.call_args.args
@@ -79,7 +79,9 @@ def test_seeds_problem_copy_from_template_and_uploads_it(problems_dir, templates
 
 def test_problem_copy_wins_over_template(problems_dir, templates_dir, spec):
     link(problems_dir)
-    (problems_dir / PROBLEM_ID / "problem_lib.h").write_bytes(b"// edited\n")
+    copy = problems_dir / PROBLEM_ID / "resources" / "problem_lib.h"
+    copy.parent.mkdir()
+    copy.write_bytes(b"// edited\n")
     client = MagicMock()
 
     _run(spec, problems_dir, templates_dir, client)
@@ -143,7 +145,7 @@ def test_status_not_run_then_done_then_stale(problems_dir, templates_dir, spec):
     (templates_dir / "problem_lib.h").write_bytes(b"// new template\n")
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
 
-    copy = problems_dir / PROBLEM_ID / "problem_lib.h"
+    copy = problems_dir / PROBLEM_ID / "resources" / "problem_lib.h"
     copy.write_bytes(LIB_CONTENT + b"// changed\n")
     assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "stale"
 

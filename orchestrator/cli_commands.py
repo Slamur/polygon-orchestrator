@@ -708,13 +708,13 @@ def cmd_local_check(args: argparse.Namespace) -> int:
     failed |= not scripts_ok
     if args.full:
         if scripts_ok:
-            failed |= not _check_generated_tests(problem_dir, Path(args.templates_dir))
+            failed |= not _check_generated_tests(problem_dir)
         else:
             print("tests are not generated: fix the test script first")
     return 1 if failed else 0
 
 
-def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
+def _check_generated_tests(problem_dir: Path) -> bool:
     """`local check --full`: tests from the script (with a cache), the validator on them and
     a search for tests identical in content (`orchestrator/checks/local_tests.py`) — in
     one test group or in groups one of which depends on the other; they are errors. A problem with test
@@ -724,7 +724,7 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     def progress(line: str) -> None:
         print(line, flush=True)
 
-    generated = generate_tests(problem_dir, templates_dir, progress=progress)
+    generated = generate_tests(problem_dir, progress=progress)
     print(
         f"tests: {len(generated.tests)} ({generated.generated} generated, "
         f"{generated.reused} from cache, {generated.removed} removed), "
@@ -737,9 +737,7 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
         marked = [(t.name, t.group, t.command) for t in generated.tests]
         print(count_by_group(marked, len(sample_paths(problem_dir))))
         errors += check_test_groups(groups, marked)
-    validator_errors, validated = validate_tests(
-        problem_dir, templates_dir, generated.tests, groups
-    )
+    validator_errors, validated = validate_tests(problem_dir, generated.tests, groups)
     errors += validator_errors
     if not validated:
         print(f"no {VALIDATOR_FILENAME}: tests are not validated")
@@ -783,7 +781,6 @@ def cmd_local_run(args: argparse.Namespace) -> int:
         return 1
     result = run_solutions(
         problem_dir,
-        Path(args.templates_dir),
         progress=lambda line: print(line, flush=True),
         full=args.full,
     )

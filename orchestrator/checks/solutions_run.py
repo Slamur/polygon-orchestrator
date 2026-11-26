@@ -22,7 +22,8 @@ What is done:
    see `_over_time`), RE — a non-zero exit code, otherwise —
    the checker's verdict (`checker.cpp` with `checker.custom_needed`, otherwise
    the standard testlib checker from `checker.standard` — the sources are in
-   `std_checkers/`, the same `testlib.h` from `templates/`).
+   `resources/testlib/checkers/`, built with the problem's resources, see
+   `orchestrator/resources.py`).
 4. What's allowed on the examples by the verdict in the solution's name —
    `ALLOWED_VERDICTS`: a solution with verdict X gets OK or X. Anything else is
    an error. A solution without the `tl` verdict that ran on an example longer than
@@ -177,6 +178,8 @@ from orchestrator.problem_paths import (
     find_authoring_file,
     is_removed_mark,
 )
+from orchestrator.resources import STD_CHECKERS_DIR
+from orchestrator.resources import include_dirs as build_include_dirs
 from orchestrator.spec import find_approach_marker, find_passed_groups, parse_wrong_approach
 from orchestrator.steps.statement_draft import dialogue_filenames
 from orchestrator.test_groups import EXAMPLES_GROUP
@@ -252,7 +255,6 @@ _SOFT_GROUP_FAILURES: dict[str, frozenset[str]] = {
 # Spellings of one verdict in a spec item and a file name.
 _VERDICT_ALIASES = {"tle": "tl", "mle": "ml"}
 
-STD_CHECKERS_DIR = Path(__file__).with_name("std_checkers")
 SOLUTIONS_DIRNAME = "solutions"
 
 _STD_PREFIX = "std::"
@@ -620,7 +622,6 @@ class _BuildError(Exception):
 
 def run_solutions(
     problem_dir: Path,
-    templates_dir: Path,
     progress: Progress | None = None,
     *,
     full: bool = False,
@@ -637,12 +638,12 @@ def run_solutions(
     result.test_groups, group_errors = load_test_groups(problem_dir)
     result.errors.extend(group_errors)
     tests = _sample_tests(problem_dir, spec)
-    generated = _generated_tests(problem_dir, templates_dir, result) if full else []
+    generated = _generated_tests(problem_dir, result) if full else []
     if not tests and not generated:
         result.note(f"no {STATEMENT_DIRNAME}/{EXAMPLES_SUBDIR}/example_<N>.txt — skipped")
         return result
 
-    include_dirs = [problem_dir, Path(templates_dir)]
+    include_dirs = build_include_dirs(problem_dir)
     interactive = _is_interactive(problem_dir, spec)
     with tempfile.TemporaryDirectory(prefix="solutions_run_") as tmp:
         work_dir = Path(tmp)
@@ -857,11 +858,9 @@ def _only_with_main(parsed: dict, only: Collection[str]) -> dict:
     return {name: p for name, p in parsed.items() if name in only or name == main_name}
 
 
-def _generated_tests(
-    problem_dir: Path, templates_dir: Path, result: SolutionsRunResult
-) -> list[LocalTest]:
+def _generated_tests(problem_dir: Path, result: SolutionsRunResult) -> list[LocalTest]:
     """Tests from the test-script, checked by the validator."""
-    generated = generate_tests(problem_dir, templates_dir, progress=result.progress)
+    generated = generate_tests(problem_dir, progress=result.progress)
     result.errors.extend(generated.errors)
     result.note(
         f"tests: {len(generated.tests)} ({generated.generated} generated, "
@@ -873,9 +872,7 @@ def _generated_tests(
         examples = len(example_files(problem_dir / STATEMENT_DIRNAME / EXAMPLES_SUBDIR))
         result.note(count_by_group(marked, examples))
         result.errors.extend(check_test_groups(result.test_groups, marked))
-    errors, validated = validate_tests(
-        problem_dir, templates_dir, generated.tests, result.test_groups
-    )
+    errors, validated = validate_tests(problem_dir, generated.tests, result.test_groups)
     result.errors.extend(errors)
     if validated and not errors:
         result.note(f"{VALIDATOR_FILENAME} accepts all {len(generated.tests)} test(s)")
