@@ -1,7 +1,7 @@
 # Default resources
 
 External files a problem's build uses, as Polygon's "Resource files" of a problem:
-`testlib.h` now, later the files for building the statement PDF. One directory per
+`testlib.h` and the files for building the statement PDF. One directory per
 upstream source, each with a README: where the files come from, the pinned version, how
 to update them.
 

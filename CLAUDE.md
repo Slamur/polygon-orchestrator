@@ -150,7 +150,8 @@ the user can see it) in the same PR.
 │                                    # don't touch the structure: problem_lib.h, *_format.yaml,
 │                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons)
 ├── resources/<source>/              # default external resources, unchanged from upstream: testlib/ (testlib.h,
-│                                    # checkers/ — the standard checkers); a problem's resources/ overrides them
+│                                    # checkers/ — the standard checkers), polygon-statement/ (olymp.sty,
+│                                    # problem.tex, statements.ftl); a problem's resources/ overrides them
 ├── examples/<input kind>/<gist>/    # sample problems in the problems/<problem path>/ layout
 ├── prompts/<step>/{system.md,user.md.j2}  # + spec_from_draft/, revise.md.j2, missing_artifacts.md.j2,
 │                                          #   check_failed.md.j2; rules/*.md — rules for the steps

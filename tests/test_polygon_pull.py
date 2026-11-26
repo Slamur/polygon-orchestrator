@@ -41,7 +41,7 @@ from orchestrator.polygon.steps import (
 from orchestrator.polygon.steps.base import PolygonStepError, run_step
 from orchestrator.polygon.steps.upload_test_script import normalize_script
 from orchestrator.polygon.sync import PULLED_CONSTRAINTS_HEADER
-from orchestrator.resources import TESTLIB_DIR, resource_path
+from orchestrator.resources import STATEMENT_RESOURCES_DIR, TESTLIB_DIR, resource_path
 from orchestrator.spec import load_spec
 from orchestrator.steps.base import template_problem_lib_path
 
@@ -635,14 +635,36 @@ def test_own_resource_is_compared_three_way(problems_dir, polygon):
 
 
 def test_resource_without_a_local_version_is_skipped(problems_dir, polygon):
-    polygon.resource_files["olymp.sty"] = b"% statement style\n"
+    polygon.resource_files["picture.mp"] = b"% a statement picture\n"
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert "resources/olymp.sty" not in _statuses(result)
-    assert not (problems_dir / PROBLEM_ID / "resources" / "olymp.sty").exists()
-    assert "resources/olymp.sty" not in _synced(problems_dir)
-    assert "olymp.sty" not in polygon.downloads()
+    assert "resources/picture.mp" not in _statuses(result)
+    assert not (problems_dir / PROBLEM_ID / "resources" / "picture.mp").exists()
+    assert "resources/picture.mp" not in _synced(problems_dir)
+    assert "picture.mp" not in polygon.downloads()
+
+
+@pytest.mark.parametrize("name", ["olymp.sty", "problem.tex", "statements.ftl"])
+def test_statement_resource_same_as_default_is_not_written(problems_dir, polygon, name):
+    # Polygon may send it with other line breaks than the default's
+    default = (STATEMENT_RESOURCES_DIR / name).read_bytes()
+    polygon.resource_files[name] = default.replace(b"\r\n", b"\n")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)[f"resources/{name}"] == ITEM_SAME
+    assert not (problems_dir / PROBLEM_ID / "resources" / name).exists()
+
+
+def test_statement_resource_different_from_default_becomes_the_problems_own(problems_dir, polygon):
+    polygon.resource_files["olymp.sty"] = b"% edited on Polygon\n"
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["resources/olymp.sty"] == ITEM_DOWNLOADED
+    path = problems_dir / PROBLEM_ID / "resources" / "olymp.sty"
+    assert path.read_bytes() == b"% edited on Polygon\n"
 
 
 def test_own_resource_missing_on_polygon_is_local_only(problems_dir, polygon):
