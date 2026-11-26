@@ -1211,6 +1211,8 @@ def test_failed_local_tests_are_revised_in_the_same_run(spec_file, tmp_path, mon
     ]
     assert result.outcomes[gate + 5].status == pipeline.OUTCOME_CONFIRMED
     assert names[-1] == "tests_survivors"
+    # The run revises itself: the failure doesn't advise running 'llm generate' again.
+    assert "llm generate" not in result.outcomes[gate].detail
     called = [c.args[0] for c in mock_call.call_args_list]
     assert called.count("generators_draft") == 2
 
@@ -1277,6 +1279,8 @@ def test_no_revisions_without_attempts(spec_file, tmp_path, monkeypatch):
     assert not result.ok
     assert result.outcomes[-1].step_name == "run_tests"
     assert not [o for o in result.outcomes if o.status == pipeline.OUTCOME_RECHECK]
+    # Not revised in this run: the failure advises running 'llm generate' again.
+    assert "run 'llm generate' again" in result.outcomes[-1].detail
 
 
 def test_solutions_groups_runs_only_with_groups_of_their_own(spec_file, tmp_path):

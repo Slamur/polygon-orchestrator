@@ -130,8 +130,10 @@ def test_failed_run_routes_each_error_to_the_steps_that_may_cause_it(
     assert {step for step, messages in routed.items() if messages} == steps
     assert all(messages in ([], ["test 2: broken"]) for messages in routed.values())
     if steps:
-        assert "revise with the report" in failure.value.detail
+        assert "revise with the report" in failure.value.rerun_hint
+        assert "revise with the report" not in failure.value.detail
     else:
+        assert failure.value.rerun_hint == ""
         assert "fix them by hand" in failure.value.detail
 
 

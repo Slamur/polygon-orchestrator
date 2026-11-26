@@ -312,7 +312,7 @@ class TestsGate:
         notes = [_issue_note(issue) for issue in issues]
         notes += [{"field": "tests", "kind": "warning", "explanation": w} for w in warnings]
         if failed:
-            raise GateFailedError(_failure_detail(issues), notes)
+            raise GateFailedError(_failure_detail(issues), notes, _rerun_hint(issues))
         passed = {
             "field": "tests",
             "kind": "passed",
@@ -368,17 +368,27 @@ def _issue_note(issue: TestIssue) -> dict[str, Any]:
     return {"field": field, "kind": "error", "explanation": issue.message}
 
 
+def _routed_steps(issues: list[TestIssue]) -> list[str]:
+    return [step for step in REVISING_STEPS if any(step in ROUTES.get(i.kind, ()) for i in issues)]
+
+
 def _failure_detail(issues: list[TestIssue]) -> str:
-    routed = [
-        step for step in REVISING_STEPS if any(step in ROUTES.get(i.kind, ()) for i in issues)
-    ]
+    detail = f"{len(issues)} error(s) of the tests — see the report"
     unrouted = sum(1 for issue in issues if not ROUTES.get(issue.kind))
-    detail = f"{len(issues)} error(s) of the tests — see the report; fix the files by hand"
-    if routed:
-        detail += f", or run 'llm generate' again to let {', '.join(routed)} revise with the report"
     if unrouted:
         detail += (
             f" ({unrouted} error(s) come from no test step's files — the validator, "
             "the limits or the environment: fix them by hand)"
         )
     return detail
+
+
+def _rerun_hint(issues: list[TestIssue]) -> str:
+    """The advice to run `llm generate` again — dropped when this run revises itself."""
+    routed = _routed_steps(issues)
+    if not routed:
+        return ""
+    return (
+        "; fix the files by hand, or run 'llm generate' again to let "
+        f"{', '.join(routed)} revise with the report"
+    )
