@@ -486,8 +486,8 @@ What's important to know:
 | `local clear` | Delete local tests and generator builds (`.tests_cache/`); doesn't touch the model's step cache, the Polygon state and backups |
 | `local fix` | Fix what `check` found: lists → `itemize`/`enumerate`, quotes → `<<…>>`; a backup in `.fix_backup/` |
 
-`local check --full`: identical tests are only shown, with the commands and script
-lines, they aren't considered an error. With test groups a test is
+`local check --full`: identical tests are errors, shown with the commands and script
+lines (in `llm generate` the `run_tests` step sends them to the test steps to revise). With test groups a test is
 compared with its own group and the groups it depends on, directly or not (the examples —
 group 0): such a group is judged only after those are passed, so the copy adds nothing; the
 same test in groups independent of each other is deliberate. Tests and generator builds lie in `.tests_cache/`, they

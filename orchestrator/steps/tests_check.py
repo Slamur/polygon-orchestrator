@@ -4,16 +4,18 @@ solutions, CLAUDE.md, "Role of each generative step", item 3, and
 `.claude/rules/step-roles/3-tests.md`.
 
 It is `local check --full` without the statement checks: the tests from the script (with
-the cache of `.tests_cache/`), the lines' groups, the validator on every test; identical
-tests are only reported. Any error fails the run and stops the pipeline: the solution
+the cache of `.tests_cache/`), the lines' groups, the validator on every test, tests
+identical in content (in one test group or in groups one of which depends on the other).
+Any error fails the run and stops the pipeline: the solution
 stages after it would only meet the same errors in their own runs.
 
 Each error has a kind (`local_tests.TestIssue`), and the kind says whose files may be at
 fault (`ROUTES`): a script that doesn't expand or a line without its group — the script;
 a generator that doesn't compile — the generators; a line that calls a generator with no
 source — the generators or the script; a generator that fails on a line or a test the
-validator rejects — the design (the commands' arguments), the generators (their code) and
-the script (how it wrote the plan's commands). The validator that doesn't compile, invalid
+validator rejects, or tests that come out identical — the design (the commands'
+arguments), the generators (their code) and the script (how it wrote the plan's
+commands). The validator that doesn't compile, invalid
 groups in `constraints.yaml`, no `java` — no step's, the author fixes them.
 
 The report (`.cache/run_tests.report.json`) keeps the errors and, for each step it is
@@ -44,14 +46,15 @@ from orchestrator.cache import (
 from orchestrator.cache import compute_input_hash as _cache_compute_input_hash
 from orchestrator.checks.local_tests import (
     GENERATORS_DIRNAME,
+    ISSUE_EQUAL_TESTS,
     ISSUE_GENERATOR_BUILD,
     ISSUE_GENERATOR_MISSING,
     ISSUE_GENERATOR_RUN,
     ISSUE_SCRIPT,
     ISSUE_VALIDATOR_REJECT,
     TestIssue,
+    equal_test_issues,
     find_equal_tests,
-    format_equal_tests,
     generate_tests,
     validate_test_issues,
 )
@@ -101,6 +104,7 @@ ROUTES: dict[str, tuple[str, ...]] = {
     ISSUE_GENERATOR_MISSING: (GENERATORS_STEP, TEST_SCRIPT_STEP),
     ISSUE_GENERATOR_RUN: REVISING_STEPS,
     ISSUE_VALIDATOR_REJECT: REVISING_STEPS,
+    ISSUE_EQUAL_TESTS: REVISING_STEPS,
 }
 # Invalid groups in `constraints.yaml`: no test step's.
 _ISSUE_CONSTRAINTS = "constraints"
@@ -355,7 +359,8 @@ def _run(
     validator_issues, _ = validate_test_issues(problem_dir, templates_dir, generated.tests, groups)
     issues += validator_issues
     equal = find_equal_tests(problem_dir, generated.tests, groups)
-    warnings = [format_equal_tests(equal, generated.tests)] if equal else []
+    issues += equal_test_issues(equal, generated.tests)
+    warnings: list[str] = []
     counts: dict[str | None, int] = {}
     for test in generated.tests:
         counts[test.group] = counts.get(test.group, 0) + 1

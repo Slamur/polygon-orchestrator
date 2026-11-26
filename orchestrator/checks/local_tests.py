@@ -26,9 +26,9 @@ What is done:
    examples — group 0, no group depends on it): the group is judged only after those
    are passed, so the copy adds nothing; the same test in groups independent of each
    other is deliberate. Line endings
-   are normalized, the rest is compared byte by byte. This is information for the author,
-   not an error: `format_equal_tests` shows which script lines they
-   correspond to, the exit code doesn't depend on them.
+   are normalized, the rest is compared byte by byte. Each group of equal tests is an
+   error (`equal_test_issues`) with the script lines they correspond to; examples
+   equal only to each other are the statement's matter, not the tests'.
 5. The validator (`validator.cpp`, if any) is run on each test. A problem with test
    groups (`test_groups` in `constraints.yaml`, `test_groups.py`): a test's group is the
    `-group=<N>` marker of its script line, the validator gets `--group <N>`, as on
@@ -113,6 +113,10 @@ ISSUE_GENERATOR_RUN = "generator_run"  # a generator of a line fails or prints n
 ISSUE_VALIDATOR_BUILD = "validator_build"
 ISSUE_VALIDATOR_REJECT = "validator_reject"  # the validator rejects a test or times out
 ISSUE_UNAVAILABLE = "unavailable"  # the script can't be checked here (no `java`)
+# Script tests with identical contents in one group or in groups one of which depends on
+# the other (`find_equal_tests`); only examples equal to each other — `ISSUE_EQUAL_EXAMPLES`.
+ISSUE_EQUAL_TESTS = "equal_tests"
+ISSUE_EQUAL_EXAMPLES = "equal_examples"
 
 
 @dataclass(frozen=True)
@@ -474,21 +478,45 @@ def clear_local_caches(problem_dir: Path) -> list[tuple[str, int]]:
     return removed
 
 
-def format_equal_tests(groups: list[EqualTests], tests: list[LocalTest]) -> str:
-    """The report: which tests turn out identical when run and which script
-    lines correspond to them."""
+def _equal_lines(group: EqualTests, tests: list[LocalTest]) -> list[str]:
     by_name = {test.name: test for test in tests}
-    lines = [f"equal tests: {len(groups)} group(s) come out identical when generated:"]
+    lines = [" = ".join(group.names)]
+    for name in group.names:
+        test = by_name.get(name)
+        if test is None:
+            lines.append(f"  {name}: example of the statement")
+            continue
+        where = f" ({test.script} line {test.script_line})" if test.script_line else ""
+        lines.append(f"  {name}: {test.command}{where}")
+    return lines
+
+
+def equal_test_issues(groups: list[EqualTests], tests: list[LocalTest]) -> list[TestIssue]:
+    """An error per group of `find_equal_tests`: a copy of a test in the same test group or
+    in a group that depends on the other's adds nothing — the generated contents, not the
+    commands, are compared. Only examples equal to each other — not the tests' error."""
+    by_name = {test.name: test for test in tests}
+    issues = []
     for group in groups:
-        lines.append("  " + " = ".join(group.names))
-        for name in group.names:
-            test = by_name.get(name)
-            if test is None:
-                lines.append(f"    {name}: example of the statement")
-                continue
-            where = f" ({test.script} line {test.script_line})" if test.script_line else ""
-            lines.append(f"    {name}: {test.command}{where}")
-    return "\n".join(lines)
+        script_tests = [by_name[name] for name in group.names if name in by_name]
+        first = script_tests[0] if script_tests else None
+        message = "\n".join(
+            [
+                "equal tests: these come out identical when generated, in one test group "
+                "or in groups one of which depends on the other (the copy adds nothing — "
+                "keep one, or make the others differ):",
+                *("  " + line for line in _equal_lines(group, tests)),
+            ]
+        )
+        issues.append(
+            TestIssue(
+                ISSUE_EQUAL_TESTS if first else ISSUE_EQUAL_EXAMPLES,
+                message,
+                command=first.command if first else None,
+                script_line=first.script_line if first else None,
+            )
+        )
+    return issues
 
 
 def validate_tests(

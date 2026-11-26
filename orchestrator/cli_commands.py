@@ -21,8 +21,8 @@ from orchestrator.checks.local_tests import (
     MANIFEST_FILENAME,
     TESTS_CACHE_DIRNAME,
     clear_local_caches,
+    equal_test_issues,
     find_equal_tests,
-    format_equal_tests,
     generate_tests,
     sample_paths,
     validate_tests,
@@ -716,8 +716,8 @@ def cmd_local_check(args: argparse.Namespace) -> int:
 
 def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     """`local check --full`: tests from the script (with a cache), the validator on them and
-    a search for tests identical in content (`orchestrator/checks/local_tests.py`).
-    Identical tests are only shown, they aren't considered an error. A problem with test
+    a search for tests identical in content (`orchestrator/checks/local_tests.py`) — in
+    one test group or in groups one of which depends on the other; they are errors. A problem with test
     groups: the tests' groups by the `-group=<N>` markers, the validator with `--group <N>`
     (`orchestrator/checks/test_groups.py`)."""
 
@@ -746,7 +746,9 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
     elif not validator_errors:
         print(f"{VALIDATOR_FILENAME} accepts all {len(generated.tests)} test(s)")
     equal = find_equal_tests(problem_dir, generated.tests, groups)
-    print(format_equal_tests(equal, generated.tests) if equal else "no equal tests")
+    if not equal:
+        print("no equal tests")
+    errors += [issue.message for issue in equal_test_issues(equal, generated.tests)]
     for error in errors:
         print(error)
     return not errors

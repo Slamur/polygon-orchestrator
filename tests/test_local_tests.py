@@ -5,6 +5,8 @@ import pytest
 
 from orchestrator import cli
 from orchestrator.checks.local_tests import (
+    ISSUE_EQUAL_EXAMPLES,
+    ISSUE_EQUAL_TESTS,
     ISSUE_GENERATOR_BUILD,
     ISSUE_GENERATOR_MISSING,
     ISSUE_GENERATOR_RUN,
@@ -12,6 +14,7 @@ from orchestrator.checks.local_tests import (
     ISSUE_VALIDATOR_REJECT,
     MANIFEST_FILENAME,
     TESTS_CACHE_DIRNAME,
+    equal_test_issues,
     find_equal_tests,
     generate_tests,
     parse_chain,
@@ -301,16 +304,16 @@ def test_cli_full_passes_on_good_tests(tmp_path, capsys):
     assert "no equal tests" in out
 
 
-def test_cli_full_shows_equal_tests_with_script_lines_without_failing(tmp_path, capsys):
+def test_cli_full_fails_on_equal_tests_with_script_lines(tmp_path, capsys):
     _problem(
         tmp_path,
         "gen_args a > $\n\ngen_other a > $\ngen_args x > $\n",
         generators={"gen_args": GEN_ARGS_CPP, "gen_other": GEN_ARGS_CPP},
         examples=("x\n",),
     )
-    assert _check(tmp_path, "--full") == 0
+    assert _check(tmp_path, "--full") == 1
     out = capsys.readouterr().out
-    assert "equal tests: 2 group(s)" in out
+    assert out.count("equal tests: these come out identical") == 2
     assert "test 2 = test 3" in out
     assert "test 2: gen_args a (test_script line 1)" in out
     assert "test 3: gen_other a (test_script line 3)" in out
@@ -448,6 +451,21 @@ def test_equal_tests_follow_the_dependencies_transitively(tmp_path):
     )
     (problem_dir / "authoring" / "constraints.yaml").write_text(DAG_CONSTRAINTS, encoding="utf-8")
     assert _equal_names(problem_dir) == [["test 2", "test 8"], ["test 4", "test 10"]]
+
+
+def test_equal_tests_are_errors_and_equal_examples_are_not_the_tests(tmp_path):
+    problem_dir = _problem(
+        tmp_path,
+        "gen_args a > $\ngen_args b > $\n",
+        examples=("x\n", "x\n", "a\n"),
+    )
+    result = _generate(problem_dir)
+    issues = equal_test_issues(find_equal_tests(problem_dir, result.tests), result.tests)
+    assert [(issue.kind, issue.command, issue.script_line) for issue in issues] == [
+        (ISSUE_EQUAL_EXAMPLES, None, None),
+        (ISSUE_EQUAL_TESTS, "gen_args a", 1),
+    ]
+    assert "example_3 = test 4" in issues[1].message
 
 
 def test_tests_take_their_group_from_the_marker(tmp_path):

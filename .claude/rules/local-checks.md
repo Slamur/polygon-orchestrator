@@ -41,8 +41,8 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   (`ORCHESTRATOR_SKIP_SCRIPT_CHECK=1` turns it off). Details — in the
   docstring of `orchestrator/checks/test_script_check.py`.
   With `--full` it also generates tests from the script locally, runs the
-  validator on them and shows the ones identical in content, together with the examples, and
-  the script lines corresponding to them (the exit code doesn't depend on them). With test
+  validator on them and reports the ones identical in content, together with the examples, and
+  the script lines corresponding to them, as errors. With test
   groups a test is compared with the tests of its own group and of the groups it depends on,
   directly or through other groups (the examples — group 0, no group depends on it): the
   group is judged only after those are passed, so the copy adds nothing; the same test in
