@@ -1,0 +1,14 @@
+% \Extra{<text>}: the statement's extra fragment (README.md, "`polygon` - syncing with Polygon").
+\makeatletter
+\def\Extra@on{\ifdefined\pdfliteral\pdfliteral direct{3 Tr}\fi}%
+\def\Extra@off{\ifdefined\pdfliteral\pdfliteral direct{0 Tr}\fi}%
+\def\Extra@text#1{\Extra@on\foreignlanguage{russian}{\fontsize{5}{5}\selectfont#1}\Extra@off}%
+\def\Extra#1{%
+  \ifvmode
+    \par\nointerlineskip
+    \vbox to 0pt{\scalebox{0.1}{\parbox[t]{10\linewidth}{\raggedright\Extra@text{#1}}}\vss}%
+  \else
+    \rlap{\scalebox{0.1}{\Extra@text{#1}}}%
+  \fi
+}%
+\makeatother

@@ -219,3 +219,43 @@ def test_status_sees_own_resources(problems_dir, templates_dir, spec):
     status, detail = step.compute_status(PROBLEM_ID, problems_dir)
     assert status == "stale"
     assert "resources/testlib.h" in detail
+
+
+# --- The files of \Extra ---
+
+
+def _statement(problems_dir, text: str):
+    path = problems_dir / PROBLEM_ID / "statement" / "ru" / "legend.tex"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def test_extra_files_are_added_and_uploaded(problems_dir, templates_dir, spec):
+    (templates_dir / "extra.tex").write_bytes(b"\\def\\Extra#1{}%\n")
+    link(problems_dir)
+    _statement(problems_dir, "Text\\Extra{hidden} text.\n")
+    step = make_step(templates_dir)
+    assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "not run"
+    client = MagicMock()
+
+    _run(spec, problems_dir, templates_dir, client)
+
+    assert _uploaded_names(client) == ["extra.tex", "problem.tex", "problem_lib.h"]
+    problem_tex = (problems_dir / PROBLEM_ID / "resources" / "problem.tex").read_bytes()
+    assert problem_tex.startswith(b"\\input{extra.tex}%\n")
+    assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+
+def test_status_sees_extra_files_before_push(problems_dir, templates_dir, spec):
+    (templates_dir / "extra.tex").write_bytes(b"\\def\\Extra#1{}%\n")
+    step = make_step(templates_dir)
+    link(problems_dir)
+    _run(spec, problems_dir, templates_dir, MagicMock())
+    assert step.compute_status(PROBLEM_ID, problems_dir)[0] == "done"
+
+    _statement(problems_dir, "\\Extra{hidden}\n")
+    status, detail = step.compute_status(PROBLEM_ID, problems_dir)
+
+    assert status == "stale"
+    assert "resources/extra.tex" in detail
+    assert not (problems_dir / PROBLEM_ID / "resources" / "extra.tex").exists()
