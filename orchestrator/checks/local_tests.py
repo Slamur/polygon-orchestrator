@@ -21,9 +21,11 @@ What is done:
    are deleted. `manifest.txt` there — the number, file and command of each
    test, for manual inspection.
 4. Identical tests are searched for by content (`find_equal_tests`), together with
-   the examples: different commands can give the same test. With test groups — only
-   within one group (the examples — group 0): the same test in several groups is
-   deliberate. Line endings
+   the examples: different commands can give the same test. With test groups — within
+   one group and between a group and the groups it depends on, directly or not (the
+   examples — group 0, no group depends on it): the group is judged only after those
+   are passed, so the copy adds nothing; the same test in groups independent of each
+   other is deliberate. Line endings
    are normalized, the rest is compared byte by byte. This is information for the author,
    not an error: `format_equal_tests` shows which script lines they
    correspond to, the exit code doesn't depend on them.
@@ -47,7 +49,7 @@ from pathlib import Path
 from orchestrator.checks.compile_check import compile_check
 from orchestrator.checks.run_with_timeout import _raise_stack_limit
 from orchestrator.checks.statement_check import STATEMENT_DIRNAME
-from orchestrator.checks.test_groups import VALIDATOR_GROUP_OPTION, TestGroup
+from orchestrator.checks.test_groups import VALIDATOR_GROUP_OPTION, TestGroup, upstream_groups
 from orchestrator.checks.test_script_check import (
     ScriptCheckUnavailable,
     ScriptLine,
@@ -408,19 +410,52 @@ def _normalized_hash(path: Path) -> str:
     return _sha256(path.read_bytes().replace(b"\r\n", b"\n"))
 
 
-def find_equal_tests(problem_dir: Path, tests: list[LocalTest]) -> list[EqualTests]:
+def find_equal_tests(
+    problem_dir: Path, tests: list[LocalTest], groups: list[TestGroup] | None = None
+) -> list[EqualTests]:
     """Groups of tests (and examples) with identical contents — in the order of first
-    appearance. With test groups (some test has a `-group` marker) only the tests of one
-    group are compared, the examples being group 0: the same test in several groups is
-    deliberate (e.g. an edge case that fits several groups' limits), so it isn't reported."""
+    appearance. With test groups (some test has a `-group` marker) a test is compared
+    with the tests of its own group and of the groups it depends on, directly or not
+    (`groups`' `dependencies`, `upstream_groups`; the examples are group 0, which no group
+    depends on): such a copy adds nothing — the group is judged only after those are
+    passed. The same test in groups independent of each other is deliberate (e.g. an edge
+    case that fits several groups' limits), so it isn't reported."""
     grouped = any(test.group is not None for test in tests)
     examples_group = EXAMPLES_GROUP if grouped else None
-    groups: dict[tuple[str | None, str], list[str]] = {}
-    for name, path in sample_paths(problem_dir):
-        groups.setdefault((examples_group, _normalized_hash(path)), []).append(name)
-    for test in tests:
-        groups.setdefault((test.group, _normalized_hash(test.path)), []).append(test.name)
-    return [EqualTests(names) for names in groups.values() if len(names) > 1]
+    upstream = upstream_groups(groups or [])
+    entries = [(examples_group, name, path) for name, path in sample_paths(problem_dir)]
+    entries += [(test.group, test.name, test.path) for test in tests]
+    by_content: dict[str, list[int]] = {}
+    for index, (_, _, path) in enumerate(entries):
+        by_content.setdefault(_normalized_hash(path), []).append(index)
+
+    def related(first: str | None, second: str | None) -> bool:
+        return (
+            first == second
+            or first in upstream.get(second or "", ())
+            or second in upstream.get(first or "", ())
+        )
+
+    # Connected components of "the same group or one depends on the other" among the
+    # entries of one content.
+    parent = list(range(len(entries)))
+
+    def root(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    for same in by_content.values():
+        for position, i in enumerate(same):
+            for j in same[:position]:
+                if related(entries[i][0], entries[j][0]):
+                    parent[root(i)] = root(j)
+    components: dict[int, list[int]] = {}
+    for index in range(len(entries)):
+        components.setdefault(root(index), []).append(index)
+    found = sorted(indices for indices in components.values() if len(indices) > 1)
+    return [EqualTests([entries[i][1] for i in indices]) for indices in found]
 
 
 def clear_local_caches(problem_dir: Path) -> list[tuple[str, int]]:

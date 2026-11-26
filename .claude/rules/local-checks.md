@@ -43,8 +43,11 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   With `--full` it also generates tests from the script locally, runs the
   validator on them and shows the ones identical in content, together with the examples, and
   the script lines corresponding to them (the exit code doesn't depend on them). With test
-  groups only the tests of one group are compared (the examples — group 0): the same test in
-  several groups is deliberate, e.g. an edge case that fits several groups' limits. The cache —
+  groups a test is compared with the tests of its own group and of the groups it depends on,
+  directly or through other groups (the examples — group 0, no group depends on it): the
+  group is judged only after those are passed, so the copy adds nothing; the same test in
+  groups independent of each other is deliberate, e.g. an edge case that fits several
+  groups' limits. The cache —
   `.tests_cache/`: a test's key is the hash of the command and of the build of its generators, so
   renumbering regenerates nothing, editing a generator — only the tests
   with it, tests with vanished keys are deleted (`manifest.txt` — the number, file

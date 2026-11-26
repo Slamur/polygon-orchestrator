@@ -354,7 +354,7 @@ def _run(
         issues += [TestIssue(ISSUE_SCRIPT, error) for error in check_test_groups(groups, marked)]
     validator_issues, _ = validate_test_issues(problem_dir, templates_dir, generated.tests, groups)
     issues += validator_issues
-    equal = find_equal_tests(problem_dir, generated.tests)
+    equal = find_equal_tests(problem_dir, generated.tests, groups)
     warnings = [format_equal_tests(equal, generated.tests)] if equal else []
     counts: dict[str | None, int] = {}
     for test in generated.tests:

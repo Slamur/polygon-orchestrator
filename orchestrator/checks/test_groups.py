@@ -97,6 +97,24 @@ def load_test_groups(problem_dir: Path) -> tuple[list[TestGroup] | None, list[st
     return [test_group(hint) for hint in hints], []
 
 
+def upstream_groups(groups: list[TestGroup]) -> dict[str, frozenset[str]]:
+    """The groups each group depends on, directly or through other groups — the
+    transitive closure of `dependencies`. A group's tests are judged only after all of
+    these are passed."""
+    direct = {group.name: group.dependencies for group in groups}
+    closure: dict[str, frozenset[str]] = {}
+    for name in direct:
+        seen: set[str] = set()
+        pending = list(direct[name])
+        while pending:
+            current = pending.pop()
+            if current not in seen:
+                seen.add(current)
+                pending.extend(direct.get(current, ()))
+        closure[name] = frozenset(seen - {name})
+    return closure
+
+
 def test_group(hint) -> TestGroup:
     """A group of `constraints.yaml` (`TestGroupHint`) for the local checks."""
     return TestGroup(

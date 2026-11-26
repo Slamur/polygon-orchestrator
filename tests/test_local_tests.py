@@ -18,6 +18,7 @@ from orchestrator.checks.local_tests import (
     validate_test_issues,
     validate_tests,
 )
+from orchestrator.checks.test_groups import load_test_groups
 from orchestrator.checks.test_script_check import ScriptCheckUnavailable, freemarker_jar
 
 # The module's tests build and run C++/Java, see the slow marker in pyproject.toml.
@@ -405,18 +406,48 @@ def _groups_problem(tmp_path: Path, script: str) -> Path:
     return problem_dir
 
 
-def test_equal_tests_are_compared_within_a_group(tmp_path):
-    # 5 in groups 1 and 2 and 50 in group 2 and in the examples (group 0) — deliberate;
-    # 7 twice in group 1 (the second argument isn't printed) — a real duplicate.
+def _equal_names(problem_dir: Path) -> list[list[str]]:
+    result = _generate(problem_dir)
+    assert result.errors == []
+    groups, errors = load_test_groups(problem_dir)
+    assert errors == []
+    return [group.names for group in find_equal_tests(problem_dir, result.tests, groups)]
+
+
+def test_equal_tests_are_compared_within_a_group_and_with_its_dependencies(tmp_path):
+    # 7 twice in group 1 (the second argument isn't printed) — a real duplicate; 5 in
+    # group 1 and in group 2, which depends on it — a copy that adds nothing; 50 in
+    # group 2 and in the examples (group 0, no group depends on it) — deliberate.
     problem_dir = _groups_problem(
         tmp_path,
         "gen_first 5 -group=1 > $\ngen_first 7 -group=1 > $\ngen_first 7 x -group=1 > $\n"
         "gen_first 5 -group=2 > $\ngen_first 50 -group=2 > $\n",
     )
-    result = _generate(problem_dir)
-    assert result.errors == []
-    groups = [group.names for group in find_equal_tests(problem_dir, result.tests)]
-    assert groups == [["test 3", "test 4"]]
+    assert _equal_names(problem_dir) == [["test 2", "test 5"], ["test 3", "test 4"]]
+
+
+DAG_CONSTRAINTS = (
+    "test_groups:\n"
+    '  - name: "1"\n    points: 10\n    dependencies: []\n'
+    '  - name: "2"\n    points: 20\n    dependencies: ["1"]\n'
+    '  - name: "3"\n    points: 30\n    dependencies: ["1"]\n'
+    '  - name: "4"\n    points: 40\n    dependencies: ["2"]\n'
+)
+
+
+def test_equal_tests_follow_the_dependencies_transitively(tmp_path):
+    # 5 in groups 2 and 3 — independent of each other, deliberate; 7 in groups 1 and 4 —
+    # 4 depends on 1 through 2; 9 in groups 3 and 4 — independent; 8 in 2, 3 and 4 —
+    # 4 depends on 2, 3 is independent of both.
+    problem_dir = _groups_problem(
+        tmp_path,
+        "gen_first 7 -group=1 > $\n"
+        "gen_first 5 -group=2 > $\ngen_first 8 -group=2 > $\n"
+        "gen_first 5 -group=3 > $\ngen_first 9 -group=3 > $\ngen_first 8 -group=3 > $\n"
+        "gen_first 7 -group=4 > $\ngen_first 9 -group=4 > $\ngen_first 8 -group=4 > $\n",
+    )
+    (problem_dir / "authoring" / "constraints.yaml").write_text(DAG_CONSTRAINTS, encoding="utf-8")
+    assert _equal_names(problem_dir) == [["test 2", "test 8"], ["test 4", "test 10"]]
 
 
 def test_tests_take_their_group_from_the_marker(tmp_path):

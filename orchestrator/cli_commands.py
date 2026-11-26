@@ -745,7 +745,7 @@ def _check_generated_tests(problem_dir: Path, templates_dir: Path) -> bool:
         print(f"no {VALIDATOR_FILENAME}: tests are not validated")
     elif not validator_errors:
         print(f"{VALIDATOR_FILENAME} accepts all {len(generated.tests)} test(s)")
-    equal = find_equal_tests(problem_dir, generated.tests)
+    equal = find_equal_tests(problem_dir, generated.tests, groups)
     print(format_equal_tests(equal, generated.tests) if equal else "no equal tests")
     for error in errors:
         print(error)
