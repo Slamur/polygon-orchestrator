@@ -44,6 +44,14 @@ import traceback
 from pathlib import Path
 
 from orchestrator.cache import PROMPTS_DIR, TEMPLATES_DIR
+from orchestrator.contests import (
+    CONTESTS_DIR,
+    ContestError,
+    contest_address,
+    contest_paths,
+    is_contest_address,
+    parse_contest_address,
+)
 from orchestrator.drafts import DRAFTS_DIR, draft_names
 from orchestrator.problem_paths import (
     PROBLEM_ROOTS,
@@ -70,7 +78,8 @@ def _complete_problem_addresses(
     """Tab completion candidates for the problem address: the addresses of all problems in
     `problems/` and `examples/` — with a spec (`spec.yaml`) or without it, only
     with `polygon_state.json` (`polygon status|pull` don't need a spec, and the command
-    is typed after the address and is still unknown at the moment of completion).
+    is typed after the address and is still unknown at the moment of completion), and the
+    addresses of the contests in `contests/` (`orchestrator/contests.py`).
 
     The list isn't stored anywhere, it's read from the directories on every Tab press —
     taking `--base-dir` into account, if it's already typed on the command line.
@@ -81,7 +90,7 @@ def _complete_problem_addresses(
         problem_address(root, path)
         for root in PROBLEM_ROOTS
         for path in problem_paths(base_dir / root)
-    ]
+    ] + [contest_address(path) for path in contest_paths(base_dir / CONTESTS_DIR)]
 
 
 def _complete_draft_names(prefix: str, parsed_args: argparse.Namespace, **kwargs) -> list[str]:
@@ -143,7 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="problem directory with its root: problems/<path> or examples/<path>, "
         "e.g. problems/contest/my-task (spec: <PROBLEM>/authoring/spec.yaml); or a directory "
         "above problems, e.g. problems/contest or examples: the command runs for every problem "
-        "under it, after a confirmation",
+        "under it, after a confirmation; or a contest, contests/<path>: only 'polygon status'",
     ).completer = _complete_problem_addresses
 
     pipelines = parser.add_subparsers(dest="pipeline", required=True)
@@ -391,7 +400,10 @@ def build_parser() -> argparse.ArgumentParser:
     polygon_push_parser.set_defaults(handler="cmd_polygon_push")
 
     polygon_status_parser = polygon_commands.add_parser(
-        "status", help="which polygon steps are already done, without network access"
+        "status",
+        help="which polygon steps are already done, without network access; for a contest "
+        "(contests/<path>) — its problems on Polygon against contest.yaml (reads the contest "
+        "from Polygon)",
     )
     polygon_status_parser.set_defaults(handler="cmd_polygon_status")
 
@@ -444,6 +456,8 @@ def main(argv: list[str] | None = None) -> int:
         argv = sys.argv[1:]
     args = parser.parse_args(argv)
     args.command_line = " ".join(argv)
+    if is_contest_address(args.problem):
+        return _run_contest(parser, args)
     # From here on the problem is addressed by a pair (root, path inside the root) — see
     # `orchestrator/problem_paths.py`.
     try:
@@ -463,6 +477,23 @@ def main(argv: list[str] | None = None) -> int:
     if group:
         return _run_group(args, root, group)
     return _run_problem(args, path)
+
+
+def _run_contest(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
+    """A command for a contest (`contests/<path>`, `orchestrator/contests.py`): only
+    `polygon status` — the contest's problems on Polygon against its `contest.yaml`."""
+    if args.handler != "cmd_polygon_status":
+        parser.error(
+            f"{args.problem} is a contest: only 'polygon status' works for a contest; "
+            "give a problem or a group address for other commands"
+        )
+    try:
+        args.contest_path = parse_contest_address(args.problem)
+    except ContestError as exc:
+        parser.error(str(exc))
+    from orchestrator import cli_commands
+
+    return cli_commands.cmd_contest_status(args)
 
 
 def _run_problem(args: argparse.Namespace, problem_path: str) -> int:

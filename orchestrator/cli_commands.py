@@ -677,6 +677,53 @@ def cmd_polygon_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_contest_status(args: argparse.Namespace) -> int:
+    """`orchestrator contests/<path> polygon status`: one read of the contest on Polygon
+    (`contest.problems`) against its `contest.yaml`, the local push state of each problem
+    and which statement files of the contest are its own (`orchestrator/polygon/contest.py`,
+    `orchestrator/contests.py`). Exit code 1 — a line needs attention or an error."""
+    from orchestrator.contests import ContestError, contest_address, contest_resources, load_contest
+    from orchestrator.polygon.client import PolygonClient
+    from orchestrator.polygon.contest import contest_status, fetch_contest_problems
+    from orchestrator.resources import RESOURCES_DIR
+
+    address = contest_address(args.contest_path)
+    try:
+        contest = load_contest(args.base_dir, args.contest_path)
+    except ContestError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    try:
+        polygon_problems = fetch_contest_problems(PolygonClient(), contest)
+    except (PolygonApiError, RuntimeError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    rows = contest_status(contest, polygon_problems)
+    print(
+        f"{address}: Polygon contest {contest.polygon_id}, {len(polygon_problems)} problem(s) "
+        f"on Polygon, {len(contest.problems)} in contest.yaml"
+    )
+    name_width = max((len(row.name) for row in rows), default=0)
+    for row in rows:
+        letter = row.letter or "-"
+        where = row.address or f"Polygon problem {row.polygon_id}"
+        line = f"  {letter:<2} {row.name:<{name_width}}  {where}"
+        print(line + (": ok" if row.ok else ""))
+        for note in row.notes:
+            print(f"       - {note}")
+    print("statement files:")
+    for resource in contest_resources(contest.contest_dir):
+        if resource.own:
+            shown = resource.path.relative_to(args.base_dir)
+            print(f"  {resource.name}: own ({shown})")
+        elif resource.path is not None:
+            shown = resource.path.relative_to(RESOURCES_DIR.parent)
+            print(f"  {resource.name}: default ({shown})")
+        else:
+            print(f"  {resource.name}: none")
+    return 0 if all(row.ok for row in rows) else 1
+
+
 def cmd_local_check(args: argparse.Namespace) -> int:
     """Without the model and without the network checks the problem's files: the statement's formatting
     (`statement/*.tex`: Markdown-style lists, quotes other than `<<…>>` —
