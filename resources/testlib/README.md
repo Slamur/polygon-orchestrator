@@ -7,9 +7,9 @@ validators, checkers, interactors and generators include, and the standard check
 solutions' output when the spec has `checker.custom_needed: false` and `checker.standard`
 is set (`orchestrator/checks/solutions_run.py`).
 
-- `testlib.h`: version `0.9.42-SNAPSHOT` (the `VERSION` define), the upstream commit
-  isn't known.
-- `checkers/`: commit `3bf5ba5aca6007bf8dcde6d00949ec3116ee3cc7` (2026-10-26).
+- `testlib.h` and `checkers/`: commit `4f3df1d02ff0d5c8c29195b3c7dbec6db45118df`
+  (2026-11-25), `testlib.h` version `0.9.52` (the `VERSION` define) — the same file
+  Polygon gave the sample problems in 2026-11.
 - License: MIT, the text is next to it, in `LICENSE`.
 - The files are copied without changes. A build finds `#include "testlib.h"` here, after
   the problem's own `resources/` (`orchestrator/resources.py`).
