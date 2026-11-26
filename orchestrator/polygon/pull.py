@@ -122,12 +122,13 @@ What is compared with what (the names are the same that the polygon steps read):
 - the resource `problem_lib.h` -> `resources/problem_lib.h` (the problem's copy, see
   `PROBLEM_LIB_FILENAME` in `orchestrator/steps/base.py`; if it isn't on
   Polygon, push uploads the local one, and without it — the template);
-- the other resources (`testlib.h`) -> `resources/<name>` (`orchestrator/resources.py`):
+- the other resources (`testlib.h`, the statement's `olymp.sty`, `problem.tex`,
+  `statements.ftl`) -> `resources/<name>` (`orchestrator/resources.py`):
   if the problem has its own version — three-way, like any file; if not, Polygon's is
   compared with the default of `resources/` of the repository: the same — nothing is
   written (`same`), different — written into the problem's `resources/` (`downloaded`), and
   from then on the problem uses it (push doesn't upload it back: it equals the base).
-  Resources with no local version at all (Polygon's statement files) are skipped; own
+  Resources with no local version at all (neither own nor default) are skipped; own
   resources missing on Polygon — `local only`, push uploads them.
 
 Text is compared up to line breaks (`\\r\\n` = `\\n`).

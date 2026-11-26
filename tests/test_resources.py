@@ -1,7 +1,9 @@
 from orchestrator.resources import (
+    STATEMENT_RESOURCES_DIR,
     STD_CHECKERS_DIR,
     TESTLIB_DIR,
     TESTLIB_FILENAME,
+    default_resource_path,
     include_dirs,
     resource_path,
 )
@@ -27,3 +29,9 @@ def test_resource_path_takes_the_problem_version(tmp_path):
     own.write_text("// the problem's own testlib\n")
 
     assert resource_path(tmp_path, TESTLIB_FILENAME) == own
+
+
+def test_statement_files_are_defaults_but_not_include_dirs(tmp_path):
+    for name in ("olymp.sty", "problem.tex", "statements.ftl"):
+        assert default_resource_path(name) == STATEMENT_RESOURCES_DIR / name
+    assert STATEMENT_RESOURCES_DIR not in include_dirs(tmp_path)
