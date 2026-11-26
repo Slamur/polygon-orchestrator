@@ -571,6 +571,7 @@ A Polygon contest is described by `contests/<contest path>/contest.yaml` (any de
 
 ```yaml
 polygon_id: 12345          # the contest's id on Polygon
+uid: 50431a121273b7e31f4200e7  # optional: the contest's UID (its links on Polygon)
 pin: "0000"                # optional: the contest's pin code
 problems:                  # problem or group addresses, as in the CLI
   - problems/2026/round-1/my-task

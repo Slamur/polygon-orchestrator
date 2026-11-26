@@ -102,7 +102,8 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   from here — only `polygon push`/`pull` notice them.
 - `orchestrator contests/<contest path> polygon status` — a contest
   (`orchestrator/contests.py`: `contests/<contest path>/contest.yaml` with `polygon_id`,
-  optional `pin` and `problems` — problem or group addresses, expanded, repeats dropped; a
+  optional `uid` (the contest's hexadecimal UID from its Polygon links, shown in the
+  status) and `pin`, and `problems` — problem or group addresses, expanded, repeats dropped; a
   problem may be in several contests): one read-only request `contest.problems`
   (`orchestrator/polygon/contest.py`) and per row — the letter, the local problem and what
   needs doing: not on Polygon, on Polygon but not linked locally (matched by name =

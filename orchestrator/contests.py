@@ -10,6 +10,8 @@ the root: `orchestrator contests/2026/round-1 polygon status`.
 `contest.yaml`:
 
     polygon_id: 12345          # the contest's id on Polygon (contestId of the API)
+    uid: 50431a121273b7e31f4200e7  # optional: the contest's UID (its links on Polygon,
+                                   # c/<uid>/contest.xml)
     pin: "0000"                # optional: the contest's pin code, if it has one
     problems:                  # problem or group addresses, as in the CLI
       - problems/2026/round-1/my-task
@@ -31,6 +33,7 @@ contest is loaded).
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -50,6 +53,8 @@ CONTEST_RESOURCES_DIRNAME = "resources"
 # The statement files of a contest on Polygon: the template of the whole document and the
 # macros it uses (`problem.tex` belongs to each problem, not to the contest).
 CONTEST_RESOURCE_FILENAMES = ("olymp.sty", "statements.ftl")
+# The contest's UID on Polygon: hexadecimal, as in its links (`c/<uid>/contest.xml`).
+_UID_PATTERN = re.compile(r"^[0-9a-f]+$")
 
 
 class ContestError(ValueError):
@@ -73,6 +78,7 @@ class Contest:
     contest_dir: Path
     polygon_id: int
     pin: str | None = None
+    uid: str | None = None
     problems: list[ContestProblemRef] = field(default_factory=list)
 
 
@@ -144,7 +150,7 @@ def load_contest(base_dir: Path, contest_path: str) -> Contest:
         raise ContestError(f"{config_path}: invalid YAML: {exc}") from None
     if not isinstance(data, dict):
         raise ContestError(f"{config_path}: expected a mapping with polygon_id and problems")
-    unknown = sorted(set(data) - {"polygon_id", "pin", "problems"})
+    unknown = sorted(set(data) - {"polygon_id", "uid", "pin", "problems"})
     if unknown:
         raise ContestError(f"{config_path}: unknown field(s): {', '.join(unknown)}")
 
@@ -157,6 +163,10 @@ def load_contest(base_dir: Path, contest_path: str) -> Contest:
             raise ContestError(f"{config_path}: pin must be a string")
         pin = str(pin)
 
+    uid = data.get("uid")
+    if uid is not None and not (isinstance(uid, str) and _UID_PATTERN.match(uid)):
+        raise ContestError(f"{config_path}: uid must be the contest's hexadecimal Polygon UID")
+
     addresses = data.get("problems") or []
     if not isinstance(addresses, list) or not all(isinstance(a, str) for a in addresses):
         raise ContestError(f"{config_path}: problems must be a list of problem addresses")
@@ -165,6 +175,7 @@ def load_contest(base_dir: Path, contest_path: str) -> Contest:
         contest_dir=contest_dir,
         polygon_id=polygon_id,
         pin=pin,
+        uid=uid,
         problems=_expand_problems(base_dir, config_path, addresses),
     )
 

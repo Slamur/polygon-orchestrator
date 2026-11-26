@@ -700,7 +700,9 @@ def cmd_contest_status(args: argparse.Namespace) -> int:
         return 1
     rows = contest_status(contest, polygon_problems)
     print(
-        f"{address}: Polygon contest {contest.polygon_id}, {len(polygon_problems)} problem(s) "
+        f"{address}: Polygon contest {contest.polygon_id}"
+        + (f" (uid {contest.uid})" if contest.uid else "")
+        + f", {len(polygon_problems)} problem(s) "
         f"on Polygon, {len(contest.problems)} in contest.yaml"
     )
     name_width = max((len(row.name) for row in rows), default=0)

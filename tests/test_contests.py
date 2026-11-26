@@ -68,7 +68,7 @@ def test_contest_address():
 def test_load_contest_expands_groups_and_drops_repeats(base):
     _contest(
         base,
-        "polygon_id: 500\npin: 1234\nproblems:\n"
+        "polygon_id: 500\nuid: 50431a12\npin: 1234\nproblems:\n"
         "  - problems/round/task-b\n  - problems/round\n  - examples\n",
     )
 
@@ -76,6 +76,7 @@ def test_load_contest_expands_groups_and_drops_repeats(base):
 
     assert contest.polygon_id == 500
     assert contest.pin == "1234"
+    assert contest.uid == "50431a12"
     assert contest.problems == [
         ContestProblemRef(base / "problems", "round/task-b"),
         ContestProblemRef(base / "problems", "round/task-a"),
@@ -90,6 +91,8 @@ def test_load_contest_expands_groups_and_drops_repeats(base):
         ("polygon_id: 1\nproblems: [problems/missing]\n", "no problem directory"),
         ("polygon_id: 1\nproblems: [elsewhere/x]\n", "must start with"),
         ("polygon_id: 1\nproblem: []\n", "unknown field"),
+        ("polygon_id: 1\nuid: 123\nproblems: []\n", "uid"),
+        ("polygon_id: 1\nuid: not-hex\nproblems: []\n", "uid"),
         ("polygon_id: 1\nproblems: problems/round\n", "list of problem addresses"),
     ],
 )
@@ -216,7 +219,7 @@ def _run(base: Path, *command: str) -> int:
 
 
 def test_cli_contest_status(base, all_synced, capsys):
-    _contest(base, "polygon_id: 500\nproblems: [problems/round]\n")
+    _contest(base, "polygon_id: 500\nuid: abc123\nproblems: [problems/round]\n")
     client = _FakeClient({"A": {"id": 11, "name": "task-a"}, "B": {"id": 12, "name": "task-b"}})
 
     with patch("orchestrator.polygon.client.PolygonClient", return_value=client):
@@ -224,7 +227,7 @@ def test_cli_contest_status(base, all_synced, capsys):
 
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Polygon contest 500, 2 problem(s) on Polygon, 2 in contest.yaml" in out
+    assert "Polygon contest 500 (uid abc123), 2 problem(s) on Polygon, 2 in contest.yaml" in out
     assert "A  task-a  problems/round/task-a: ok" in out
     assert "statement files:" in out
     assert "olymp.sty: default" in out
