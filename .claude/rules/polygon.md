@@ -17,8 +17,9 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   (`orchestrator/polygon/`; the `problem_id` -> Polygon problemId binding
   is stored in `problems/<problem path>/polygon_state.json`) and transferring the
   actual TL/ML from `problems/<problem path>/limits.yaml` via
-  `problem.updateInfo` (`set_constraints`), uploading `problems/<problem path>/resources/problem_lib.h` as
-  a resource file (`upload_problem_lib`), uploading
+  `problem.updateInfo` (`set_constraints`), uploading the problem's resource files `problems/<problem path>/resources/*` —
+  `problem_lib.h` and the problem's own versions of external resources (`testlib.h`),
+  never the defaults of `resources/` (`upload_resources`), uploading
   `problems/<problem path>/validator.cpp` and setting it as the validator
   (`upload_validator`), setting the checker (`upload_checker`: for
   `checker.custom_needed: true` — uploading `problems/<problem path>/checker.cpp`,
@@ -105,12 +106,12 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   `--polygon-id` additionally narrows the search if
   there are several problems with that name), compares with it the problem parts
   the orchestrator uses (statement, tutorial, scoring and examples, TL/ML, validator,
-  non-standard checker, generators, test-script, solutions, spec,
+  non-standard checker, resource files, generators, test-script, solutions, spec,
   `constraints.yaml`, test design, test plan, `scoring.yaml`, draft and tutorial draft
   from Attachments), downloads into
   the problem directory those missing locally and rewrites the sync
   base by the current Polygon revision. Files with a modification time in
-  the Polygon listing (validator, checker, generators, solutions, `problem_lib.h`,
+  the Polygon listing (validator, checker, generators, solutions, resource files,
   Attachments) are downloaded only if their version on Polygon could have changed
   since the last sync (the stamp in the base didn't match the
   listing and the revision is different) or they need to be written to disk. Files differing
@@ -120,8 +121,16 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   will upload it), even with `--overwrite`; both sides changed (`conflict`)
   or there is no base (`differs`) — the local one stays, with `--overwrite` — it is replaced by the version
   from Polygon. Replaced files are moved to `.pull_backup/`. Files that
-  aren't on Polygon are listed explicitly and never deleted;
-  files from Attachments (spec, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`,
+  aren't on Polygon are listed explicitly and never deleted.
+  A resource file other than `problem_lib.h` (`testlib.h`) is compared with the version
+  the problem uses now: its own `resources/<name>` — three-way, as above; without it — the
+  default of `resources/` of the repository: the same — nothing is written, different —
+  Polygon's is written into the problem's `resources/` and the problem uses it from then on
+  (push doesn't upload it back: it equals the base, so Polygon's testlib auto-update stays
+  on; and the problem no longer follows updates of the default). Resources with no local
+  version at all (Polygon's statement files `olymp.sty`, `problem.tex`, `statements.ftl`)
+  are skipped. Files
+  from Attachments (spec, `constraints.yaml`, `tests_design.yaml`, `tests_plan.yaml`,
   `scoring.yaml`, draft, tutorial draft) are compared
   only with their versions in Attachments, and the problem's TL/ML — only with
   `limits.yaml` (the same comparison, by the TL/ML values; they don't touch
