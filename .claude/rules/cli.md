@@ -128,13 +128,18 @@ the parser, `orchestrator/cli_commands.py` — the commands themselves):
 `<problem>` is completed by Tab (`argcomplete`; the one-time shell setup — in
 `docs/SETUP.md`): the candidates are the addresses of all problems in `problems/` and
 `examples/`, with a spec or with only `polygon_state.json` (`polygon
-status|pull` don't need a spec, and the command isn't typed yet at the moment of completing the address);
+status|pull` don't need a spec, and the command isn't typed yet at the moment of completing the address),
+and the contests of `contests/` (directories with `contest.yaml`);
 they are read on every press, nothing is cached. On every Tab the shell runs `cli.py`
 in full, so the top level of `cli.py` must not import the pipelines
 (pydantic, requests) — they are loaded lazily through `cli_commands.py`.
 Completion only suggests: the full address of a problem or
 group goes into the command (the candidates are only problems, but a group directory is completed as their common
 prefix), the CLI doesn't accept abbreviated addresses.
+
+A contest address `contests/<contest path>` (`orchestrator/contests.py`) is accepted only by
+`polygon status` (`_run_contest` in `orchestrator/cli.py`; see `.claude/rules/polygon.md`); a
+contest only lists its problems, it isn't a group of problem directories.
 
 Grouping problems into contests/rounds with shared defaults (TL/ML conventions,
 a shared test-group style for the whole round) is deliberately not put into the spec

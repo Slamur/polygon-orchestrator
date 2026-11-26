@@ -543,6 +543,7 @@ interactor. Polygon's "verify input/output for statements" flag is stored in
 | Command | What it does | Network |
 |---|---|---|
 | `polygon status` | Which polygon steps are done / outdated — by the local files | no |
+| `contests/<path> polygon status` | A contest's problems on Polygon against its `contest.yaml` (see "Contests" below) | **yes**, read-only |
 | `polygon push` | Create the problem (if there isn't one) and upload only what changed since the last sync; after each step — a commit on Polygon | **yes** |
 | `polygon push --step NAME` | Only one step (`create_problem`, `upload_statement`, `upload_solutions`, …) | **yes** |
 | `polygon push --force` | Upload everything, even if the problem was changed on Polygon (overwrites those edits) | **yes** |
@@ -562,6 +563,33 @@ uses (its own, else the default); if they differ, Polygon's is written into the 
 `resources/`, and from then on the problem builds with it — it no longer follows updates of
 the default in this repository. To change, say, `olymp.sty` for one problem, put your
 version into its `resources/`: the next `push` uploads it.
+
+### Contests
+
+A Polygon contest is described by `contests/<contest path>/contest.yaml` (any depth,
+`contests/` is not in git, like `problems/`):
+
+```yaml
+polygon_id: 12345          # the contest's id on Polygon
+pin: "0000"                # optional: the contest's pin code
+problems:                  # problem or group addresses, as in the CLI
+  - problems/2026/round-1/my-task
+  - examples               # a group: every problem under it
+```
+
+A problem may be listed in several contests. `orchestrator contests/<contest path> polygon
+status` reads the contest's problem list from Polygon (one read-only request) and prints it
+against `contest.yaml`: the letter, the local problem, what needs doing — a problem not yet
+on Polygon or not added to the contest (the Polygon API can't add problems to a contest,
+add it by hand), a problem of the contest missing from `contest.yaml`, uncommitted
+changes on Polygon, polygon steps not in sync locally. It exits with 1 if any line needs
+attention. Other commands don't take a contest: run them for the problems or their group.
+
+`contests/<contest path>/resources/` holds the contest's own versions of its statement files
+(`olymp.sty`, `statements.ftl`, other files the contest's statements use); without one the
+default from `resources/polygon-statement/` is meant — Polygon gives a new contest the same
+files as a new problem. The API has no methods for a contest's files, so they are synced
+with Polygon by hand; `polygon status` of the contest lists which ones are its own.
 
 The problem's tutorial is the optional `statement/<language>/tutorial.tex`: you write it or
 the model does from your draft (`llm tutorial`). `polygon push` uploads it together with the statement,
@@ -600,6 +628,9 @@ delete it there by hand. A problem whose statement lies directly in
 
 ```
 drafts/                    problem drafts for init --draft (not in git)
+contests/<contest path>/   Polygon contests (not in git)
+  contest.yaml               the contest's Polygon id and its problems
+  resources/                 the contest's own statement files (olymp.sty, statements.ftl)
 problems/<problem path>/   your problems (not in git)
   authoring/spec.yaml        the spec — the input of all steps
   authoring/constraints.yaml limits, groups, what the validator checks
@@ -626,7 +657,7 @@ prompts/                   step prompts and the rules for the steps (prompts/rul
 orchestrator/              code
 ```
 
-`problems/` and `drafts/` are in `.gitignore` on purpose: the repository is public, and
+`problems/`, `drafts/` and `contests/` are in `.gitignore` on purpose: the repository is public, and
 the problems aren't, until the contest has taken place.
 
 ---

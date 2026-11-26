@@ -100,6 +100,22 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   base — what the last push uploaded or pull saw on
   Polygon). Edits on Polygon after the last sync aren't visible
   from here — only `polygon push`/`pull` notice them.
+- `orchestrator contests/<contest path> polygon status` — a contest
+  (`orchestrator/contests.py`: `contests/<contest path>/contest.yaml` with `polygon_id`,
+  optional `pin` and `problems` — problem or group addresses, expanded, repeats dropped; a
+  problem may be in several contests): one read-only request `contest.problems`
+  (`orchestrator/polygon/contest.py`) and per row — the letter, the local problem and what
+  needs doing: not on Polygon, on Polygon but not linked locally (matched by name =
+  `problem_id`), not added to the contest (the API has no method to add a problem to a
+  contest — it is done by hand), in the contest but not in `contest.yaml`, uncommitted
+  changes on Polygon (`modified`), polygon steps not in sync locally (as `polygon status`
+  of the problem). Problems are matched by the Polygon id of `polygon_state.json`.
+  Then the contest's statement files: `contests/<contest path>/resources/` — its own
+  versions (`olymp.sty`, `statements.ftl` and any other file), without one — the default
+  of `resources/polygon-statement/`; the API has no methods for a contest's files, they
+  aren't synced. Exit code 1 if a row needs attention. Other commands don't take a
+  contest. It goes to the network — the same restrictions on running without an explicit
+  command as for `polygon pull`.
 - `orchestrator <problem> polygon pull [--polygon-id N] [--overwrite]` —
   the reverse direction: binds the problem to one already existing on
   Polygon (from `polygon_state.json`, otherwise by searching for a non-deleted problem
