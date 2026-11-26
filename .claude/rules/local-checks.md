@@ -68,7 +68,7 @@ Addressing problems and groups — in `.claude/rules/cli.md`.
   child includes the orchestrator's own memory); the answer — the example's `output` in the spec, without it —
   the output of Main correct; the verdict is given by the problem's checker (`checker.cpp` or
   the standard one from `checker.standard`, sources — in
-  `orchestrator/checks/std_checkers/`). A solution with verdict X in its name may
+  `resources/testlib/checkers/`). A solution with verdict X in its name may
   get OK or X on an example (`tl_ok` — OK or TL, `tl_ml` — OK, TL or RE), anything else is an error
   (`ALLOWED_VERDICTS`); a solution without the `tl` verdict that ran on an example
   longer than half the TL (and fit into it) — a warning; so is a `wa` that gets WA on

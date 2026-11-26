@@ -119,7 +119,7 @@ What is compared with what (the names are the same that the polygon steps read):
 - solutions (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   A solution's tag on Polygon isn't saved locally: `upload_solutions` derives
   the tag from the file name, so names not following its scheme get a warning;
-- the resource `problem_lib.h` -> `problem_lib.h` (the problem's copy, see
+- the resource `problem_lib.h` -> `resources/problem_lib.h` (the problem's copy, see
   `PROBLEM_LIB_FILENAME` in `orchestrator/steps/base.py`; if it isn't on
   Polygon, push uploads the local one, and without it — the template).
 
@@ -210,6 +210,7 @@ from orchestrator.problem_paths import (
     is_removed_mark,
     problem_id_for,
 )
+from orchestrator.resources import PROBLEM_RESOURCES_DIRNAME
 from orchestrator.spec import DEFAULT_POINTS_POLICY, EACH_TEST
 from orchestrator.statement_languages import (
     STATEMENT_DIRNAME,
@@ -252,6 +253,7 @@ _STATEMENT_FILES = {
 _VALIDATOR_FILENAME = VALIDATOR_FILE_KEY
 _CHECKER_FILENAME = CHECKER_FILE_KEY
 _BACKUP_DIRNAME = ".pull_backup"
+_PROBLEM_LIB_PATH = f"{PROBLEM_RESOURCES_DIRNAME}/{PROBLEM_LIB_FILENAME}"
 
 # `detail` — only what the status doesn't say itself (where the version on Polygon came from,
 # how the TL/ML differ): the CLI prints it for conflicts and errors.
@@ -676,13 +678,13 @@ class _Puller:
         resources = {file["name"] for file in self._polygon_files().get("resourceFiles") or []}
         if PROBLEM_LIB_FILENAME not in resources:
             self._missing_on_polygon(
-                PROBLEM_LIB_FILENAME,
+                _PROBLEM_LIB_PATH,
                 "no resource file on Polygon",
                 key=PROBLEM_LIB_KEY,
             )
             return
         self._sync_file(
-            PROBLEM_LIB_FILENAME,
+            _PROBLEM_LIB_PATH,
             lambda: self._call_raw(
                 "problem.viewFile", {"type": "resource", "name": PROBLEM_LIB_FILENAME}
             ),

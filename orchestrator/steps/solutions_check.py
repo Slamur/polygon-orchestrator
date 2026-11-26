@@ -54,6 +54,7 @@ from orchestrator.checks.solutions_run import (
 from orchestrator.llm_report import COMMENT_MARKER, report_path
 from orchestrator.model_contracts import ModelResponse
 from orchestrator.problem_paths import CONSTRAINTS_FILENAME, TEST_SCRIPT_FILENAME, authoring_path
+from orchestrator.resources import PROBLEM_RESOURCES_DIRNAME
 from orchestrator.spec import SPEC_REFERENCES_FIELD, ProblemSpec
 from orchestrator.steps.base import (
     PROBLEMS_DIR,
@@ -81,11 +82,10 @@ _PROBLEM_FILES = (
     "validator.cpp",
     "checker.cpp",
     "interactor.cpp",
-    "problem_lib.h",
     "limits.yaml",
     TEST_SCRIPT_FILENAME,
 )
-_PROBLEM_DIRS = ("generators", "statement/examples")
+_PROBLEM_DIRS = (PROBLEM_RESOURCES_DIRNAME, "generators", "statement/examples")
 _SOLUTIONS_DIRNAME = "solutions"
 
 
@@ -270,7 +270,6 @@ class Gate:
         problem_dir = Path(problems_dir) / problem_id
         result = run_solutions(
             problem_dir,
-            templates_dir,
             lambda message: logger.info("[%s] %s", self.step_name, message),
             full=True,
             only=judged,

@@ -42,6 +42,7 @@ def extra_context_documents(spec, **kwargs):
 REPO_ROOT = Path(__file__).parent.parent
 PROMPTS_DIR = REPO_ROOT / "prompts"
 TEMPLATES_DIR = REPO_ROOT / "templates"
+TESTLIB_DIR = REPO_ROOT / "resources" / "testlib"
 SOLUTION_TEMPLATES = TEMPLATES_DIR / "solutions"
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -194,7 +195,7 @@ def test_run_step_attaches_language_template_under_templates_key(spec, tmp_path)
 @pytest.mark.slow
 @pytest.mark.skipif(shutil.which("g++") is None, reason="g++ not installed")
 def test_cpp_solution_template_compiles():
-    result = compile_check(SOLUTION_TEMPLATES / "ok.cpp", [TEMPLATES_DIR])
+    result = compile_check(SOLUTION_TEMPLATES / "ok.cpp", [TESTLIB_DIR])
     if result.binary_path:
         result.binary_path.unlink(missing_ok=True)
     assert result.success, result.stderr

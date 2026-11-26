@@ -611,7 +611,8 @@ problems/<problem path>/   your problems (not in git)
   polygon.log                the full log of push/pull
   polygon_state.json         the binding to the problem on Polygon
 examples/<kind>/<gist>/    sample problems — samples for --ref and references
-templates/                 shared templates: problem_lib.h, testlib.h, solution skeletons
+templates/                 shared templates: problem_lib.h, solution skeletons
+resources/                 external resources by default: testlib.h, standard checkers
 prompts/                   step prompts and the rules for the steps (prompts/rules/*.md)
 orchestrator/              code
 ```

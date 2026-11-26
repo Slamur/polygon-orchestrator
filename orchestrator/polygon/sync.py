@@ -14,8 +14,8 @@ differs from `synced` — and only if the revision on Polygon still equals
 was changed bypassing the orchestrator — see `orchestrator/polygon/pipeline.py`). `polygon pull`
 rewrites the base by what's on Polygon now.
 
-The key is the file's path relative to `problems/<problem_id>/` (or
-`templates/` for `problem_lib.h`), except for a few "non-files":
+The key is the file's path relative to `problems/<problem_id>/` (a resource file — by its
+name: `problem_lib.h`, not `resources/problem_lib.h`), except for a few "non-files":
 the TL/ML, the name of the assigned validator/checker, the problem's name in the statement of
 each language.
 The hash is always computed from what lies/would lie locally — so

@@ -68,6 +68,7 @@ from orchestrator.problem_paths import (
     TESTS_PLAN_FILENAME,
     authoring_path,
 )
+from orchestrator.resources import problem_resources_dir
 from orchestrator.spec import ProblemSpec
 from orchestrator.steps.base import (
     PROBLEMS_DIR,
@@ -110,7 +111,6 @@ ROUTES: dict[str, tuple[str, ...]] = {
 _ISSUE_CONSTRAINTS = "constraints"
 
 _VALIDATOR = "validator.cpp"
-_PROBLEM_LIB = "problem_lib.h"
 _EXAMPLES_DIR = "statement/examples"
 
 
@@ -131,12 +131,11 @@ def _other_files(problem_dir: Path) -> list[Path]:
     """What the run reads besides the test steps' files."""
     paths = [
         problem_dir / _VALIDATOR,
-        problem_dir / _PROBLEM_LIB,
         authoring_path(problem_dir, CONSTRAINTS_FILENAME),
     ]
-    examples = problem_dir / _EXAMPLES_DIR
-    if examples.is_dir():
-        paths += sorted(p for p in examples.rglob("*") if p.is_file())
+    for directory in (problem_resources_dir(problem_dir), problem_dir / _EXAMPLES_DIR):
+        if directory.is_dir():
+            paths += sorted(p for p in directory.rglob("*") if p.is_file())
     return paths
 
 
@@ -272,7 +271,7 @@ class TestsGate:
         `.cache/run_tests.report.json`). `GateFailedError` — the run failed;
         `revision`/`saved_response` aren't used."""
         problem_dir = Path(problems_dir) / problem_id
-        issues, warnings, counts = _run(problem_dir, Path(templates_dir))
+        issues, warnings, counts = _run(problem_dir)
         count = sum(counts.values())
         failed = bool(issues)
         files = {"other": _digest(_file_hashes(problem_dir, _other_files(problem_dir)))}
@@ -341,14 +340,10 @@ def _group_counts(counts: dict[str | None, int]) -> dict[str, int]:
     return {group: count for group, count in counts.items() if group is not None}
 
 
-def _run(
-    problem_dir: Path, templates_dir: Path
-) -> tuple[list[TestIssue], list[str], dict[str | None, int]]:
+def _run(problem_dir: Path) -> tuple[list[TestIssue], list[str], dict[str | None, int]]:
     """(errors, warnings, the number of tests of each group — `None` for the tests without
     a group) — as `local check --full` finds them."""
-    generated = generate_tests(
-        problem_dir, templates_dir, lambda line: logger.info("[%s] %s", STEP_NAME, line)
-    )
+    generated = generate_tests(problem_dir, lambda line: logger.info("[%s] %s", STEP_NAME, line))
     issues = list(generated.issues)
     groups, group_errors = load_test_groups(problem_dir)
     issues += [TestIssue(_ISSUE_CONSTRAINTS, error) for error in group_errors]
@@ -356,7 +351,7 @@ def _run(
     if groups is not None and not generated.issues:
         marked = [(test.name, test.group, test.command) for test in generated.tests]
         issues += [TestIssue(ISSUE_SCRIPT, error) for error in check_test_groups(groups, marked)]
-    validator_issues, _ = validate_test_issues(problem_dir, templates_dir, generated.tests, groups)
+    validator_issues, _ = validate_test_issues(problem_dir, generated.tests, groups)
     issues += validator_issues
     equal = find_equal_tests(problem_dir, generated.tests, groups)
     issues += equal_test_issues(equal, generated.tests)

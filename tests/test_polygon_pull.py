@@ -218,7 +218,9 @@ def test_pull_into_missing_directory_downloads_everything(problems_dir, polygon)
     assert (problem_dir / "test_script").read_bytes() == b"gen_rand 1 > $\n"
     assert (problem_dir / "solutions" / "ma_cpp_sum_author.cpp").read_bytes() == b"// ok\n"
     assert _statuses(result)["checker.cpp"] == ITEM_ABSENT
-    assert (problem_dir / "problem_lib.h").read_bytes() == polygon.resource_files["problem_lib.h"]
+    assert (problem_dir / "resources" / "problem_lib.h").read_bytes() == polygon.resource_files[
+        "problem_lib.h"
+    ]
     assert (problem_dir / "authoring" / "spec.yaml").read_bytes() == polygon.aux_files["spec.yaml"]
     assert result.warnings == []
     assert result.backup_dir is None
@@ -547,9 +549,9 @@ def test_problem_lib_from_polygon_is_downloaded_even_if_it_differs_from_template
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["problem_lib.h"] == ITEM_DOWNLOADED
+    assert _statuses(result)["resources/problem_lib.h"] == ITEM_DOWNLOADED
     assert (
-        problems_dir / PROBLEM_ID / "problem_lib.h"
+        problems_dir / PROBLEM_ID / "resources" / "problem_lib.h"
     ).read_bytes() == b"// edited for this problem\n"
     assert _synced(problems_dir)["problem_lib.h"] == pull_module.digest(
         b"// edited for this problem\n"
@@ -557,12 +559,14 @@ def test_problem_lib_from_polygon_is_downloaded_even_if_it_differs_from_template
 
 
 def test_different_local_problem_lib_is_kept(problems_dir, polygon):
-    _write(problems_dir / PROBLEM_ID, "problem_lib.h", "// local edits\n")
+    _write(problems_dir / PROBLEM_ID, "resources/problem_lib.h", "// local edits\n")
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["problem_lib.h"] == ITEM_DIFFERS
-    assert (problems_dir / PROBLEM_ID / "problem_lib.h").read_text() == "// local edits\n"
+    assert _statuses(result)["resources/problem_lib.h"] == ITEM_DIFFERS
+    assert (
+        problems_dir / PROBLEM_ID / "resources" / "problem_lib.h"
+    ).read_text() == "// local edits\n"
     assert _synced(problems_dir)["problem_lib.h"] == pull_module.digest(
         polygon.resource_files["problem_lib.h"]
     )
@@ -573,7 +577,7 @@ def test_problem_lib_missing_on_polygon(problems_dir, polygon):
 
     result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
 
-    assert _statuses(result)["problem_lib.h"] == ITEM_ABSENT
+    assert _statuses(result)["resources/problem_lib.h"] == ITEM_ABSENT
     assert "problem_lib.h" not in _synced(problems_dir)
 
 

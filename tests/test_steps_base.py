@@ -462,7 +462,7 @@ def test_run_generative_step_compiles_cpp_artifacts(tmp_path):
 
     assert set(result.compile_results) == {"gen_ok.cpp", "gen_bad.cpp"}
     # before compile-check the problem got its own copy of problem_lib.h
-    assert (problems_dir / "p1" / "problem_lib.h").read_bytes() == (
+    assert (problems_dir / "p1" / "resources" / "problem_lib.h").read_bytes() == (
         TEMPLATES_DIR / "problem_lib.h"
     ).read_bytes()
     assert result.compile_results["gen_ok.cpp"].success is True
@@ -548,12 +548,12 @@ def test_run_generative_step_extra_context_documents_none_is_backward_compatible
     context_documents = mock_call.call_args.kwargs["context_documents"]
     assert set(context_documents) == set(STEP_CONTEXT_DOCUMENTS["statement_draft"])
     # without .cpp artifacts no copy of problem_lib.h is needed
-    assert not (problems_dir / "p1" / "problem_lib.h").exists()
+    assert not (problems_dir / "p1" / "resources" / "problem_lib.h").exists()
 
 
 def test_ensure_problem_lib_does_not_overwrite_existing_copy(tmp_path):
     problems_dir = tmp_path / "problems"
-    copy = problems_dir / "p1" / "problem_lib.h"
+    copy = problems_dir / "p1" / "resources" / "problem_lib.h"
     copy.parent.mkdir(parents=True)
     copy.write_text("// edited for this problem\n")
 

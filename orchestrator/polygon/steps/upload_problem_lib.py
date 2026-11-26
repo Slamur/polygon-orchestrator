@@ -1,4 +1,4 @@
-"""Polygon step 3 — uploading `problems/<problem_id>/problem_lib.h` to Polygon
+"""Polygon step 3 — uploading `problems/<problem_id>/resources/problem_lib.h` to Polygon
 as a resource file (`problem.saveFile`, `type=resource`).
 
 Each problem has its own copy of `problem_lib.h` (see `PROBLEM_LIB_FILENAME` in

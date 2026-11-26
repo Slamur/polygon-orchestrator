@@ -17,7 +17,7 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   (`orchestrator/polygon/`; the `problem_id` -> Polygon problemId binding
   is stored in `problems/<problem path>/polygon_state.json`) and transferring the
   actual TL/ML from `problems/<problem path>/limits.yaml` via
-  `problem.updateInfo` (`set_constraints`), uploading `problems/<problem path>/problem_lib.h` as
+  `problem.updateInfo` (`set_constraints`), uploading `problems/<problem path>/resources/problem_lib.h` as
   a resource file (`upload_problem_lib`), uploading
   `problems/<problem path>/validator.cpp` and setting it as the validator
   (`upload_validator`), setting the checker (`upload_checker`: for

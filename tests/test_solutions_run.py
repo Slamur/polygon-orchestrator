@@ -19,7 +19,6 @@ from orchestrator.spec import _ALLOWED_VERDICTS
 pytestmark = pytest.mark.slow
 
 PROBLEM_ID = "example-problem"
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 # A synthetic problem: the sum of two numbers.
 OK_PY = "a, b = map(int, input().split())\nprint(a + b)\n"
@@ -109,7 +108,7 @@ def test_verdicts_checked_against_solution_names(tmp_path):
     )
     (problem_dir / "solutions" / "ok_py_old_draft.py.removed").write_text(WA_PY, encoding="utf-8")
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
     solutions = _by_name(result)
 
     assert "ok_py_old_draft.py.removed" not in solutions
@@ -140,7 +139,7 @@ def test_time_limit_from_limits_yaml(tmp_path):
         time_limit=0.5,
     )
 
-    solutions = _by_name(run_solutions(problem_dir, TEMPLATES_DIR))
+    solutions = _by_name(run_solutions(problem_dir))
 
     assert [t.verdict for t in solutions["tl_py_slow_draft.py"].tests] == ["TL"]
     assert not solutions["tl_py_slow_draft.py"].failed
@@ -158,7 +157,7 @@ def test_missing_outputs_come_from_main_solution(tmp_path):
         examples=[("1 2\n", None), ("10 20\n", "30\n")],
     )
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert (
         "expected outputs for example_1: from the main solution ma_py_sum_draft.py" in result.notes
@@ -173,7 +172,7 @@ def test_wrong_output_in_spec_is_reported(tmp_path):
         examples=[("1 2\n", "4\n"), ("10 20\n", "30\n")],
     )
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert (
         "example_1: all ok solutions get WA — check the expected output in the spec"
@@ -187,7 +186,7 @@ def test_validator_rejecting_example(tmp_path):
     )
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     rejected = [e for e in result.errors if e.startswith("validator.cpp rejects")]
     assert len(rejected) == 1 and "example_2" in rejected[0]
@@ -204,7 +203,7 @@ def test_validator_rejecting_example(tmp_path):
 def test_checker_problems_stop_solution_runs(tmp_path, checker, message):
     problem_dir = _problem(tmp_path, {"ma_py_sum_draft.py": OK_PY}, checker=checker)
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert result.solutions == []
     assert any(message in error for error in result.errors)
@@ -260,7 +259,7 @@ def test_interactive_verdicts(tmp_path):
         },
     )
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
     verdicts = {s.name: [t.verdict for t in s.tests] for s in result.solutions}
 
     assert verdicts == {
@@ -284,7 +283,7 @@ def test_interactive_problem_without_interactor(tmp_path):
         tmp_path, {"ma_py_sum_draft.py": INTERACTIVE_OK_PY}, interactor=False
     )
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert result.solutions == []
     assert any("without interactor.cpp" in error for error in result.errors)
@@ -310,7 +309,7 @@ def test_statement_io_of_plain_problem_is_validated_and_checked(tmp_path):
     # Only the output — wrong for the test's input (10 20).
     _write_statement_io(problem_dir, 2, output="31\n")
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert "validator.cpp accepts all 2 example(s) and 1 input(s) for statements" in result.notes
     assert "example_1 input/output for statements: OK" in result.notes
@@ -324,7 +323,7 @@ def test_statement_input_rejected_by_validator(tmp_path):
     # The example's answer (3) doesn't fit its own input — an error too.
     _write_statement_io(problem_dir, 1, input="0 4\n")
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert any(
         e.startswith("validator.cpp rejects example_1 input for statements") for e in result.errors
@@ -344,7 +343,7 @@ def test_interactive_dialogue_is_replayed(tmp_path):
     # The solution in the statement is wrong — the interactor doesn't accept it.
     _write_statement_io(problem_dir, 3, output="\n8\n")
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert "example_1 input/output for statements: OK" in result.notes
     errors = _statement_io_errors(result)
@@ -364,7 +363,7 @@ def test_java_class_name():
 def test_java_solution_compiled_under_its_class_name(tmp_path):
     problem_dir = _problem(tmp_path, {"ma_java_sum_draft.java": OK_JAVA})
 
-    solution = _by_name(run_solutions(problem_dir, TEMPLATES_DIR))["ma_java_sum_draft.java"]
+    solution = _by_name(run_solutions(problem_dir))["ma_java_sum_draft.java"]
 
     assert solution.error is None
     assert [t.verdict for t in solution.tests] == ["OK", "OK"]
@@ -382,7 +381,7 @@ def test_slow_non_tl_solutions_are_warned(tmp_path):
         time_limit=2,
     )
 
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
 
     assert not result.failed
     warned = sorted(line.split(":")[0] for line in result.warnings)
@@ -434,7 +433,7 @@ def test_full_wa_caught_by_generated_test_stops_there(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 7 1 > $\ngen_pair 7 2 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert not result.failed
     wa = _by_name(result)["wa_py_seven_draft.py"]
     # Two examples, then the very first generated one — and stop.
@@ -450,7 +449,7 @@ def test_full_wa_not_caught_by_any_test_fails(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 3 1 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert result.failed
     unexpected = dict((title, lines) for title, lines, _ in result.groups())["unexpected verdicts"]
     assert any("never got WA: no test catches it" in line for line in unexpected)
@@ -462,7 +461,7 @@ def test_without_full_wa_passing_everything_is_fine(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 7 1 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
     assert not result.failed
     assert len(_by_name(result)["wa_py_seven_draft.py"].tests) == 2
 
@@ -473,7 +472,7 @@ def test_full_wa_caught_on_example_still_runs_generated_tests(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
         "gen_pair 3 1 > $\n",
     )
-    wa = _by_name(run_solutions(problem_dir, TEMPLATES_DIR, full=True))["wa_py_minus_draft.py"]
+    wa = _by_name(run_solutions(problem_dir, full=True))["wa_py_minus_draft.py"]
     assert [t.verdict for t in wa.tests] == ["WA", "WA", "WA"]
     assert wa.stopped_early
     assert wa.status == STATUS_EXPECTED
@@ -486,7 +485,7 @@ def test_wa_failing_an_example_is_a_warning(tmp_path):
         "gen_pair 3 1 > $\n",
     )
     for full in (False, True):
-        result = run_solutions(problem_dir, TEMPLATES_DIR, full=full)
+        result = run_solutions(problem_dir, full=full)
         assert not result.failed
         assert any(
             line.startswith("wa_py_minus_draft.py: WA on example_1") for line in result.warnings
@@ -500,7 +499,7 @@ def test_full_wa_caught_only_on_examples_survives_with_a_warning(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "wa_py_minus_draft.py": WA_PY},
         "gen_pair 3 0 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     wa = _by_name(result)["wa_py_minus_draft.py"]
     assert wa.status == STATUS_SURVIVED
     assert not wa.stopped_early
@@ -518,7 +517,7 @@ def test_full_summary(tmp_path):
         },
         "gen_pair 7 0 > $\n",
     )
-    summary = run_solutions(problem_dir, TEMPLATES_DIR, full=True).summary()
+    summary = run_solutions(problem_dir, full=True).summary()
     assert summary["full"] is True
     assert summary["memory_limit_mb"] == 256
     solutions = {s["name"]: s for s in summary["solutions"]}
@@ -538,7 +537,7 @@ def test_summary_without_full_has_no_survivors(tmp_path):
     problem_dir = _problem(
         tmp_path, {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY}
     )
-    summary = run_solutions(problem_dir, TEMPLATES_DIR).summary()
+    summary = run_solutions(problem_dir).summary()
     assert summary["full"] is False
     assert {s["status"] for s in summary["solutions"]} == {STATUS_EXPECTED}
 
@@ -562,7 +561,7 @@ def test_memory_over_the_cap_is_a_runtime_error(tmp_path):
         },
         memory_limit_mb=64,
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR)
+    result = run_solutions(problem_dir)
     solutions = _by_name(result)
     greedy_ok = solutions["ok_cpp_greedy_draft.cpp"]
     assert {t.verdict for t in greedy_ok.tests} == {"RE"}
@@ -578,7 +577,7 @@ def test_full_ok_failing_generated_test_reports_its_command(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "ok_py_other_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 3 1 > $\ngen_pair 7 1 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert result.failed
     unexpected = dict((title, lines) for title, lines, _ in result.groups())["unexpected verdicts"]
     assert "    gen_pair 7 1" in unexpected
@@ -590,7 +589,7 @@ def test_full_tl_never_reached_is_only_a_warning(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "tl_py_fast_draft.py": OK_PY},
         "gen_pair 3 1 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert not result.failed
     assert any("never got TL" in line for line in result.warnings)
 
@@ -601,7 +600,7 @@ def test_full_tl_ml_never_reached_is_only_a_warning(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "tl_ml_py_fast_draft.py": OK_PY},
         "gen_pair 3 1 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert not result.failed
     assert _by_name(result)["tl_ml_py_fast_draft.py"].required == {"TL", "RE"}
     assert any("never got RE/TL" in line for line in result.warnings)
@@ -609,21 +608,21 @@ def test_full_tl_ml_never_reached_is_only_a_warning(tmp_path):
 
 def test_full_generated_tests_without_ok_solution_is_an_error(tmp_path):
     problem_dir = _full_problem(tmp_path, {"wa_py_minus_draft.py": WA_PY}, "gen_pair 3 1 > $\n")
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert any("no ok solution" in error for error in result.errors)
 
 
 def test_full_validator_runs_on_generated_tests(tmp_path):
     problem_dir = _full_problem(tmp_path, {"ma_py_sum_draft.py": OK_PY}, "gen_pair 500 1 > $\n")
     (problem_dir / "validator.cpp").write_text(VALIDATOR_CPP, encoding="utf-8")
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert any("rejects test 3" in error for error in result.errors)
 
 
 def test_runs_are_summarized_on_many_tests(tmp_path):
     script = "".join(f"gen_pair {i} 1 > $\n" for i in range(1, 11))
     problem_dir = _full_problem(tmp_path, {"ma_py_sum_draft.py": OK_PY}, script)
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert "OK x12, max " in _by_name(result)["ma_py_sum_draft.py"].runs
 
 
@@ -652,7 +651,7 @@ def test_only_runs_the_named_solutions_and_main(tmp_path):
             "re_py_exit_draft.py": RE_PY,
         },
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, only={"re_py_exit_draft.py"})
+    result = run_solutions(problem_dir, only={"re_py_exit_draft.py"})
     assert sorted(_by_name(result)) == ["ma_py_sum_draft.py", "re_py_exit_draft.py"]
 
 
@@ -679,7 +678,7 @@ def test_full_with_test_groups_reports_groups_and_points(tmp_path):
     (problem_dir / "authoring" / "constraints.yaml").write_text(
         GROUPS_CONSTRAINTS, encoding="utf-8"
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     assert not result.failed
     solutions = _by_name(result)
     assert solutions["ma_py_sum_draft.py"].points == 100
@@ -710,7 +709,7 @@ def test_full_runs_an_each_test_group_whole(tmp_path):
         GROUPS_CONSTRAINTS.replace('["1"]\n', '["1"]\n    points_policy: each_test\n'),
         encoding="utf-8",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     wa = _by_name(result)["wa_py_seven_draft.py"]
     # Group 2 (each_test, 2 tests of 15 points): both tests are run, both fail.
     assert [(t.test, t.verdict) for t in wa.tests if t.generated] == [
@@ -729,7 +728,7 @@ def test_without_test_groups_there_are_no_points(tmp_path):
         {"ma_py_sum_draft.py": OK_PY, "wa_py_seven_draft.py": WA_ON_SEVEN_PY},
         "gen_pair 7 1 > $\n",
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     wa = _by_name(result)["wa_py_seven_draft.py"]
     assert wa.points is None and wa.group_line is None
     summary = {s["name"]: s for s in result.summary()["solutions"]}
@@ -747,7 +746,7 @@ def test_full_compares_groups_with_the_spec_item_of_the_solution(tmp_path):
     (problem_dir / "authoring" / "constraints.yaml").write_text(
         GROUPS_CONSTRAINTS, encoding="utf-8"
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     wa = _by_name(result)["wa_py_seven_draft.py"]
     assert wa.spec_item == 0
     assert wa.group_mismatches == [
@@ -769,7 +768,7 @@ def test_full_compares_groups_with_the_passes_groups_comment(tmp_path):
     (problem_dir / "authoring" / "constraints.yaml").write_text(
         GROUPS_CONSTRAINTS, encoding="utf-8"
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     wa = _by_name(result)["wa_py_seven_draft.py"]
     assert wa.spec_item is None
     assert wa.group_mismatches == [
@@ -790,7 +789,7 @@ def test_a_malformed_passes_groups_comment_is_a_warning(tmp_path):
     (problem_dir / "authoring" / "constraints.yaml").write_text(
         GROUPS_CONSTRAINTS, encoding="utf-8"
     )
-    result = run_solutions(problem_dir, TEMPLATES_DIR, full=True)
+    result = run_solutions(problem_dir, full=True)
     wa = _by_name(result)["wa_py_seven_draft.py"]
     assert wa.uncaught_groups == [] and not result.failed
     assert any("isn't a list of group numbers" in w for w in result.warnings)
