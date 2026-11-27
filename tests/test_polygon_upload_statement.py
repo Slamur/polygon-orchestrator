@@ -12,6 +12,7 @@ from polygon_sync_helpers import (
 
 from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import load_polygon_state
+from orchestrator.polygon.steps import upload_statement
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.upload_statement import STEP
 from orchestrator.spec import load_spec
@@ -678,7 +679,7 @@ SCRIPT = b"gen 1 > $\ngen 2 > $\n"
 
 def _tests_client(tests_before: list[dict]) -> MagicMock:
     """A client whose `problem.tests` returns `tests_before` until a script is saved, then
-    only the manual tests (an empty script removes the generated ones); `problem.script`
+    only the manual tests (a script without tests removes the generated ones); `problem.script`
     returns `SCRIPT`."""
     client = MagicMock()
     state = {"tests": tests_before}
@@ -721,7 +722,7 @@ def test_example_over_generated_test_frees_index_then_restores_script(
     ]
     assert calls == [
         ("problem.tests", None, None),
-        ("problem.saveScript", None, ""),
+        ("problem.saveScript", None, upload_statement._NO_TESTS_SCRIPT.decode("utf-8")),
         ("problem.tests", None, None),  # waiting until no generated test is left
         ("problem.saveTest", "3", None),
         ("problem.saveScript", None, SCRIPT.decode("utf-8")),
