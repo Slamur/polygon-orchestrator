@@ -2,7 +2,8 @@ import pytest
 
 from orchestrator.resources import STATEMENT_RESOURCES_DIR
 from orchestrator.statement_extra import (
-    EXTRA_INPUT_LINE,
+    EXTRA_BEGIN,
+    EXTRA_END,
     ensure_extra_resources,
     extra_resources,
     uses_extra,
@@ -85,48 +86,46 @@ def test_without_extra_nothing_is_written(problem_dir, templates_dir):
     assert not (problem_dir / "resources").exists()
 
 
-def test_default_problem_tex_gets_input_line(problem_dir, templates_dir):
+def _block(newline: str = "\n") -> str:
+    return newline.join([EXTRA_BEGIN, EXTRA_CONTENT.decode().rstrip("\n"), EXTRA_END]) + newline
+
+
+def test_default_problem_tex_gets_the_block(problem_dir, templates_dir):
     _statement(problem_dir, "\\Extra{text}\n")
 
-    assert ensure_extra_resources(problem_dir, templates_dir=templates_dir) == [
-        "extra.tex",
-        "problem.tex",
-    ]
+    assert ensure_extra_resources(problem_dir, templates_dir=templates_dir) == ["problem.tex"]
 
     resources = problem_dir / "resources"
-    assert (resources / "extra.tex").read_bytes() == EXTRA_CONTENT
-    assert (resources / "problem.tex").read_bytes() == (
-        EXTRA_INPUT_LINE.encode() + b"\n" + DEFAULT_PROBLEM_TEX
-    )
+    assert sorted(path.name for path in resources.iterdir()) == ["problem.tex"]
+    assert (resources / "problem.tex").read_bytes() == _block().encode() + DEFAULT_PROBLEM_TEX
     # the second run changes nothing
     assert extra_resources(problem_dir, templates_dir=templates_dir) == {}
 
 
-def test_own_problem_tex_gets_input_line_with_its_line_breaks(problem_dir, templates_dir):
+def test_own_problem_tex_gets_the_block_with_its_line_breaks(problem_dir, templates_dir):
     _statement(problem_dir, "\\Extra{text}\n")
     _own(problem_dir, "problem.tex", b"own\r\ntemplate\r\n")
 
     files = extra_resources(problem_dir, templates_dir=templates_dir)
 
-    assert files["problem.tex"] == EXTRA_INPUT_LINE.encode() + b"\r\nown\r\ntemplate\r\n"
+    assert files["problem.tex"] == _block("\r\n").encode() + b"own\r\ntemplate\r\n"
 
 
-def test_own_files_with_the_line_are_kept(problem_dir, templates_dir):
+def test_outdated_block_is_replaced(problem_dir, templates_dir):
     _statement(problem_dir, "\\Extra{text}\n")
-    _own(problem_dir, "extra.tex", b"% own version\n")
-    _own(problem_dir, "problem.tex", b"% a comment\n\\input{extra.tex}\nown\n")
-
-    assert extra_resources(problem_dir, templates_dir=templates_dir) == {}
-
-
-def test_commented_input_line_does_not_count(problem_dir, templates_dir):
-    _statement(problem_dir, "\\Extra{text}\n")
-    _own(problem_dir, "extra.tex", EXTRA_CONTENT)
-    _own(problem_dir, "problem.tex", b"% \\input{extra.tex}\nown\n")
+    old = f"% before\n{EXTRA_BEGIN}\n% old definition\n{EXTRA_END}\nown\n"
+    _own(problem_dir, "problem.tex", old.encode())
 
     files = extra_resources(problem_dir, templates_dir=templates_dir)
 
-    assert list(files) == ["problem.tex"]
+    assert files["problem.tex"] == b"% before\n" + _block().encode() + b"own\n"
+
+
+def test_current_block_is_kept(problem_dir, templates_dir):
+    _statement(problem_dir, "\\Extra{text}\n")
+    _own(problem_dir, "problem.tex", _block().encode() + b"own\n")
+
+    assert extra_resources(problem_dir, templates_dir=templates_dir) == {}
 
 
 def test_missing_template(problem_dir, tmp_path):

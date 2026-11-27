@@ -21,7 +21,7 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   `problem_lib.h` and the problem's own versions of external resources (`testlib.h`,
   the statement files `olymp.sty`, `problem.tex`, `statements.ftl`),
   never the defaults of `resources/`; a problem whose statement uses `\Extra` first gets its
-  own `extra.tex` (from `templates/`) and `problem.tex` with `\input{extra.tex}%`
+  own `problem.tex` with the definition from `templates/extra.tex` as a block at its start
   (`orchestrator/statement_extra.py`) (`upload_resources`), uploading
   `problems/<problem path>/validator.cpp` and setting it as the validator
   (`upload_validator`), setting the checker (`upload_checker`: for

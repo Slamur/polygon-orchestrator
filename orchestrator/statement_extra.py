@@ -1,20 +1,19 @@
-"""The `\\Extra{<text>}` command of a statement: the resource files a problem needs when its
+"""The `\\Extra{<text>}` command of a statement: the `problem.tex` a problem needs when its
 statement uses it.
 
-The command is defined in `templates/extra.tex`; the problem's `problem.tex` (Polygon's
-FreeMarker template of one problem's statement) loads it with `\\input{extra.tex}`. A problem
-whose statement (`statement/<code>/*.tex`, any language) has `\\Extra` gets both files as
-its own resources (`problems/<problem path>/resources/`, see `orchestrator/resources.py`):
+The command's definition is `templates/extra.tex`. Polygon builds the statement only with the
+statement files it knows (`olymp.sty`, `problem.tex`, `statements.ftl`) — another resource
+file isn't in the build directory — so the definition goes into the problem's `problem.tex`
+(Polygon's FreeMarker template of one problem's statement; FreeMarker leaves TeX's `#1`
+alone), as a block between the `EXTRA_BEGIN` and `EXTRA_END` lines at its start.
 
-- `extra.tex` — copied from the template if the problem has none (a problem's own version
-  is kept as is, like `problem_lib.h`);
-- `problem.tex` — its own version if it has one, else the default
-  (`resources/polygon-statement/problem.tex`), with the `\\input{extra.tex}` line put
-  first if it isn't there yet.
-
-`upload_resources` (`polygon push`) ensures them before uploading the problem's resources.
-A problem whose statement has no `\\Extra` is left alone, and the files of a problem that
-stopped using it stay (they change nothing without a call).
+A problem whose statement (`statement/<code>/*.tex`, any language) has `\\Extra` gets its own
+`problem.tex` (`problems/<problem path>/resources/`, see `orchestrator/resources.py`): its
+own version if it has one, else the default (`resources/polygon-statement/problem.tex`),
+with the block put first — or, if the block is there, replaced by the template's current
+one. `upload_resources` (`polygon push`) ensures it before uploading the problem's
+resources. A problem whose statement has no `\\Extra` is left alone, and the block of a
+problem that stopped using it stays (it changes nothing without a call).
 """
 
 from __future__ import annotations
@@ -22,17 +21,15 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from orchestrator.resources import (
-    STATEMENT_RESOURCES_DIR,
-    problem_resources_dir,
-)
+from orchestrator.resources import STATEMENT_RESOURCES_DIR, problem_resources_dir
 from orchestrator.statement_languages import STATEMENT_DIRNAME, statement_languages
 
-EXTRA_FILENAME = "extra.tex"
+EXTRA_TEMPLATE_FILENAME = "extra.tex"
 PROBLEM_TEX_FILENAME = "problem.tex"
 EXTRA_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
-# The line of `problem.tex` that loads the command's definition.
-EXTRA_INPUT_LINE = "\\input{extra.tex}%"
+# The lines around the definition's block in `problem.tex`.
+EXTRA_BEGIN = "% \\Extra: begin (templates/extra.tex)"
+EXTRA_END = "% \\Extra: end"
 
 # `\Extra` as a command (not a prefix of a longer name), outside a `%` comment.
 _EXTRA_COMMAND_RE = re.compile(r"\\Extra(?![A-Za-z@])")
@@ -55,28 +52,32 @@ def extra_resources(
     problem_dir: Path, *, templates_dir: Path = EXTRA_TEMPLATES_DIR
 ) -> dict[str, bytes]:
     """The resource files to write into the problem's `resources/` for `\\Extra` (name ->
-    contents): empty if the statement doesn't use it or the files are already as needed.
+    contents): empty if the statement doesn't use it or `problem.tex` is already as needed.
     No template `extra.tex` — `FileNotFoundError`."""
     if not uses_extra(problem_dir):
         return {}
-    resources_dir = problem_resources_dir(Path(problem_dir))
-    result: dict[str, bytes] = {}
+    template = Path(templates_dir) / EXTRA_TEMPLATE_FILENAME
+    if not template.is_file():
+        raise FileNotFoundError(f"template {template} not found — check templates_dir")
 
-    if not (resources_dir / EXTRA_FILENAME).is_file():
-        template = Path(templates_dir) / EXTRA_FILENAME
-        if not template.is_file():
-            raise FileNotFoundError(f"template {template} not found — check templates_dir")
-        result[EXTRA_FILENAME] = template.read_bytes()
-
-    own = resources_dir / PROBLEM_TEX_FILENAME
+    own = problem_resources_dir(Path(problem_dir)) / PROBLEM_TEX_FILENAME
     source = own if own.is_file() else STATEMENT_RESOURCES_DIR / PROBLEM_TEX_FILENAME
-    content = source.read_bytes()
-    if not _has_input_line(content):
-        newline = b"\r\n" if b"\r\n" in content else b"\n"
-        result[PROBLEM_TEX_FILENAME] = EXTRA_INPUT_LINE.encode() + newline + content
-    elif source != own:
-        result[PROBLEM_TEX_FILENAME] = content
-    return result
+    content = source.read_bytes().decode("utf-8")
+    newline = "\r\n" if "\r\n" in content else "\n"
+    definition = template.read_text(encoding="utf-8").splitlines()
+    block = newline.join([EXTRA_BEGIN, *definition, EXTRA_END]) + newline
+
+    lines = content.splitlines(keepends=True)
+    stripped = [line.rstrip("\r\n") for line in lines]
+    if EXTRA_BEGIN in stripped and EXTRA_END in stripped[stripped.index(EXTRA_BEGIN) :]:
+        begin = stripped.index(EXTRA_BEGIN)
+        end = stripped.index(EXTRA_END, begin)
+        updated = "".join(lines[:begin]) + block + "".join(lines[end + 1 :])
+    else:
+        updated = block + content
+    if own.is_file() and updated == content:
+        return {}
+    return {PROBLEM_TEX_FILENAME: updated.encode("utf-8")}
 
 
 def ensure_extra_resources(
@@ -91,11 +92,3 @@ def ensure_extra_resources(
     for name, content in files.items():
         (resources_dir / name).write_bytes(content)
     return sorted(files)
-
-
-def _has_input_line(content: bytes) -> bool:
-    text = content.decode("utf-8", errors="replace")
-    return any(
-        _COMMENT_RE.sub("", line).strip().startswith("\\input{extra.tex}")
-        for line in text.splitlines()
-    )

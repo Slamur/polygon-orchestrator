@@ -7,7 +7,7 @@ Each problem has its own copy of `problem_lib.h` (see `PROBLEM_LIB_FILENAME` in
 problem has its own version of them (put by hand or by `polygon pull`, see
 `orchestrator/resources.py`) — never the defaults of `resources/`: Polygon keeps its own
 `testlib.h` up to date. A problem whose statement uses `\\Extra` first gets its own
-`extra.tex` and `problem.tex` (`orchestrator/statement_extra.py`). As for every file, only
+`problem.tex` with the command's definition (`orchestrator/statement_extra.py`). As for every file, only
 what changed since the sync base: a version written by pull equals the base and isn't
 uploaded back.
 There's no generative step dependency — only `create_problem`.
@@ -90,7 +90,7 @@ def make_step(templates_dir: Path = TEMPLATES_DIR) -> PolygonStep:
     def compute_status(problem_id: str, problems_dir: Path) -> tuple[str, str]:
         """By the sync base (`sync_status`). While the problem has no copy of
         `problem_lib.h`, the template is compared — push copies and uploads it; the same
-        for the files `\\Extra` needs (`extra_resources`)."""
+        for the `problem.tex` `\\Extra` needs (`extra_resources`)."""
 
         def read_items() -> dict[str, str]:
             problem_dir = Path(problems_dir) / problem_id
