@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import yaml
 from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link
 
 from orchestrator import cli
@@ -86,6 +87,8 @@ class FakePolygon:
         # TestGroup objects; `None` — groups aren't enabled (viewTestGroup fails), a string
         # — viewTestGroup fails with this comment.
         self.test_groups: list[dict] | None = None
+        # CheckerTest objects (`problem.checkerTests`).
+        self.checker_tests: list[dict] = []
         # The modification time of files and solutions in the listings (100 by default);
         # `None` — Polygon doesn't return it.
         self.mtimes: dict[str, int | None] = {}
@@ -109,6 +112,7 @@ class FakePolygon:
             "problem.info": lambda: self.info,
             "problem.validator": lambda: self.validator,
             "problem.checker": lambda: self.checker,
+            "problem.checkerTests": lambda: self.checker_tests,
             "problem.interactor": lambda: self.interactor,
             "problem.files": lambda: {
                 "resourceFiles": [self._listed(n, c) for n, c in self.resource_files.items()],
@@ -1851,3 +1855,76 @@ def test_pull_reports_other_errors_reading_groups(problems_dir, polygon):
 
     assert not result.ok
     assert _statuses(result)["test groups"] == ITEM_ERROR
+
+
+_CHECKER_TEST = {"covers": "x", "verdict": "WA", "input": "1\n", "output": "2\n", "answer": "1\n"}
+_REMOTE_CHECKER_TEST = {
+    "index": 1,
+    "input": "1\r\n",
+    "output": "2\n",
+    "answer": "1\n",
+    "expectedVerdict": "WRONG_ANSWER",
+}
+
+
+def _write_checker_tests(problems_dir: Path, tests: list[dict]) -> Path:
+    return _write(problems_dir / PROBLEM_ID, "checker_tests.yaml", yaml.safe_dump({"tests": tests}))
+
+
+def test_pull_without_checker_tests_reports_nothing(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert "checker tests" not in _statuses(result)
+
+
+def test_pull_same_checker_tests(problems_dir, polygon):
+    _write_checker_tests(problems_dir, [_CHECKER_TEST])
+    polygon.checker_tests = [_REMOTE_CHECKER_TEST]
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["checker tests"] == ITEM_SAME
+    assert "checker_tests/1" in _synced(problems_dir)
+
+
+def test_pull_reports_checker_tests_changed_on_polygon_without_writing(problems_dir, polygon):
+    path = _write_checker_tests(problems_dir, [_CHECKER_TEST])
+    before = path.read_text()
+    polygon.checker_tests = [
+        {**_REMOTE_CHECKER_TEST, "output": "3\n"},
+        {**_REMOTE_CHECKER_TEST, "index": 2},
+    ]
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(i for i in result.items if i.name == "checker tests")
+    assert item.status == ITEM_DIFFERS
+    assert "tests 1 differ" in item.detail
+    assert "tests 2 are only on Polygon" in item.detail
+    assert path.read_text() == before
+
+
+def test_pull_keeps_checker_tests_changed_only_locally(problems_dir, polygon):
+    _write_checker_tests(problems_dir, [_CHECKER_TEST])
+    polygon.checker_tests = [_REMOTE_CHECKER_TEST]
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _write_checker_tests(
+        problems_dir, [{**_CHECKER_TEST, "output": "5\n"}, _CHECKER_TEST | {"input": "7\n"}]
+    )
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(i for i in result.items if i.name == "checker tests")
+    assert item.status == ITEM_KEPT
+    assert "tests 1, 2 will be pushed" in item.detail
+
+
+def test_pull_checker_tests_only_on_polygon_are_not_written(problems_dir, polygon):
+    polygon.checker_tests = [_REMOTE_CHECKER_TEST]
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(i for i in result.items if i.name == "checker tests")
+    assert item.status == ITEM_DIFFERS
+    assert "none locally" in item.detail
+    assert not (problems_dir / PROBLEM_ID / "checker_tests.yaml").exists()

@@ -96,6 +96,14 @@ What is compared with what (the names are the same that the polygon steps read):
 - the validator (`problem.validator` + `problem.viewFile`) -> `validator.cpp`;
 - the checker (`problem.checker`) -> `checker.cpp` if it isn't standard
   (`std::...` — there's nothing to download);
+- the checker tests (`problem.checkerTests`) -> `checker_tests.auto.yaml` and
+  `checker_tests.yaml` (test K on Polygon is the K-th of the two files, as
+  `upload_checker_tests` uploads them): only compared, never written — the files are the
+  local run's and the `checker_tests` step's, and a test edited on Polygon doesn't say which
+  file it belongs to. Differences are reported (`kept` — only the local tests changed,
+  `differs` — a test changed on Polygon or there's no base, or Polygon has tests after the
+  last local one, which the API can't delete); the base gets Polygon's tests, so the next
+  push uploads the local ones over them. Neither local tests nor tests on Polygon — nothing;
 - the interactor (`problem.interactor` — only if the problem on Polygon is
   interactive, by `problem.info`) -> `interactor.cpp`; the
   interactivity flag is recorded in the base (`INTERACTIVE_KEY`), so that push
@@ -148,6 +156,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from orchestrator.checks.checker_tests import CHECKER_TESTS_FILENAME
 from orchestrator.limits import LIMITS_FILENAME, render_limits
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import (
@@ -158,6 +167,11 @@ from orchestrator.polygon.state import (
 )
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.set_constraints import read_limits
+from orchestrator.polygon.steps.upload_checker_tests import (
+    local_checker_tests,
+    local_items,
+    remote_items,
+)
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
 from orchestrator.polygon.steps.upload_statement import (
     INTERACTION_FILENAME,
@@ -182,6 +196,7 @@ from orchestrator.polygon.steps.upload_test_script import normalize_script
 from orchestrator.polygon.sync import (
     CHECKER_FILE_KEY,
     CHECKER_KEY,
+    CHECKER_TESTS_KEY_PREFIX,
     CONSTRAINTS_KEY,
     INTERACTIVE_KEY,
     INTERACTOR_FILE_KEY,
@@ -247,6 +262,7 @@ ITEM_ERROR = "error"
 
 _TESTSET = "tests"
 _TEST_GROUPS_NAME = "test groups"
+_CHECKER_TESTS_NAME = "checker tests"
 # The contents of the verify input/output for statements flag file.
 _VERIFY_CONTENT = b"true\n"
 
@@ -364,6 +380,7 @@ def pull_problem(
         (PROBLEM_RESOURCES_DIRNAME, puller.pull_resources),
         (_VALIDATOR_FILENAME, puller.pull_validator),
         (_CHECKER_FILENAME, puller.pull_checker),
+        (_CHECKER_TESTS_NAME, puller.pull_checker_tests),
         (INTERACTOR_FILENAME, puller.pull_interactor),
         ("generators", puller.pull_generators),
         ("test_script", puller.pull_script),
@@ -788,6 +805,65 @@ class _Puller:
                 detail=f"Polygon source file {polygon_name}",
                 stamped=True,
             )
+
+    def pull_checker_tests(self) -> None:
+        """The checker tests on Polygon against the local ones — only reported (see the
+        module docstring)."""
+        try:
+            local = local_items(local_checker_tests(self.problem_dir))
+        except PolygonStepError as exc:
+            self.add(_CHECKER_TESTS_NAME, ITEM_ERROR, str(exc))
+            return
+        remote = remote_items(
+            self._call("problem.checkerTests", {"problemId": str(self.polygon_id)}) or []
+        )
+        for key in self.base_synced:
+            if key.startswith(CHECKER_TESTS_KEY_PREFIX):
+                self.synced[key] = None
+        self.synced.update(remote)
+        if not local and not remote:
+            return
+        if local == remote:
+            self.add(_CHECKER_TESTS_NAME, ITEM_SAME, f"{len(local)} test(s)")
+            return
+        if not local:
+            self.add(
+                _CHECKER_TESTS_NAME,
+                ITEM_DIFFERS,
+                f"{len(remote)} test(s) on Polygon, none locally — pull doesn't write checker "
+                "tests; 'llm generate' writes them, and the next push uploads them over these",
+            )
+            return
+
+        def numbers(keys) -> str:
+            return ", ".join(
+                sorted((k.removeprefix(CHECKER_TESTS_KEY_PREFIX) for k in keys), key=int)
+            )
+
+        changed_remote, changed_local = [], []
+        for key in local.keys() & remote.keys():
+            if local[key] == remote[key]:
+                continue
+            change = _change(self.base_synced.get(key), local[key], remote[key])
+            (changed_local if change == _LOCAL else changed_remote).append(key)
+        remote_only = remote.keys() - local.keys()
+        local_only = local.keys() - remote.keys()
+        parts = []
+        if changed_remote:
+            parts.append(f"tests {numbers(changed_remote)} differ (changed on Polygon or no base)")
+        if remote_only:
+            parts.append(
+                f"tests {numbers(remote_only)} are only on Polygon (the API can't delete them — "
+                "delete them on Polygon by hand)"
+            )
+        if changed_local or local_only:
+            parts.append(f"tests {numbers([*changed_local, *local_only])} will be pushed")
+        detail = (
+            "; ".join(parts) + " — pull doesn't write checker tests: copy an edit made on "
+            f"Polygon into {CHECKER_TESTS_FILENAME} by hand, the next push uploads the local tests"
+        )
+        status = ITEM_DIFFERS if changed_remote or remote_only else ITEM_KEPT
+        self.add(_CHECKER_TESTS_NAME, status, detail)
 
     def pull_interactor(self) -> None:
         interactive = bool(self._info().get("interactive"))
