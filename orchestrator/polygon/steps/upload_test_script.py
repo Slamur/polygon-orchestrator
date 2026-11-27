@@ -112,15 +112,15 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     if not changed_items(ctx, items):
         return StepResult(NO_CHANGES_MESSAGE)
 
-    expected = _check_script_lines(ctx.problem_id, script_path.name, content)
-    timed_out = _save_script(ctx.problem_id, polygon_id, content, client)
-    waited = _wait_for_tests(ctx.problem_id, polygon_id, expected, timed_out, client)
+    expected = check_script_lines(ctx.problem_id, script_path.name, content)
+    timed_out = save_script(ctx.problem_id, polygon_id, content, client)
+    waited = wait_for_tests(ctx.problem_id, polygon_id, expected, timed_out, client)
     return StepResult(
         f"uploaded test script ({script_path.name}) to Polygon id={polygon_id}{waited}", items
     )
 
 
-def _save_script(problem_id: str, polygon_id: int, content: bytes, client: PolygonClient) -> bool:
+def save_script(problem_id: str, polygon_id: int, content: bytes, client: PolygonClient) -> bool:
     """`problem.saveScript`; `True` — the response didn't come in time (the tests are most
     likely still being generated, see the module docstring)."""
     try:
@@ -140,7 +140,7 @@ def _save_script(problem_id: str, polygon_id: int, content: bytes, client: Polyg
     return False
 
 
-def _wait_for_tests(
+def wait_for_tests(
     problem_id: str,
     polygon_id: int,
     expected: list[str] | None,
@@ -217,12 +217,12 @@ def _normalize_command(line: str) -> str:
     return " ".join(line.split(">", 1)[0].split())
 
 
-def _check_script_lines(problem_id: str, script_name: str, content: bytes) -> list[str] | None:
+def check_script_lines(problem_id: str, script_name: str, content: bytes) -> list[str] | None:
     """`PolygonStepError` with a report if the expanded script has identical
     lines or lines Polygon won't accept (see the module docstring).
 
     Returns the commands of the expanded script (`_normalize_command`) — by them
-    `_wait_for_tests` waits for the generation's end; `None` if the script isn't expanded.
+    `wait_for_tests` waits for the generation's end; `None` if the script isn't expanded.
     """
     if os.environ.get(SKIP_CHECK_ENV):
         return None
