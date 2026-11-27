@@ -22,7 +22,10 @@ from __future__ import annotations
 # after `constraints_pick`, from whose TL/ML it derives `limits.yaml`.
 # The solutions — in stages, after everything they are run with (tests, checker,
 # interactor): each stage is checked by a local run (`run_*`) before the next one,
-# which builds on its solutions (CLAUDE.md, item 4); `solutions_groups` — after all of
+# which builds on its solutions (CLAUDE.md, item 4); `checker_tests` — after `run_ok`:
+# the tests of the checker, and its local run `run_checker_tests` derives the tests of the
+# examples from the outputs of the correct solutions (CLAUDE.md, item 5);
+# `solutions_groups` — after all of
 # them: it is given how each solution does on each test group and looks for solutions
 # specific to particular groups. `tests_survivors` — last: tests
 # for the wrong solutions the local runs report as uncaught; after it the pipeline
@@ -42,6 +45,8 @@ STEP_ORDER: list[str] = [
     "run_main",
     "solutions_ok",
     "run_ok",
+    "checker_tests",
+    "run_checker_tests",
     "solutions_slow",
     "run_slow",
     "solutions_wrong",
@@ -61,9 +66,14 @@ SOLUTION_STAGES: dict[str, str] = {
 }
 # The local generation of the tests: the tests from the script and the validator on them.
 TESTS_GATE_STEP = "run_tests"
+# The checker tests and their local run: the checker on them.
+CHECKER_TESTS_STEP = "checker_tests"
+CHECKER_TESTS_GATE_STEP = "run_checker_tests"
 # The local runs: mechanical steps that stop the pipeline when the tests don't generate or
 # the stage's solutions don't behave as their names say.
-GATE_STEPS: frozenset[str] = frozenset({TESTS_GATE_STEP, *SOLUTION_STAGES.values()})
+GATE_STEPS: frozenset[str] = frozenset(
+    {TESTS_GATE_STEP, CHECKER_TESTS_GATE_STEP, *SOLUTION_STAGES.values()}
+)
 
 SURVIVORS_STEP = "tests_survivors"
 # What `tests_survivors` changes and what checks it: the code of the extended plan and the

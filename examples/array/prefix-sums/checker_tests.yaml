@@ -1,0 +1,97 @@
+tests:
+  - covers: "`stream.readToken(\"YES|NO\", \"yes_no\")`, participant"
+    verdict: WA
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      MAYBE
+    answer: |
+      YES
+      4
+  - covers: "`stream.readToken(\"YES|NO\", \"yes_no\")`, jury"
+    verdict: FAIL
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      YES
+      4
+    answer: |
+      MAYBE
+  - covers: "`stream.readInt(1, n, \"first_gt\")`, participant"
+    verdict: WA
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      YES
+      6
+    answer: |
+      YES
+      4
+  - covers: "`stream.readInt(1, n, \"first_gt\")`, jury"
+    verdict: FAIL
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      YES
+      4
+    answer: |
+      YES
+      6
+  - covers: "`stream.quitif(pref_sum <= k, _wa, ...)`, participant"
+    verdict: WA
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      YES
+      3
+    answer: |
+      YES
+      4
+  - covers: "`stream.quitif(pref_sum <= k, _wa, ...)`, jury"
+    verdict: FAIL
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      YES
+      4
+    answer: |
+      YES
+      3
+  - covers: "`left_better(ja, pa)`: a later prefix, participant"
+    verdict: WA
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      YES
+      5
+    answer: |
+      YES
+      4
+  - covers: "`left_better(ja, pa)`: NO while a prefix exists, participant"
+    verdict: WA
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      NO
+    answer: |
+      YES
+      4
+  - covers: "`left_better(pa, ja)`: a later prefix, jury"
+    verdict: FAIL
+    input: |
+      5 6
+      2 1 3 5 4
+    output: |
+      YES
+      4
+    answer: |
+      YES
+      5

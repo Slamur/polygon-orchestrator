@@ -1,0 +1,55 @@
+Tests for the checker of the problem (problem_id: {{ problem_id }}).
+
+## The description of comparing answers (from the author)
+{{ custom_comparison_notes }}
+
+## Input format
+{{ statement.formal_input_sketch }}
+
+## Output format
+{{ statement.formal_output_sketch }}
+
+## Indexing
+{{ statement.indexing }}
+
+## Statement examples
+{% for ex in statement.sample_examples %}
+### Example {{ loop.index }}
+Input:
+~~~
+{{ ex.input }}
+~~~
+{% if ex.output %}
+Output:
+~~~
+{{ ex.output }}
+~~~
+{% endif %}
+{% endfor %}
+
+## Fixed limits (the result of the constraints_pick step, without TL/ML)
+{{ constraints_yaml }}
+
+## The checker (checker.cpp)
+~~~cpp
+{{ checker_cpp }}
+~~~
+{% if checker_run %}
+
+## The local run of the checker tests failed
+The orchestrator ran the checker on your tests (see {{ checker_run.report }}).
+{% for failure in checker_run.failures %}
+### Test {{ failure.test }} — {{ failure.covers }}
+{% for problem in failure.problems %}
+- {{ problem }}
+{% endfor %}
+{% endfor %}
+{% if checker_run.comment %}
+
+### The author's comment
+{{ checker_run.comment }}
+{% endif %}
+{% endif %}
+
+The task: write checker_tests.yaml — the tests of every branch of the checker above that
+rejects an answer, by the rules from the system message.

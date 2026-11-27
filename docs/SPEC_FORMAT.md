@@ -264,7 +264,7 @@ solutions:
   references: []                       # [optional] references only for the solution stages (see "References")
 
 # ---------------------------------------------------------------------------
-# 5. CHECKER (only with custom_needed: true) — input for the checker_draft step
+# 5. CHECKER (only with custom_needed: true) — input for the checker_draft and checker_tests steps
 # ---------------------------------------------------------------------------
 checker:
   standard: "ncmp"                   # [optional] the name of a standard checker OR null

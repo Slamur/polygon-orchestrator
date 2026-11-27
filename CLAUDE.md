@@ -61,7 +61,10 @@ In scope:
   read_and_check pattern — see `checker.cpp` of the sample problem in `examples/`), only if
   `checker.custom_needed: true` in the spec; if a standard
   checker is used (`checker.standard`) — this step does not run, there is nothing
-  to generate;
+  to generate; the custom checker's tests (Polygon's "Checker tests", not for an
+  interactive problem): the model writes two per branch that rejects an answer
+  (participant/jury), the tests of the examples and of the correct solutions' outputs on
+  them are derived mechanically (`checker_tests`, `run_checker_tests`);
 - interactive problems (the `interactor` section of the spec): the interaction
   protocol in the statement (`interaction.tex`, example dialogues) and
   an interactor draft (C++/testlib), only if the problem is interactive;
@@ -99,6 +102,9 @@ The minimal safety net instead of a judging loop at this stage:
   the generation and the validator alone — after the test-script in `llm generate`
   (`run_tests`), the same run, limited to a stage's solutions, — between the solution
   stages (`run_main`, `run_ok`, `run_slow`, `run_wrong`, `run_groups`);
+- **checker tests** (`run_checker_tests`) — the custom checker on its tests: the verdict
+  must be the expected one, the inputs pass the validator, the side of a test that isn't
+  wrong is accepted against the main solution's output;
 - a **timeout wrapper** around any run of a generated binary
   (e.g. running a generator for a smoke test) — just kill the process on
   timeout, without analyzing TLE/MLE separately.
@@ -172,7 +178,7 @@ the user can see it) in the same PR.
 │   ├── llm_clients/                 # ClaudeCodeClient (default), AnthropicClient; __init__ imports nothing
 │   ├── polygon/                     # client, signing, state, sync, pull, steps/, pipeline; __init__ imports nothing
 │   └── checks/                      # compile_check, run_with_timeout, test_script_check, local_tests,
-│                                    # statement_check, solutions_run, FreemarkerRender.java
+│                                    # statement_check, solutions_run, checker_tests, FreemarkerRender.java
 ├── githooks/pre-push, .github/workflows/ci.yml  # ruff check, ruff format --check, pytest on every PR
 ├── tests/
 ├── drafts/                          # the author's drafts for `init --draft`; in .gitignore
@@ -185,6 +191,7 @@ the user can see it) in the same PR.
     ├── statement/<code>/*.tex, name.txt; statement/examples/example_<N>*.txt
     ├── resources/                   # problem_lib.h; testlib.h etc. only if the problem has its own version
     ├── limits.yaml, validator.cpp, checker.cpp, interactor.cpp
+    ├── checker_tests.yaml, checker_tests.auto.yaml  # the checker tests: the model's, of the examples
     ├── generators/*.cpp, test_script, solutions/*
     ├── polygon_state.json           # binding to Polygon + the sync base (not a cache)
     ├── .cache/                      # step cache <step>.json and unapplied responses <step>.response.json

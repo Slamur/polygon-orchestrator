@@ -214,6 +214,10 @@ STEP_CONTEXT_DOCUMENTS: dict[str, list[str]] = {
         "rules/checker.md",
         "problem_lib.h",
     ],
+    "checker_tests": [
+        "rules/checker.md",
+        "problem_lib.h",
+    ],
     "interactor_draft": [
         INTERACTIVE_RULES,
         "problem_lib.h",

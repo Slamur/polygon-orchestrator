@@ -57,6 +57,10 @@ __all__ = [
 # if in practice `custom_comparison_notes` often turns out not precise
 # enough and the step goes to uncertain too often, the next escalation step is
 # to the strong model, like constraints_pick/solutions_main.
+# checker_tests — an optional step (a custom checker): a test per branch of the checker
+# that rejects an answer, written from its code — a small response, but the reasoning is
+# finding every branch and an answer that reaches it; the local run checks every test, so
+# a mistake is caught, not silent — the medium model with high effort.
 # interactor_draft — an optional step (only interactive problems): unlike
 # the checker it isn't translating one comparison rule into code, but
 # implementing the whole protocol — reading queries in distrust mode, limits,
@@ -85,6 +89,7 @@ STEP_TO_MODEL: dict[str, str] = {
     "solutions_groups": "strong-model",
     "tests_survivors": "medium-model",
     "checker_draft": "medium-model",
+    "checker_tests": "medium-model",
     "interactor_draft": "strong-model",
     "spec_from_draft": "strong-model",
     "tutorial_draft": "strong-model",
@@ -115,6 +120,7 @@ STEP_TO_EFFORT: dict[str, str] = {
     "solutions_groups": "high",
     "tests_survivors": "high",
     "checker_draft": "high",
+    "checker_tests": "high",
     "interactor_draft": "high",
     "spec_from_draft": "high",
     "tutorial_draft": "high",

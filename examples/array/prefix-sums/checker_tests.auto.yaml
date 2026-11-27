@@ -1,0 +1,23 @@
+# Written by the local run of the checker tests (run_checker_tests) from the examples
+# and the outputs of the correct solutions on them. Don't edit: it is rewritten.
+tests:
+- covers: 'example_1: the output of ok_cpp_prefs_draft.cpp'
+  verdict: OK
+  input: |
+    5 6
+    2 1 3 5 4
+  output: |
+    YES
+    4
+  answer: |
+    YES
+    4
+- covers: 'example_2: the output of ok_cpp_prefs_draft.cpp'
+  verdict: OK
+  input: |
+    3 10
+    2 0 7
+  output: |
+    NO
+  answer: |
+    NO

@@ -51,6 +51,8 @@ from orchestrator.references import SpecReferenceError
 from orchestrator.spec import SpecValidationError, load_problem_spec
 from orchestrator.step_order import (
     ADOPTED_STEPS,
+    CHECKER_TESTS_GATE_STEP,
+    CHECKER_TESTS_STEP,
     GATE_STEPS,
     LLM_STEPS,
     MECHANICAL_STEPS,
@@ -63,6 +65,7 @@ from orchestrator.step_order import (
 )
 from orchestrator.steps import (
     checker_draft,
+    checker_tests,
     constraints_pick,
     generators_draft,
     interactor_draft,
@@ -84,6 +87,7 @@ from orchestrator.steps.base import (
     StepRevision,
     StepUncertainError,
 )
+from orchestrator.steps.checker_tests_check import CHECKER_TESTS_GATE
 from orchestrator.steps.solutions import GATES, SOLUTION_STEPS, STAGES
 from orchestrator.steps.solutions_check import STATUS_FAILED as GATE_FAILED
 from orchestrator.steps.solutions_check import GateFailedError
@@ -93,7 +97,8 @@ from orchestrator.steps.tests_check import TESTS_GATE
 logger = logging.getLogger(__name__)
 
 # A step module or an object with the same interface (the solution stages and their local
-# runs, `steps.solutions`).
+# runs, `steps.solutions`), in the order of `LLM_STEPS` (the checker tests go between the
+# solution stages).
 _STEP_MODULES: dict[str, ModuleType | Any] = {
     "statement_draft": statement_draft,
     "constraints_pick": constraints_pick,
@@ -106,9 +111,12 @@ _STEP_MODULES: dict[str, ModuleType | Any] = {
     "checker_draft": checker_draft,
     "interactor_draft": interactor_draft,
     **SOLUTION_STEPS,
+    CHECKER_TESTS_STEP: checker_tests,
+    CHECKER_TESTS_GATE_STEP: CHECKER_TESTS_GATE,
     "tests_survivors": tests_survivors,
     "tutorial_draft": tutorial_draft,
 }
+_STEP_MODULES = {name: _STEP_MODULES[name] for name in LLM_STEPS}
 
 # The steps' artifacts that the following steps get as upstream input (see
 # CLAUDE.md, "Caching by spec hash"): source step -> the artifact name
@@ -126,6 +134,7 @@ _STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
     "generators_draft": ("constraints_pick", "tests_plan"),
     "test_script_draft": ("constraints_pick", "tests_plan"),
     **{stage.STEP_NAME: ("constraints_pick",) for stage in STAGES.values()},
+    CHECKER_TESTS_STEP: ("constraints_pick",),
     "tests_survivors": ("constraints_pick",),
 }
 
@@ -914,7 +923,11 @@ def run_pipeline(
 def _revising_steps(gate_step: str, problem_id: str, spec: Any, problems_dir: Path) -> list[str]:
     """The steps the failed local run `gate_step` reported on — those that revise with its
     report on their next run: for `run_tests` — the test steps its errors are routed to, for
-    a solution stage's run — the stage, if it failed on the stage's solutions."""
+    a solution stage's run — the stage, if it failed on the stage's solutions, for
+    `run_checker_tests` — `checker_tests`, if it failed on its tests."""
+    if gate_step == CHECKER_TESTS_GATE_STEP:
+        report = CHECKER_TESTS_GATE.failed_report(problem_id, spec, problems_dir=problems_dir)
+        return [CHECKER_TESTS_STEP] if report is not None else []
     if gate_step == TESTS_GATE_STEP:
         return [
             step
