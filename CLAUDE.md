@@ -45,7 +45,9 @@ In scope:
   "Statement languages", and `orchestrator/statement_languages.py`;
 - choosing limits (N/TL/ML, test groups) — **only based on the
   asymptotics given explicitly by the author in the spec**, without deriving
-  complexity from the legend text on its own;
+  complexity from the legend text on its own; the validator's tests (Polygon's "Validator
+  tests"): boundary tests of every reading and check of the validator, small enough to read
+  at a glance (`validator_tests`, `run_validator_tests`);
 - a test plan (which generators and tests are needed), then generators from it
   (C++/testlib) and a FreeMarker test-script; tests for particular wrong solutions — only
   for those the local runs of the solutions report as not caught (`tests_survivors`);
@@ -103,6 +105,9 @@ The minimal safety net instead of a judging loop at this stage:
   the generation and the validator alone — after the test-script in `llm generate`
   (`run_tests`), the same run, limited to a stage's solutions, — between the solution
   stages (`run_main`, `run_ok`, `run_slow`, `run_wrong`, `run_groups`);
+- **validator tests** (`run_validator_tests`) — the validator on its tests: the verdict
+  must be the expected one, an invalid test must fail on the check it covers, with an
+  integer one past the bound;
 - **checker tests** (`run_checker_tests`) — the custom checker on its tests: the verdict
   must be the expected one, the inputs pass the validator, the side of a test that isn't
   wrong is accepted against the main solution's output;
@@ -179,7 +184,8 @@ the user can see it) in the same PR.
 │   ├── llm_clients/                 # ClaudeCodeClient (default), AnthropicClient; __init__ imports nothing
 │   ├── polygon/                     # client, signing, state, sync, pull, steps/, pipeline; __init__ imports nothing
 │   └── checks/                      # compile_check, run_with_timeout, test_script_check, local_tests,
-│                                    # statement_check, solutions_run, checker_tests, FreemarkerRender.java
+│                                    # statement_check, solutions_run, validator_tests, checker_tests,
+│                                    # FreemarkerRender.java
 ├── githooks/pre-push, .github/workflows/ci.yml  # ruff check, ruff format --check, pytest on every PR
 ├── tests/
 ├── drafts/                          # the author's drafts for `init --draft`; in .gitignore
@@ -192,6 +198,7 @@ the user can see it) in the same PR.
     ├── statement/<code>/*.tex, name.txt; statement/examples/example_<N>*.txt
     ├── resources/                   # problem_lib.h; testlib.h etc. only if the problem has its own version
     ├── limits.yaml, validator.cpp, checker.cpp, interactor.cpp
+    ├── validator_tests.yaml         # the validator tests
     ├── checker_tests.yaml, checker_tests.auto.yaml  # the checker tests: the model's, of the examples
     ├── generators/*.cpp, test_script, solutions/*
     ├── polygon_state.json           # binding to Polygon + the sync base (not a cache)

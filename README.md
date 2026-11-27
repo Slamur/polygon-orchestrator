@@ -400,7 +400,9 @@ Without `--draft`, an existing `spec.yaml` isn't overwritten.
 ### `llm` — generative steps
 
 The steps in order: `statement_draft` → `constraints_pick` →
-`limits_from_constraints` (mechanical, without the model) → `tests_plan` (the test
+`limits_from_constraints` (mechanical, without the model) → `validator_tests` (the model
+writes `validator_tests.yaml`, boundary tests of every reading and check of the validator)
+→ `run_validator_tests` (mechanical: the validator on them) → `tests_plan` (the test
 design `tests_design.yaml` from the model; the orchestrator builds the plan
 `tests_plan.yaml` from it, computing the design's formulas for each test group) → `generators_draft` (generators from the plan) → `test_script_draft`
 (the test-script from the plan) → `run_tests` (mechanical: the tests from the script and
@@ -472,6 +474,14 @@ What's important to know:
   did it once in the same run): those steps revise their files with the
   errors (a step whose files you changed since the run doesn't). A validator that doesn't
   compile or invalid groups in `constraints.yaml` aren't given to the model.
+- **The validator tests failed** (`run_validator_tests` — after `constraints_pick`). The
+  pipeline stops; `llm_reports/run_validator_tests.md` says which test of
+  `validator_tests.yaml` got which verdict, or which invalid test fails on another check than
+  the one it covers (its `expect` isn't in the validator's message) or with an integer that
+  isn't one past the bound. Fix the tests by hand, or write what the model should know at
+  the end of the report and run `llm generate` again: `validator_tests` revises its tests
+  with the report. If the validator itself is wrong, fix `validator.cpp`. A validator that
+  doesn't compile or a test group without a valid test isn't given to the model.
 - **A local run of the solutions failed** (`run_main`, `run_ok`, `run_slow`,
   `run_wrong`, `run_groups` — after each solution stage, `local run --full` over its solutions).
   The pipeline stops; `llm_reports/<run>.md` says which solution got which verdict
@@ -676,6 +686,7 @@ problems/<problem path>/   your problems (not in git)
   statement/examples/        examples — shared by all languages
   limits.yaml                the actual TL/ML (can be edited by hand)
   validator.cpp, checker.cpp, interactor.cpp
+  validator_tests.yaml       the validator tests (validator_tests): boundary tests of every check
   checker_tests.yaml         the checker tests (checker_tests): a test per branch that rejects an answer
   checker_tests.auto.yaml    the checker tests of the examples (run_checker_tests, rewritten — don't edit)
   generators/*.cpp, test_script

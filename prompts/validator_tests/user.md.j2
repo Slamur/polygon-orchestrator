@@ -1,0 +1,51 @@
+Tests for the validator of the problem (problem_id: {{ problem_id }}).
+
+## Input format
+{{ statement.formal_input_sketch }}
+
+## Indexing
+{{ statement.indexing }}
+
+## Statement examples (input)
+{% for ex in statement.sample_examples %}
+### Example {{ loop.index }}
+~~~
+{{ ex.input }}
+~~~
+{% endfor %}
+
+## Fixed limits (the result of the constraints_pick step, without TL/ML)
+{{ constraints_yaml }}
+{% if groups %}
+
+## Test groups
+The groups of `constraints.yaml`: {{ groups | join(", ") }}. Every one of them needs at
+least one `VALID` test.
+{% endif %}
+
+## The size of a test
+At most {{ max_lines }} lines and {{ max_chars }} characters of input per test.
+
+## The validator (validator.cpp)
+~~~cpp
+{{ validator_cpp }}
+~~~
+{% if validator_run %}
+
+## The local run of the validator tests failed
+The orchestrator ran the validator on your tests (see {{ validator_run.report }}).
+{% for failure in validator_run.failures %}
+### Test {{ failure.test }} — {{ failure.covers }}
+{% for problem in failure.problems %}
+- {{ problem }}
+{% endfor %}
+{% endfor %}
+{% if validator_run.comment %}
+
+### The author's comment
+{{ validator_run.comment }}
+{% endif %}
+{% endif %}
+
+The task: write validator_tests.yaml — the boundary tests of every reading and check of
+the validator above, by the rules from the system message.

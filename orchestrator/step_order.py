@@ -19,7 +19,9 @@ from __future__ import annotations
 # order), but is kept next to them — logically it's also part of the problem's test infrastructure,
 # not of the solutions (CLAUDE.md, item 5). `interactor_draft` — there too and for
 # the same reason (CLAUDE.md, item 6). `limits_from_constraints` — right
-# after `constraints_pick`, from whose TL/ML it derives `limits.yaml`.
+# after `constraints_pick`, from whose TL/ML it derives `limits.yaml`; `validator_tests` —
+# after it: the tests of the validator `constraints_pick` wrote, and their local run
+# `run_validator_tests` (CLAUDE.md, item 2) — before the tests, which the validator checks.
 # The solutions — in stages, after everything they are run with (tests, checker,
 # interactor): each stage is checked by a local run (`run_*`) before the next one,
 # which builds on its solutions (CLAUDE.md, item 4); `checker_tests` — after `run_ok`:
@@ -34,6 +36,8 @@ STEP_ORDER: list[str] = [
     "statement_draft",
     "constraints_pick",
     "limits_from_constraints",
+    "validator_tests",
+    "run_validator_tests",
     "tests_plan",
     "generators_draft",
     "test_script_draft",
@@ -66,13 +70,21 @@ SOLUTION_STAGES: dict[str, str] = {
 }
 # The local generation of the tests: the tests from the script and the validator on them.
 TESTS_GATE_STEP = "run_tests"
+# The validator tests and their local run: the validator on them.
+VALIDATOR_TESTS_STEP = "validator_tests"
+VALIDATOR_TESTS_GATE_STEP = "run_validator_tests"
 # The checker tests and their local run: the checker on them.
 CHECKER_TESTS_STEP = "checker_tests"
 CHECKER_TESTS_GATE_STEP = "run_checker_tests"
 # The local runs: mechanical steps that stop the pipeline when the tests don't generate or
 # the stage's solutions don't behave as their names say.
 GATE_STEPS: frozenset[str] = frozenset(
-    {TESTS_GATE_STEP, CHECKER_TESTS_GATE_STEP, *SOLUTION_STAGES.values()}
+    {
+        TESTS_GATE_STEP,
+        VALIDATOR_TESTS_GATE_STEP,
+        CHECKER_TESTS_GATE_STEP,
+        *SOLUTION_STAGES.values(),
+    }
 )
 
 SURVIVORS_STEP = "tests_survivors"

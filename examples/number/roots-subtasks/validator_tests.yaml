@@ -1,0 +1,68 @@
+tests:
+  - covers: 'inf.readLong(minN, maxN, "n"): n = minN'
+    verdict: VALID
+    input: |
+      1
+  - covers: 'inf.readLong(minN, maxN, "n"): n = maxN'
+    verdict: VALID
+    input: |
+      1000000000000000000
+  - covers: 'inf.readLong(minN, maxN, "n"): n = minN - 1'
+    verdict: INVALID
+    input: |
+      0
+    expect: "[name=n]"
+  - covers: 'inf.readLong(minN, maxN, "n"): n = maxN + 1'
+    verdict: INVALID
+    input: |
+      1000000000000000001
+    expect: "[name=n]"
+  - covers: 'group 1: n = the max of the group'
+    verdict: VALID
+    group: "1"
+    input: |
+      10
+  - covers: 'group 1: n = the max of the group + 1'
+    verdict: INVALID
+    group: "1"
+    input: |
+      11
+    expect: "[name=n]"
+  - covers: 'group 2: n = the max of the group'
+    verdict: VALID
+    group: "2"
+    input: |
+      1000
+  - covers: 'group 2: n = the max of the group + 1'
+    verdict: INVALID
+    group: "2"
+    input: |
+      1001
+    expect: "[name=n]"
+  - covers: 'group 3: n = the max of the group'
+    verdict: VALID
+    group: "3"
+    input: |
+      1000000
+  - covers: 'group 3: n = the max of the group + 1'
+    verdict: INVALID
+    group: "3"
+    input: |
+      1000001
+    expect: "[name=n]"
+  - covers: 'group 4: n = the max of the group'
+    verdict: VALID
+    group: "4"
+    input: |
+      1000000000000
+  - covers: 'group 4: n = the max of the group + 1'
+    verdict: INVALID
+    group: "4"
+    input: |
+      1000000000001
+    expect: "[name=n]"
+  - covers: 'group 5 (the full limits): n = maxN'
+    verdict: VALID
+    group: "5"
+    input: |
+      1000000000000000000
