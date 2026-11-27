@@ -1846,9 +1846,16 @@ What to do for EACH surviving solution:
    catch several surviving solutions, then it refers to each of them. The block and every
    new generator — `status: proposed` with a `rationale`: which solution it catches and
    why exactly this test makes it fail.
+Find the input from the code, not by running the solutions: don't trace them by hand on
+any input and don't follow their state step by step — the orchestrator runs them, and
+after your plan it runs them again on the new tests. If the code doesn't show you an input
+on which the difference matters (e.g. a later part of the solution seems to undo it),
+don't try to prove the solutions equivalent or not equivalent: stop at that and report it
+as below.
 If you can't find an input that catches a solution (e.g. the solution is in fact correct,
 or the mistake is unreachable within the limits) — don't add a test for it: explain it
-in `notes` with `kind: uncertain` (`field` — `solutions/<file name>`): the author decides
+in `notes` with `kind: uncertain` (`field` — `solutions/<file name>`): what exactly the
+solution does differently and why you see no input where it matters; the author decides
 whether the solution or its verdict is wrong.
 
 The current plan is the author's: keep it. Return the whole `tests_plan.yaml` — every

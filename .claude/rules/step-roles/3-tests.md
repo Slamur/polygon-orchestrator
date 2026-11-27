@@ -165,7 +165,11 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
      written back exactly as they were (`keep_current_entries`), so that the kept
      generators stay cache hits of `generators_draft`. A survivor no block refers to, or
      an uncaught group of it that no block referring to it is in — an `uncovered` note; a solution the model can't catch (it may be correct) — an
-     `uncertain` note, the author decides. After the step `llm generate` runs
+     `uncertain` note, the author decides. The model finds the input from the code and
+     doesn't trace the solutions by hand: when the code shows no input where the
+     difference matters, it stops at `uncertain` instead of proving the solutions
+     equivalent. Why: proving that a wrong solution whose mistake a later loop undoes is in
+     fact correct once took the call minutes of hand simulation. After the step `llm generate` runs
      `SURVIVOR_RECHECK_STEPS` (`generators_draft` … `run_groups`) again; with
      `--survivor-rounds N` (1 by default, `0` — the step doesn't run) the step runs up
      to N times in one run, again even with the same survivors
