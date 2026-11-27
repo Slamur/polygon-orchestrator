@@ -65,11 +65,17 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    `GATE_STEPS`) — `checks/checker_tests.run_checker_tests`: writes
    `checker_tests.auto.yaml` — per example, the output of Main correct as both the output
    and the answer, and each other output (the example's `output` in the spec, every other
-   `ok`/`ma` solution's) that differs from it in tokens, all `OK`; then runs the checker on
-   every test of both files. A test of `checker_tests.yaml` fails if the checker gives
+   `ok`/`ma` solution's), and the cross-checks below, all `OK`; then runs the checker on
+   every test of both files. The set of tests of both files is unique — the same input,
+   output and answer in tokens (`checker_test_key`): `checker_tests.yaml` mustn't repeat a
+   test (the response is rejected), and a test of the auto file that repeats an earlier one
+   or one of `checker_tests.yaml` isn't written. Why: the cross-checks of all the tests on
+   one input with one correct answer are one test, not one per test. A test of `checker_tests.yaml` fails if the checker gives
    another verdict, the validator rejects its input (with test groups — every group and
    group 0 reject it), or its side that isn't wrong (the answer of `OK`/`WA`/`PE`, the output
-   of `OK`/`FAIL`) isn't accepted against the output of Main correct; these failures are the
+   of `OK`/`FAIL`) isn't accepted against the output of Main correct (a side that is
+   accepted becomes an `OK` test of the auto file: the input, the side, the output of Main
+   correct); these failures are the
    step's: while nothing the run reads changed, `checker_tests` reruns even with a valid
    cache (`forced_rerun_reason`) and revises with them and the author's comment from
    `llm_reports/run_checker_tests.md` (`--revise-attempts` — in the same run). If the test is

@@ -7,10 +7,15 @@ in one format (`parse_checker_tests`):
 
 - `checker_tests.yaml` — written by the `checker_tests` step: a test (or a pair) per branch
   of the checker that rejects an answer;
-- `checker_tests.auto.yaml` — written by the local run (`run_checker_tests`), derived from
-  the examples, not edited by hand: every example with the answer of Main correct as both
-  the output and the answer (OK), and every other output of a correct (`ok`, `ma`)
-  solution — or the example's `output` in the spec — that differs from it in tokens (OK).
+- `checker_tests.auto.yaml` — written by the local run (`run_checker_tests`), not edited by
+  hand, all `OK`: every example with the answer of Main correct as both the output and the
+  answer, every other output of a correct (`ok`, `ma`) solution on it or the example's
+  `output` in the spec; and the cross-checks of the tests of `checker_tests.yaml` (below).
+
+The set of tests of both files is unique: two tests are the same if their input, output and
+answer are the same in tokens. `checker_tests.yaml` itself mustn't repeat a test; a test of
+`checker_tests.auto.yaml` that repeats an earlier one or one of `checker_tests.yaml` isn't
+written — e.g. the cross-checks of the tests on one input with one correct answer are one test.
 
 The verdicts are testlib's: `OK`, `WA`, `PE` and `FAIL` (the checker failed: the jury's
 answer is wrong; Polygon calls it `CRASHED`).
@@ -20,8 +25,9 @@ every test of both files, the verdict must be the expected one. The input of eve
 `checker_tests.yaml` must pass the validator (with test groups — of at least one group or
 of the examples), and the side of the test that isn't wrong must be accepted against the
 output of Main correct on the input: the answer of an `OK`, `WA` or `PE` test, the output of
-an `OK` or `FAIL` test — so a test whose "correct" side isn't correct is caught too. Without
-Main correct this cross-check isn't done (a note). The failures of the tests of
+an `OK` or `FAIL` test — so a test whose "correct" side isn't correct is caught too. Each
+such check that passes is an `OK` test of `checker_tests.auto.yaml` (the input, the correct
+side, the output of Main correct). Without Main correct this cross-check isn't done (a note). The failures of the tests of
 `checker_tests.yaml` are the step's (it revises with them); a test of the examples the
 checker doesn't accept, a checker that doesn't build or a file that doesn't parse — errors
 of the problem: the author fixes the checker or the solutions.
@@ -101,7 +107,8 @@ class CheckerTest:
 def parse_checker_tests(text: str, source: str = CHECKER_TESTS_FILENAME) -> list[CheckerTest]:
     """The tests of a checker tests file: `tests` — a list of mappings with `covers`,
     `verdict` (one of `VERDICTS`), `input`, `output`, `answer` (strings). `CheckerTestsError`
-    — the file doesn't match the format, has no tests or has the same test twice."""
+    — the file doesn't match the format, has no tests or has the same test twice
+    (`checker_test_key`)."""
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -111,7 +118,7 @@ def parse_checker_tests(text: str, source: str = CHECKER_TESTS_FILENAME) -> list
         raise CheckerTestsError(f"{source}: expected a non-empty list 'tests'")
     tests: list[CheckerTest] = []
     errors: list[str] = []
-    seen: dict[tuple[str, str, str], int] = {}
+    seen: dict[tuple, int] = {}
     for number, item in enumerate(items, start=1):
         where = f"{source}: test {number}"
         if not isinstance(item, dict):
@@ -134,15 +141,33 @@ def parse_checker_tests(text: str, source: str = CHECKER_TESTS_FILENAME) -> list
         if values["verdict"] not in VERDICTS:
             errors.append(f"{where}: verdict {values['verdict']!r} is not one of {list(VERDICTS)}")
             continue
-        key = (values["input"], values["output"], values["answer"])
+        test = CheckerTest(**values)
+        key = checker_test_key(test)
         if key in seen:
             errors.append(f"{where}: the same input, output and answer as test {seen[key]}")
             continue
         seen[key] = number
-        tests.append(CheckerTest(**values))
+        tests.append(test)
     if errors:
         raise CheckerTestsError("; ".join(errors))
     return tests
+
+
+def checker_test_key(test: CheckerTest) -> tuple:
+    """What makes two tests the same: the input, the output and the answer in tokens."""
+    return tuple(tuple(text.split()) for text in (test.input, test.output, test.answer))
+
+
+def unique_tests(tests: list[CheckerTest], taken: set[tuple] | None = None) -> list[CheckerTest]:
+    """`tests` without the ones repeating an earlier test or one of `taken` (`checker_test_key`)."""
+    seen = set(taken or ())
+    unique = []
+    for test in tests:
+        key = checker_test_key(test)
+        if key not in seen:
+            seen.add(key)
+            unique.append(test)
+    return unique
 
 
 def load_checker_tests(path: Path) -> list[CheckerTest]:
@@ -252,18 +277,16 @@ def run_checker_tests(problem_dir: Path, progress: Progress | None = None) -> Ch
             )
             return execution.output if execution.verdict is None else None
 
-        run.auto = _auto_tests(problem_dir, spec, correct, main_name, output_of, run)
-        auto_path = problem_dir / AUTO_CHECKER_TESTS_FILENAME
-        if run.auto:
-            auto_path.write_text(dump_checker_tests(run.auto, _AUTO_HEADER), encoding="utf-8")
-        else:
-            auto_path.unlink(missing_ok=True)
-
-        for number, test in enumerate(run.auto, start=1):
+        model_keys = {checker_test_key(test) for test in model_tests}
+        samples = unique_tests(
+            _sample_checker_tests(problem_dir, spec, correct, main_name, output_of, run),
+            model_keys,
+        )
+        for test in samples:
             verdict, comment = _judge(checker, test.input, test.output, test.answer, work_dir)
             if verdict != test.verdict:
                 run.errors.append(
-                    f"{AUTO_CHECKER_TESTS_FILENAME}: test {number} ({test.covers}): the checker "
+                    f"{AUTO_CHECKER_TESTS_FILENAME}: {test.covers}: the checker "
                     f"says {verdict}, expected {test.verdict}: {comment}"
                 )
 
@@ -275,6 +298,7 @@ def run_checker_tests(problem_dir: Path, progress: Progress | None = None) -> Ch
         )
         if main_name is None:
             run.note("no correct solution: the tests' answers are not cross-checked")
+        cross_tests: list[CheckerTest] = []
         for number, test in enumerate(model_tests, start=1):
             problems: list[str] = []
             verdict, comment = _judge(checker, test.input, test.output, test.answer, work_dir)
@@ -285,9 +309,20 @@ def run_checker_tests(problem_dir: Path, progress: Progress | None = None) -> Ch
                 if rejected is not None:
                     problems.append(f"{VALIDATOR_FILENAME} rejects the input: {rejected}")
             if main_name is not None:
-                problems += _cross_check(test, checker, main_name, output_of, work_dir, run, number)
+                cross_problems, passed = _cross_check(
+                    test, checker, main_name, output_of, work_dir, run, number
+                )
+                problems += cross_problems
+                cross_tests += passed
             if problems:
                 run.failures.append({"test": number, "covers": test.covers, "problems": problems})
+
+        run.auto = unique_tests([*samples, *cross_tests], model_keys)
+        auto_path = problem_dir / AUTO_CHECKER_TESTS_FILENAME
+        if run.auto:
+            auto_path.write_text(dump_checker_tests(run.auto, _AUTO_HEADER), encoding="utf-8")
+        else:
+            auto_path.unlink(missing_ok=True)
         run.tests = len(run.auto) + len(model_tests)
     run.notes[:0] = collector.notes
     run.errors.extend(collector.errors)
@@ -312,7 +347,7 @@ def _correct_solutions(
     return correct, main_name
 
 
-def _auto_tests(
+def _sample_checker_tests(
     problem_dir: Path,
     spec: dict | None,
     correct: dict[str, Path],
@@ -320,7 +355,7 @@ def _auto_tests(
     output_of: Callable[[str, str], str | None],
     run: CheckerTestsRun,
 ) -> list[CheckerTest]:
-    """The OK tests of every example (see the module docstring)."""
+    """The OK tests of every example (see the module docstring), with repeats."""
     tests: list[CheckerTest] = []
     for sample in _sample_tests(problem_dir, spec):
         answer = output_of(main_name, sample.input) if main_name is not None else None
@@ -338,12 +373,7 @@ def _auto_tests(
         for name in sorted(correct):
             if name != main_name and (output := output_of(name, sample.input)) is not None:
                 candidates.append((f"{sample.name}: the output of {name}", output))
-        seen: set[tuple[str, ...]] = set()
         for covers, output in candidates:
-            tokens = tuple(output.split())
-            if tokens in seen:
-                continue
-            seen.add(tokens)
             tests.append(CheckerTest(covers, VERDICT_OK, sample.input, output, answer))
     return tests
 
@@ -382,21 +412,23 @@ def _cross_check(
     work_dir: Path,
     run: CheckerTestsRun,
     number: int,
-) -> list[str]:
-    """The side of the test that isn't wrong against the output of Main correct."""
+) -> tuple[list[str], list[CheckerTest]]:
+    """The side of the test that isn't wrong against the output of Main correct: (what's
+    wrong, the `OK` tests of the sides that passed)."""
     expected = output_of(main_name, test.input)
     if expected is None:
         run.warnings.append(
             f"{CHECKER_TESTS_FILENAME}: test {number} ({test.covers}): {main_name} gives no "
             "output on its input — not cross-checked"
         )
-        return []
+        return [], []
     sides = []
     if test.verdict in (VERDICT_OK, VERDICT_WA, VERDICT_PE):
         sides.append(("answer", test.answer))
     if test.verdict in (VERDICT_OK, VERDICT_FAIL):
         sides.append(("output", test.output))
     problems = []
+    passed = []
     for side, text in sides:
         verdict, comment = _judge(checker, test.input, text, expected, work_dir)
         if verdict != VERDICT_OK:
@@ -404,4 +436,7 @@ def _cross_check(
                 f"its {side} is not a correct answer: against the output of {main_name} the "
                 f"checker says {verdict}: {comment}"
             )
-    return problems
+        else:
+            covers = f"{CHECKER_TESTS_FILENAME} test {number}: its {side} against {main_name}"
+            passed.append(CheckerTest(covers, VERDICT_OK, test.input, text, expected))
+    return problems, passed

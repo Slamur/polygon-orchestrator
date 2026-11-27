@@ -51,6 +51,7 @@ def test_parse_accepts_numbers_as_texts():
         (_text({k: v for k, v in TEST.items() if k != "covers"}), "'covers'"),
         (_text({**TEST, "extra": 1}), "unknown keys"),
         (_text(TEST, {**TEST, "covers": "y"}), "the same input, output and answer as test 1"),
+        (_text(TEST, {**TEST, "output": " 2 \n\n"}), "the same input, output and answer as test 1"),
     ],
 )
 def test_parse_rejects(text, match):
@@ -111,10 +112,12 @@ def test_correct_solution_with_another_output_gives_an_ok_test(problem):
     (problem / "solutions" / "ok_py_alt_draft.py").write_text(alt)
     assert len(run_checker_tests(problem).auto) == 2
 
-    (problem / "solutions" / "ok_py_alt_draft.py").write_text("print('NO')\n")
+    # Not "NO" or another output a test of checker_tests.yaml already has (no repeats).
+    (problem / "solutions" / "ok_py_alt_draft.py").write_text("print('YES')\nprint(1)\n")
     run = run_checker_tests(problem)
-    assert [t.covers for t in run.auto if t.output == "NO\n" and t.answer != "NO\n"] == [
-        "example_1: the output of ok_py_alt_draft.py"
+    assert [t.covers for t in run.auto if t.output == "YES\n1\n"] == [
+        "example_1: the output of ok_py_alt_draft.py",
+        "example_2: the output of ok_py_alt_draft.py",
     ]
     assert any("example_1: the output of ok_py_alt_draft.py" in e for e in run.errors)
     assert run.failures == []
@@ -159,3 +162,41 @@ def test_unparsable_tests_file_is_a_problem_error(problem):
 
     assert any("non-empty list" in error for error in run.errors)
     assert len(run.auto) == 2
+
+
+@pytest.mark.slow
+def test_cross_checks_are_ok_tests_without_repeats(problem):
+    # Two tests on a new input with the same correct answer: one cross-check test.
+    new_input = "3 1\n1 1 1\n"
+    participant = {
+        "covers": "a later prefix, participant",
+        "verdict": "WA",
+        "input": new_input,
+        "output": "YES\n3\n",
+        "answer": "YES\n2\n",
+    }
+    jury = {**participant, "covers": "a later prefix, jury", "verdict": "FAIL"}
+    jury["output"], jury["answer"] = "YES\n2\n", "YES\n3\n"
+    # An OK test the run would also derive from an example: kept only in the step's file.
+    example = {
+        "covers": "example 1",
+        "verdict": "OK",
+        "input": "5 6\n2 1 3 5 4\n",
+        "output": "YES\n4\n",
+        "answer": "YES\n4\n",
+    }
+    _write_model_tests(problem, [participant, jury, example])
+
+    run = run_checker_tests(problem)
+
+    assert (run.failures, run.errors) == ([], [])
+    assert [(t.covers, t.input, t.output, t.answer) for t in run.auto] == [
+        ("example_2: the output of ok_cpp_prefs_draft.cpp", "3 10\n2 0 7\n", "NO\n", "NO\n"),
+        (
+            "checker_tests.yaml test 1: its answer against ok_cpp_prefs_draft.cpp",
+            new_input,
+            "YES\n2\n",
+            "YES\n2\n",
+        ),
+    ]
+    assert run.tests == 5
