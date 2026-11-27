@@ -61,6 +61,12 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    over that is named `tl_ml` ("TL or ML", Polygon's `TM` tag), even from a `tl`/`ml`
    item — locally it's allowed OK, TL or RE (the address space cap turns a memory
    shortage into RE), and missing both is only a warning, as for `tl` and `ml`.
+   The input/output of every solution is taken from the language's skeleton in
+   `templates/solutions/`, attached even when the references have solutions in the
+   language, and over a reference's where they differ (`.claude/rules/materials.md`);
+   `ok.<ext>` for the main idea and `alternative_approaches`, a described `ok` skeleton
+   (`ok_fastio.py`) only for an additional `proposed` copy of the main idea in stage
+   `ok` when the input/output volume is of the order of 10^5 or more.
    Beyond the solutions described in the spec, a stage may propose its own (another or
    a faster `ok` in `solutions_ok`, likely contestant mistakes in `slow`/`wrong`) — see "Model suggestions beyond the spec" in `.claude/rules/steps.md`.
 

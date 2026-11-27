@@ -30,14 +30,18 @@ listed in the spec as references; there may be no samples at all. For this step
 these are solutions/* — solutions in the ordered languages (only those that
 exist for the languages from `languages` are attached), the reference of HOW the author wants to see
 a solution — and spec.yaml of the same problem.
-For an ordered language in which there's no
-`ok` solution among the samples, solution skeletons of this language are attached instead of samples —
+For an ordered language solution skeletons of this language may also be attached, whether
+or not the samples have solutions in it —
 `solutions/<verdict>_<description>.<ext>`: `solutions/ok.<ext>` (e.g.
 `solutions/ok.cpp`) — the skeleton of an `ok` solution without an algorithm: reading the input,
 a separate function computing the answer, output, an entry point and the
 input/output functions the author uses in this language; a skeleton with another
 verdict (e.g. `solutions/tl_ok_slowio.java`) — the same skeleton for a
-solution with this verdict (`slowio` — slow input/output).
+solution with this verdict (`slowio` — slow input/output); a skeleton with the `ok`
+verdict and a description (e.g. `solutions/ok_fastio.py`, `fastio` — fast input/output)
+— another input/output for an additional `ok` solution only (item 1). A skeleton
+is the author's input/output in its language: where it and a sample differ, follow the
+skeleton.
 Placeholder comments and the placeholder return value in a skeleton are places
 you fill in for your problem; they aren't carried over into the solution.
 The other comments in a skeleton are the author's instructions on how input/output is organized
@@ -63,14 +67,20 @@ CARRY OVER into your solutions:
   a separate `solve()` function called from the entry point, and computing the
   answer with a separate function/lambda returning a value rather than printing
   it along the way.
-- The input/output method for the language — exactly as in the `ok` sample in this language,
-  and if there isn't one — as in this language's skeleton (the same reading and
+- The input/output method for the language — exactly as in this language's skeleton
+  for the solution's verdict (`solutions/ok.<ext>` for `ma` and `ok`), and if there isn't
+  one — as in the `ok` sample in this language (the same reading and
   writing means, the same buffering setup), not another, even if equivalent,
   method. The reading and writing functions/classes your solution
-  uses, take from the sample or the skeleton as is — don't rewrite or
+  uses, take from the skeleton or the sample as is — don't rewrite or
   replace them with your own; unused ones may be left out. If they lack a needed reading
   function (e.g. reading a real number), add it in
   the same style as the neighboring ones.
+  Don't invent an input/output method of your own instead of theirs, even if it seems
+  faster or needed (e.g. so that the `ok` solution differs from a `tl_ok` solution with
+  slow input/output: that difference is set by the skeletons). If their means really
+  aren't enough for your problem — keep their method anyway and say in `notes`
+  (`kind: proposed`) what is missing.
 - The sample's general code style in this language: naming, explicit types, no
   extra macros and abbreviations.
 - How `wa`, `tl` and `tl_ok` solutions are built: it's a copy of the `ok` solution
@@ -110,6 +120,15 @@ Mandatory rules (each item says which stages it is about):
    each item of `solutions.alternative_approaches` (if any) as a separate additional `ok`
    solution on the idea described there, with its own `<idea>`; the `ma` verdict isn't
    used in stage `ok`, and the main solution itself isn't returned.
+   The main idea in each language (`ma`, and the `ok` carrying it over to the language) and
+   the `alternative_approaches` solutions use the input/output of `solutions/ok.<ext>`, never
+   of an `ok` skeleton with a description (`solutions/ok_fastio.py`). Such a skeleton is
+   only for an additional `ok` solution in stage `ok`: if by the "Fixed limits" section the
+   input or output volume on the maximal test is of the order of 10^5 numbers (lines,
+   words) or more, add in its language a copy of the main idea's solution in this language
+   (`ma` or `ok`) in which only the input/output is replaced with the skeleton's, named
+   `ok_<language>_<idea>_<skeleton description>_<author>`
+   (`ok_py_bfs_fastio_draft.py`), and MARK it as `proposed`.
    In these solutions don't substitute the author's idea with your own and don't change the declared
    asymptotics — it was already fixed at the `constraints_pick` step and
    must match `intended_complexity`. Your own algorithms — only as
@@ -117,7 +136,7 @@ Mandatory rules (each item says which stages it is about):
 2. A solution with the `ok` verdict — without extra optimizations (no pragmas, no
    byte-by-byte input, no specific speedups), but with reasonable buffering of
    input/output if that's standard for the language — the structure and input/output
-   as in the `ok` sample (or skeleton) in this language.
+   as in the `ok` skeleton (or, without one, the `ok` sample) in this language.
 3. (`slow`, `wrong`) EACH item of `known_wrong_approaches` in the request is a separate
    solution (a separate file); the request has only the items of your stage's verdicts. Don't skip a single item, don't merge it with another and don't replace it
    with a "neighboring" one from the same list. Each item starts with its verdict and
@@ -191,7 +210,7 @@ Mandatory rules (each item says which stages it is about):
    `ok` solution in which only the input/output method is replaced with a
    slow one, and the algorithm is left as before: in Java — `Scanner` and
    `System.out` without own buffering, in Python — `input()` per line and
-   `print` for each printed value; if a sample or a skeleton
+   `print` for each printed value; if a skeleton (or, without one, a sample)
    with slow input/output is attached — as in it. MARK it as `proposed` and state in
    `notes` the estimate of the input/output volume because of which it was added.
 5. File names — by the scheme `<verdict>_<language>_<description>_<author>.<ext>`
@@ -273,7 +292,8 @@ stage `main` there's no other source of truth on them than `algorithm_hint`.
 Respond in the JSON format from the contract. `artifacts` — a "file name" →
 "solution code" map of your stage's files only: `main` — the one main solution; `ok` —
 one `ok` solution for each other language from `languages` and the files for each
-item of `alternative_approaches` (item 1, taking the languages into account); `slow`, `wrong` —
+item of `alternative_approaches` (item 1, taking the languages into account), plus the
+additional `ok` on a described `ok` skeleton (item 1); `slow`, `wrong` —
 the files for each item of `known_wrong_approaches` from the request (item 3), the additions
 for uncovered verdicts (item 4); plus your own ideas of your stage (item 8). If one
 verdict and language have several items — there will be several files, with different

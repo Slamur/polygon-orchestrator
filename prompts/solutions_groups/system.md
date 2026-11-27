@@ -13,8 +13,9 @@ You are given mandatory rules:
 Besides them, samples may be attached — files of other problems that the author
 listed in the spec as references; there may be no samples at all. These are solutions/*
 — the reference of HOW the author wants to see a solution in each language — and spec.yaml
-of the same problem; for a language without an `ok` sample — solution skeletons
-`solutions/<verdict>_<description>.<ext>`. Files from one directory belong to one problem,
+of the same problem; and solution skeletons `solutions/<verdict>_<description>.<ext>`
+of each language — the author's input/output in it, followed over a sample's where they
+differ. Files from one directory belong to one problem,
 none of them has anything to do with yours: take the structure and the input/output from
 them, not the content.
 

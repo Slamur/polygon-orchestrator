@@ -609,11 +609,11 @@ def extra_context_documents(
     -> `cpp`); solutions in languages not ordered aren't attached, so as not to
     pull someone else's input/output style into the context.
 
-    For an ordered language for which the references gave no
-    `ok` solution, all solution skeletons of this
-    language from `templates/solutions/*.<language>` (if any) are attached instead of a sample: the way
-    the author wants to see input/output in this language is set even without
-    references. The skeletons go before the reference files. For an interactive problem
+    For each ordered language all solution skeletons of this language from
+    `templates/solutions/*.<language>` (if any) are attached too, even if the
+    references have an `ok` solution in it: a skeleton sets the author's input/output
+    in this language and takes precedence over a sample's (see
+    `prompts/solutions/system.md`). The skeletons go before the reference files. For an interactive problem
     the `INTERACTIVE_RULES` rules are attached first (as for
     `statement_draft`). If there's no `solutions` section — `None`: the step
     doesn't run anyway.
@@ -630,14 +630,9 @@ def extra_context_documents(
 
     rules = [INTERACTIVE_RULES] if spec.interactive else []
     references = reference_documents(step_name, spec, keep=keep) or []
-    covered = {
-        language
-        for verdict, language in map(_solution_parts, map(Path, references))
-        if verdict in CORRECT_VERDICTS
-    }
     templates = [
         str(path)
-        for language in sorted(languages - covered)
+        for language in sorted(languages)
         for path in sorted((Path(templates_dir) / SOLUTION_TEMPLATES_SUBDIR).glob(f"*.{language}"))
     ]
     return [*rules, *templates, *references] or None
