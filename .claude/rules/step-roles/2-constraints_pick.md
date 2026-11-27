@@ -108,4 +108,5 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    — in the same run). If the test is right and the validator is wrong, the model keeps the
    test with a `validator_bug` note: the author fixes the validator (a failure isn't routed to
    `constraints_pick`). A validator that doesn't build, a file that doesn't parse, a group
-   without a `VALID` test — problem errors, not given to the model.
+   without a `VALID` test — problem errors, not given to the model. On Polygon the tests are
+   uploaded by `polygon push` (`upload_validator_tests`, `.claude/rules/polygon.md`).

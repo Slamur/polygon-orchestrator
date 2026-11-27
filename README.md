@@ -597,6 +597,13 @@ a checker test: if Polygon has more of them, `push` says which ones to delete by
 next `push` uploads the local tests over an edit made on Polygon, so copy such an edit into
 `checker_tests.yaml` first.
 
+Validator tests: `push` uploads `validator_tests.yaml` as Polygon's validator tests 1, 2, …,
+only the ones that differ from Polygon (the input, the verdict and the group), after the test
+groups — Polygon takes a test's group only once the groups are enabled. As with the checker
+tests, the API can't delete a validator test (`push` names the extra ones), and `pull` only
+reports the differences: `covers` and `expect` of the file aren't on Polygon, so copy an edit
+made there into `validator_tests.yaml` by hand.
+
 The statement command `\Extra{<text>}` puts the extra fragment `<text>` into the statement
 PDF where it stands: between paragraphs (on a line of its own) or inside a sentence. It is
 defined in `templates/extra.tex`. Polygon builds the statement only with the statement files

@@ -58,6 +58,13 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   without tests, an `each_test` group whose number of tests doesn't divide its points —
   an error before any change. The step always reads
   `problem.tests`: regenerated tests (a new script) are assigned again,
+  the validator tests (`upload_validator_tests`, after `upload_test_groups`: a test's group
+  is taken only once the groups are enabled for the testset): `validator_tests.yaml` as
+  validator tests 1..N (`problem.saveValidatorTest` by `testIndex`, `testVerdict`; a test
+  with a group — `testGroup` and `testset=tests`), a base key `validator_tests/<K>` per test
+  (the input without line endings and trailing spaces, the verdict, the group); like the
+  checker tests, it reads `problem.validatorTests` when something changed, saves only the
+  tests that differ, and names the Polygon tests after the last local one (no delete method),
   uploading `problems/<problem path>/authoring/` — `spec.yaml`,
   `constraints.yaml` (the whole `constraints_pick` result), `tests_design.yaml`
   (the test design), `tests_plan.yaml` (the test plan), `scoring.yaml` (the constraints cells of the subtasks
@@ -143,7 +150,8 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   local tests changed, `differs` if a test changed on Polygon, has no base or is only on
   Polygon; the base gets Polygon's tests, so the next push uploads the local ones over an
   edit made on Polygon (why: an edited test doesn't say whether it belongs to the run's
-  auto file or the step's file) —, resource files, generators, test-script, solutions, spec,
+  auto file or the step's file) —, validator tests (the same: only reported, the base gets
+  Polygon's; why: `covers` and `expect` of `validator_tests.yaml` aren't on Polygon), resource files, generators, test-script, solutions, spec,
   `constraints.yaml`, test design, test plan, `scoring.yaml`, draft and tutorial draft
   from Attachments), downloads into
   the problem directory those missing locally and rewrites the sync
