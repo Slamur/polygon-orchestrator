@@ -56,6 +56,16 @@ _RESPONSES = {
     "checker_draft": ModelResponse(
         status="confirmed", artifacts={"checker.cpp": "int main(){}"}, notes=[]
     ),
+    "checker_tests": ModelResponse(
+        status="confirmed",
+        artifacts={
+            "checker_tests.yaml": (
+                "tests:\n  - covers: x\n    verdict: WA\n    input: '1'\n"
+                "    output: '2'\n    answer: '1'\n"
+            )
+        },
+        notes=[],
+    ),
     "interactor_draft": ModelResponse(
         status="confirmed", artifacts={"interactor.cpp": "int main(){}"}, notes=[]
     ),
@@ -71,6 +81,8 @@ _SKIPPED_STEPS = {
     "solutions_groups",
     "run_groups",
     "checker_draft",
+    "checker_tests",
+    "run_checker_tests",
     "interactor_draft",
     "solutions_ok",
     "run_ok",
@@ -84,6 +96,7 @@ _MECHANICAL_STEPS = {
     "run_main",
     "run_slow",
     "run_wrong",
+    "run_checker_tests",
 }
 
 
@@ -248,7 +261,8 @@ def test_solution_stages_skipped_when_spec_has_no_solutions_section(spec_file, t
     assert {
         name: status
         for name, status in statuses.items()
-        if name.startswith("solutions_") or (name.startswith("run_") and name != "run_tests")
+        if name.startswith("solutions_")
+        or (name.startswith("run_") and name not in ("run_tests", "run_checker_tests"))
     } == {name: pipeline.OUTCOME_SKIPPED_OPTIONAL for name in STAGE_AND_GATE_STEPS}
     assert not (problems_dir / "p1" / "solutions").exists()
 
@@ -283,6 +297,53 @@ def test_checker_draft_runs_when_custom_needed_is_true(spec_file, tmp_path):
     statuses = {o.step_name: o.status for o in result.outcomes}
     assert statuses["checker_draft"] == "confirmed"
     assert (problems_dir / "p1" / "checker.cpp").exists()
+    assert statuses["checker_tests"] == "confirmed"
+    assert statuses["run_checker_tests"] == "confirmed"
+    assert (problems_dir / "p1" / "checker_tests.yaml").exists()
+
+
+def test_failed_checker_tests_run_makes_checker_tests_revise(spec_file, tmp_path, monkeypatch):
+    from orchestrator.checks.checker_tests import CheckerTestsRun
+    from orchestrator.steps import checker_tests_check
+
+    problems_dir = tmp_path / "problems"
+    content = spec_file.read_text(encoding="utf-8")
+    content = content.replace("custom_needed: false", "custom_needed: true").replace(
+        "custom_comparison_notes: null",
+        'custom_comparison_notes: "Compare numbers with precision 1e-6"',
+    )
+    spec_file.write_text(content, encoding="utf-8")
+    runs = iter(
+        [
+            CheckerTestsRun(failures=[{"test": 1, "covers": "x", "problems": ["says OK"]}]),
+            CheckerTestsRun(tests=1),
+        ]
+    )
+    monkeypatch.setattr(checker_tests_check, "run_checker_tests", lambda *a, **k: next(runs))
+    revised = ModelResponse(
+        status="confirmed",
+        artifacts={
+            "checker_tests.yaml": _RESPONSES["checker_tests"]
+            .artifacts["checker_tests.yaml"]
+            .replace("'2'", "'3'")
+        },
+        notes=[],
+    )
+    responses = iter([_RESPONSES["checker_tests"], revised])
+
+    def fake(step, system_prompt, user_prompt, context_documents=None):
+        if step == "checker_tests":
+            return next(responses)
+        return _RESPONSES[step]
+
+    with patch("orchestrator.model_router.call_model", side_effect=fake):
+        result = _run(problems_dir, revise_attempts=1)
+
+    assert result.ok
+    names = [o.step_name for o in result.outcomes]
+    assert names.count("checker_tests") == 2
+    assert names.count("run_checker_tests") == 2
+    assert "revision 1 of 1" in names
 
 
 def test_interactor_draft_skipped_for_non_interactive_problem(spec_file, tmp_path):

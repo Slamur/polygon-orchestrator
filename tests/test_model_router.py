@@ -53,6 +53,7 @@ def test_step_to_model_covers_all_steps_and_init_draft_calls():
         "solutions_groups",
         "tests_survivors",
         "checker_draft",
+        "checker_tests",
         "interactor_draft",
         "spec_from_draft",
         "tutorial_draft",
