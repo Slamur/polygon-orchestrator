@@ -409,7 +409,10 @@ statement's subtasks table, only with test groups) → `checker_draft` (only wit
 `checker.custom_needed: true`) → `interactor_draft` (only for interactive problems)
 → the solutions in stages, each checked by a local run of its solutions on the
 examples and the tests from the script: `solutions_main` → `run_main` →
-`solutions_ok` → `run_ok` → `solutions_slow` → `run_slow` → `solutions_wrong` →
+`solutions_ok` → `run_ok` → `checker_tests` (only with `checker.custom_needed: true` and a
+problem that isn't interactive: the model writes `checker_tests.yaml`, a test per branch of
+the checker that rejects an answer) → `run_checker_tests` (mechanical: the tests of the
+examples into `checker_tests.auto.yaml`, the checker on all of them) → `solutions_slow` → `run_slow` → `solutions_wrong` →
 `run_wrong` → `solutions_groups` → `run_groups` (only with test groups that have limits of
 their own: for each such group the model says whether it sees a solution specific to it, and
 writes it if so) → `tests_survivors` (tests for the wrong solutions no test catches, or no
@@ -478,6 +481,14 @@ What's important to know:
   with the report. An error of the problem itself (the validator rejects a test, the
   checker fails) isn't given to the model — fix the tests, the checker or the spec.
   A wrong solution no test from the script catches is only reported.
+- **The checker tests failed** (`run_checker_tests` — after `run_ok`). The pipeline stops;
+  `llm_reports/run_checker_tests.md` says which test of `checker_tests.yaml` got which
+  verdict, whose input the validator rejects, or whose "correct" side the checker doesn't
+  accept against the main solution's output. Fix the tests by hand, or write what the model
+  should know at the end of the report and run `llm generate` again: `checker_tests` revises
+  its tests with the report. If the checker itself is wrong, fix `checker.cpp`. A test of the
+  examples the checker rejects (`checker_tests.auto.yaml`) isn't given to the model — fix the
+  checker or the solution.
 
 ### `local` — checks without the model and the network
 
@@ -657,6 +668,8 @@ problems/<problem path>/   your problems (not in git)
   statement/examples/        examples — shared by all languages
   limits.yaml                the actual TL/ML (can be edited by hand)
   validator.cpp, checker.cpp, interactor.cpp
+  checker_tests.yaml         the checker tests (checker_tests): a test per branch that rejects an answer
+  checker_tests.auto.yaml    the checker tests of the examples (run_checker_tests, rewritten — don't edit)
   generators/*.cpp, test_script
   solutions/*
   llm_reports/<step>.md      the report of the step's last run — read it first
