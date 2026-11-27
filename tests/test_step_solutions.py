@@ -79,9 +79,12 @@ def _with_solutions(spec, languages, references):
 def test_extra_context_documents_filters_solutions_by_language(spec, tmp_path):
     reference_dir = _write_reference(tmp_path)
 
-    documents = extra_context_documents(_with_solutions(spec, ["cpp"], [str(reference_dir)]))
+    documents = extra_context_documents(
+        _with_solutions(spec, ["cpp"], [str(reference_dir)]), templates_dir=TEMPLATES_DIR
+    )
 
     assert documents == [
+        str(SOLUTION_TEMPLATES / "ok.cpp"),
         str(reference_dir / "solutions" / "ok_cpp_a_draft.cpp"),
         str(reference_dir / "solutions" / "wa_cpp_b_draft.cpp"),
     ]
@@ -93,9 +96,13 @@ def test_extra_context_documents_reads_language_after_combined_verdict(spec, tmp
         "//", encoding="utf-8"
     )
 
-    documents = extra_context_documents(_with_solutions(spec, ["java"], [str(reference_dir)]))
+    documents = extra_context_documents(
+        _with_solutions(spec, ["java"], [str(reference_dir)]), templates_dir=TEMPLATES_DIR
+    )
 
     assert documents == [
+        str(SOLUTION_TEMPLATES / "ok.java"),
+        str(SOLUTION_TEMPLATES / "tl_ok_slowio.java"),
         str(reference_dir / "solutions" / "ok_java_a_draft.java"),
         str(reference_dir / "solutions" / "tl_ok_java_slowio_draft.java"),
     ]
@@ -104,9 +111,16 @@ def test_extra_context_documents_reads_language_after_combined_verdict(spec, tmp
 def test_extra_context_documents_accepts_language_aliases(spec, tmp_path):
     reference_dir = _write_reference(tmp_path)
 
-    documents = extra_context_documents(_with_solutions(spec, ["Python"], [str(reference_dir)]))
+    documents = extra_context_documents(
+        _with_solutions(spec, ["Python"], [str(reference_dir)]), templates_dir=TEMPLATES_DIR
+    )
 
-    assert documents == [str(reference_dir / "solutions" / "ok_py_a_draft.py")]
+    assert documents == [
+        str(SOLUTION_TEMPLATES / "ok.py"),
+        str(SOLUTION_TEMPLATES / "ok_fastio.py"),
+        str(SOLUTION_TEMPLATES / "tl_ok_slowio.py"),
+        str(reference_dir / "solutions" / "ok_py_a_draft.py"),
+    ]
 
 
 def test_extra_context_documents_without_matching_solutions(spec, tmp_path):
@@ -133,6 +147,7 @@ def test_extra_context_documents_without_references_attaches_language_templates(
     assert documents == [
         str(SOLUTION_TEMPLATES / "ok.cpp"),
         str(SOLUTION_TEMPLATES / "ok.py"),
+        str(SOLUTION_TEMPLATES / "ok_fastio.py"),
         str(SOLUTION_TEMPLATES / "tl_ok_slowio.py"),
     ]
 
@@ -148,9 +163,7 @@ def test_extra_context_documents_attaches_all_templates_of_a_language(spec):
     ]
 
 
-def test_extra_context_documents_attaches_template_for_language_without_ok_reference(
-    spec, tmp_path
-):
+def test_extra_context_documents_attaches_templates_even_with_ok_reference(spec, tmp_path):
     reference_dir = tmp_path / "old-task"
     (reference_dir / "solutions").mkdir(parents=True)
     for name in ["wa_cpp_b_draft.cpp", "ok_java_a_draft.java"]:
@@ -160,9 +173,12 @@ def test_extra_context_documents_attaches_template_for_language_without_ok_refer
         _with_solutions(spec, ["cpp", "java"], [str(reference_dir)]), templates_dir=TEMPLATES_DIR
     )
 
-    # java has an ok sample — no skeletons needed; cpp has only wa — they're needed.
+    # The skeletons set input/output over the samples': java has an ok sample, and its
+    # skeletons are still attached, before the reference files.
     assert documents == [
         str(SOLUTION_TEMPLATES / "ok.cpp"),
+        str(SOLUTION_TEMPLATES / "ok.java"),
+        str(SOLUTION_TEMPLATES / "tl_ok_slowio.java"),
         str(reference_dir / "solutions" / "ok_java_a_draft.java"),
         str(reference_dir / "solutions" / "wa_cpp_b_draft.cpp"),
     ]
@@ -201,7 +217,7 @@ def test_cpp_solution_template_compiles():
     assert result.success, result.stderr
 
 
-@pytest.mark.parametrize("name", ["ok.py", "tl_ok_slowio.py"])
+@pytest.mark.parametrize("name", ["ok.py", "ok_fastio.py", "tl_ok_slowio.py"])
 def test_python_solution_templates_compile(name, tmp_path):
     py_compile.compile(
         str(SOLUTION_TEMPLATES / name), cfile=str(tmp_path / f"{name}c"), doraise=True

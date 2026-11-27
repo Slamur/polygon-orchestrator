@@ -70,13 +70,18 @@ paths:
   — this is checked by `tests/test_example_templates.py`, which also compile-checks
   all `.cpp` samples).
 - `templates/solutions/<verdict>_<description>.<language>` — solution
-  skeletons (`ok.cpp`, `tl_ok_slowio.java`): the author's input/output method,
+  skeletons (`ok.cpp`, `tl_ok_slowio.java`, `ok_fastio.py`): the author's input/output method,
   `solve()`, separate answer computation and an entry point, without an algorithm;
   the skeleton's language is its extension. The solution stages attach all
-  skeletons of each language from `solutions.languages` for which the references
-  gave no `ok` solution (`extra_context_documents` in
-  `orchestrator/steps/solutions.py`) — so input/output is set even without
-  references. A new language or verdict — a new file with the extension the language
+  skeletons of each language from `solutions.languages`, even if the references have an
+  `ok` solution in it (`extra_context_documents` in
+  `orchestrator/steps/solutions.py`): the skeleton sets input/output and takes precedence
+  over a reference solution's where they differ. `ok.<language>` is the input/output of the
+  main idea in each language (`ma` and its `ok` copies) and of `alternative_approaches`;
+  an `ok` skeleton with a description (`ok_fastio.py`) is only for an additional `ok` —
+  the main idea with this input/output, written in stage `ok` when the input/output
+  volume is of the order of 10^5 or more (`prompts/solutions/system.md`, item 1).
+  A new language or verdict — a new file with the extension the language
   is named with in solution names (`ok.kt`), no code changes needed.
 - Samples (files of other problems) are attached to the model call only as
   **spec references** — the `references` field at the spec root (for all steps) and
