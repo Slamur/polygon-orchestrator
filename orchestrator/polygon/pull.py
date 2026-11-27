@@ -124,6 +124,10 @@ What is compared with what (the names are the same that the polygon steps read):
   group whose tests have different points, no groups at all) isn't written — `differs`. Groups not
   enabled on Polygon (`problem.viewTestGroup` fails with "Test groups are disabled
   ...") count as no groups, another error of it — the part's error;
+- the validator tests (`problem.validatorTests`) -> `validator_tests.yaml` (test K on
+  Polygon is its K-th, as `upload_validator_tests` uploads them; the input, the verdict
+  and the group are compared): only compared, never written, like the checker tests —
+  the file's `covers` and `expect` aren't on Polygon. The same statuses and base;
 - solutions (`problem.solutions` + `problem.viewSolution`) -> `solutions/`.
   A solution's tag on Polygon isn't saved locally: `upload_solutions` derives
   the tag from the file name, so names not following its scheme get a warning;
@@ -157,6 +161,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from orchestrator.checks.checker_tests import CHECKER_TESTS_FILENAME
+from orchestrator.checks.validator_tests import VALIDATOR_TESTS_FILENAME
 from orchestrator.limits import LIMITS_FILENAME, render_limits
 from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import (
@@ -165,13 +170,9 @@ from orchestrator.polygon.state import (
     save_polygon_state,
     update_sync,
 )
+from orchestrator.polygon.steps import upload_checker_tests, upload_validator_tests
 from orchestrator.polygon.steps.base import PolygonStepError
 from orchestrator.polygon.steps.set_constraints import read_limits
-from orchestrator.polygon.steps.upload_checker_tests import (
-    local_checker_tests,
-    local_items,
-    remote_items,
-)
 from orchestrator.polygon.steps.upload_solutions import _parse_solution_filename
 from orchestrator.polygon.steps.upload_statement import (
     INTERACTION_FILENAME,
@@ -212,6 +213,7 @@ from orchestrator.polygon.sync import (
     TEST_GROUPS_TESTS_KEY,
     VALIDATOR_FILE_KEY,
     VALIDATOR_KEY,
+    VALIDATOR_TESTS_KEY_PREFIX,
     digest,
     fetch_revision,
     generator_source_names,
@@ -263,6 +265,7 @@ ITEM_ERROR = "error"
 _TESTSET = "tests"
 _TEST_GROUPS_NAME = "test groups"
 _CHECKER_TESTS_NAME = "checker tests"
+_VALIDATOR_TESTS_NAME = "validator tests"
 # The contents of the verify input/output for statements flag file.
 _VERIFY_CONTENT = b"true\n"
 
@@ -385,6 +388,7 @@ def pull_problem(
         ("generators", puller.pull_generators),
         ("test_script", puller.pull_script),
         (_TEST_GROUPS_NAME, puller.pull_test_groups),
+        (_VALIDATOR_TESTS_NAME, puller.pull_validator_tests),
         ("solutions", puller.pull_solutions),
     ):
         if on_part is not None:
@@ -810,35 +814,70 @@ class _Puller:
         """The checker tests on Polygon against the local ones — only reported (see the
         module docstring)."""
         try:
-            local = local_items(local_checker_tests(self.problem_dir))
+            local = upload_checker_tests.local_items(
+                upload_checker_tests.local_checker_tests(self.problem_dir)
+            )
         except PolygonStepError as exc:
             self.add(_CHECKER_TESTS_NAME, ITEM_ERROR, str(exc))
             return
-        remote = remote_items(
+        remote = upload_checker_tests.remote_items(
             self._call("problem.checkerTests", {"problemId": str(self.polygon_id)}) or []
         )
+        self._compare_tests(
+            _CHECKER_TESTS_NAME, CHECKER_TESTS_KEY_PREFIX, CHECKER_TESTS_FILENAME, local, remote
+        )
+
+    def pull_validator_tests(self) -> None:
+        """The validator tests on Polygon against `validator_tests.yaml` — only reported (see
+        the module docstring)."""
+        try:
+            local = upload_validator_tests.local_items(
+                upload_validator_tests.local_validator_tests(self.problem_dir)
+            )
+        except PolygonStepError as exc:
+            self.add(_VALIDATOR_TESTS_NAME, ITEM_ERROR, str(exc))
+            return
+        remote = upload_validator_tests.remote_items(
+            self._call("problem.validatorTests", {"problemId": str(self.polygon_id)}) or []
+        )
+        self._compare_tests(
+            _VALIDATOR_TESTS_NAME,
+            VALIDATOR_TESTS_KEY_PREFIX,
+            VALIDATOR_TESTS_FILENAME,
+            local,
+            remote,
+        )
+
+    def _compare_tests(
+        self,
+        name: str,
+        prefix: str,
+        filename: str,
+        local: dict[str, str],
+        remote: dict[str, str],
+    ) -> None:
+        """Polygon's tests (checker or validator, base key `<prefix><K>`) against the local
+        ones: reported, never written; the base gets Polygon's tests."""
         for key in self.base_synced:
-            if key.startswith(CHECKER_TESTS_KEY_PREFIX):
+            if key.startswith(prefix):
                 self.synced[key] = None
         self.synced.update(remote)
         if not local and not remote:
             return
         if local == remote:
-            self.add(_CHECKER_TESTS_NAME, ITEM_SAME, f"{len(local)} test(s)")
+            self.add(name, ITEM_SAME, f"{len(local)} test(s)")
             return
         if not local:
             self.add(
-                _CHECKER_TESTS_NAME,
+                name,
                 ITEM_DIFFERS,
-                f"{len(remote)} test(s) on Polygon, none locally — pull doesn't write checker "
-                "tests; 'llm generate' writes them, and the next push uploads them over these",
+                f"{len(remote)} test(s) on Polygon, none locally — pull doesn't write {name}; "
+                "'llm generate' writes them, and the next push uploads them over these",
             )
             return
 
         def numbers(keys) -> str:
-            return ", ".join(
-                sorted((k.removeprefix(CHECKER_TESTS_KEY_PREFIX) for k in keys), key=int)
-            )
+            return ", ".join(sorted((k.removeprefix(prefix) for k in keys), key=int))
 
         changed_remote, changed_local = [], []
         for key in local.keys() & remote.keys():
@@ -859,11 +898,11 @@ class _Puller:
         if changed_local or local_only:
             parts.append(f"tests {numbers([*changed_local, *local_only])} will be pushed")
         detail = (
-            "; ".join(parts) + " — pull doesn't write checker tests: copy an edit made on "
-            f"Polygon into {CHECKER_TESTS_FILENAME} by hand, the next push uploads the local tests"
+            "; ".join(parts) + f" — pull doesn't write {name}: copy an edit made on "
+            f"Polygon into {filename} by hand, the next push uploads the local tests"
         )
         status = ITEM_DIFFERS if changed_remote or remote_only else ITEM_KEPT
-        self.add(_CHECKER_TESTS_NAME, status, detail)
+        self.add(name, status, detail)
 
     def pull_interactor(self) -> None:
         interactive = bool(self._info().get("interactive"))
