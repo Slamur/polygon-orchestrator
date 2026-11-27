@@ -62,6 +62,8 @@ from orchestrator.step_order import (
     SURVIVOR_RECHECK_STEPS,
     SURVIVORS_STEP,
     TESTS_GATE_STEP,
+    VALIDATOR_TESTS_GATE_STEP,
+    VALIDATOR_TESTS_STEP,
 )
 from orchestrator.steps import (
     checker_draft,
@@ -76,6 +78,7 @@ from orchestrator.steps import (
     tests_plan,
     tests_survivors,
     tutorial_draft,
+    validator_tests,
 )
 from orchestrator.steps.base import (
     CHECK_REVISIONS,
@@ -93,6 +96,7 @@ from orchestrator.steps.solutions_check import STATUS_FAILED as GATE_FAILED
 from orchestrator.steps.solutions_check import GateFailedError
 from orchestrator.steps.tests_check import REVISING_STEPS as TESTS_REVISING_STEPS
 from orchestrator.steps.tests_check import TESTS_GATE
+from orchestrator.steps.validator_tests_check import VALIDATOR_TESTS_GATE
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +107,8 @@ _STEP_MODULES: dict[str, ModuleType | Any] = {
     "statement_draft": statement_draft,
     "constraints_pick": constraints_pick,
     "limits_from_constraints": limits_from_constraints,
+    VALIDATOR_TESTS_STEP: validator_tests,
+    VALIDATOR_TESTS_GATE_STEP: VALIDATOR_TESTS_GATE,
     "tests_plan": tests_plan,
     "generators_draft": generators_draft,
     "test_script_draft": test_script_draft,
@@ -134,6 +140,7 @@ _STEP_UPSTREAM: dict[str, tuple[str, ...]] = {
     "generators_draft": ("constraints_pick", "tests_plan"),
     "test_script_draft": ("constraints_pick", "tests_plan"),
     **{stage.STEP_NAME: ("constraints_pick",) for stage in STAGES.values()},
+    VALIDATOR_TESTS_STEP: ("constraints_pick",),
     CHECKER_TESTS_STEP: ("constraints_pick",),
     "tests_survivors": ("constraints_pick",),
 }
@@ -924,10 +931,15 @@ def _revising_steps(gate_step: str, problem_id: str, spec: Any, problems_dir: Pa
     """The steps the failed local run `gate_step` reported on — those that revise with its
     report on their next run: for `run_tests` — the test steps its errors are routed to, for
     a solution stage's run — the stage, if it failed on the stage's solutions, for
-    `run_checker_tests` — `checker_tests`, if it failed on its tests."""
-    if gate_step == CHECKER_TESTS_GATE_STEP:
-        report = CHECKER_TESTS_GATE.failed_report(problem_id, spec, problems_dir=problems_dir)
-        return [CHECKER_TESTS_STEP] if report is not None else []
+    `run_checker_tests` — `checker_tests`, for `run_validator_tests` — `validator_tests`, if
+    it failed on their tests."""
+    for gate_name, gate, step in (
+        (CHECKER_TESTS_GATE_STEP, CHECKER_TESTS_GATE, CHECKER_TESTS_STEP),
+        (VALIDATOR_TESTS_GATE_STEP, VALIDATOR_TESTS_GATE, VALIDATOR_TESTS_STEP),
+    ):
+        if gate_step == gate_name:
+            report = gate.failed_report(problem_id, spec, problems_dir=problems_dir)
+            return [step] if report is not None else []
     if gate_step == TESTS_GATE_STEP:
         return [
             step

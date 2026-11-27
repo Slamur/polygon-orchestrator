@@ -497,7 +497,17 @@ _PIPELINE_RESPONSES = {
     "constraints_pick": ModelResponse(
         status="confirmed",
         artifacts={
-            "constraints.yaml": "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n"
+            "constraints.yaml": "n_max: 100000\nlimits:\n  time_limit_seconds: 1\n  memory_limit_mb: 256\n",
+            "validator.cpp": "int main(){}",
+        },
+    ),
+    "validator_tests": ModelResponse(
+        status="confirmed",
+        artifacts={
+            "validator_tests.yaml": (
+                "tests:\n  - covers: x\n    verdict: INVALID\n    input: '0'\n"
+                "    expect: '[name=n]'\n"
+            )
         },
     ),
     "tests_plan": ModelResponse(

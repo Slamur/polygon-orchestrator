@@ -29,7 +29,19 @@ _RESPONSES = {
         notes=[],
     ),
     "constraints_pick": ModelResponse(
-        status="confirmed", artifacts={"constraints.yaml": _CONSTRAINTS_YAML}, notes=[]
+        status="confirmed",
+        artifacts={"constraints.yaml": _CONSTRAINTS_YAML, "validator.cpp": "int main(){}"},
+        notes=[],
+    ),
+    "validator_tests": ModelResponse(
+        status="confirmed",
+        artifacts={
+            "validator_tests.yaml": (
+                "tests:\n  - covers: x\n    verdict: INVALID\n    input: '0'\n"
+                "    expect: '[name=n]'\n"
+            )
+        },
+        notes=[],
     ),
     "tests_plan": ModelResponse(
         status="confirmed", artifacts={"tests_design.yaml": _TESTS_DESIGN_YAML}, notes=[]
@@ -252,9 +264,9 @@ def test_status_reports_cache_hit_after_run(problems_dir, tmp_path, capsys):
 
     assert rc == 0
     out = capsys.readouterr().out
-    # The six steps up to the solutions with the local tests, three solution stages and
-    # their three local runs.
-    assert out.count("cache hit") == 13
+    # The eight steps up to the solutions with the validator tests and the local tests,
+    # three solution stages and their three local runs.
+    assert out.count("cache hit") == 15
 
 
 def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
@@ -284,7 +296,7 @@ def test_accept_marks_stale_step_and_reports_it(problems_dir, tmp_path, capsys):
     cli.main(_base_args(problems_dir) + ["problems/p1", "llm", "status"])
     out = capsys.readouterr().out
     # The local runs read constraints.yaml too: they aren't accepted, 'llm generate' runs them.
-    assert out.count("cache hit") == 9
+    assert out.count("cache hit") == 10
     assert "run_main: stale" in out
 
 

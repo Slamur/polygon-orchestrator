@@ -33,7 +33,19 @@ _RESPONSES = {
         notes=[],
     ),
     "constraints_pick": ModelResponse(
-        status="confirmed", artifacts={"constraints.yaml": _CONSTRAINTS_YAML}, notes=[]
+        status="confirmed",
+        artifacts={"constraints.yaml": _CONSTRAINTS_YAML, "validator.cpp": "int main(){}"},
+        notes=[],
+    ),
+    "validator_tests": ModelResponse(
+        status="confirmed",
+        artifacts={
+            "validator_tests.yaml": (
+                "tests:\n  - covers: x\n    verdict: INVALID\n    input: '0'\n"
+                "    expect: '[name=n]'\n"
+            )
+        },
+        notes=[],
     ),
     "tests_plan": ModelResponse(
         status="confirmed", artifacts={"tests_design.yaml": _TESTS_DESIGN_YAML}, notes=[]
@@ -91,6 +103,7 @@ _SKIPPED_STEPS = {
 # Steps without a model call (the local runs are a stub in the tests, see conftest.py).
 _MECHANICAL_STEPS = {
     "limits_from_constraints",
+    "run_validator_tests",
     "run_tests",
     "scoring_table",
     "run_main",
@@ -262,7 +275,10 @@ def test_solution_stages_skipped_when_spec_has_no_solutions_section(spec_file, t
         name: status
         for name, status in statuses.items()
         if name.startswith("solutions_")
-        or (name.startswith("run_") and name not in ("run_tests", "run_checker_tests"))
+        or (
+            name.startswith("run_")
+            and name not in ("run_tests", "run_validator_tests", "run_checker_tests")
+        )
     } == {name: pipeline.OUTCOME_SKIPPED_OPTIONAL for name in STAGE_AND_GATE_STEPS}
     assert not (problems_dir / "p1" / "solutions").exists()
 
@@ -343,6 +359,45 @@ def test_failed_checker_tests_run_makes_checker_tests_revise(spec_file, tmp_path
     names = [o.step_name for o in result.outcomes]
     assert names.count("checker_tests") == 2
     assert names.count("run_checker_tests") == 2
+    assert "revision 1 of 1" in names
+
+
+def test_failed_validator_tests_run_makes_validator_tests_revise(spec_file, tmp_path, monkeypatch):
+    from orchestrator.checks.validator_tests import ValidatorTestsRun
+    from orchestrator.steps import validator_tests_check
+
+    problems_dir = tmp_path / "problems"
+    runs = iter(
+        [
+            ValidatorTestsRun(failures=[{"test": 1, "covers": "x", "problems": ["accepts it"]}]),
+            ValidatorTestsRun(tests=1),
+        ]
+    )
+    monkeypatch.setattr(validator_tests_check, "run_validator_tests", lambda *a, **k: next(runs))
+    revised = ModelResponse(
+        status="confirmed",
+        artifacts={
+            "validator_tests.yaml": _RESPONSES["validator_tests"]
+            .artifacts["validator_tests.yaml"]
+            .replace("'0'", "'-1'")
+        },
+        notes=[],
+    )
+    responses = iter([_RESPONSES["validator_tests"], revised])
+
+    def fake(step, system_prompt, user_prompt, context_documents=None):
+        if step == "validator_tests":
+            return next(responses)
+        return _RESPONSES[step]
+
+    with patch("orchestrator.model_router.call_model", side_effect=fake):
+        result = _run(problems_dir, revise_attempts=1)
+
+    assert result.ok
+    names = [o.step_name for o in result.outcomes]
+    assert names.count("validator_tests") == 2
+    assert names.count("run_validator_tests") == 2
+    assert names.index("run_validator_tests") < names.index("tests_plan")
     assert "revision 1 of 1" in names
 
 
@@ -1326,7 +1381,7 @@ def test_failed_stage_run_is_revised_in_the_same_run(spec_file, tmp_path, monkey
     assert result.ok
     called = [c.args[0] for c in mock_call.call_args_list]
     assert called.count("solutions_main") == 2
-    assert "test 2: TL" in mock_call.call_args_list[called.index("solutions_main", 6)].args[2]
+    assert "test 2: TL" in mock_call.call_args_list[called.index("solutions_main", 7)].args[2]
 
 
 def test_no_revisions_without_attempts(spec_file, tmp_path, monkeypatch):
