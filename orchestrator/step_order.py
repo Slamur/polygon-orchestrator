@@ -122,7 +122,8 @@ def prompt_dir_name(step_name: str) -> str:
 # `constraints.yaml`, draft) goes right after `create_problem`: the spec is the
 # basis of the problem, and it must end up on Polygon even if one of the
 # following steps fails. `upload_interactor` — after
-# `set_constraints`: that one sets the problem's interactivity flag.
+# `set_constraints`: that one sets the problem's interactivity flag. `upload_checker_tests`
+# — after `upload_checker`: the tests are of the checker it sets.
 # `upload_test_script` — last: having saved the script, Polygon generates
 # tests from it, and the step waits for the generation to end — everything else is already
 # uploaded and committed by that time. `upload_test_groups` — after it: Polygon takes
@@ -134,6 +135,7 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_resources",
     "upload_validator",
     "upload_checker",
+    "upload_checker_tests",
     "upload_interactor",
     "upload_statement",
     "upload_generators",
