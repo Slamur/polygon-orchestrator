@@ -39,7 +39,8 @@ paths:
   initial content, an edit of the template doesn't reach already existing copies.
   The model is given the template.
 - Templates vs resources. `templates/` holds the author's own files the problems start
-  from (`problem_lib.h`, solution skeletons, the spec template, the script functions)
+  from (`problem_lib.h`, solution skeletons, the spec template, the script functions,
+  `extra.tex` — the statement's `\Extra` command, not attached to the steps)
   and the formats of the model's responses. `resources/` of the repository holds the
   default external resources — copied from upstream without changes at a pinned version,
   one directory per source with a README (`resources/testlib/`: `testlib.h` and the

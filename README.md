@@ -564,6 +564,15 @@ uses (its own, else the default); if they differ, Polygon's is written into the 
 the default in this repository. To change, say, `olymp.sty` for one problem, put your
 version into its `resources/`: the next `push` uploads it.
 
+The statement command `\Extra{<text>}` puts the extra fragment `<text>` into the statement
+PDF where it stands: between paragraphs (on a line of its own) or inside a sentence. It is
+defined in `templates/extra.tex`. Polygon builds the statement only with the statement files
+it knows, so the definition goes into `problem.tex`: a problem whose statement uses the
+command gets its own `resources/problem.tex` (its own or the default, with the definition's
+block first, between the `% \Extra: begin` and `% \Extra: end` lines; an outdated block is
+replaced by the template's current one) on the next `push`, which uploads it. The statement
+models keep the command as it is.
+
 ### Contests
 
 A Polygon contest is described by `contests/<contest path>/contest.yaml` (any depth,

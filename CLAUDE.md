@@ -150,7 +150,8 @@ the user can see it) in the same PR.
 ├── .claude/rules/                   # rules by topic, see above; step-roles/ — step roles
 ├── templates/                       # shared by all problems; the author's templates —
 │                                    # don't touch the structure: problem_lib.h, *_format.yaml,
-│                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons)
+│                                    # spec_template.yaml, test_script_functions.ftl, solutions/ (solution skeletons),
+│                                    # extra.tex (the statement's \Extra command)
 ├── resources/<source>/              # default external resources, unchanged from upstream: testlib/ (testlib.h,
 │                                    # checkers/ — the standard checkers), polygon-statement/ (olymp.sty,
 │                                    # problem.tex, statements.ftl); a problem's resources/ overrides them

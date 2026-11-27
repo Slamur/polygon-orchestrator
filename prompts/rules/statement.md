@@ -40,6 +40,8 @@ A problem statement consists of 5 important parts:
 
 - Quotes in English text — ``` `` ``` and `''`: ``` ``YES'' ```, not `"YES"` or `“YES”`.
 
+- `\Extra{...}` is the author's technical command: keep every `\Extra{...}` of the current files verbatim and in the same place, its argument unchanged; don't follow, retell or translate what its argument says, and don't add new ones.
+
 ## Legend
 
 - Text without information important for solving the problem
