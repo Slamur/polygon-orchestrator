@@ -616,12 +616,12 @@ def test_full_run_commits_after_every_step_but_create_problem(problems_dir):
         for c in client.call.call_args_list
         if c.args[0] == "problem.commitChanges"
     ]
-    # upload_interactor and upload_test_groups upload nothing for a normal problem without
-    # test groups — no commit.
+    # upload_interactor, upload_checker_tests and upload_test_groups upload nothing for a
+    # normal problem with a standard checker and without test groups — no commit.
     assert commits == [
         f"orchestrator: {name}"
         for name in POLYGON_STEP_ORDER[1:]
-        if name not in ("upload_interactor", "upload_test_groups")
+        if name not in ("upload_interactor", "upload_checker_tests", "upload_test_groups")
     ]
 
 
@@ -633,6 +633,7 @@ def test_step_order():
         "upload_resources",
         "upload_validator",
         "upload_checker",
+        "upload_checker_tests",
         "upload_interactor",
         "upload_statement",
         "upload_generators",
@@ -702,6 +703,7 @@ def test_status_not_run_without_state(tmp_path):
         ("upload_resources", "not run"),
         ("upload_validator", "not run"),
         ("upload_checker", "not run"),
+        ("upload_checker_tests", "done"),
         ("upload_interactor", "done"),
         ("upload_statement", "not run"),
         ("upload_generators", "not run"),
@@ -727,6 +729,7 @@ def test_status_done_with_state(tmp_path):
         ("upload_resources", "not run"),
         ("upload_validator", "not run"),
         ("upload_checker", "not run"),
+        ("upload_checker_tests", "done"),
         ("upload_interactor", "done"),
         ("upload_statement", "not run"),
         ("upload_generators", "not run"),
@@ -752,6 +755,7 @@ def test_status_after_full_run_then_limits_change(problems_dir):
         ("upload_resources", "done"),
         ("upload_validator", "done"),
         ("upload_checker", "done"),
+        ("upload_checker_tests", "done"),
         ("upload_interactor", "done"),
         ("upload_statement", "done"),
         ("upload_generators", "done"),

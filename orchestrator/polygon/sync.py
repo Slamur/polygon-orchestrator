@@ -58,6 +58,8 @@ VALIDATOR_FILE_KEY = "validator.cpp"
 VALIDATOR_KEY = "validator"  # the name of the file assigned as the validator
 CHECKER_FILE_KEY = "checker.cpp"
 CHECKER_KEY = "checker"  # the name of the assigned checker (`checker.cpp` or `std::...`)
+# A checker test on Polygon by its index, `checker_tests/<K>` (`checker_test_key`).
+CHECKER_TESTS_KEY_PREFIX = "checker_tests/"
 INTERACTIVE_KEY = "interactive"  # the problem's interactivity flag (`problem.updateInfo`)
 INTERACTOR_FILE_KEY = "interactor.cpp"
 INTERACTOR_KEY = "interactor"  # the name of the assigned interactor
@@ -130,6 +132,10 @@ def interactive_digest(interactive: bool) -> str:
     return digest(f"interactive={str(interactive).lower()}")
 
 
+def checker_test_key(index: int) -> str:
+    return f"{CHECKER_TESTS_KEY_PREFIX}{index}"
+
+
 def generator_key(name: str) -> str:
     return f"generators/{name}"
 
@@ -192,6 +198,8 @@ def describe_keys(keys: Iterable[str]) -> list[str]:
     return [
         _KEY_LABELS.get(key)
         or (f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else _statement_label(key))
+        if not key.startswith(CHECKER_TESTS_KEY_PREFIX)
+        else f"checker test {key.removeprefix(CHECKER_TESTS_KEY_PREFIX)}"
         for key in keys
         if _ASSIGNED_FILES.get(key) not in keys
     ]
