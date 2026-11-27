@@ -1,0 +1,45 @@
+tests:
+  - covers: 'all values on their lower bounds: n = minN, k = minK, a_1 = minA'
+    verdict: VALID
+    input: |
+      1 0
+      0
+  - covers: 'k = maxK, every a_i = maxA'
+    verdict: VALID
+    input: |
+      3 1000000000000000
+      1000000000 1000000000 1000000000
+  - covers: 'inf.readInt(minN, maxN, "n"): n = minN - 1'
+    verdict: INVALID
+    input: |
+      0 5
+    expect: "[name=n]"
+  - covers: 'inf.readInt(minN, maxN, "n"): n = maxN + 1'
+    verdict: INVALID
+    input: |
+      200001 5
+    expect: "[name=n]"
+  - covers: 'inf.readLong(minK, maxK, "k"): k = minK - 1'
+    verdict: INVALID
+    input: |
+      1 -1
+      1
+    expect: "[name=k]"
+  - covers: 'inf.readLong(minK, maxK, "k"): k = maxK + 1'
+    verdict: INVALID
+    input: |
+      1 1000000000000001
+      1
+    expect: "[name=k]"
+  - covers: 'inf.readInts(n, minA, maxA, "a"): a_i = minA - 1'
+    verdict: INVALID
+    input: |
+      2 5
+      1 -1
+    expect: "a["
+  - covers: 'inf.readInts(n, minA, maxA, "a"): a_i = maxA + 1'
+    verdict: INVALID
+    input: |
+      2 5
+      1000000001 1
+    expect: "a["
