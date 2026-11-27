@@ -579,6 +579,14 @@ uses (its own, else the default); if they differ, Polygon's is written into the 
 the default in this repository. To change, say, `olymp.sty` for one problem, put your
 version into its `resources/`: the next `push` uploads it.
 
+Checker tests (a custom checker, not an interactive problem): `push` uploads
+`checker_tests.auto.yaml`, then `checker_tests.yaml` as Polygon's checker tests 1, 2, …
+(`FAIL` is Polygon's `CRASHED`), only the ones that differ from Polygon. The API can't delete
+a checker test: if Polygon has more of them, `push` says which ones to delete by hand.
+`pull` only compares them and reports the differences — it never writes the test files; the
+next `push` uploads the local tests over an edit made on Polygon, so copy such an edit into
+`checker_tests.yaml` first.
+
 The statement command `\Extra{<text>}` puts the extra fragment `<text>` into the statement
 PDF where it stands: between paragraphs (on a line of its own) or inside a sentence. It is
 defined in `templates/extra.tex`. Polygon builds the statement only with the statement files

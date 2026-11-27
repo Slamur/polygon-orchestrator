@@ -27,6 +27,13 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   (`upload_validator`), setting the checker (`upload_checker`: for
   `checker.custom_needed: true` — uploading `problems/<problem path>/checker.cpp`,
   otherwise — the standard checker from `checker.standard` without uploading a file),
+  the checker tests (`upload_checker_tests`, after `upload_checker`; only for a custom
+  checker of a problem that isn't interactive): `checker_tests.auto.yaml`, then
+  `checker_tests.yaml` as checker tests 1..N (`problem.saveCheckerTest` by `testIndex`;
+  `FAIL` -> `CRASHED`), a base key `checker_tests/<K>` per test (the hash ignores line
+  endings and trailing spaces); when something changed, it reads `problem.checkerTests` and
+  saves only the tests that differ from Polygon; Polygon tests after the last local one
+  stay — the API can't delete a checker test, the step's notice names them,
   uploading `problems/<problem path>/interactor.cpp` and setting it as the
   interactor (`upload_interactor`, only for an interactive problem; the
   interactivity flag is set by `set_constraints`),
@@ -132,7 +139,11 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   `--polygon-id` additionally narrows the search if
   there are several problems with that name), compares with it the problem parts
   the orchestrator uses (statement, tutorial, scoring and examples, TL/ML, validator,
-  non-standard checker, resource files, generators, test-script, solutions, spec,
+  non-standard checker, checker tests — only reported, never written: `kept` if only the
+  local tests changed, `differs` if a test changed on Polygon, has no base or is only on
+  Polygon; the base gets Polygon's tests, so the next push uploads the local ones over an
+  edit made on Polygon (why: an edited test doesn't say whether it belongs to the run's
+  auto file or the step's file) —, resource files, generators, test-script, solutions, spec,
   `constraints.yaml`, test design, test plan, `scoring.yaml`, draft and tutorial draft
   from Attachments), downloads into
   the problem directory those missing locally and rewrites the sync
