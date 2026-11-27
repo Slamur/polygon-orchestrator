@@ -70,6 +70,7 @@ from orchestrator.polygon.steps import (
     upload_test_groups,
     upload_test_script,
     upload_validator,
+    upload_validator_tests,
 )
 from orchestrator.polygon.steps.base import PolygonStep, PolygonStepError, run_step
 from orchestrator.polygon.sync import (
@@ -98,6 +99,7 @@ _POLYGON_STEPS: dict[str, PolygonStep] = {
     upload_solutions.STEP_NAME: upload_solutions.STEP,
     upload_test_script.STEP_NAME: upload_test_script.STEP,
     upload_test_groups.STEP_NAME: upload_test_groups.STEP,
+    upload_validator_tests.STEP_NAME: upload_validator_tests.STEP,
 }
 
 # PolygonStepOutcome.status statuses:

@@ -140,6 +140,8 @@ def prompt_dir_name(step_name: str) -> str:
 # tests from it, and the step waits for the generation to end — everything else is already
 # uploaded and committed by that time. `upload_test_groups` — after it: Polygon takes
 # the tests' groups and points only for the tests that already exist.
+# `upload_validator_tests` — after it: a validator test's group is taken only once the
+# groups are enabled for the testset.
 POLYGON_STEP_ORDER: list[str] = [
     "create_problem",
     "upload_attachments",
@@ -154,6 +156,7 @@ POLYGON_STEP_ORDER: list[str] = [
     "upload_solutions",
     "upload_test_script",
     "upload_test_groups",
+    "upload_validator_tests",
 ]
 
 # The lenses of the spec critic (`spec_critic.LENSES`), in their order: `choices` of
