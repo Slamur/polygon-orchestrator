@@ -3,9 +3,9 @@
 
 The tests are `validator_tests.yaml` (the `validator_tests` step), in their order: test K on
 Polygon is the K-th of the file. No file — nothing to upload. A test with a group is saved
-with `testGroup` (and `testset=tests`): Polygon takes a group only once the groups are
-enabled for the testset, which `upload_test_groups` does — so this step goes after it. A
-test without a group is saved without `testGroup`.
+with `testGroup`: Polygon takes a group only once the groups are enabled for the testset,
+which `upload_test_groups` does — so this step goes after it. A test without a group is
+saved without `testGroup`. `testset` isn't sent: a problem has one testset, `tests`.
 
 What counts as changed — a sync base key per test, `validator_tests/<K>`
 (`validator_test_digest`: the input, line endings and trailing spaces dropped — so a test
@@ -47,8 +47,6 @@ from orchestrator.polygon.steps.base import (
 from orchestrator.polygon.sync import VALIDATOR_TESTS_KEY_PREFIX, digest, validator_test_key
 
 STEP_NAME = "upload_validator_tests"
-
-_TESTSET = "tests"
 
 
 def local_validator_tests(problem_dir: Path) -> list[ValidatorTest]:
@@ -126,7 +124,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
             "testVerdict": test.verdict,
         }
         if test.group is not None:
-            params.update({"testGroup": test.group, "testset": _TESTSET})
+            params["testGroup"] = test.group
         client.call("problem.saveValidatorTest", params)
         uploaded[key] = items[key]
     extra = sorted(

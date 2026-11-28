@@ -61,7 +61,7 @@ guess. Addressing problems and groups — in `.claude/rules/cli.md`.
   the validator tests (`upload_validator_tests`, after `upload_test_groups`: a test's group
   is taken only once the groups are enabled for the testset): `validator_tests.yaml` as
   validator tests 1..N (`problem.saveValidatorTest` by `testIndex`, `testVerdict`; a test
-  with a group — `testGroup` and `testset=tests`), a base key `validator_tests/<K>` per test
+  with a group — `testGroup`; no `testset`: a problem has one, `tests`), a base key `validator_tests/<K>` per test
   (the input without line endings and trailing spaces, the verdict, the group); like the
   checker tests, it reads `problem.validatorTests` when something changed, saves only the
   tests that differ, and names the Polygon tests after the last local one (no delete method),

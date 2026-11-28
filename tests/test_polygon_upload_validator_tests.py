@@ -107,7 +107,7 @@ def test_a_test_of_a_group_is_saved_with_its_group(problems_dir, spec):
 
     saved = _saved(client)
     assert saved[0]["testGroup"] == "1"
-    assert saved[0]["testset"] == "tests"
+    assert "testset" not in saved[0]
     assert "testGroup" not in saved[1]
 
 
