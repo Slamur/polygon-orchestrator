@@ -5,6 +5,7 @@ import pytest
 import yaml
 from polygon_sync_helpers import FIXTURES_DIR, POLYGON_ID, PROBLEM_ID, link, run_and_record
 
+from orchestrator.polygon.client import PolygonApiError
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import PolygonStepError, StepContext
 from orchestrator.polygon.steps.upload_validator_tests import STEP, validator_test_digest
@@ -171,3 +172,51 @@ def test_digest_ignores_line_endings_and_trailing_spaces():
     )
     assert validator_test_digest("1", "VALID", None) != validator_test_digest("1", "INVALID", None)
     assert validator_test_digest("1", "VALID", None) != validator_test_digest("1", "VALID", "1")
+
+
+def test_the_same_input_in_another_group_is_saved_through_a_placeholder(problems_dir, spec):
+    link(problems_dir)
+    tests = [{**TESTS[1], "group": "1"}, {**TESTS[1], "group": "2", "covers": "g2"}]
+    groups = GROUPS_YAML + '  - name: "2"\n    variables: null\n    points: 0\n'
+    _write_tests(problems_dir, tests, groups=groups)
+    inputs: list[str] = []
+
+    def call(method, params):
+        if method == "problem.validatorTests":
+            return []
+        if "testVerdict" in params and params["testInput"] in inputs:
+            raise PolygonApiError(method, "testInput: You already have the same validator test")
+        inputs.append(params["testInput"])
+        return None
+
+    client = MagicMock()
+    client.call.side_effect = call
+
+    run_and_record(STEP, PROBLEM_ID, spec, problems_dir, client)
+
+    saved = _saved(client)
+    assert [p["testInput"] for p in saved] == [
+        "0\n",
+        "0\n",
+        "orchestrator placeholder of validator test 2\n",
+        "0\n",
+    ]
+    assert saved[2]["testGroup"] == "2"
+    assert set(saved[3]) == {"problemId", "testIndex", "testInput"}
+
+
+def test_another_refusal_is_not_worked_around(problems_dir, spec):
+    link(problems_dir)
+    _write_tests(problems_dir, [{**TESTS[0], "group": "1"}], groups=GROUPS_YAML)
+
+    def call(method, params):
+        if method == "problem.validatorTests":
+            return []
+        raise PolygonApiError(method, "testGroup: no such group")
+
+    client = MagicMock()
+    client.call.side_effect = call
+
+    with pytest.raises(PolygonApiError):
+        STEP.execute(StepContext(PROBLEM_ID, spec, problems_dir), client)
+    assert len(_saved(client)) == 1

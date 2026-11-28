@@ -6,6 +6,8 @@ Polygon is the K-th of the file. No file — nothing to upload. A test with a gr
 with `testGroup`: Polygon takes a group only once the groups are enabled for the testset,
 which `upload_test_groups` does — so this step goes after it. A test without a group is
 saved without `testGroup`. `testset` isn't sent: a problem has one testset, `tests`.
+Polygon's API refuses to add a test whose input another validator test has, even in another
+group: such a test is added with a placeholder input and then edited (`_save`).
 
 What counts as changed — a sync base key per test, `validator_tests/<K>`
 (`validator_test_digest`: the input, line endings and trailing spaces dropped — so a test
@@ -30,7 +32,7 @@ from orchestrator.checks.validator_tests import (
     ValidatorTestsError,
     load_validator_tests,
 )
-from orchestrator.polygon.client import PolygonClient
+from orchestrator.polygon.client import PolygonApiError, PolygonClient
 from orchestrator.polygon.state import load_polygon_state
 from orchestrator.polygon.steps.base import (
     NO_CHANGES_MESSAGE,
@@ -94,6 +96,42 @@ def remote_items(remote: list[dict]) -> dict[str, str]:
     }
 
 
+# A part of Polygon's refusal of a test whose input another validator test has.
+_SAME_INPUT_ERROR = "same validator test"
+
+
+def _placeholder_input(number: int) -> str:
+    return f"orchestrator placeholder of validator test {number}\n"
+
+
+def _save(client: PolygonClient, params: dict[str, str], number: int) -> None:
+    """`problem.saveValidatorTest`. Polygon refuses to save a test with the input of another
+    validator test even in another group (its interface takes it): then the test is saved
+    with a placeholder input first, and its input is edited to the real one."""
+    try:
+        client.call("problem.saveValidatorTest", params)
+        return
+    except PolygonApiError as exc:
+        if "testGroup" not in params or _SAME_INPUT_ERROR not in exc.comment:
+            raise
+    client.call("problem.saveValidatorTest", {**params, "testInput": _placeholder_input(number)})
+    try:
+        client.call(
+            "problem.saveValidatorTest",
+            {
+                "problemId": params["problemId"],
+                "testIndex": params["testIndex"],
+                "testInput": params["testInput"],
+            },
+        )
+    except PolygonApiError as exc:
+        raise PolygonStepError(
+            f"validator test {number}: Polygon refuses its input, which another validator "
+            f"test has, even when editing ({exc.comment}); test {number} on Polygon has a "
+            "placeholder input now — set its input in Polygon's interface"
+        ) from exc
+
+
 def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
     tests = local_validator_tests(Path(ctx.problems_dir) / ctx.problem_id)
     if not tests:
@@ -125,7 +163,7 @@ def _execute(ctx: StepContext, client: PolygonClient) -> StepResult:
         }
         if test.group is not None:
             params["testGroup"] = test.group
-        client.call("problem.saveValidatorTest", params)
+        _save(client, params, number)
         uploaded[key] = items[key]
     extra = sorted(
         int(key.removeprefix(VALIDATOR_TESTS_KEY_PREFIX)) for key in remote if key not in items
