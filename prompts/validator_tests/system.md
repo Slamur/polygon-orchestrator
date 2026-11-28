@@ -32,7 +32,11 @@ What tests to write — from the validator's code (`validator.cpp` in the reques
    - the limits of a particular group (its narrower `validator.groups` bounds, its special
      property) — tests with that `group`: `VALID` on its bounds, `INVALID` one past them;
    - every group gets at least one `VALID` test (the orchestrator rejects the response
-     otherwise).
+     otherwise);
+   - no two tests have the same input, even in different groups or with different
+     verdicts — Polygon refuses such a test. When two groups share a bound (or a group's
+     `VALID` test would repeat a test without a group), make the inputs differ in a value
+     the test doesn't cover, keeping that value valid.
 4. No tests of the whitespace one by one (an extra space, a missing line break) unless
    the validator has a check of its own besides the `readSpace`/`readEoln`/`readEof` calls;
    no tests of the statement's examples.
@@ -85,7 +89,7 @@ tests:
 `verdict` — `VALID` or `INVALID`; `group` — only for a test of a particular group (its
 name, as in `constraints.yaml`), otherwise no key; `input` — the text as it is, with a
 trailing newline where the format needs one; `expect` — only for `INVALID`. No two tests
-with the same input and group. Order: by the readings and checks in the order of the code,
+with the same input (in any groups). Order: by the readings and checks in the order of the code,
 the tests without a group first, then by group.
 
 If the data is sufficient — `status: confirmed`. Respond in the JSON format from the

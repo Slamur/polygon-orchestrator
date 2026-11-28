@@ -102,7 +102,7 @@ def test_with_groups_every_group_needs_a_valid_test(spec, problem_dir):
     assert not (problem_dir / VALIDATOR_TESTS_FILENAME).exists()
 
     covered = TESTS_YAML + "".join(
-        f"  - covers: g{g}\n    verdict: VALID\n    group: {g}\n    input: |\n      5\n"
+        f"  - covers: g{g}\n    verdict: VALID\n    group: {g}\n    input: |\n      {g}\n"
         for g in (1, 2)
     )
     _run_step(spec, problem_dir.parent, _response(covered), GROUPS_YAML)

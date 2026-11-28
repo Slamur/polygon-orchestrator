@@ -94,7 +94,8 @@ suggestions beyond the spec) — in `.claude/rules/steps.md`, models — in
    An `INVALID` test carries `expect` — a part of the validator's message (`[name=n]`, `a[`,
    the text of an `ensuref`), so a test that fails on something else (the missing data after
    the value) is caught. Before writing (otherwise re-requested or a conflict): the format,
-   the size, known groups, no two tests with the same input and group, a `VALID` test of
+   the size, known groups, no two tests with the same input, even in
+   different groups (Polygon refuses one), a `VALID` test of
    every group (`check_validator_tests`).
 
    **`run_validator_tests`** (`orchestrator/steps/validator_tests_check.py`, mechanical, in
