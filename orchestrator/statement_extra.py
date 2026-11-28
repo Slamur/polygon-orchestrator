@@ -11,8 +11,11 @@ A problem whose statement (`statement/<code>/*.tex`, any language) has `\\Extra`
 `problem.tex` (`problems/<problem path>/resources/`, see `orchestrator/resources.py`): its
 own version if it has one, else the default (`resources/polygon-statement/problem.tex`),
 with the block put first — or, if the block is there, replaced by the template's current
-one. `upload_resources` (`polygon push`) ensures it before uploading the problem's
-resources. A problem whose statement has no `\\Extra` is left alone, and the block of a
+one. Right after the block goes the line `EXTRA_OFF_LINE`, a commented-out empty definition:
+uncommenting it turns the command off for the problem (its fragments are left out of the
+PDF). The line is outside the block, so replacing the block keeps it, commented or not; it
+is added only if neither form of it is anywhere after the block. `upload_resources`
+(`polygon push`) ensures it before uploading the problem's resources. A problem whose statement has no `\\Extra` is left alone, and the block of a
 problem that stopped using it stays (it changes nothing without a call).
 """
 
@@ -30,10 +33,14 @@ EXTRA_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 # The lines around the definition's block in `problem.tex`.
 EXTRA_BEGIN = "% \\Extra: begin (templates/extra.tex)"
 EXTRA_END = "% \\Extra: end"
+# The line after the block: uncommented, it redefines the command to print nothing.
+EXTRA_OFF_LINE = "% \\def\\Extra#1{}"
 
 # `\Extra` as a command (not a prefix of a longer name), outside a `%` comment.
 _EXTRA_COMMAND_RE = re.compile(r"\\Extra(?![A-Za-z@])")
 _COMMENT_RE = re.compile(r"(?<!\\)%.*")
+# `EXTRA_OFF_LINE`, commented out or not.
+_EXTRA_OFF_RE = re.compile(r"^\s*(?:%\s*)?\\def\\Extra#1\{\}\s*%?\s*$")
 
 
 def uses_extra(problem_dir: Path) -> bool:
@@ -72,9 +79,12 @@ def extra_resources(
     if EXTRA_BEGIN in stripped and EXTRA_END in stripped[stripped.index(EXTRA_BEGIN) :]:
         begin = stripped.index(EXTRA_BEGIN)
         end = stripped.index(EXTRA_END, begin)
-        updated = "".join(lines[:begin]) + block + "".join(lines[end + 1 :])
+        head, tail = lines[:begin], lines[end + 1 :]
     else:
-        updated = block + content
+        head, tail = [], lines
+    if not any(_EXTRA_OFF_RE.match(line.rstrip("\r\n")) for line in tail):
+        tail = [EXTRA_OFF_LINE + newline, *tail]
+    updated = "".join(head) + block + "".join(tail)
     if own.is_file() and updated == content:
         return {}
     return {PROBLEM_TEX_FILENAME: updated.encode("utf-8")}
