@@ -61,9 +61,8 @@ tests:
     input: |
       1000000000001
     expect: "[name=n]"
-  - covers: 'group 5 (the full limits): n above the max of group 4, not maxN (a test without
-      a group has that input)'
+  - covers: 'group 5 (the full limits): n = maxN'
     verdict: VALID
     group: "5"
     input: |
-      999999999999999999
+      1000000000000000000

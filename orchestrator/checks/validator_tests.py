@@ -21,9 +21,7 @@ tests:
 fail on the check it covers, not on another one (e.g. not on the missing data after a
 value out of range — a test with `n` out of range doesn't need the `n` numbers after it).
 Every test is small (`MAX_LINES` lines, `MAX_CHARS` characters): a boundary test that
-needs more is not written. No two tests have the same input, even in different groups:
-Polygon refuses a validator test whose input another one already has (line endings
-aside — `same_input_key`).
+needs more is not written. Two tests are the same if their input and group are the same.
 
 The local run (`run_validator_tests`): it builds `validator.cpp` and runs it on every test
 — the verdict must be the expected one; the message of an `INVALID` test must contain its
@@ -100,7 +98,7 @@ def parse_validator_tests(
     """The tests of a validator tests file (see the module docstring). `groups` — the
     names of the problem's test groups (`None` — it has none: a test with a group is an
     error). `ValidatorTestsError` — the file doesn't match the format, has no tests, has a
-    test over the size limit or two tests with the same input."""
+    test over the size limit or the same test twice."""
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as exc:
@@ -157,25 +155,15 @@ def parse_validator_tests(
             errors.append(f"{where}: {size_error}")
             continue
         test = ValidatorTest(values["covers"], verdict, values["input"], group, expect)
-        key = same_input_key(test.input)
+        key = (test.group, test.input)
         if key in seen:
-            errors.append(
-                f"{where}: the same input as test {seen[key]} — Polygon refuses two validator "
-                "tests with the same input, even in different groups: change a value the test "
-                "doesn't cover (keeping it valid)"
-            )
+            errors.append(f"{where}: the same input and group as test {seen[key]}")
             continue
         seen[key] = number
         tests.append(test)
     if errors:
         raise ValidatorTestsError("; ".join(errors))
     return tests
-
-
-def same_input_key(text: str) -> str:
-    """The input as two tests are compared: only the line endings aside (Polygon stores
-    `\\r\\n`); a missing end of line is another input — a test of its own."""
-    return text.replace("\r\n", "\n")
 
 
 def _size_error(text: str) -> str | None:

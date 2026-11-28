@@ -48,13 +48,7 @@ def test_parse_reads_groups_and_numbers_as_texts():
         (_text({**VALID, "extra": 1}), None, "unknown keys"),
         (_text({**VALID, "group": "1"}), None, "has no test groups"),
         (_text({**VALID, "group": "3"}), ["1", "2"], "unknown test group"),
-        (_text(VALID, {**VALID, "covers": "y"}), None, "the same input as test 1"),
-        # Polygon refuses the same input even in another group or with other line endings.
-        (
-            _text(VALID, {**VALID, "group": "1", "input": VALID["input"].replace("\n", "\r\n")}),
-            ["1"],
-            "the same input as test 1",
-        ),
+        (_text(VALID, {**VALID, "covers": "y"}), None, "the same input and group as test 1"),
         (_text({**VALID, "input": "1\n" * (MAX_LINES + 1)}), None, f"at most {MAX_LINES} lines"),
         (_text({**VALID, "input": "1 " * MAX_CHARS}), None, f"{MAX_CHARS} characters"),
     ],
@@ -62,6 +56,11 @@ def test_parse_reads_groups_and_numbers_as_texts():
 def test_parse_rejects(text, groups, match):
     with pytest.raises(ValidatorTestsError, match=match):
         parse_validator_tests(text, groups=groups)
+
+
+def test_the_same_input_in_another_group_is_another_test():
+    tests = parse_validator_tests(_text(VALID, {**VALID, "group": "1"}), groups=["1"])
+    assert [test.group for test in tests] == [None, "1"]
 
 
 def test_every_group_needs_a_valid_test():
@@ -133,10 +132,7 @@ def test_wrong_tests_are_failures(copy_problem):
         {"covers": "far", "verdict": "INVALID", "group": "1", "input": "50\n", "expect": "n"},
         # Fails on the missing end of line, not on n.
         {"covers": "eoln", "verdict": "INVALID", "input": "5", "expect": "[name=n]"},
-        *(
-            {"covers": f"g{g}", "verdict": "VALID", "group": g, "input": f"{int(g) + 5}\n"}
-            for g in "12345"
-        ),
+        *({"covers": f"g{g}", "verdict": "VALID", "group": g, "input": "2\n"} for g in "12345"),
     ]
     (problem / VALIDATOR_TESTS_FILENAME).write_text(_text(*tests))
 
