@@ -89,6 +89,8 @@ class FakePolygon:
         self.test_groups: list[dict] | None = None
         # CheckerTest objects (`problem.checkerTests`).
         self.checker_tests: list[dict] = []
+        # ValidatorTest objects (`problem.validatorTests`).
+        self.validator_tests: list[dict] = []
         # The modification time of files and solutions in the listings (100 by default);
         # `None` — Polygon doesn't return it.
         self.mtimes: dict[str, int | None] = {}
@@ -113,6 +115,7 @@ class FakePolygon:
             "problem.validator": lambda: self.validator,
             "problem.checker": lambda: self.checker,
             "problem.checkerTests": lambda: self.checker_tests,
+            "problem.validatorTests": lambda: self.validator_tests,
             "problem.interactor": lambda: self.interactor,
             "problem.files": lambda: {
                 "resourceFiles": [self._listed(n, c) for n, c in self.resource_files.items()],
@@ -1928,3 +1931,68 @@ def test_pull_checker_tests_only_on_polygon_are_not_written(problems_dir, polygo
     assert item.status == ITEM_DIFFERS
     assert "none locally" in item.detail
     assert not (problems_dir / PROBLEM_ID / "checker_tests.yaml").exists()
+
+
+_VALIDATOR_TEST = {"covers": "n", "verdict": "INVALID", "input": "0\n", "expect": "[name=n]"}
+_REMOTE_VALIDATOR_TEST = {"index": 1, "input": "0\r\n", "expectedVerdict": "INVALID"}
+
+
+def _write_validator_tests(problems_dir: Path, tests: list[dict]) -> Path:
+    return _write(
+        problems_dir / PROBLEM_ID, "validator_tests.yaml", yaml.safe_dump({"tests": tests})
+    )
+
+
+def test_pull_without_validator_tests_reports_nothing(problems_dir, polygon):
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert "validator tests" not in _statuses(result)
+
+
+def test_pull_same_validator_tests(problems_dir, polygon):
+    _write_validator_tests(problems_dir, [_VALIDATOR_TEST])
+    polygon.validator_tests = [_REMOTE_VALIDATOR_TEST]
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["validator tests"] == ITEM_SAME
+    assert "validator_tests/1" in _synced(problems_dir)
+
+
+def test_pull_reports_validator_tests_changed_on_polygon_without_writing(problems_dir, polygon):
+    path = _write_validator_tests(problems_dir, [_VALIDATOR_TEST])
+    before = path.read_text()
+    polygon.validator_tests = [
+        {**_REMOTE_VALIDATOR_TEST, "expectedVerdict": "VALID"},
+        {**_REMOTE_VALIDATOR_TEST, "index": 2},
+    ]
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(i for i in result.items if i.name == "validator tests")
+    assert item.status == ITEM_DIFFERS
+    assert "tests 1 differ" in item.detail
+    assert "tests 2 are only on Polygon" in item.detail
+    assert "validator_tests.yaml by hand" in item.detail
+    assert path.read_text() == before
+
+
+def test_pull_keeps_validator_tests_changed_only_locally(problems_dir, polygon):
+    _write_validator_tests(problems_dir, [_VALIDATOR_TEST])
+    polygon.validator_tests = [_REMOTE_VALIDATOR_TEST]
+    pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+    _write_validator_tests(problems_dir, [{**_VALIDATOR_TEST, "input": "-1\n"}])
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    item = next(i for i in result.items if i.name == "validator tests")
+    assert item.status == ITEM_KEPT
+    assert "tests 1 will be pushed" in item.detail
+
+
+def test_pull_reports_an_unreadable_validator_tests_file(problems_dir, polygon):
+    _write(problems_dir / PROBLEM_ID, "validator_tests.yaml", "tests: [")
+
+    result = pull_problem(PROBLEM_ID, problems_dir=problems_dir, client=polygon)
+
+    assert _statuses(result)["validator tests"] == ITEM_ERROR

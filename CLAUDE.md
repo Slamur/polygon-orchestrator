@@ -74,8 +74,8 @@ In scope:
   `authoring/draft-tutorial.md` (`orchestrator <problem> llm tutorial`): the model
   expands the author's thoughts and adds only what they explicitly ask for;
 - syncing with Polygon through the Polygon API (`orchestrator/polygon/`):
-  creating the problem, TL/ML, `problem_lib.h`, validator, checker, checker tests (pull
-  only reports their differences), interactor,
+  creating the problem, TL/ML, `problem_lib.h`, validator, validator tests and checker tests
+  (pull only reports their differences), checker, interactor,
   statement with tutorial and examples, generators, test-script, solutions and
   `authoring/` files in Attachments; only what changed since the last
   sync is uploaded, after each step that uploaded something — `problem.commitChanges`;

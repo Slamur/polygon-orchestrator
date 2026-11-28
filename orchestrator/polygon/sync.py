@@ -60,6 +60,8 @@ CHECKER_FILE_KEY = "checker.cpp"
 CHECKER_KEY = "checker"  # the name of the assigned checker (`checker.cpp` or `std::...`)
 # A checker test on Polygon by its index, `checker_tests/<K>` (`checker_test_key`).
 CHECKER_TESTS_KEY_PREFIX = "checker_tests/"
+# A validator test on Polygon by its index, `validator_tests/<K>` (`validator_test_key`).
+VALIDATOR_TESTS_KEY_PREFIX = "validator_tests/"
 INTERACTIVE_KEY = "interactive"  # the problem's interactivity flag (`problem.updateInfo`)
 INTERACTOR_FILE_KEY = "interactor.cpp"
 INTERACTOR_KEY = "interactor"  # the name of the assigned interactor
@@ -136,6 +138,10 @@ def checker_test_key(index: int) -> str:
     return f"{CHECKER_TESTS_KEY_PREFIX}{index}"
 
 
+def validator_test_key(index: int) -> str:
+    return f"{VALIDATOR_TESTS_KEY_PREFIX}{index}"
+
+
 def generator_key(name: str) -> str:
     return f"generators/{name}"
 
@@ -195,14 +201,19 @@ def describe_keys(keys: Iterable[str]) -> list[str]:
     The assignment of the validator/checker/interactor together with its file is one
     line, the file."""
     keys = list(keys)
-    return [
-        _KEY_LABELS.get(key)
-        or (f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else _statement_label(key))
-        if not key.startswith(CHECKER_TESTS_KEY_PREFIX)
-        else f"checker test {key.removeprefix(CHECKER_TESTS_KEY_PREFIX)}"
-        for key in keys
-        if _ASSIGNED_FILES.get(key) not in keys
-    ]
+    return [_key_label(key) for key in keys if _ASSIGNED_FILES.get(key) not in keys]
+
+
+def _key_label(key: str) -> str:
+    for prefix, label in (
+        (CHECKER_TESTS_KEY_PREFIX, "checker test"),
+        (VALIDATOR_TESTS_KEY_PREFIX, "validator test"),
+    ):
+        if key.startswith(prefix):
+            return f"{label} {key.removeprefix(prefix)}"
+    return _KEY_LABELS.get(key) or (
+        f"{AUTHORING_DIRNAME}/{key}" if is_attachment_name(key) else _statement_label(key)
+    )
 
 
 def _statement_label(key: str) -> str:
