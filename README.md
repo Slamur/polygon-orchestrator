@@ -613,6 +613,11 @@ block first, between the `% \Extra: begin` and `% \Extra: end` lines; an outdate
 replaced by the template's current one) on the next `push`, which uploads it. The statement
 models keep the command as it is.
 
+Right after the block `push` puts the commented-out line `% \def\Extra#1{}`. To build a
+problem's statement without the fragments, uncomment it in its `resources/problem.tex` and
+`push`: the statement files stay as they are. The line is outside the block, so `push` keeps
+it as you left it; comment it out again to bring the fragments back.
+
 ### Contests
 
 A Polygon contest is described by `contests/<contest path>/contest.yaml` (any depth,

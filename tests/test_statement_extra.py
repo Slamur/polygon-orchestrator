@@ -4,6 +4,7 @@ from orchestrator.resources import STATEMENT_RESOURCES_DIR
 from orchestrator.statement_extra import (
     EXTRA_BEGIN,
     EXTRA_END,
+    EXTRA_OFF_LINE,
     ensure_extra_resources,
     extra_resources,
     uses_extra,
@@ -86,8 +87,11 @@ def test_without_extra_nothing_is_written(problem_dir, templates_dir):
     assert not (problem_dir / "resources").exists()
 
 
-def _block(newline: str = "\n") -> str:
-    return newline.join([EXTRA_BEGIN, EXTRA_CONTENT.decode().rstrip("\n"), EXTRA_END]) + newline
+def _block(newline: str = "\n", *, off: bool = True) -> str:
+    lines = [EXTRA_BEGIN, EXTRA_CONTENT.decode().rstrip("\n"), EXTRA_END]
+    if off:
+        lines.append(EXTRA_OFF_LINE)
+    return newline.join(lines) + newline
 
 
 def test_default_problem_tex_gets_the_block(problem_dir, templates_dir):
@@ -119,6 +123,31 @@ def test_outdated_block_is_replaced(problem_dir, templates_dir):
     files = extra_resources(problem_dir, templates_dir=templates_dir)
 
     assert files["problem.tex"] == b"% before\n" + _block().encode() + b"own\n"
+
+
+def test_off_line_is_added_after_an_existing_block(problem_dir, templates_dir):
+    _statement(problem_dir, "\\Extra{text}\n")
+    _own(problem_dir, "problem.tex", _block(off=False).encode() + b"own\n")
+
+    files = extra_resources(problem_dir, templates_dir=templates_dir)
+
+    assert files["problem.tex"] == _block().encode() + b"own\n"
+
+
+@pytest.mark.parametrize("off", ["\\def\\Extra#1{}", "%\\def\\Extra#1{}%", "  \\def\\Extra#1{} "])
+def test_off_line_in_any_form_is_kept(problem_dir, templates_dir, off):
+    _statement(problem_dir, "\\Extra{text}\n")
+    old = f"{EXTRA_BEGIN}\n% old definition\n{EXTRA_END}\nown\n{off}\n"
+    _own(problem_dir, "problem.tex", old.encode())
+
+    files = extra_resources(problem_dir, templates_dir=templates_dir)
+
+    assert files["problem.tex"] == _block(off=False).encode() + f"own\n{off}\n".encode()
+
+
+def test_off_line_is_a_comment_that_redefines_the_command():
+    assert EXTRA_OFF_LINE.startswith("%")
+    assert EXTRA_OFF_LINE.lstrip("% ") == "\\def\\Extra#1{}"
 
 
 def test_current_block_is_kept(problem_dir, templates_dir):
